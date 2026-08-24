@@ -1,0 +1,135 @@
+---
+Checks: >
+  *,
+  -abseil-*,
+  -android-*,
+  -fuchsia-*,
+  -google-*,
+  -llvmlibc-*,
+  -objc-*,
+  -zircon-*,
+  -altera-*,
+  -cuda-*,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -readability-convert-member-functions-to-static,
+  -readability-redundant-member-function-pointers,
+  -portability-avoid-pragma-once,
+  -llvm-header-guard,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -modernize-avoid-c-arrays,
+  -hicpp-avoid-c-arrays,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -bugprone-easily-swappable-parameters,
+  -performance-enum-size,
+  -misc-include-cleaner,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-macro-usage,
+  -hicpp-uppercase-literal-suffix,
+  -readability-uppercase-literal-suffix,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -hicpp-signed-bitwise,
+  -modernize-use-nodiscard,
+  -modernize-use-designated-initializers,
+  -readability-math-missing-parentheses,
+  -misc-const-correctness,
+  -readability-redundant-inline-specifier,
+  -hicpp-special-member-functions,
+  -cppcoreguidelines-special-member-functions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -readability-avoid-nested-conditional-operator,
+  -readability-implicit-bool-conversion,
+  -bugprone-incorrect-roundings,
+  -cppcoreguidelines-use-enum-class,
+  -llvm-prefer-static-over-anonymous-namespace,
+  -misc-use-internal-linkage,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -readability-redundant-member-init,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -hicpp-no-array-decay,
+  -boost-use-ranges,
+  -misc-use-anonymous-namespace,
+  -clang-diagnostic-c2y-extensions,
+  -misc-non-private-member-variables-in-classes,
+  -clang-diagnostic-pragma-once-outside-header
+
+CheckOptions:
+  # Naming conventions
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.UnionCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack
+
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+
+  # Global constants: use UPPER_CASE, no k-prefix
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: ""
+  - key: readability-identifier-naming.GlobalConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstexprVariablePrefix
+    value: ""
+  - key: readability-identifier-naming.StaticConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstexprVariablePrefix
+    value: ""
+  - key: readability-identifier-naming.LocalConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.LocalConstexprVariablePrefix
+    value: ""
+
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: _
+
+  # Code guidelines
+  - key: readability-magic-numbers.GoodVariablesNames
+    value: "i,j,k,x,y,z,cx,cy,cz,dx,dy,dz,n,m,ret,result,error_code"
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: "0,1,2,3,4,5,8,10,16,32,64,100,255,256,512,1024"
+
+  - key: readability-function-size.LineThreshold
+    value: 50
+  - key: readability-function-size.StatementThreshold
+    value: 30
+
+  - key: cppcoreguidelines-init-variables.IncludeStyle
+    value: llvm
+
+  - key: portability-simd-intrinsics.ReportNonPortableSimdIntrinsics
+    value: "true"
+
+
+WarningsAsErrors: ""
+HeaderFilterRegex: "^.*/(engine|game|editor)/(.*\\.h)?$"
+FormatStyle: file

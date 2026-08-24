@@ -1,0 +1,46 @@
+.DS_Store
+.vscode
+.vscode/*
+.claude/worktrees/*
+.claire
+build
+build*/
+build/*
+.cache
+.cache/*
+.autocode/
+# Editor build module and tests are source code, not build artifacts
+!editor/build/
+!editor/build/**
+!tests/**/build/
+!tests/**/build/**
+
+# Code coverage artifacts (LLVM/Clang)
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+*.gcov
+
+# Autocode runtime artifacts (logs, results, locks)
+autocode/results/
+autocode/logs/
+autocode/.locks/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temporary test artifacts
+temp/
+
+# Temporary working checklists
+clang-tidy-checklist*.md
+invariant-checklist*.md
+lint-checklist.md
+test-failures.md
+post-task-test-failures.md
+
+# Test capture artifacts
+*-capture.png
+build-checklist.md

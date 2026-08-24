@@ -1,0 +1,13 @@
+{
+	"extraKnownMarketplaces": {
+		"every-marketplace": {
+			"source": {
+				"source": "git",
+				"url": "https://github.com/EveryInc/compound-engineering-plugin.git"
+			}
+		}
+	},
+	"enabledPlugins": {
+		"compound-engineering@every-marketplace": true
+	}
+}

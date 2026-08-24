@@ -1,0 +1,77 @@
+---
+Language: Cpp
+Standard: c++20
+
+# Indentation
+IndentWidth: 2
+UseTab: Never
+TabWidth: 2
+IndentCaseLabels: true
+
+# Line length and wrapping
+ColumnLimit: 80
+ReflowComments: true
+BreakBeforeBraces: Attach
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpaceBeforeSquareBrackets: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpacesBeforeTrailingComments: 2
+
+# Pointer/Reference alignment
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+# Function declaration/definition formatting
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Braces
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeWhile: false
+  IndentBraces: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Include sorting
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+# Constructor/Initializer lists
+ConstructorInitializerIndentWidth: 2
+Cpp11BracedListStyle: true
+
+# Namespace
+NamespaceIndentation: Inner
+
+# Brace insertion
+InsertBraces: true
+
+# Other
+AccessModifierOffset: -2
+FixNamespaceComments: true
+SortUsingDeclarations: true
+MaxEmptyLinesToKeep: 2
