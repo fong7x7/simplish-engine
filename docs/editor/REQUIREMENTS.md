@@ -27,7 +27,7 @@ What the slice deliberately does not do yet: nothing is authored. The tools sele
 
 Two decisions the slice locks in:
 
-- **The viewport camera pans and zooms; it never rotates.** The projection is fixed at 45° yaw and 2:1 dimetric pitch, matching [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md). A rotating editor camera would show the world at angles no sprite is authored for.
+- **The viewport camera pans and zooms; it never rotates.** The projection is fixed at zero yaw and 4:3 dimetric foreshortening — axis-aligned 64×48 tiles with the height axis running straight up the screen — matching [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md). A rotating editor camera would show the world at angles no sprite is authored for.
 - **`isoTimestampNow()` is editor-only.** It reads the wall clock, which simulation code may never do ([ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md)). Project metadata timestamps are an editor concern and stay on the editor side of that line.
 
 The editor exists because levels are hand-authored. Every design decision in [Game REQUIREMENTS](../game/REQUIREMENTS.md) — enemy funnelling, spawn placement, wave pacing — depends on somebody shaping a specific space, and that shaping needs a tool with an immediate feedback loop.

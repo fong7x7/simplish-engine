@@ -3,7 +3,7 @@
 // Design Summary -- EditorViewportWidget
 //
 // Behaviours:
-//   - Draws the isometric level grid: tile lines, world origin axes, and a
+//   - Draws the dimetric level grid: tile lines, world origin axes, and a
 //     hover highlight on the tile under the cursor
 //   - Middle-drag, or left-drag with Shift, pans the camera
 //   - Scroll wheel zooms about the cursor
@@ -29,7 +29,7 @@
 
 namespace eng::editor {
 
-/// The level viewport: an isometric grid with pan and zoom.
+/// The level viewport: a dimetric tile grid with pan and zoom.
 /// @thread_safety Main-thread only.
 class EditorViewportWidget : public GuiWidget {
 public:

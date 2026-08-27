@@ -1,6 +1,6 @@
 # ADR-003: Hybrid 3D geometry and billboarded sprites under one depth buffer
 
-**Status:** Accepted
+**Status:** Accepted (projection amended 2026-08-26)
 **Date:** 2026-08-22
 **Scope:** Engine
 
@@ -16,7 +16,7 @@ Compounding it: at 2,000 enemies and 20,000 projectiles, any per-object CPU sort
 
 Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, with sprites participating in the depth buffer rather than being composited over it.
 
-- The camera is fixed orthographic at 45° yaw and 2:1 dimetric pitch (26.565°). It translates and zooms; it never rotates, and the renderer is permitted to depend on that.
+- The camera is fixed orthographic at **zero yaw and 4:3 dimetric foreshortening**: world +X runs straight across the screen, world +Y is foreshortened to 3/4, and world +Z rises straight up the screen unforeshortened. Tiles are axis-aligned rectangles, not diamonds, and vertical surfaces are seen face-on. It translates and zooms; it never rotates, and the renderer is permitted to depend on that. (Amended 2026-08-26 — see [Amendment](#amendment-2026-08-26-straight-on-projection).)
 - Terrain, structures, and large props are 3D meshes, instanced, depth-tested and depth-written normally.
 - Characters, small props, and effects are camera-facing billboarded quads. Each writes per-pixel depth derived from its world footprint and a declared height ramp — the sprite's base sits at its world-space ground position, and depth increases up the sprite according to the ramp, so a tall sprite occludes correctly against geometry both in front of and behind it.
 - Alpha-test cutout gives hard sprite edges that depth-write correctly. Genuinely translucent effects draw in a later back-to-front pass with depth-test but no depth-write.
@@ -61,7 +61,7 @@ Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, 
 ### Negative
 
 - The per-pixel depth write for sprites is a real shader cost and disables early-Z for that draw. It must be measured on the reference GPU; if it proves too expensive, the fallback is a per-sprite depth bias with a documented and accepted failure mode for extreme height ratios.
-- Sprite art must be authored against the fixed projection angle. Changing the camera angle later invalidates the art library — this is a one-way door, and the projection choice is [an open question](../../REQUIREMENTS.md#8-open-questions) that should be closed before art production starts.
+- Sprite art must be authored against the fixed projection angle. Changing the camera angle later invalidates the art library — this is a one-way door, closed by the amendment below before art production started.
 - Alpha-test cutout gives hard edges; soft edges need the later translucent pass, which does not depth-write and therefore can sort incorrectly against other translucent effects. Acceptable for glows and smoke, not for anything gameplay-relevant.
 - Height-ramp metadata is required per sprite archetype, which the asset pipeline must produce and validate.
 
@@ -71,3 +71,27 @@ Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, 
 - The sprite pipeline needs per-archetype height ramps as first-class metadata ([Editor §8](../editor/REQUIREMENTS.md#8-asset-pipeline)).
 - Golden-image tests must cover the sprite/geometry interleave specifically — a character behind, beside, and in front of a tall structure — on every backend.
 - If sprites are pre-rendered from 3D models ([open question 2](../../REQUIREMENTS.md#8-open-questions)), the pre-render step can emit depth and normal data directly, which would make this path cheaper and more accurate. That argues in favour of pre-rendering.
+
+---
+
+## Amendment (2026-08-26): straight-on projection
+
+The original decision inherited the conventional 45°-yaw isometric camera, which closed [open question 1](../../REQUIREMENTS.md#8-open-questions) by default rather than on purpose. It is now closed deliberately, the other way.
+
+**What changed.** Yaw goes to zero and the height axis is drawn unforeshortened:
+
+| Axis | Before (45° yaw, 2:1) | After (zero yaw, 4:3) |
+|---|---|---|
+| World +X | right and down | straight right, scale 1.0 |
+| World +Y | left and down | straight down, scale 0.75 |
+| World +Z | up, sheared by the yaw | straight up, scale 1.0 |
+| Tile footprint | 64×32 diamond | 64×48 rectangle |
+
+**Why.** The target reference is the Stardew Valley / 16-bit JRPG viewpoint rather than the Diablo/Age of Empires one. Two things follow from it:
+
+- **Vertical surfaces are seen face-on.** With yaw at zero the camera looks straight down the world Y axis, so a wall, a character, or a tree presents its front to the camera instead of a corner. That is exactly what a billboarded sprite already draws, so the sprite and the geometry it stands against agree — the awkward case under 45° yaw, where a billboard faces the camera but the mesh beside it shows two receding faces, disappears.
+- **X and Z share a scale; Y does not.** That unequal foreshortening is what makes the projection dimetric, and it means a sprite's on-screen height is its world height with no correction factor. Sprite sheets can be authored at their true pixel height.
+
+**What it costs.** Tiles no longer tessellate into the diamond lattice that makes 45° depth sorting a simple `x + y` ordering; depth along the view axis is now world Y alone, which is simpler still. The 3/4 ratio keeps clean pixel math at the 64 px tile size (64×48), but it is not the classic 2:1, so any tile art that assumed a 64×32 diamond must be re-authored. No such art exists yet, which is why this amendment lands now rather than later.
+
+**Where it lives.** `src/editor/shell/include/editor/shell/iso-projection.h` — `ISO_TILE_WIDTH`, `ISO_TILE_DEPTH`, and `ISO_TILE_RISE`. Everything else about this ADR — the single depth-buffered pass, billboards writing per-pixel depth, no CPU sort — is unaffected.

@@ -142,7 +142,7 @@ Dependencies are deliberately few — nlohmann_json, FreeType, stb, SDL3, and Ca
 
 | # | Question | Blocks |
 |---|---|---|
-| 1 | Isometric projection: 2:1 dimetric (26.565° pitch, clean pixel ratios) or true isometric (35.264°)? Default assumed 2:1 — see [ADR-003](docs/decisions/ADR-003-hybrid-iso-render-model.md) | Art pipeline, sprite authoring |
+| ~~1~~ | ~~Isometric projection~~ **Closed 2026-08-26:** zero yaw, 4:3 dimetric — axis-aligned 64×48 tiles with an unforeshortened height axis (the Stardew Valley viewpoint), not a 45°-yaw isometric one. See [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-08-26-straight-on-projection) | ~~Art pipeline, sprite authoring~~ |
 | 2 | Sprite source: hand-authored 2D, or 3D models pre-rendered to sprite sheets at fixed angles? The latter makes 8-direction facing cheap and keeps lighting consistent with the 3D terrain | Asset pipeline, M9 |
 | 3 | Does the world have multiple height levels (stairs, elevated platforms, verticality), or is it a single floor plane with props? Verticality complicates occlusion, pathing, and depth policy considerably | Level format, editor tooling |
 | 4 | Co-op transport: peer-to-peer lockstep, or always a listen server? Deterministic lockstep works for both; the choice affects NAT traversal and distributor relay integration | M6 |

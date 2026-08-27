@@ -1,7 +1,7 @@
 #pragma once
 
 /// @file iso-camera.h
-/// @brief Pan-and-zoom camera for the isometric editor viewport.
+/// @brief Pan-and-zoom camera for the dimetric editor viewport.
 /// @par Threading Main-thread-only.
 
 #include <algorithm>
@@ -19,10 +19,10 @@ inline constexpr float ISO_ZOOM_STEP = 1.12f;
 /// Editor viewport camera.
 ///
 /// Pan and zoom only — there is deliberately no rotation. The projection is
-/// fixed at 45° yaw and 2:1 dimetric pitch, and the renderer is allowed to
-/// depend on that (docs/decisions/ADR-003-hybrid-iso-render-model.md). A
-/// rotating editor camera would show the world at angles no sprite is
-/// authored for.
+/// fixed at zero yaw and 4:3 dimetric foreshortening, and the renderer is
+/// allowed to depend on that
+/// (docs/decisions/ADR-003-hybrid-iso-render-model.md). A rotating editor
+/// camera would show the world at angles no sprite is authored for.
 /// @thread_safety Main-thread-only.
 struct IsoCamera {
   /// Isometric-plane point pinned to the viewport centre.

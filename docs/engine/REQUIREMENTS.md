@@ -113,7 +113,7 @@ A replay is `{level id, content hash, seed, input stream}` — typically under 1
 
 ### 5.1 Camera and Projection
 
-A **fixed orthographic camera** at 45° yaw and a 2:1 dimetric pitch (26.565°) — the ratio that makes a world-space tile occupy an exact 2:1 pixel footprint. The angle is configurable at build time but constant at runtime; the camera translates and zooms, never rotates. Rotation is out of scope, and the renderer is allowed to depend on that.
+A **fixed orthographic camera** at zero yaw and 4:3 dimetric foreshortening — world +X runs straight across the screen at full scale, world +Y recedes down the screen at 0.75, and world +Z rises straight up at full scale. Tiles are axis-aligned 64×48 rectangles and vertical surfaces are seen face-on, the Stardew Valley viewpoint rather than the 45°-yaw isometric one ([ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-08-26-straight-on-projection)). The ratio is configurable at build time but constant at runtime; the camera translates and zooms, never rotates. Rotation is out of scope, and the renderer is allowed to depend on that.
 
 Because the camera is fixed and orthographic, the engine gets several things cheaply: cell-stable culling, stable sprite footprints (no perspective foreshortening to correct for), and a screen-space depth ordering that follows directly from world position.
 
