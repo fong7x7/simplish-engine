@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <engine/client/desktop-platform-keycode.h>
+#include <engine/client/desktop-platform-mouse-button.h>
 #include <engine/client/desktop-platform-utility.h>
 #include <engine/core/init.h>
 #include <engine/gui/gui-key-event.h>
@@ -20,6 +21,13 @@
 #pragma clang diagnostic pop
 
 namespace eng::client {
+
+// The mirrored SDL button indices in desktop-platform-mouse-button.h exist so
+// the mapping is testable without SDL headers. This is where they are checked
+// against the real thing.
+static_assert(DesktopPlatformMouseButton::LEFT == SDL_BUTTON_LEFT);
+static_assert(DesktopPlatformMouseButton::MIDDLE == SDL_BUTTON_MIDDLE);
+static_assert(DesktopPlatformMouseButton::RIGHT == SDL_BUTTON_RIGHT);
 
 static_assert(static_cast<uint32_t>(SDLK_ESCAPE) ==
               DesktopPlatformKeycode::ESCAPE);
@@ -57,6 +65,18 @@ namespace {
                                static_cast<int>(config.min_window_height));
     }
     return win;
+  }
+
+  /// Build a GUI mouse event from an SDL button event.
+  eng::GuiMouseEvent mouseEventFromSdl(const SDL_MouseButtonEvent& button,
+                                       eng::GuiMouseEventType type) {
+    eng::GuiMouseEvent me{};
+    me.type = type;
+    me.x = static_cast<float>(button.x);
+    me.y = static_cast<float>(button.y);
+    me.button = eng::client::mapDesktopMouseButton(button.button);
+    me.shift_held = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+    return me;
   }
 
   /// Build an EngineConfig from the game client config.
@@ -222,27 +242,23 @@ void DesktopGameClient::
         const SDL_Event& event) {
   switch (event.type) {
     case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-      eng::GuiMouseEvent me{};
-      me.x = static_cast<float>(event.button.x);
-      me.y = static_cast<float>(event.button.y);
-      me.shift_held = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
-      guiDispatchMouseDown(me);
+      guiDispatchMouseDown(
+          mouseEventFromSdl(event.button, eng::GuiMouseEventType::BUTTON_DOWN));
       syncSdlTextInputState();
       break;
     }
     case SDL_EVENT_MOUSE_BUTTON_UP: {
-      eng::GuiMouseEvent me{};
-      me.x = static_cast<float>(event.button.x);
-      me.y = static_cast<float>(event.button.y);
-      me.shift_held = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
-      guiDispatchMouseUp(me);
+      guiDispatchMouseUp(
+          mouseEventFromSdl(event.button, eng::GuiMouseEventType::BUTTON_UP));
       syncSdlTextInputState();
       break;
     }
     case SDL_EVENT_MOUSE_MOTION: {
       eng::GuiMouseEvent me;
+      me.type = eng::GuiMouseEventType::MOVE;
       me.x = static_cast<float>(event.motion.x);
       me.y = static_cast<float>(event.motion.y);
+      me.shift_held = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
       guiDispatchMouseMove(me);
       break;
     }

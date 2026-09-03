@@ -1,10 +1,11 @@
-# simplish-editor-shell — editor chrome: title bar, toolbar, viewport
+# simplish-editor-shell — editor chrome: title bar, menu bar, toolbar, viewport
 #
 # SimplishEditor extends the platform DesktopGameClient. The widgets are
 # engine GuiWidget subclasses, so they are constructible and testable without
 # a window or a GPU.
 
 set(_shell_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"

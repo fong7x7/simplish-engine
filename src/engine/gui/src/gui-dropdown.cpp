@@ -22,6 +22,12 @@ namespace {
   /// Alpha multiplier applied to the text colour for disabled rows so
   /// they read as greyed-out without needing a separate style colour.
   constexpr float DISABLED_TEXT_OPACITY = 0.4F;
+  /// Alpha multiplier for separator lines.
+  constexpr float SEPARATOR_OPACITY = 0.3F;
+  /// Thickness of a separator line in logical pixels.
+  constexpr float SEPARATOR_THICKNESS = 1.0F;
+  /// Gap between the right edge of the menu and a shortcut hint.
+  constexpr int SHORTCUT_PAD = 12;
 
 }  // namespace
 
@@ -61,22 +67,60 @@ void GuiDropdown::renderHoverHighlight(const GuiDrawContext& ctx,
   ctx.drawFilledRect(hr, rs.hover);
 }
 
-void GuiDropdown::renderItems(const GuiDrawContext& ctx,
-                              const ResolvedStyle& rs) const {
+void GuiDropdown::renderSeparator(const GuiDrawContext& ctx,
+                                  const ResolvedStyle& rs, float iy) const {
   const auto wf = static_cast<float>(rs.width);
   const auto ihf = static_cast<float>(rs.item_height);
-  const auto dim = GuiColor::applyOpacity(rs.text, DISABLED_TEXT_OPACITY);
+  const auto pad = static_cast<float>(ITEM_TEXT_PAD);
+  Rect line{rect.x + pad, iy + (ihf * 0.5F) - (SEPARATOR_THICKNESS * 0.5F),
+            wf - 2.0F * pad, SEPARATOR_THICKNESS};
+  ctx.drawFilledRect(line, GuiColor::applyOpacity(rs.text, SEPARATOR_OPACITY));
+}
+
+void GuiDropdown::renderItemText(const GuiDrawContext& ctx,
+                                 const RowParams& row) const {
+  const auto wf = static_cast<float>(row.rs.width);
+  const auto ihf = static_cast<float>(row.rs.item_height);
+  const auto color =
+      row.item.enabled
+          ? row.rs.text
+          : GuiColor::applyOpacity(row.rs.text, DISABLED_TEXT_OPACITY);
+  Rect line_rect{rect.x, row.iy, wf, ihf};
+  const DrawPos label_pos =
+      drawPosInset(line_rect, static_cast<float>(ITEM_TEXT_PAD),
+                   static_cast<float>(ITEM_TEXT_VPAD));
+  ctx.drawText(color, label_pos, row.item.label);
+  renderShortcut(ctx, row, label_pos.y);
+}
+
+void GuiDropdown::renderShortcut(const GuiDrawContext& ctx,
+                                 const RowParams& row, float text_y) const {
+  if (row.item.shortcut.empty()) {
+    return;
+  }
+  // Right-align the accelerator against the menu's right edge, which is set
+  // by the style width rather than by `rect.w`.
+  const float shortcut_w = ctx.measureText(row.item.shortcut);
+  const float x = rect.x + static_cast<float>(row.rs.width) -
+                  static_cast<float>(SHORTCUT_PAD) - shortcut_w;
+  ctx.drawText(GuiColor::applyOpacity(row.rs.text, DISABLED_TEXT_OPACITY),
+               {x, text_y}, row.item.shortcut);
+}
+
+void GuiDropdown::renderItems(const GuiDrawContext& ctx,
+                              const ResolvedStyle& rs) const {
+  const auto ihf = static_cast<float>(rs.item_height);
   for (int i = 0; std::cmp_less(i, items.size()); ++i) {
     const auto& item = items[static_cast<size_t>(i)];
     float iy = rect.y + static_cast<float>(i) * ihf;
+    if (item.separator) {
+      renderSeparator(ctx, rs, iy);
+      continue;
+    }
     if (i == hovered_item && item.enabled) {
       renderHoverHighlight(ctx, rs, iy);
     }
-    Rect line_rect{rect.x, iy, wf, ihf};
-    ctx.drawText(item.enabled ? rs.text : dim,
-                 drawPosInset(line_rect, static_cast<float>(ITEM_TEXT_PAD),
-                              static_cast<float>(ITEM_TEXT_VPAD)),
-                 item.label);
+    renderItemText(ctx, {rs, item, iy});
   }
 }
 
@@ -108,7 +152,7 @@ void GuiDropdown::selectItem(int index) {
     return;
   }
   auto& item = items[static_cast<size_t>(index)];
-  if (!item.enabled) {
+  if (!item.enabled || item.separator) {
     return;
   }
   if (item.on_select) {

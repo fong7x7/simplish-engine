@@ -19,15 +19,20 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 
 | Package | Covers | State |
 |---|---|---|
-| `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 27 tests |
-| `src/editor/shell/` | Title bar, tool toolbar (Select / Tile / Height / Prop / Entity), and the isometric viewport with pan and zoom | Built; 29 tests |
+| `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 22 tests |
+| `src/editor/shell/` | Title bar, menu bar (File / Edit / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), and the dimetric viewport with left- or middle-drag pan and scroll zoom | Built; 69 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line | Built |
 
-What the slice deliberately does not do yet: nothing is authored. The tools select but do not edit, the viewport draws a grid but holds no level data, and there is no menu bar, dockspace, save, or undo. Those arrive with the level format (§4.4) and the sections below.
+What the slice deliberately does not do yet: nothing is authored. The tools select but do not edit, the viewport draws a grid but holds no level data, and there is no dockspace, save, or undo. Those arrive with the level format (§4.4) and the sections below.
+
+The menu bar is the exception that proves the point. It is built — File, Edit, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 
 Two decisions the slice locks in:
 
+- **Left-drag pans the viewport**, alongside middle-drag, so the obvious gesture moves the view. The cost is that the viewport captures every left press inside it, which is the button the authoring tools will eventually want for placing and selecting. When the tools start editing, one of the two has to give: a held modifier, an explicit pan mode, or middle-drag-only panning. That is a deliberate choice for now, not an oversight.
 - **The viewport camera pans and zooms; it never rotates.** The projection is fixed at zero yaw and 4:3 dimetric foreshortening — axis-aligned 64×48 tiles with the height axis running straight up the screen — matching [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md). A rotating editor camera would show the world at angles no sprite is authored for.
+- **A menu command that cannot work is shown, not hidden.** Save, Undo, Redo, Cut/Copy/Paste, and Settings are listed and greyed out; only commands the editor can carry out today are enabled (`editor-menu-command.h`). A greyed row is a promise about the roadmap; a missing row is a lie about it. The same rule gates Close Project on whether a project is open.
+- **An accelerator hint is only shown when the key works.** The View commands display `0`, `=`, `-`, and `G` because `SimplishEditor::onClientKeyDown` handles them. Nothing else shows a hint, because nothing else has a binding — a hint for a dead key is worse than no hint.
 - **`isoTimestampNow()` is editor-only.** It reads the wall clock, which simulation code may never do ([ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md)). Project metadata timestamps are an editor concern and stay on the editor side of that line.
 
 The editor exists because levels are hand-authored. Every design decision in [Game REQUIREMENTS](../game/REQUIREMENTS.md) — enemy funnelling, spawn placement, wave pacing — depends on somebody shaping a specific space, and that shaping needs a tool with an immediate feedback loop.

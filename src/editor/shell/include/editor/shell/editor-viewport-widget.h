@@ -5,7 +5,9 @@
 // Behaviours:
 //   - Draws the dimetric level grid: tile lines, world origin axes, and a
 //     hover highlight on the tile under the cursor
-//   - Middle-drag, or left-drag with Shift, pans the camera
+//   - The grid can be hidden without affecting axes, hover, or picking
+//   - Left-drag or middle-drag pans the camera; the world tracks the
+//     cursor one-to-one at any zoom
 //   - Scroll wheel zooms about the cursor
 //   - Reports the hovered tile so the toolbar/status text can show it
 //
@@ -41,7 +43,11 @@ public:
   /// Draw background, grid, origin axes, and the hover highlight.
   void render(const GuiDrawContext& ctx) const override;
 
-  /// Begin a pan on middle-drag or Shift+left-drag. Returns true to capture.
+  /// Begin a pan on left- or middle-drag. Returns true to capture.
+  ///
+  /// Left-drag pans, which means the viewport captures every left press.
+  /// When the authoring tools start editing on click they will need a
+  /// modifier, a mode, or a different button to share it with.
   bool handleMouseDown(const GuiMouseEvent& event) override;
 
   /// End the active pan.
@@ -63,7 +69,14 @@ public:
   /// Camera state; mutable so the shell can reset or frame the view.
   IsoCamera camera{};
 
+  /// Whether the tile grid is drawn. Hiding it leaves picking untouched —
+  /// the grid is a drawing, not the source of tile coordinates.
+  bool show_grid = true;
+
 private:
+  /// Draw the scissored world layer: grid, axes, and hover highlight.
+  void renderScene(GuiRendererContext& renderer) const;
+
   /// Recompute `hovered_tile_` from a screen position.
   void updateHover(float x, float y);
 

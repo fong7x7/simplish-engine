@@ -16,7 +16,9 @@ namespace {
       auto u = static_cast<unsigned char>(c);
       c = static_cast<char>(std::tolower(u));
     }
-    return ext == ".ttf" || ext == ".otf";
+    // .ttc is a TrueType collection; FreeType opens face 0 of one exactly
+    // like a .ttf, and on macOS most system faces ship only in that form.
+    return ext == ".ttf" || ext == ".otf" || ext == ".ttc";
   }
 
   std::string familyFromPath(const std::filesystem::path& path) {
@@ -57,6 +59,10 @@ std::vector<std::filesystem::path> guiSystemFontDirectories() {
   std::vector<std::filesystem::path> dirs;
 
 #ifdef __APPLE__
+  // /System/Library/Fonts holds the faces a Mac actually renders its own UI
+  // with; /Library/Fonts is often close to empty on a clean install.
+  dirs.emplace_back("/System/Library/Fonts");
+  dirs.emplace_back("/System/Library/Fonts/Supplemental");
   dirs.emplace_back("/Library/Fonts");
   // NOLINTNEXTLINE(concurrency-mt-unsafe) -- main-thread-only; called at init
   if (const char* home = std::getenv("HOME")) {
@@ -73,6 +79,36 @@ std::vector<std::filesystem::path> guiSystemFontDirectories() {
 #endif
 
   return dirs;
+}
+
+std::vector<std::string_view> guiPreferredUiFontFamilies() {
+#ifdef __APPLE__
+  return {"SFNS", "HelveticaNeue", "Helvetica", "Arial", "Geneva"};
+#elifdef _WIN32
+  return {"segoeui", "Tahoma", "Verdana", "arial"};
+#else
+  return {"DejaVuSans", "LiberationSans", "NotoSans", "FreeSans"};
+#endif
+}
+
+std::optional<GuiFontListEntry>
+selectGuiUiFont(const std::filesystem::path& bundled_dir) {
+  const auto fonts = discoverGuiFonts(bundled_dir);
+  if (fonts.empty()) {
+    return std::nullopt;
+  }
+  for (const auto& font : fonts) {
+    if (font.is_bundled) {
+      return font;
+    }
+  }
+  for (std::string_view family : guiPreferredUiFontFamilies()) {
+    auto it = std::ranges::find(fonts, family, &GuiFontListEntry::family);
+    if (it != fonts.end()) {
+      return *it;
+    }
+  }
+  return fonts.front();
 }
 
 std::vector<GuiFontListEntry>

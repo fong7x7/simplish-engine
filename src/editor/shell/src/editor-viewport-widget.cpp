@@ -87,6 +87,20 @@ std::unique_ptr<GuiWidget> EditorViewportWidget::clone() const {
   return std::make_unique<EditorViewportWidget>(*this);
 }
 
+void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
+  const IsoView view = makeIsoView(camera, rect);
+  // Grid lines run past the viewport by design; scissor keeps them inside.
+  renderer.pushScissor(rect);
+  if (show_grid) {
+    renderGrid(renderer, view);
+  }
+  renderAxes(renderer, view);
+  if (has_hover_) {
+    renderTileHighlight(renderer, view, hovered_tile_);
+  }
+  renderer.popScissor();
+}
+
 void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
   if (rect.w <= 0.0f || rect.h <= 0.0f) {
     return;
@@ -96,15 +110,7 @@ void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
   ctx.drawFilledRect(rect, bg);
 
   if (ctx.renderer != nullptr) {
-    const IsoView view = makeIsoView(camera, rect);
-    // Grid lines run past the viewport by design; scissor keeps them inside.
-    ctx.renderer->pushScissor(rect);
-    renderGrid(*ctx.renderer, view);
-    renderAxes(*ctx.renderer, view);
-    if (has_hover_) {
-      renderTileHighlight(*ctx.renderer, view, hovered_tile_);
-    }
-    ctx.renderer->popScissor();
+    renderScene(*ctx.renderer);
   }
 
   ctx.drawBorderRect(rect, GuiColor::applyOpacity(THEME_BORDER, opacity));
@@ -113,9 +119,8 @@ void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
 }
 
 bool EditorViewportWidget::handleMouseDown(const GuiMouseEvent& event) {
-  const bool pan_button =
-      event.button == GuiMouseButton::MIDDLE ||
-      (event.button == GuiMouseButton::LEFT && event.shift_held);
+  const bool pan_button = event.button == GuiMouseButton::MIDDLE ||
+                          event.button == GuiMouseButton::LEFT;
   if (!pan_button) {
     return false;
   }

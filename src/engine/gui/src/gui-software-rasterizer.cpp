@@ -34,6 +34,12 @@ namespace {
   /// `engine/gui/src/gui-renderer.cpp`).
   constexpr size_t VERTICES_PER_QUAD = 4;
 
+  /// `GuiVertex::flags` bit marking a textured quad; glyphs use it alone.
+  constexpr uint32_t VERTEX_FLAG_TEXTURED = 0x2U;
+
+  /// Smallest quad extent used as a divisor, to keep the UV map finite.
+  constexpr float MIN_QUAD_EXTENT = 1e-4F;
+
   /// Fractional conversion factor for RGBA byte components.
   constexpr float BYTE_TO_UNIT = 1.0F / 255.0F;
   /// Scale factor when packing a unit float back to a byte.
@@ -151,6 +157,13 @@ namespace {
     std::vector<uint8_t>* pixels = nullptr;
     /// Image width in pixels (stride = width × RGBA_BYTES).
     uint32_t width = 0;
+    /// Font atlas used to sample glyph quads; empty paints them solid.
+    GuiSoftwareRasterizer::GlyphAtlas glyphs{};
+
+    /// Whether glyph quads can be sampled rather than painted solid.
+    [[nodiscard]] bool hasGlyphAtlas() const {
+      return !glyphs.rgba_pixels.empty();
+    }
   };
 
   /// Write an RGBA float colour into the pixel buffer at (x, y).
@@ -191,6 +204,110 @@ namespace {
     return near_left || near_right || near_top || near_bottom;
   }
 
+  /// Texture-coordinate extent of a quad, taken as min/max across its
+  /// corners so the mapping does not depend on vertex winding.
+  struct UvBounds {
+    /// Minimum u across all 4 corners.
+    float min_u = 0.0F;
+    /// Maximum u across all 4 corners.
+    float max_u = 0.0F;
+    /// Minimum v across all 4 corners.
+    float min_v = 0.0F;
+    /// Maximum v across all 4 corners.
+    float max_v = 0.0F;
+  };
+
+  /// Compute the uv bounding box of a 4-vertex quad.
+  UvBounds quadUvBounds(const std::array<GuiVertex, VERTICES_PER_QUAD>& quad) {
+    UvBounds b{quad[0].uv[0], quad[0].uv[0], quad[0].uv[1], quad[0].uv[1]};
+    for (size_t i = 1; i < VERTICES_PER_QUAD; ++i) {
+      b.min_u = std::min(b.min_u, quad[i].uv[0]);
+      b.max_u = std::max(b.max_u, quad[i].uv[0]);
+      b.min_v = std::min(b.min_v, quad[i].uv[1]);
+      b.max_v = std::max(b.max_v, quad[i].uv[1]);
+    }
+    return b;
+  }
+
+  /// Affine map from pixel centre to texture coordinate:
+  /// `u = u0 + x * du`, `v = v0 + y * dv`.
+  struct UvMap {
+    /// u at x = 0.
+    float u0 = 0.0F;
+    /// u change per pixel column.
+    float du = 0.0F;
+    /// v at y = 0.
+    float v0 = 0.0F;
+    /// v change per pixel row.
+    float dv = 0.0F;
+  };
+
+  UvMap makeUvMap(const FloatBounds& box, const UvBounds& uv) {
+    const float w = std::max(MIN_QUAD_EXTENT, box.max_x - box.min_x);
+    const float h = std::max(MIN_QUAD_EXTENT, box.max_y - box.min_y);
+    UvMap map;
+    map.du = (uv.max_u - uv.min_u) / w;
+    map.dv = (uv.max_v - uv.min_v) / h;
+    map.u0 = uv.min_u + (0.5F - box.min_x) * map.du;
+    map.v0 = uv.min_v + (0.5F - box.min_y) * map.dv;
+    return map;
+  }
+
+  /// Texel index for a normalized coordinate, clamped to [0, extent).
+  int32_t texelIndex(float coord, uint32_t extent) {
+    const auto scaled =
+        static_cast<int32_t>(coord * static_cast<float>(extent));
+    return std::clamp(scaled, 0, static_cast<int32_t>(extent) - 1);
+  }
+
+  /// Nearest-neighbour sample of the atlas alpha channel, which is where
+  /// the text pipeline stores glyph coverage.
+  float sampleAtlasAlpha(const GuiSoftwareRasterizer::GlyphAtlas& atlas,
+                         float u, float v) {
+    if (atlas.width == 0 || atlas.height == 0) {
+      return 0.0F;
+    }
+    const auto ix = static_cast<size_t>(texelIndex(u, atlas.width));
+    const auto iy = static_cast<size_t>(texelIndex(v, atlas.height));
+    const size_t offset = (iy * atlas.width + ix) * RGBA_BYTES + 3;
+    if (offset >= atlas.rgba_pixels.size()) {
+      return 0.0F;
+    }
+    return static_cast<float>(atlas.rgba_pixels[offset]) * BYTE_TO_UNIT;
+  }
+
+  /// Composite one glyph quad, modulating its alpha by atlas coverage.
+  void compositeGlyphQuad(const PixelTarget& tgt, const PixelBounds& bounds,
+                          const UvMap& map, const FloatRgba& src) {
+    for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
+      const float v = map.v0 + static_cast<float>(y) * map.dv;
+      for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
+        const float u = map.u0 + static_cast<float>(x) * map.du;
+        FloatRgba px = src;
+        px.a = src.a * sampleAtlasAlpha(tgt.glyphs, u, v);
+        if (px.a <= 0.0F) {
+          continue;
+        }
+        writePixel(tgt, x, y, compositeOver(px, readPixel(tgt, x, y)));
+      }
+    }
+  }
+
+  /// Composite one solid quad: a filled box, or a frame when the quad
+  /// carries a border width.
+  void compositeSolidQuad(const PixelTarget& tgt, const PixelBounds& bounds,
+                          const FloatRgba& src, int32_t stroke_px) {
+    const bool is_border = stroke_px > 0;
+    for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
+      for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
+        if (is_border && !isOnBorder(x, y, bounds, stroke_px)) {
+          continue;
+        }
+        writePixel(tgt, x, y, compositeOver(src, readPixel(tgt, x, y)));
+      }
+    }
+  }
+
   /// Composite one quad's bounding box into the pixel buffer.
   void compositeQuad(const PixelTarget& tgt, uint32_t image_h,
                      const std::array<GuiVertex, VERTICES_PER_QUAD>& quad) {
@@ -199,17 +316,14 @@ namespace {
       return;
     }
     auto bounds = quadBoundsClipped(quad, tgt.width, image_h);
-    auto stroke_px = static_cast<int32_t>(std::max(0.0F, quad[0].border_width));
-    bool is_border = stroke_px > 0;
-    for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
-      for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
-        if (is_border && !isOnBorder(x, y, bounds, stroke_px)) {
-          continue;
-        }
-        auto dst = readPixel(tgt, x, y);
-        writePixel(tgt, x, y, compositeOver(src, dst));
-      }
+    if ((quad[0].flags & VERTEX_FLAG_TEXTURED) != 0 && tgt.hasGlyphAtlas()) {
+      const FloatBounds box = quadFloatBounds(quad);
+      compositeGlyphQuad(tgt, bounds, makeUvMap(box, quadUvBounds(quad)), src);
+      return;
     }
+    compositeSolidQuad(
+        tgt, bounds, src,
+        static_cast<int32_t>(std::max(0.0F, quad[0].border_width)));
   }
 
   /// Initialise the pixel buffer with the background colour.
@@ -224,9 +338,9 @@ namespace {
   }
 
   /// Iterate quads in `vertices` and composite each onto the pixel buffer.
-  void rasterizeAllQuads(std::span<const GuiVertex> vertices,
-                         ImageData& image) {
-    PixelTarget tgt{&image.pixels, image.width};
+  void rasterizeAllQuads(std::span<const GuiVertex> vertices, ImageData& image,
+                         const GuiSoftwareRasterizer::GlyphAtlas& atlas) {
+    PixelTarget tgt{&image.pixels, image.width, atlas};
     size_t quad_count = vertices.size() / VERTICES_PER_QUAD;
     for (size_t q = 0; q < quad_count; ++q) {
       std::array<GuiVertex, VERTICES_PER_QUAD> quad{};
@@ -251,6 +365,12 @@ ImageData
 GuiSoftwareRasterizer::rasterizeQuads(std::span<const GuiVertex> vertices,
                                       const Rect& viewport,
                                       uint32_t background_color) {
+  return rasterizeQuads(vertices, viewport, background_color, GlyphAtlas{});
+}
+
+ImageData GuiSoftwareRasterizer::rasterizeQuads(
+    std::span<const GuiVertex> vertices, const Rect& viewport,
+    uint32_t background_color, const GlyphAtlas& atlas) {
   ImageData image;
   image.width = static_cast<uint32_t>(std::max(0.0F, viewport.w));
   image.height = static_cast<uint32_t>(std::max(0.0F, viewport.h));
@@ -261,7 +381,7 @@ GuiSoftwareRasterizer::rasterizeQuads(std::span<const GuiVertex> vertices,
     return image;
   }
   fillBackground(image.pixels, unpackRgba(background_color));
-  rasterizeAllQuads(vertices, image);
+  rasterizeAllQuads(vertices, image, atlas);
   return image;
 }
 

@@ -8,6 +8,7 @@
 #include <engine/gui/gui-scroll-event.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <engine/render/rhi-device.h>
+#include <filesystem>
 #include <string_view>
 
 namespace eng::client {
@@ -19,6 +20,8 @@ namespace eng::client {
 //
 // Responsibilities:
 // - Own GuiContext and wire text pipeline to rhiDevice() after platform init
+// - Load the UI font and expose its face id, so GUI text draws as glyphs
+//   rather than the placeholder boxes drawn when no face is loaded
 // - Present GuiRenderer batches to the swapchain (clear + endFrame + submit)
 //
 // Input: platform code (e.g. DesktopGameClient) maps native events to the
@@ -41,8 +44,15 @@ protected:
   bool onInit() override;
   void onShutdown() override;
 
-  /// FreeType face ID used for GUI text rendering (0 = default face).
-  [[nodiscard]] virtual uint32_t guiTextFaceId() const { return 0; }
+  /// FreeType face id used for GUI text rendering.
+  ///
+  /// Zero means no face is loaded, and every `drawText` falls back to
+  /// placeholder boxes. Loaded ids start at 1, so returning a literal 0 can
+  /// never match a face — override this only to point at a face you loaded
+  /// into the same text pipeline.
+  [[nodiscard]] virtual uint32_t guiTextFaceId() const {
+    return gui_text_face_id_;
+  }
 
   /// Platform-specific RHI device for GPU submission (non-null after init).
   [[nodiscard]] virtual eng::RhiDevice* rhiDevice() const = 0;
@@ -96,9 +106,19 @@ protected:
   /// FreeType raster supersample factor (e.g. `SDL_GetWindowPixelDensity`).
   [[nodiscard]] virtual float textRasterSupersample() const { return 1.0f; }
 
+  /// Directory searched for a bundled UI font before the system paths.
+  /// Defaults to `<data_dir>/fonts` from the engine config.
+  [[nodiscard]] virtual std::filesystem::path guiFontDirectory();
+
 private:
+  /// Discover, load, and size the UI font. Logs and leaves the face id at
+  /// zero when the machine has no usable font.
+  void loadGuiFont();
+
   /// Retained GUI tree, fonts, and renderer used for in-game overlays.
   GuiContext gui_{};
+  /// Face id returned by `guiTextFaceId`; zero until a font loads.
+  uint32_t gui_text_face_id_ = 0;
 };
 
 }  // namespace eng::client

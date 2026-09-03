@@ -1,7 +1,9 @@
 #include "engine/client/rendered-game-client.h"
 
 #include <algorithm>
+#include <engine/core/logger.h>
 #include <engine/gui/gui-draw-context.h>
+#include <engine/gui/gui-font-discovery.h>
 #include <engine/gui/gui-renderer.h>
 #include <engine/render/rhi-command-list.h>
 #include <engine/render/rhi-device.h>
@@ -17,6 +19,14 @@ namespace {
   constexpr float CLEAR_GREEN = 30.0f * BYTE_TO_FLOAT;
   constexpr float CLEAR_BLUE = 34.0f * BYTE_TO_FLOAT;
   constexpr float CLEAR_ALPHA = 1.0f;
+
+  /// Font directory searched under the engine data directory.
+  constexpr const char* GUI_FONT_SUBDIR = "fonts";
+  /// Regular weight, in the CSS-style scale `loadFont` takes.
+  constexpr uint16_t GUI_FONT_WEIGHT = 400;
+  /// Layout height of GUI text, in logical pixels. Chrome offsets across the
+  /// editor are tuned against this size.
+  constexpr uint32_t GUI_TEXT_PIXEL_H = 14;
 
   void setDarkClearColors(RhiRenderPassBeginInfo& rp) {
     rp.clear_color[0] = CLEAR_RED;
@@ -77,8 +87,35 @@ bool RenderedGameClient::onInit() {
   if (!gui_.init(guiLayoutWidth(), guiLayoutHeight(), dev)) {
     return false;
   }
+  loadGuiFont();
   syncGuiRendererSurfaceFromDevice();
   return true;
+}
+
+std::filesystem::path RenderedGameClient::guiFontDirectory() {
+  const EngineContext* ctx = engine();
+  if (ctx == nullptr || ctx->config.data_dir.empty()) {
+    return {};
+  }
+  return std::filesystem::path(ctx->config.data_dir) / GUI_FONT_SUBDIR;
+}
+
+void RenderedGameClient::loadGuiFont() {
+  auto font = eng::selectGuiUiFont(guiFontDirectory());
+  if (!font.has_value()) {
+    LOG_WARN("gui", "No UI font found; text will draw as placeholder boxes");
+    return;
+  }
+  auto face = gui_.text_pipeline->loadFont(font->file_path, GUI_FONT_WEIGHT,
+                                           eng::FontLoadItalic::NORMAL);
+  if (!face.has_value()) {
+    LOG_WARN("gui", "Could not load UI font: " + font->file_path);
+    return;
+  }
+  gui_text_face_id_ = *face;
+  gui_.text_pipeline->setFontRasterHeight(gui_text_face_id_, GUI_TEXT_PIXEL_H,
+                                          textRasterSupersample());
+  LOG_INFO("gui", "UI font: " + font->family + " (" + font->file_path + ")");
 }
 
 void RenderedGameClient::onShutdown() {

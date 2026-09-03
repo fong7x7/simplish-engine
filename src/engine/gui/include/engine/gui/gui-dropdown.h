@@ -65,6 +65,27 @@ private:
   void renderHoverHighlight(const GuiDrawContext& ctx, const ResolvedStyle& rs,
                             float iy) const;
 
+  /// Draw a divider line across the row whose top is at @p iy.
+  void renderSeparator(const GuiDrawContext& ctx, const ResolvedStyle& rs,
+                       float iy) const;
+
+  /// One item row's label and accelerator hint.
+  struct RowParams {
+    /// Resolved colours and metrics for this paint.
+    const ResolvedStyle& rs;
+    /// The item being drawn.
+    const GuiDropdownItem& item;
+    /// Y coordinate of the row's top edge.
+    float iy;
+  };
+
+  /// Draw one item's label.
+  void renderItemText(const GuiDrawContext& ctx, const RowParams& row) const;
+
+  /// Draw one item's accelerator hint, right-aligned at baseline @p text_y.
+  void renderShortcut(const GuiDrawContext& ctx, const RowParams& row,
+                      float text_y) const;
+
   /// Render all item rows (hover highlight + text).
   void renderItems(const GuiDrawContext& ctx, const ResolvedStyle& rs) const;
 };

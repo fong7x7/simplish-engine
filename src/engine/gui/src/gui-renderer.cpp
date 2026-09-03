@@ -385,20 +385,27 @@ namespace {
   }
 
   /// Submit a scissor push/pop command.
+  ///
+  /// A pop carries the rect to restore — the enclosing scissor when one is
+  /// still on the stack — and an empty rect means "back to the whole
+  /// surface". A push always applies, even when its rect is degenerate,
+  /// because an empty clip must hide its contents rather than reveal them.
   void submitScissorCommand(const DrawCommand& cmd, RhiCommandList& cmd_list,
                             const GuiRendererContext& ctx) {
     const uint32_t sw = std::max(1u, effectiveSurfaceW(ctx));
     const uint32_t sh = std::max(1u, effectiveSurfaceH(ctx));
-    if (cmd.type == DrawCommandType::PUSH_SCISSOR) {
-      const uint32_t cw = std::max(1u, ctx.viewport_width);
-      const uint32_t ch = std::max(1u, ctx.viewport_height);
-      const ScissorCmd ms = mapScissorToSurface(cmd.scissor, {cw, ch, sw, sh});
-      cmd_list.setScissor(
-          {static_cast<int32_t>(ms.x), static_cast<int32_t>(ms.y),
-           static_cast<uint32_t>(ms.w), static_cast<uint32_t>(ms.h)});
-    } else {
+    const bool restore_full = cmd.type == DrawCommandType::POP_SCISSOR &&
+                              (cmd.scissor.w <= 0.0f || cmd.scissor.h <= 0.0f);
+    if (restore_full) {
       cmd_list.setScissor({0, 0, sw, sh});
+      return;
     }
+    const uint32_t cw = std::max(1u, ctx.viewport_width);
+    const uint32_t ch = std::max(1u, ctx.viewport_height);
+    const ScissorCmd ms = mapScissorToSurface(cmd.scissor, {cw, ch, sw, sh});
+    cmd_list.setScissor({static_cast<int32_t>(ms.x), static_cast<int32_t>(ms.y),
+                         static_cast<uint32_t>(ms.w),
+                         static_cast<uint32_t>(ms.h)});
   }
 
   /// Submit a single draw command to the RHI command list.
@@ -424,6 +431,33 @@ namespace {
     params.first_index = 0;
     params.vertex_offset = 0;
     cmd_list.drawIndexed(params);
+  }
+
+  /// Read one scissor-stack entry as a Rect.
+  Rect scissorRectAt(const ScissorStack& stack, uint32_t index) {
+    return {stack.rects[index][0], stack.rects[index][1], stack.rects[index][2],
+            stack.rects[index][3]};
+  }
+
+  /// Store a rect at the top of the scissor stack.
+  void storeScissorRect(ScissorStack& stack, uint32_t index, const Rect& rect) {
+    stack.rects[index][0] = rect.x;
+    stack.rects[index][1] = rect.y;
+    stack.rects[index][2] = rect.w;
+    stack.rects[index][3] = rect.h;
+  }
+
+  /// Append a scissor command to the draw stream.
+  ///
+  /// The stack alone only tracks state; without a command in the stream
+  /// nothing ever reaches `RhiCommandList::setScissor`, and clipped content
+  /// paints over the rest of the frame.
+  void appendScissorCommand(GuiRendererContext& ctx, DrawCommandType type,
+                            const Rect& rect) {
+    DrawCommand cmd{};
+    cmd.type = type;
+    cmd.scissor = {rect.x, rect.y, rect.w, rect.h};
+    ctx.commands.push_back(cmd);
   }
 
   /// Set full-viewport scissor and viewport on the command list.
@@ -479,6 +513,10 @@ void GuiRendererContext::beginFrame() {
   vertices.clear();
   indices.clear();
   commands.clear();
+  // The stack has to be cleared with the stream it describes. A widget that
+  // returns between pushScissor and popScissor would otherwise leave a clip
+  // on the stack that narrows every later frame.
+  scissor_stack.depth = 0;
 }
 
 void GuiRendererContext::emitQuad(const EmitQuadParams& params) {
@@ -548,18 +586,26 @@ void GuiRendererContext::pushScissor(const Rect& rect) {
   if (scissor_stack.depth >= MAX_SCISSOR_DEPTH) {
     return;
   }
-  auto d = scissor_stack.depth;
-  scissor_stack.rects[d][0] = rect.x;
-  scissor_stack.rects[d][1] = rect.y;
-  scissor_stack.rects[d][2] = rect.w;
-  scissor_stack.rects[d][3] = rect.h;
+  const auto depth = scissor_stack.depth;
+  // A nested clip can only ever shrink its parent's.
+  const Rect clipped =
+      depth > 0 ? intersectRects(scissorRectAt(scissor_stack, depth - 1), rect)
+                : rect;
+  storeScissorRect(scissor_stack, depth, clipped);
   scissor_stack.depth++;
+  appendScissorCommand(*this, DrawCommandType::PUSH_SCISSOR, clipped);
 }
 
 void GuiRendererContext::popScissor() {
-  if (scissor_stack.depth > 0) {
-    scissor_stack.depth--;
+  if (scissor_stack.depth == 0) {
+    return;
   }
+  scissor_stack.depth--;
+  const Rect restore =
+      scissor_stack.depth > 0
+          ? scissorRectAt(scissor_stack, scissor_stack.depth - 1)
+          : Rect{};
+  appendScissorCommand(*this, DrawCommandType::POP_SCISSOR, restore);
 }
 
 void GuiRendererContext::endFrame(RhiCommandList& cmd_list) {

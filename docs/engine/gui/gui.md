@@ -71,10 +71,14 @@ A **flexbox-style layout engine** computes widget positions and sizes. Supports:
 ### 4.3 Text Pipeline
 
 1. **Font loading** — FreeType rasterizes glyphs into a GPU font atlas (SDF or bitmap depending on size threshold). Multiple fonts/weights loaded simultaneously.
+   - **A face must be loaded before any text draws.** `GuiDrawContext::drawText` falls back to one placeholder box per character when `face_id` names no loaded face, and face ids start at 1 — so a client that never loads a font, or reports face 0, renders the entire UI as boxes. `RenderedGameClient` loads one at init and reports its id, which is what makes text appear at all.
+   - **Which face** is chosen by `selectGuiUiFont`: a font under `<data_dir>/fonts` wins, so a project shipping its own face gets it everywhere; failing that the first platform-preferred family present (`guiPreferredUiFontFamilies`); failing that whatever was discovered. Discovery accepts `.ttf`, `.otf`, and `.ttc`.
 2. **Text shaping** — Positioned glyph runs are produced from Unicode input, handling kerning and ligatures. The shipped path uses FreeType directly (see §3); bidirectional and complex-script text needs HarfBuzz, which is not currently linked.
 3. **Line breaking** — A line-break algorithm determines wrap points for multi-line text.
 4. **Rich text** — An attributed-string model supports inline spans (bold, italic, colour, font size, code, links). The editor's AI chat panel uses this for markdown rendering, code blocks, and streaming response display.
 5. **Text input** — Editable text widgets with cursor positioning, selection, clipboard (copy/paste/cut), undo/redo, and IME support.
+
+Headless captures go through `GuiSoftwareRasterizer`, which paints textured quads as solid boxes unless it is handed the CPU font atlas — pass one and glyphs are sampled per pixel, so a capture taken without a GPU still shows legible text. That is what the editor chrome captures do.
 
 ### 4.4 Rendering
 
@@ -82,7 +86,7 @@ The GUI renderer batches draw calls through the engine's RHI:
 
 - **Quad batching** — Coloured, textured, and rounded-rect quads merged into a single vertex buffer per frame where possible.
 - **SDF text** — Signed-distance-field rendering for resolution-independent text at arbitrary scale.
-- **Clipping** — Scissor-rect stack for scroll containers and overflow.
+- **Clipping** — Scissor-rect stack for scroll containers and overflow. A push both intersects with the enclosing rect and emits a `PUSH_SCISSOR` draw command; the stack on its own is only bookkeeping, and content whose clip never reaches the command stream paints over the rest of the frame. Batching stops at a scissor command, so quads on either side of one cannot merge. The CPU rasterizer (§4.4) reads vertices rather than commands and so does not clip — a headless capture of an overflowing widget shows the overflow.
 - **Blur and shadow** — Gaussian blur pass for panel drop shadows and frosted-glass backgrounds (opt-in per panel, with quality tier fallback to solid colour on lower-end hardware).
 - **Draw order** — Z-sorted layers: game viewport, HUD, menus/overlays, editor panels, tooltips, modals.
 
@@ -185,7 +189,7 @@ The GUI framework listens to the engine input system's `method_changed` event (`
 | `Button` | Clickable button with label, icon, hover/active/disabled states |
 | `Checkbox` | Toggle with label |
 | `Slider` | Horizontal/vertical slider with range, step, and value display |
-| `Dropdown` | Combo box with searchable option list |
+| `Dropdown` | Combo box with searchable option list. Built: item rows with per-row enable/disable, divider rows, and right-aligned accelerator hints, which is what the editor menu bar is assembled from |
 | `Tree` | Hierarchical collapsible tree view |
 | `Table` | Scrollable table with sortable columns, resizable headers |
 | `ScrollContainer` | Scrollable area with vertical/horizontal scroll bars and inertial scrolling |
@@ -283,7 +287,7 @@ The editor is built entirely on this GUI framework. This section specifies the *
 
 | Primitive | Description | Editor Use |
 |---|---|---|
-| **MenuBar** | Horizontal menu bar at top of window. Supports nested menus, items with labels and shortcuts, separators, disabled items, checkable items (toggle state). Plugins can contribute menu items via manifest. | File, Edit, View, Map, Character, Item, Window, Help |
+| **MenuBar** | Horizontal menu bar at top of window. Supports nested menus, items with labels and shortcuts, separators, disabled items, checkable items (toggle state). Plugins can contribute menu items via manifest. Not yet an engine widget: the editor builds its own bar out of `Button` and `Dropdown` (`src/editor/shell/editor-menu-bar-widget.h`), which is the working reference for what this one has to generalise — nesting, checkable items, and plugin contribution are the gaps. | File, Edit, View, Map, Character, Item, Window, Help |
 | **Toolbar** | Horizontal strip of icon buttons with optional labels. Supports grouping (separators), tooltips, disabled state, toggle (pressed) state. Per-workspace toolbar content. Plugins contribute toolbar items. | Level tools (tile paint, height, fill, select), prop and entity placement, encounter tools |
 | **StatusBar** | Horizontal strip at bottom of window. Left/center/right regions. Supports text, icons, progress indicators, clickable segments. Plugins contribute status bar items. | Selection count, coordinates, dirty indicator, plugin status |
 | **SimulationStrip** | Compact horizontal strip for Play/Pause/Stop/Step. Visible in editor header. | Play-test controls |

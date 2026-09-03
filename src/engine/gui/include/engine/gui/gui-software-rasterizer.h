@@ -20,9 +20,11 @@
 ///     bounding box. Legible but not pixel-perfect.
 ///   - Rounded rects — rendered as straight rects at the quad bounding
 ///     box. Corner radius is ignored; colour is correct.
-///   - Text glyphs are emitted as textured quads; this rasterizer
-///     paints their fill colour across the bounding box (readable
-///     silhouettes, not legible text).
+///   - Text glyphs are emitted as textured quads. Given the font
+///     atlas (`rasterizeQuads` overload taking a `GlyphAtlas`) they
+///     are sampled per pixel and come out legible; without it they
+///     fall back to their fill colour across the bounding box
+///     (readable silhouettes, not legible text).
 ///   - Shader effects (drop shadows, SDF anti-aliasing, gradients)
 ///     are not rendered; only base fill colours appear.
 ///
@@ -50,14 +52,39 @@ inline constexpr uint32_t GUI_RASTER_DEFAULT_BG = 0xFF1E1E1EU;
 /// and thread-safe against distinct inputs; they do not share state.
 /// @thread_safety Callable from the main thread; no shared global state.
 struct GuiSoftwareRasterizer {
+  /// Read-only view of a CPU-side font atlas page
+  /// (`TextPipelineContext::atlases[n]`), used to sample glyph quads.
+  ///
+  /// Pixels are RGBA8 with coverage in the alpha channel, which is the
+  /// layout the text pipeline blits glyph bitmaps into.
+  struct GlyphAtlas {
+    /// Atlas pixels, row-major RGBA8. Empty disables glyph sampling.
+    std::span<const uint8_t> rgba_pixels{};
+    /// Atlas width in pixels.
+    uint32_t width = 0;
+    /// Atlas height in pixels.
+    uint32_t height = 0;
+  };
+
   /// Rasterize `vertices` (groups of 4 per quad, in the layout emitted
   /// by `GuiRendererContext`) into an `ImageData` sized to `viewport`.
   /// The pixel buffer is pre-filled with `background_color` before
   /// each quad is composited (alpha-over blending). Vertices outside
-  /// the viewport are clipped.
+  /// the viewport are clipped. Textured quads paint as solid boxes;
+  /// pass a `GlyphAtlas` to sample them instead.
   static ImageData rasterizeQuads(std::span<const GuiVertex> vertices,
                                   const Rect& viewport,
                                   uint32_t background_color);
+
+  /// As above, sampling textured quads from `atlas` so text is legible.
+  ///
+  /// Every textured quad is assumed to come from this atlas — the vertex
+  /// format carries UVs but not which texture they index, so a capture
+  /// mixing glyphs with image quads would sample both from here.
+  static ImageData rasterizeQuads(std::span<const GuiVertex> vertices,
+                                  const Rect& viewport,
+                                  uint32_t background_color,
+                                  const GlyphAtlas& atlas);
 
   /// Write an RGBA8 `ImageData` to `path` as a PNG. Returns `true` on
   /// success, `false` on invalid input (zero-size image) or I/O

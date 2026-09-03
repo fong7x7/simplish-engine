@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-viewport-widget.h>
+#include <engine/gui/gui-draw-context.h>
+#include <engine/gui/gui-renderer.h>
 
 using Catch::Approx;
 using namespace eng::editor;
@@ -23,7 +25,106 @@ eng::GuiMouseEvent mouseAt(float x, float y, eng::GuiMouseButton button,
   return event;
 }
 
+/// Render the viewport through a device-less renderer and hand back the
+/// command stream, which is where clipping actually lives.
+struct RenderedViewport {
+  eng::GuiRendererContext renderer;
+
+  explicit RenderedViewport(const EditorViewportWidget& viewport) {
+    REQUIRE(renderer.init(nullptr));
+    renderer.viewport_width = 1280;
+    renderer.viewport_height = 800;
+    renderer.beginFrame();
+    eng::GuiDrawContext ctx;
+    ctx.renderer = &renderer;
+    viewport.render(ctx);
+  }
+  ~RenderedViewport() { renderer.shutdown(); }
+  RenderedViewport(const RenderedViewport&) = delete;
+  RenderedViewport& operator=(const RenderedViewport&) = delete;
+  RenderedViewport(RenderedViewport&&) = delete;
+  RenderedViewport& operator=(RenderedViewport&&) = delete;
+};
+
 }  // namespace
+
+TEST_CASE("the grid is clipped to the viewport") {
+  const EditorViewportWidget viewport = makeViewport();
+  const RenderedViewport rendered(viewport);
+
+  // The grid runs well past the widget by design, so without a scissor
+  // command in the stream it paints over the chrome above it.
+  const auto& commands = rendered.renderer.commands;
+  size_t pushes = 0;
+  for (const auto& cmd : commands) {
+    if (cmd.type != eng::DrawCommandType::PUSH_SCISSOR) {
+      continue;
+    }
+    ++pushes;
+    REQUIRE(cmd.scissor.x == Approx(viewport.rect.x));
+    REQUIRE(cmd.scissor.y == Approx(viewport.rect.y));
+    REQUIRE(cmd.scissor.w == Approx(viewport.rect.w));
+    REQUIRE(cmd.scissor.h == Approx(viewport.rect.h));
+  }
+  REQUIRE(pushes == 1);
+}
+
+TEST_CASE("the grid lines are batched between the push and the pop") {
+  const EditorViewportWidget viewport = makeViewport();
+  const RenderedViewport rendered(viewport);
+  const auto& commands = rendered.renderer.commands;
+
+  // Ordering is what makes the clip effective. The background fill and the
+  // border are the widget's own rect, so they sit outside the pair; every
+  // line that can overrun has to sit inside it.
+  size_t push = commands.size();
+  size_t pop = commands.size();
+  for (size_t i = 0; i < commands.size(); ++i) {
+    if (commands[i].type == eng::DrawCommandType::PUSH_SCISSOR) {
+      push = i;
+    }
+    if (commands[i].type == eng::DrawCommandType::POP_SCISSOR) {
+      pop = i;
+    }
+  }
+  REQUIRE(push < pop);
+  REQUIRE(pop < commands.size());
+  REQUIRE(pop - push > 1);
+}
+
+TEST_CASE("hiding the grid keeps the clip in place for the axes") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.show_grid = false;
+  const RenderedViewport rendered(viewport);
+
+  bool clipped = false;
+  for (const auto& cmd : rendered.renderer.commands) {
+    clipped = clipped || cmd.type == eng::DrawCommandType::PUSH_SCISSOR;
+  }
+  REQUIRE(clipped);
+}
+
+TEST_CASE("hiding the grid emits far less geometry") {
+  EditorViewportWidget shown = makeViewport();
+  EditorViewportWidget hidden = makeViewport();
+  hidden.show_grid = false;
+
+  const RenderedViewport with_grid(shown);
+  const RenderedViewport without_grid(hidden);
+
+  // Command count is unchanged — contiguous lines merge into one batch —
+  // so the vertex buffer is what shows the grid actually went away.
+  REQUIRE(without_grid.renderer.vertices.size() <
+          with_grid.renderer.vertices.size());
+}
+
+TEST_CASE("a zero-area viewport draws nothing at all") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.rect = eng::makeRect(0.0f, 0.0f, 0.0f, 0.0f);
+  const RenderedViewport rendered(viewport);
+
+  REQUIRE(rendered.renderer.commands.empty());
+}
 
 TEST_CASE("a middle-drag starts a pan and moves the camera") {
   EditorViewportWidget viewport = makeViewport();
@@ -37,17 +138,58 @@ TEST_CASE("a middle-drag starts a pan and moves the camera") {
   REQUIRE(viewport.camera.focus.y == Approx(-20.0f));
 }
 
-TEST_CASE("shift plus left-drag pans; a plain left-drag does not") {
+TEST_CASE("a plain left-drag pans the camera") {
   EditorViewportWidget viewport = makeViewport();
+  REQUIRE(viewport.handleMouseDown(
+      mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT)));
 
+  viewport.handleMouseMove(mouseAt(360.0f, 280.0f, eng::GuiMouseButton::LEFT));
+
+  // Dragging left pulls the world left, so the focus moves right.
+  REQUIRE(viewport.camera.focus.x == Approx(40.0f));
+  REQUIRE(viewport.camera.focus.y == Approx(20.0f));
+}
+
+TEST_CASE("shift plus left-drag still pans") {
+  EditorViewportWidget viewport = makeViewport();
   REQUIRE(viewport.handleMouseDown(
       mouseAt(100.0f, 100.0f, eng::GuiMouseButton::LEFT, /*shift=*/true)));
-  viewport.handleMouseUp(mouseAt(100.0f, 100.0f, eng::GuiMouseButton::LEFT));
 
-  // A plain left-drag is reserved for the active tool, so the viewport
-  // declines to capture it.
+  viewport.handleMouseMove(
+      mouseAt(140.0f, 100.0f, eng::GuiMouseButton::LEFT, /*shift=*/true));
+
+  REQUIRE(viewport.camera.focus.x == Approx(-40.0f));
+}
+
+TEST_CASE("a right-drag does not pan") {
+  EditorViewportWidget viewport = makeViewport();
+  // Right-click is left free for a context menu.
   REQUIRE_FALSE(viewport.handleMouseDown(
-      mouseAt(100.0f, 100.0f, eng::GuiMouseButton::LEFT)));
+      mouseAt(100.0f, 100.0f, eng::GuiMouseButton::RIGHT)));
+
+  viewport.handleMouseMove(mouseAt(300.0f, 300.0f, eng::GuiMouseButton::RIGHT));
+  REQUIRE(viewport.camera.focus.x == Approx(0.0f));
+  REQUIRE(viewport.camera.focus.y == Approx(0.0f));
+}
+
+TEST_CASE("a left-drag pans one-to-one with the cursor at any zoom") {
+  for (float zoom : {0.5f, 1.0f, 2.0f}) {
+    EditorViewportWidget viewport = makeViewport();
+    viewport.camera.zoom = zoom;
+    const IsoView view = makeIsoView(viewport.camera, viewport.rect);
+    const IsoPoint before = worldToScreen(view, {3.0f, 4.0f});
+
+    viewport.handleMouseDown(
+        mouseAt(before.x, before.y, eng::GuiMouseButton::LEFT));
+    viewport.handleMouseMove(
+        mouseAt(before.x + 60.0f, before.y - 25.0f, eng::GuiMouseButton::LEFT));
+
+    // The world point grabbed at mouse-down stays under the cursor.
+    const IsoView after = makeIsoView(viewport.camera, viewport.rect);
+    const IsoPoint now = worldToScreen(after, {3.0f, 4.0f});
+    REQUIRE(now.x == Approx(before.x + 60.0f));
+    REQUIRE(now.y == Approx(before.y - 25.0f));
+  }
 }
 
 TEST_CASE("releasing the button ends the pan") {

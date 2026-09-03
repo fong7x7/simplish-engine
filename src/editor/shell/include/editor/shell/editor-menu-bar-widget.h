@@ -1,0 +1,176 @@
+#pragma once
+
+// Design Summary -- EditorMenuBarWidget
+//
+// Behaviours:
+//   - Strip of menu titles (File, Edit, View, Help) below the title bar
+//   - Clicking a title opens its dropdown; clicking it again closes it
+//   - With a menu open, moving onto another title switches to that menu
+//   - Choosing a row raises on_command and closes the menu; rows whose
+//     command is not implemented yet are drawn disabled and do nothing
+//   - The File menu lists recent projects, which raise on_open_recent
+//
+// Edge Cases:
+//   - init() without a valid parent: nothing is created; every other entry
+//     point is a no-op
+//   - A click anywhere outside the open menu closes it, via a full-window
+//     scrim that is only visible while a menu is open
+//   - Empty recent-projects list: the recent rows and their separator are
+//     omitted rather than shown empty
+//
+// Invariants:
+//   - Dropdowns and the scrim are siblings of this widget, not children.
+//     Hit testing never descends into a child that falls outside its
+//     parent's rect, and a menu hangs below the bar by definition
+//   - At most one dropdown is visible at a time
+//   - Every widget this bar creates is destroyed in shutdown()
+//
+// Integration Points:
+//   - SimplishEditor: owns this widget, drives layout()/tick(), and executes
+//     the commands it raises
+
+#include <cstddef>
+#include <cstdint>
+#include <editor/project/recent-projects-list.h>
+#include <editor/shell/editor-menu-command.h>
+#include <engine/gui/gui-dropdown.h>
+#include <engine/gui/gui-panel.h>
+#include <engine/gui/gui-rect.h>
+#include <engine/gui/gui-widget-id.h>
+#include <engine/gui/gui-widget-tree.h>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace eng::editor {
+
+/// Height of the menu bar strip in logical pixels.
+inline constexpr float MENU_BAR_HEIGHT = 26.0f;
+
+/// Whether a project is open, which gates the rows that need one.
+/// @thread_safety Immutable value type.
+enum class EditorProjectPresence : uint8_t {
+  /// No project is open.
+  NONE,
+  /// A project is open.
+  OPEN,
+};
+
+/// Menu bar with one dropdown per title.
+/// @thread_safety Main-thread only.
+class EditorMenuBarWidget : public GuiPanel {
+public:
+  EditorMenuBarWidget();
+
+  /// Polymorphic deep-copy.
+  [[nodiscard]] std::unique_ptr<GuiWidget> clone() const override;
+
+  /// Create the title buttons, the dropdowns, and the click-away scrim.
+  void init(GuiWidgetTree& tree);
+
+  /// Position the bar in @p bar_rect and the scrim over @p window.
+  void layout(GuiWidgetTree& tree, const Rect& bar_rect, const Rect& window);
+
+  /// Route the tree's arrange pass to layout() so the default column
+  /// arrangement does not slice the row into vertical strips.
+  void arrangeChildren(GuiWidgetTree& tree, const Rect& available) override;
+
+  /// Rebuild dirty menus and follow the cursor across titles.
+  void tick(GuiWidgetTree& tree);
+
+  /// Remove every widget this bar created from @p tree.
+  void shutdown(GuiWidgetTree& tree);
+
+  /// Open the menu at @p index, closing any other. Out-of-range closes all.
+  void openMenu(GuiWidgetTree& tree, int index);
+
+  /// Close whichever menu is open.
+  void closeMenu(GuiWidgetTree& tree);
+
+  /// Index of the open menu, or -1 when none is.
+  [[nodiscard]] int openMenuIndex() const { return open_menu_; }
+
+  /// Number of menu titles.
+  [[nodiscard]] size_t menuCount() const { return menus_.size(); }
+
+  /// Dropdown widget id for the menu at @p index, for tests and hit routing.
+  [[nodiscard]] GuiWidgetId dropdownId(size_t index) const;
+
+  /// Title button id for the menu at @p index.
+  [[nodiscard]] GuiWidgetId titleButtonId(size_t index) const;
+
+  /// Replace the recent-projects rows in the File menu.
+  void setRecentProjects(const RecentProjectsList& recent);
+
+  /// Enable or disable the rows that need an open project.
+  void setProjectPresence(EditorProjectPresence presence);
+
+  /// Raised when a row is chosen. Never called with SEPARATOR.
+  std::function<void(EditorMenuCommand)> on_command{};
+
+  /// Raised when a recent-project row is chosen, with that project's path.
+  std::function<void(std::string_view)> on_open_recent{};
+
+private:
+  /// One title and the dropdown it opens.
+  struct Menu {
+    /// Text on the title button.
+    std::string_view title{};
+    /// Title button in the bar.
+    GuiWidgetId button = GUI_WIDGET_ID_INVALID;
+    /// Dropdown panel, a sibling of the bar.
+    GuiWidgetId dropdown = GUI_WIDGET_ID_INVALID;
+  };
+
+  /// Create one title button and its dropdown.
+  void wireMenu(GuiWidgetTree& tree, size_t index);
+  /// Create and style the title button for the menu at @p index.
+  void wireTitleButton(GuiWidgetTree& tree, size_t index);
+  /// Style the already-created dropdown for the menu at @p index.
+  void wireDropdown(GuiWidgetTree& tree, size_t index);
+  /// Attach the hover and select handlers to @p view.
+  void wireDropdownHandlers(GuiDropdown& view);
+  /// Create the full-window click-away scrim.
+  void wireScrim(GuiWidgetTree& tree);
+  /// Rebuild the rows of every menu.
+  void rebuildItems(GuiWidgetTree& tree);
+  /// Fill the dropdown for the menu at @p index with its rows.
+  void buildItems(GuiWidgetTree& tree, size_t index);
+  /// Append one command row to @p menu, disabled when unimplemented.
+  void appendCommand(GuiDropdown& menu, EditorMenuCommand command);
+  /// Append the recent-project rows to the File menu's dropdown.
+  void appendRecentItems(GuiDropdown& menu);
+  /// Append one recent-project row.
+  void appendRecentItem(GuiDropdown& menu, const RecentProjectEntry& entry);
+  /// Size and place the dropdown at @p index under its title button.
+  void placeDropdown(GuiWidgetTree& tree, size_t index);
+  /// Ask for @p index to be open after the next tick. Click handlers cannot
+  /// touch the tree — they never receive one — so they record the intent
+  /// here and tick() applies it.
+  void requestMenu(int index);
+  /// Follow the cursor across titles and drop a stale row highlight.
+  void syncHover(GuiWidgetTree& tree);
+  /// Whether @p command can do anything in the current editor state.
+  [[nodiscard]] bool commandEnabled(EditorMenuCommand command) const;
+
+  /// Menus in left-to-right order.
+  std::vector<Menu> menus_{};
+  /// Full-window panel that closes the menu when clicked.
+  GuiWidgetId scrim_ = GUI_WIDGET_ID_INVALID;
+  /// Index of the open menu, or -1.
+  int open_menu_ = -1;
+  /// Menu a click handler asked for; applied by the next tick().
+  int requested_menu_ = -1;
+  /// Whether `requested_menu_` is waiting to be applied.
+  bool request_pending_ = false;
+  /// Recent projects mirrored into the File menu.
+  RecentProjectsList recent_{};
+  /// Whether a project is open, which gates some rows.
+  EditorProjectPresence project_ = EditorProjectPresence::NONE;
+  /// Set when the rows are stale and tick() must rebuild them.
+  bool items_dirty_ = true;
+};
+
+}  // namespace eng::editor

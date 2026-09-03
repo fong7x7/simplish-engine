@@ -1,3 +1,5 @@
+#include "capture-font.h"
+
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -28,6 +30,9 @@ constexpr float TITLE_H = 28.0f;
 /// into pixels. The widget tests assert rects; this asserts what lands on
 /// screen.
 ///
+/// Text is real: the fixture loads the machine's UI font, and the rasterizer
+/// samples the glyph atlas.
+///
 /// The viewport is deliberately excluded. GuiSoftwareRasterizer approximates
 /// every line as its axis-aligned bounding box (see the header's scope
 /// limits), and the viewport is drawn almost entirely from lines — its grid
@@ -38,20 +43,34 @@ constexpr float TITLE_H = 28.0f;
 struct ChromeCapture {
   eng::GuiWidgetTree tree;
   eng::GuiRendererContext renderer;
+  eng::editor::test::CaptureFont font;
   eng::GuiWidgetId root = eng::GUI_WIDGET_ID_INVALID;
   eng::GuiWidgetId toolbar_id = eng::GUI_WIDGET_ID_INVALID;
   eng::ImageData image;
 
   ChromeCapture() {
+    buildTree();
+    REQUIRE(renderer.init(nullptr));
+    renderer.viewport_width = CAPTURE_W;
+    renderer.viewport_height = CAPTURE_H;
+    renderTree();
+    image = eng::GuiSoftwareRasterizer::rasterizeQuads(
+        renderer.vertices, window(), eng::GUI_RASTER_DEFAULT_BG, font.atlas());
+  }
+
+  static eng::Rect window() {
+    return eng::makeRect(0.0f, 0.0f, static_cast<float>(CAPTURE_W),
+                         static_cast<float>(CAPTURE_H));
+  }
+
+  void buildTree() {
     root = tree.createWidget(eng::GuiWidgetType::PANEL,
                              eng::GUI_WIDGET_ID_INVALID);
     auto* root_panel = dynamic_cast<eng::GuiPanel*>(tree.findWidget(root));
-    root_panel->rect = eng::makeRect(0.0f, 0.0f, static_cast<float>(CAPTURE_W),
-                                     static_cast<float>(CAPTURE_H));
+    root_panel->rect = window();
     // GuiColor default-constructs opaque, so an unset fill paints black.
     // Give the backdrop the editor's own background token instead.
     root_panel->fill_color = eng::THEME_BG;
-
     toolbar_id = tree.insertExternalWidget(
         std::make_unique<EditorToolbarWidget>(), root);
     auto* bar = dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id));
@@ -63,24 +82,18 @@ struct ChromeCapture {
                 eng::makeRect(0.0f, TITLE_H, static_cast<float>(CAPTURE_W),
                               TOOLBAR_HEIGHT));
     bar->tick(tree);
+  }
 
-    REQUIRE(renderer.init(nullptr));
-    renderer.viewport_width = CAPTURE_W;
-    renderer.viewport_height = CAPTURE_H;
-
+  void renderTree() {
     eng::GuiDrawContext ctx;
     ctx.renderer = &renderer;
+    ctx.text_pipeline = &font.pipeline;
+    ctx.face_id = font.face_id;
     tree.visitDrawOrder([&ctx](const eng::GuiWidget& widget) {
       if (widget.visible) {
         widget.render(ctx);
       }
     });
-
-    image = eng::GuiSoftwareRasterizer::rasterizeQuads(
-        renderer.vertices,
-        eng::makeRect(0.0f, 0.0f, static_cast<float>(CAPTURE_W),
-                      static_cast<float>(CAPTURE_H)),
-        eng::GUI_RASTER_DEFAULT_BG);
   }
 
   ~ChromeCapture() { renderer.shutdown(); }

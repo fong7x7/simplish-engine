@@ -31,6 +31,20 @@ constexpr Rect makeIntRect(int x, int y, int w, int h) {
           static_cast<float>(h)};
 }
 
+/// Overlap of two rectangles, or a zero-sized rect when they do not meet.
+/// @thread_safety Thread-safe (pure function).
+constexpr Rect intersectRects(const Rect& a, const Rect& b) {
+  const float x0 = a.x > b.x ? a.x : b.x;
+  const float y0 = a.y > b.y ? a.y : b.y;
+  const float ax1 = a.x + a.w;
+  const float bx1 = b.x + b.w;
+  const float ay1 = a.y + a.h;
+  const float by1 = b.y + b.h;
+  const float x1 = ax1 < bx1 ? ax1 : bx1;
+  const float y1 = ay1 < by1 ? ay1 : by1;
+  return {x0, y0, x1 > x0 ? x1 - x0 : 0.0f, y1 > y0 ? y1 - y0 : 0.0f};
+}
+
 /// Half-open hit test: `[x, x+w)` × `[y, y+h)`.
 /// @thread_safety Thread-safe (pure function).
 inline bool containsPoint(const Rect& rect, float px, float py) {
