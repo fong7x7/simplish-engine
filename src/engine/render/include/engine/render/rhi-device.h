@@ -77,6 +77,16 @@ public:
   /// `false`.
   virtual bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional static-mesh pipeline: position and normal vertices, a
+  /// world-to-clip matrix in vertex stage bytes at slot 1, depth-tested and
+  /// depth-written against a `D32_FLOAT` target.
+  ///
+  /// Like the GUI pipeline this is a backend builtin rather than something
+  /// assembled through `createShader`, because that path takes compiled
+  /// bytecode and the project has no shader build step yet. Backends without
+  /// one return `false` and meshes simply do not draw there.
+  virtual bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline);
+
   // --- Swap chain ---
   virtual RhiTextureHandle
   backbufferTexture() const = 0;  // Current frame's backbuffer
@@ -125,6 +135,11 @@ inline void RhiDevice::resizeSwapchain(uint32_t /*width*/,
 
 inline bool
 RhiDevice::tryCreateGuiPipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateMeshPipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

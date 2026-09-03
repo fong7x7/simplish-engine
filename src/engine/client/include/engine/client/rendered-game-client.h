@@ -8,6 +8,7 @@
 #include <engine/gui/gui-scroll-event.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <engine/render/rhi-device.h>
+#include <engine/render/rhi-render-pass-begin-info.h>
 #include <filesystem>
 #include <string_view>
 
@@ -20,6 +21,8 @@ namespace eng::client {
 //
 // Responsibilities:
 // - Own GuiContext and wire text pipeline to rhiDevice() after platform init
+// - Record an optional depth-tested scene pass before the GUI pass, so 3D
+//   geometry draws under the interface rather than over it
 // - Load the UI font and expose its face id, so GUI text draws as glyphs
 //   rather than the placeholder boxes drawn when no face is loaded
 // - Present GuiRenderer batches to the swapchain (clear + endFrame + submit)
@@ -106,11 +109,38 @@ protected:
   /// FreeType raster supersample factor (e.g. `SDL_GetWindowPixelDensity`).
   [[nodiscard]] virtual float textRasterSupersample() const { return 1.0f; }
 
+  /// Depth target for the scene pass, or invalid to draw no scene at all.
+  ///
+  /// Returning a valid handle turns on a render pass before the GUI: colour
+  /// and depth are cleared there, `recordScene` draws into it, and the GUI
+  /// pass then loads the result instead of clearing it.
+  [[nodiscard]] virtual RhiTextureHandle sceneDepthTarget() {
+    return RHI_TEXTURE_INVALID;
+  }
+
+  /// Record scene draws. Called inside the scene pass, never outside one.
+  virtual void recordScene(RhiCommandList& /*cmd*/) {}
+
   /// Directory searched for a bundled UI font before the system paths.
   /// Defaults to `<data_dir>/fonts` from the engine config.
   [[nodiscard]] virtual std::filesystem::path guiFontDirectory();
 
 private:
+  /// Acquire, record, submit, and present one frame.
+  void submitFrame(RhiDevice& device);
+
+  /// Record the whole frame: the optional scene pass, then the GUI pass.
+  void recordFrame(RhiCommandList& cmd, RhiDevice& device);
+
+  /// Begin the pass 3D geometry draws into, clearing colour and depth.
+  void beginScenePass(RhiCommandList& cmd, RhiDevice& device,
+                      RhiTextureHandle depth);
+
+  /// Begin the pass the GUI draws into. Loads rather than clears when a
+  /// scene pass already painted the frame.
+  void beginGuiPass(RhiCommandList& cmd, RhiDevice& device,
+                    RhiLoadOp color_load);
+
   /// Discover, load, and size the UI font. Logs and leaves the face id at
   /// zero when the machine has no usable font.
   void loadGuiFont();

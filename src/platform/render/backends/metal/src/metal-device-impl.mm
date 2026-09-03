@@ -413,6 +413,118 @@ fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
     return vd;
   }
 
+  /// Byte stride for `MeshVertex`: two tightly packed float3s.
+  constexpr NSUInteger MESH_VERTEX_STRIDE = 24;
+
+  /// MSL source for static meshes (matches `eng::MeshVertex`).
+  ///
+  /// The vertex stage takes the world-to-clip matrix as vertex stage bytes
+  /// at slot 1, so a draw needs no descriptor set. Shading is one hard-coded
+  /// directional light plus ambient: enough to read a model's form in the
+  /// editor, and nothing the real lighting model has to agree with.
+  constexpr const char MESH_MSL_SOURCE[] = R"msl(
+#include <metal_stdlib>
+using namespace metal;
+
+struct MeshUniforms {
+  float4x4 view_projection;
+};
+
+struct MeshVertexIn {
+  float3 position [[attribute(0)]];
+  float3 normal [[attribute(1)]];
+};
+
+struct MeshVsOut {
+  float4 position [[position]];
+  float3 normal;
+};
+
+/// Linear value for an sRGB colour component, for output to an sRGB target.
+float mesh_srgb_to_linear(float srgb) {
+  if (srgb <= 0.04045f) {
+    return srgb / 12.92f;
+  }
+  return pow((srgb + 0.055f) / 1.055f, 2.4f);
+}
+
+vertex MeshVsOut mesh_vs_main(MeshVertexIn in [[stage_in]],
+                              constant MeshUniforms& u [[buffer(1)]]) {
+  MeshVsOut out;
+  out.position = u.view_projection * float4(in.position, 1.0f);
+  out.normal = in.normal;
+  return out;
+}
+
+fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]]) {
+  float3 n = normalize(in.normal);
+  // Up, and over the viewer's left shoulder: the direction the editor's
+  // camera implies, so a model's top face reads brightest.
+  float3 light = normalize(float3(-0.35f, -0.45f, 0.82f));
+  float lambert = saturate(dot(n, light));
+  float shade = 0.38f + 0.62f * lambert;
+  float3 base = float3(0.74f, 0.76f, 0.80f) * shade;
+  return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
+                mesh_srgb_to_linear(base.b), 1.0f);
+}
+)msl";
+
+  MTLVertexDescriptor* makeMeshVertexDescriptor() {
+    auto* vd = [[MTLVertexDescriptor alloc] init];
+    vd.layouts[0].stride = MESH_VERTEX_STRIDE;
+    vd.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    vd.attributes[0].format = MTLVertexFormatFloat3;
+    vd.attributes[0].offset = 0;
+    vd.attributes[0].bufferIndex = 0;
+    vd.attributes[1].format = MTLVertexFormatFloat3;
+    vd.attributes[1].offset = 12;
+    vd.attributes[1].bufferIndex = 0;
+    return vd;
+  }
+
+  bool compileMeshShaderLibrary(id<MTLDevice> mtl_device,
+                                id<MTLLibrary>* out_lib) {
+    NSError* err = nil;
+    NSString* src = [NSString stringWithUTF8String:MESH_MSL_SOURCE];
+    *out_lib = [mtl_device newLibraryWithSource:src options:nil error:&err];
+    if (*out_lib == nil) {
+      (void)err;
+      return false;
+    }
+    return true;
+  }
+
+  void configureMeshRenderPipelineDesc(MTLRenderPipelineDescriptor* pd,
+                                       id<MTLFunction> vs,
+                                       id<MTLFunction> fs) {
+    pd.vertexFunction = vs;
+    pd.fragmentFunction = fs;
+    pd.vertexDescriptor = makeMeshVertexDescriptor();
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    // Opaque geometry: no blending, and a real depth attachment.
+    pd.colorAttachments[0].blendingEnabled = NO;
+    pd.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+  }
+
+  bool buildMeshPipelinePso(id<MTLDevice> mtl_device,
+                            id<MTLRenderPipelineState>* out_pso) {
+    id<MTLLibrary> lib = nil;
+    if (!compileMeshShaderLibrary(mtl_device, &lib)) {
+      return false;
+    }
+    id<MTLFunction> vs = [lib newFunctionWithName:@"mesh_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"mesh_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    configureMeshRenderPipelineDesc(pd, vs, fs);
+    NSError* err = nil;
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
   bool compileGuiShaderLibrary(id<MTLDevice> mtl_device,
                                id<MTLLibrary>* out_lib) {
     NSError* err = nil;
@@ -509,6 +621,7 @@ public:
   void destroyPipeline(RhiPipelineHandle handle) override;
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out) override;
+  bool tryCreateMeshPipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -544,6 +657,8 @@ private:
   id<MTLTexture> resolveCaptureTex(const RhiCaptureRequest& request);
   bool insertGuiPipelineFromPso(id<MTLRenderPipelineState> pso,
                                 RhiPipelineHandle& out);
+  bool insertMeshPipelineFromPso(id<MTLRenderPipelineState> pso,
+                                 RhiPipelineHandle& out);
 
   /// Metal GPU device.
   id<MTLDevice> device_ = nil;
@@ -1085,6 +1200,36 @@ bool MetalRealDevice::tryCreateGuiPipeline(RhiPipelineHandle& out) {
       return false;
     }
     return insertGuiPipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::insertMeshPipelineFromPso(id<MTLRenderPipelineState> pso,
+                                                RhiPipelineHandle& out) {
+  // Unlike the GUI pipeline this one tests and writes depth, which is what
+  // resolves a mesh against another mesh with no CPU-side sorting.
+  RhiDepthStencilState ds{};
+  ds.depth_test = true;
+  ds.depth_write = true;
+  RhiRasterState raster{};
+  // OBJ files in the wild disagree about winding; culling would drop half of
+  // some models entirely. Showing the geometry beats saving the fragments.
+  raster.cull_back = false;
+  const auto h = next_handle_++;
+  pipelines_.insert(h, PipelineEntry{pso, nil,
+                                     makeMtlDepthStencilState(device_, ds),
+                                     RhiPrimitiveTopology::TRIANGLE_LIST,
+                                     raster});
+  out = h;
+  return true;
+}
+
+bool MetalRealDevice::tryCreateMeshPipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildMeshPipelinePso(device_, &pso)) {
+      return false;
+    }
+    return insertMeshPipelineFromPso(pso, out);
   }
 }
 

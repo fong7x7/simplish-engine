@@ -48,35 +48,6 @@ namespace {
     }
   }
 
-  void recordGuiRenderPass(GuiRendererContext& gui_r, RhiDevice& dev,
-                           RhiCommandList& cmd) {
-    cmd.begin();
-    RhiTextureHandle bb = dev.backbufferTexture();
-    RhiRenderPassBeginInfo rp{};
-    rp.color_targets = &bb;
-    rp.color_target_count = 1;
-    rp.depth_target = RHI_TEXTURE_INVALID;
-    setDarkClearColors(rp);
-    cmd.beginRenderPass(rp);
-    gui_r.endFrame(cmd);
-    cmd.endRenderPass();
-    cmd.end();
-  }
-
-  void submitGuiToDevice(GuiRendererContext& gui_r, RhiDevice& dev) {
-    if (!dev.beginFrame()) {
-      return;
-    }
-    auto cmd = dev.createCommandList();
-    if (cmd == nullptr) {
-      return;
-    }
-    recordGuiRenderPass(gui_r, dev, *cmd);
-    dev.submit(*cmd);
-    dev.endFrame();
-    (void)dev.present();
-  }
-
 }  // namespace
 
 bool RenderedGameClient::onInit() {
@@ -203,6 +174,48 @@ GuiDrawContext RenderedGameClient::guiDrawContext() const {
   return ctx;
 }
 
+void RenderedGameClient::beginScenePass(RhiCommandList& cmd, RhiDevice& device,
+                                        RhiTextureHandle depth) {
+  RhiTextureHandle backbuffer = device.backbufferTexture();
+  RhiRenderPassBeginInfo rp{};
+  rp.color_targets = &backbuffer;
+  rp.color_target_count = 1;
+  rp.depth_target = depth;
+  rp.depth_load_op = RhiLoadOp::CLEAR;
+  rp.clear_depth = 1.0f;
+  setDarkClearColors(rp);
+  cmd.beginRenderPass(rp);
+}
+
+void RenderedGameClient::beginGuiPass(RhiCommandList& cmd, RhiDevice& device,
+                                      RhiLoadOp color_load) {
+  RhiTextureHandle backbuffer = device.backbufferTexture();
+  RhiRenderPassBeginInfo rp{};
+  rp.color_targets = &backbuffer;
+  rp.color_target_count = 1;
+  // No depth: the GUI is painted in draw order, and sharing the scene's
+  // depth buffer would let 3D geometry reject interface pixels.
+  rp.depth_target = RHI_TEXTURE_INVALID;
+  setDarkClearColors(rp);
+  rp.color_load_op = color_load;
+  cmd.beginRenderPass(rp);
+}
+
+void RenderedGameClient::recordFrame(RhiCommandList& cmd, RhiDevice& device) {
+  cmd.begin();
+  const RhiTextureHandle depth = sceneDepthTarget();
+  const bool has_scene = depth != RHI_TEXTURE_INVALID;
+  if (has_scene) {
+    beginScenePass(cmd, device, depth);
+    recordScene(cmd);
+    cmd.endRenderPass();
+  }
+  beginGuiPass(cmd, device, has_scene ? RhiLoadOp::LOAD : RhiLoadOp::CLEAR);
+  gui_.renderer->endFrame(cmd);
+  cmd.endRenderPass();
+  cmd.end();
+}
+
 void RenderedGameClient::presentGuiFrame() {
   auto& gui = gui_;
   if (gui.renderer == nullptr || gui.tree == nullptr) {
@@ -213,8 +226,22 @@ void RenderedGameClient::presentGuiFrame() {
   gui.renderer->beginFrame();
   gui.tree->renderAll(guiDrawContext());
   if (dev != nullptr) {
-    submitGuiToDevice(*gui.renderer, *dev);
+    submitFrame(*dev);
   }
+}
+
+void RenderedGameClient::submitFrame(RhiDevice& device) {
+  if (!device.beginFrame()) {
+    return;
+  }
+  auto cmd = device.createCommandList();
+  if (cmd == nullptr) {
+    return;
+  }
+  recordFrame(*cmd, device);
+  device.submit(*cmd);
+  device.endFrame();
+  (void)device.present();
 }
 
 }  // namespace eng::client
