@@ -35,7 +35,7 @@ Two constraints cut across all three and are non-negotiable:
 |---|---|---|
 | Engine | [docs/engine/REQUIREMENTS.md](docs/engine/REQUIREMENTS.md) | Isometric render pipeline, entity & projectile simulation, spatial queries, deterministic tick, replay, audio, input, GUI, data-driven content, netcode transport, non-functional budgets, milestones M0–M7 |
 | Game | [docs/game/REQUIREMENTS.md](docs/game/REQUIREMENTS.md) | Player controller and aiming, weapons and projectile patterns, enemy archetypes and horde AI, wave director, run structure and progression, co-op session rules, milestones M4–M8 |
-| Editor | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md) | Editor shell, level authoring on the isometric grid, prop and entity placement, encounter and wave authoring, in-editor playtest, asset pipeline, milestone M9 |
+| Editor | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md) | Editor shell, level authoring on the isometric grid, prop and entity placement, encounter and wave authoring, in-editor playtest, asset pipeline, milestone M9. Project format: [project-format.md](docs/editor/project-format.md) |
 | Platform | [docs/platform/REQUIREMENTS.md](docs/platform/REQUIREMENTS.md) | Platform abstraction: RHI backend implementations (Metal, Vulkan, DX12, OpenGL, stub), `RhiDeviceFactory`, `DesktopGameClient`, distributor services (Steam, Epic, PS5, Xbox). **Largely already in-tree** — see §7 |
 | Development | [docs/development/REQUIREMENTS.md](docs/development/REQUIREMENTS.md) | Toolchain, CMake presets, clang-tidy and clang-format gates, testing strategy (unit, golden-image, headless determinism), CI matrix, performance regression gates |
 

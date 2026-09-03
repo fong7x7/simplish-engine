@@ -98,6 +98,8 @@ Because enemy movement runs on flow fields ([Game §5.2](../game/REQUIREMENTS.md
 
 Levels serialise to JSON: a tile layer (run-length encoded for compactness while staying readable), a prop list, an entity list, spawn volumes, trigger regions, and metadata. Schema-validated on both write and load. A level file must diff sensibly — a change to one room produces a change to one region of the file.
 
+The full on-disk specification — levels, encounters, scenarios, logic, and data tables, and what each becomes when the game is built — is [project-format.md](project-format.md). Content is authored as JSON and compiled to generated C++ for shipping builds, while the editor and development builds load the JSON directly so playtest never waits for a compile ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)).
+
 ---
 
 ## 5. Encounter and Wave Authoring
@@ -120,7 +122,7 @@ Waves preview without entering play: scrubbing the timeline shows projected spaw
 
 ## 6. Data Editing
 
-Structured editors over the JSON data tables — weapons, modifiers, enemy archetypes, projectile archetypes — driven by the same schemas the runtime validates against. Fields render according to their schema type, validation errors surface inline, and the underlying file stays canonical JSON that can be hand-edited or diffed.
+Structured editors over the JSON data tables — weapons, modifiers, enemy archetypes, projectile archetypes — driven by the same schemas the runtime validates against ([format](project-format.md#8-data-tables)). Fields render according to their schema type, validation errors surface inline, and the underlying file stays canonical JSON that can be hand-edited or diffed.
 
 Data edits hot-reload into a running playtest where the change is safe to apply mid-session; where it is not, the editor says so rather than applying it partially.
 

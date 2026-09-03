@@ -63,7 +63,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Math | In-tree `engine/math` | All | No GLM: the engine owns its vector and matrix types so simulation math stays under the determinism contract |
 | Images | stb_image / stb_image_write | All | Fetched by CMake; used by the GUI image loader and the RHI capture API |
 | Sprite atlas packing | Offline tool (in-tree) | Build-time | Produces atlas + metadata consumed at runtime |
-| Content | JSON data tables + in-tree schema validator | All | Hot-reload in debug builds |
+| Content | JSON data tables + in-tree schema validator | All | Hot-reload in debug builds; shipping builds compile generated C++ instead ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)) |
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
