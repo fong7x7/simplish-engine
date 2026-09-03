@@ -5,9 +5,13 @@
 # a window or a GPU.
 
 set(_shell_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-panel-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-scan.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
 )
 
@@ -19,6 +23,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-core
         simplish-engine-gui
         simplish-engine-render
+        simplish-engine-render-mesh
         simplish-platform-client
 )
 

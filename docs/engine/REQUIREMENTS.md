@@ -117,6 +117,11 @@ A **fixed orthographic camera** at zero yaw and 4:3 dimetric foreshortening — 
 
 Because the camera is fixed and orthographic, the engine gets several things cheaply: cell-stable culling, stable sprite footprints (no perspective foreshortening to correct for), and a screen-space depth ordering that follows directly from world position.
 
+A **static mesh path** exists as a first slice of that camera's use: `render-mesh` reads Wavefront OBJ, uploads vertex and index buffers, and draws instances depth-tested against a `D32_FLOAT` target. Two things about it are worth knowing before building on it:
+
+- **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal has one; the others return false and draw no meshes, which is a gap to close before any platform but macOS can show geometry.
+- **Depth is measured along the projection ray, not along world Y.** The camera is oblique (§5.1), so points collapse to one pixel along `(0, RISE, DEPTH)` rather than along the screen normal. `makeIsoViewProjection` derives the clip matrix from that; a conventional look-at would order geometry wrongly wherever two things overlap on screen.
+
 ### 5.2 Hybrid Geometry and Sprites
 
 Terrain, structures, and large static props are **3D meshes**, drawn instanced with a real depth buffer. Characters, small props, and effects are **camera-facing billboarded sprites**. The two are interleaved in a single depth-sorted pass rather than layered, so a player sprite standing behind a wall mesh is occluded by it correctly and without a special case.

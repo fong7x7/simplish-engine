@@ -16,6 +16,7 @@ namespace {
   constexpr GuiColor AXIS_X{200, 70, 70, 255};
   constexpr GuiColor AXIS_Y{70, 180, 90, 255};
   constexpr GuiColor HOVER_FILL{0, 122, 204, 90};
+  constexpr GuiColor PLACEMENT_OUTLINE{210, 170, 90, 200};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -62,9 +63,8 @@ namespace {
   }
 
   /// Outline the rectangular footprint of a single tile.
-  void renderTileHighlight(GuiRendererContext& renderer, const IsoView& view,
-                           WorldPoint tile) {
-    const uint32_t color = HOVER_FILL.pack();
+  void renderTileOutline(GuiRendererContext& renderer, const IsoView& view,
+                         WorldPoint tile, uint32_t color) {
     const IsoPoint corners[] = {
         worldToScreen(view, {tile.x, tile.y}),
         worldToScreen(view, {tile.x + 1.0f, tile.y}),
@@ -87,6 +87,13 @@ std::unique_ptr<GuiWidget> EditorViewportWidget::clone() const {
   return std::make_unique<EditorViewportWidget>(*this);
 }
 
+void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
+                                            const IsoView& view) const {
+  for (const WorldPoint& marker : placement_markers) {
+    renderTileOutline(renderer, view, marker, PLACEMENT_OUTLINE.pack());
+  }
+}
+
 void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
   const IsoView view = makeIsoView(camera, rect);
   // Grid lines run past the viewport by design; scissor keeps them inside.
@@ -95,8 +102,9 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
     renderGrid(renderer, view);
   }
   renderAxes(renderer, view);
+  renderPlacements(renderer, view);
   if (has_hover_) {
-    renderTileHighlight(renderer, view, hovered_tile_);
+    renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
   }
   renderer.popScissor();
 }

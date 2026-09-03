@@ -6,6 +6,8 @@
 //   - Draws the dimetric level grid: tile lines, world origin axes, and a
 //     hover highlight on the tile under the cursor
 //   - The grid can be hidden without affecting axes, hover, or picking
+//   - Outlines the footprint of every placement, so placed assets are
+//     visible even on a backend with no mesh pipeline
 //   - Left-drag or middle-drag pans the camera; the world tracks the
 //     cursor one-to-one at any zoom
 //   - Scroll wheel zooms about the cursor
@@ -28,6 +30,7 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/gui/gui-widget.h>
 #include <memory>
+#include <vector>
 
 namespace eng::editor {
 
@@ -73,9 +76,21 @@ public:
   /// the grid is a drawing, not the source of tile coordinates.
   bool show_grid = true;
 
+  /// Tiles holding a placed asset, outlined as footprints.
+  ///
+  /// The 3D meshes themselves are drawn in the scene pass, which the
+  /// viewport widget has no part in — these outlines are the overlay that
+  /// says where things are, and the only thing visible at all on a backend
+  /// without a mesh pipeline.
+  std::vector<WorldPoint> placement_markers{};
+
 private:
-  /// Draw the scissored world layer: grid, axes, and hover highlight.
+  /// Draw the scissored world layer: grid, axes, placements, and hover.
   void renderScene(GuiRendererContext& renderer) const;
+
+  /// Outline the footprint of every placement.
+  void renderPlacements(GuiRendererContext& renderer,
+                        const IsoView& view) const;
 
   /// Recompute `hovered_tile_` from a screen position.
   void updateHover(float x, float y);

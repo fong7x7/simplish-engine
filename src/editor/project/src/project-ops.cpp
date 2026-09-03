@@ -116,6 +116,10 @@ ProjectOpenResult createProject(const std::filesystem::path& root,
   if (ec) {
     return fail(ProjectOpenError::WRITE_FAILED);
   }
+  std::filesystem::create_directories(projectAssetsPath(root), ec);
+  if (ec) {
+    return fail(ProjectOpenError::WRITE_FAILED);
+  }
 
   ProjectMetadata metadata;
   metadata.name = std::string(name);

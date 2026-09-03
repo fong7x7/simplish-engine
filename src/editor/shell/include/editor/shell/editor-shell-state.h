@@ -6,8 +6,11 @@
 
 #include <editor/project/project-context.h>
 #include <editor/project/recent-projects-list.h>
+#include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-tool.h>
 #include <filesystem>
+#include <vector>
 
 namespace eng::editor {
 
@@ -22,6 +25,10 @@ struct EditorShellState {
   std::filesystem::path recent_path;
   /// Currently selected authoring tool.
   EditorTool active_tool = EditorTool::SELECT;
+  /// Assets found under the open project, in panel order.
+  std::vector<EditorAsset> assets;
+  /// Assets placed in the world. In memory only — see `editor-placement.h`.
+  std::vector<EditorPlacement> placements;
 };
 
 }  // namespace eng::editor

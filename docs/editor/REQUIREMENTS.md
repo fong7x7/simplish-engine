@@ -20,15 +20,18 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 | Package | Covers | State |
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 22 tests |
-| `src/editor/shell/` | Title bar, menu bar (File / Edit / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), and the dimetric viewport with left- or middle-drag pan and scroll zoom | Built; 69 tests |
+| `src/editor/shell/` | Title bar, menu bar (File / Edit / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the dimetric viewport with left- or middle-drag pan and scroll zoom, and the asset strip that drags models into the world | Built; 106 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line | Built |
 
 What the slice deliberately does not do yet: nothing is authored. The tools select but do not edit, the viewport draws a grid but holds no level data, and there is no dockspace, save, or undo. Those arrive with the level format (§4.4) and the sections below.
+
+Asset placement is the second exception. The strip along the bottom lists the `.obj` files under `<project>/assets/`, and dragging one onto the viewport loads it, uploads it, and draws it as a real depth-tested mesh on the tile it was dropped on. What it does not do is persist: placements live in memory until the level format (§4.4) gives them somewhere to go, so closing the editor loses them. It is a placement tool, not yet an authoring one.
 
 The menu bar is the exception that proves the point. It is built — File, Edit, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 
 Two decisions the slice locks in:
 
+- **A dropped model is scaled to one tile and stood on the ground.** Models arrive in whatever unit their author used, and a metre-scale crate beside a centimetre-scale one is unreadable. Scaling by the larger horizontal extent keeps each model's own proportions while making the grid the common reference. OBJ files are also assumed Y-up, which is what every common exporter writes, and rotated into the Z-up world on load.
 - **Left-drag pans the viewport**, alongside middle-drag, so the obvious gesture moves the view. The cost is that the viewport captures every left press inside it, which is the button the authoring tools will eventually want for placing and selecting. When the tools start editing, one of the two has to give: a held modifier, an explicit pan mode, or middle-drag-only panning. That is a deliberate choice for now, not an oversight.
 - **The viewport camera pans and zooms; it never rotates.** The projection is fixed at zero yaw and 4:3 dimetric foreshortening — axis-aligned 64×48 tiles with the height axis running straight up the screen — matching [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md). A rotating editor camera would show the world at angles no sprite is authored for.
 - **A menu command that cannot work is shown, not hidden.** Save, Undo, Redo, Cut/Copy/Paste, and Settings are listed and greyed out; only commands the editor can carry out today are enabled (`editor-menu-command.h`). A greyed row is a promise about the roadmap; a missing row is a lie about it. The same rule gates Close Project on whether a project is open.

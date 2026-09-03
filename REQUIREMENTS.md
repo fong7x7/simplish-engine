@@ -91,7 +91,7 @@ simplish/
 │   │   ├── spatial/            # Uniform grid, spatial hash, tile grid, flow fields
 │   │   ├── render-iso/         # Isometric camera, projection, depth policy
 │   │   ├── render-sprite/      # Sprite atlas, billboard batcher, animation clips
-│   │   ├── render-mesh/        # Static and instanced mesh rendering
+│   │   ├── render-mesh/        # OBJ loading, mesh upload, depth-tested draw ✔ built
 │   │   ├── render-fx/          # GPU particles, decals, projectile trails
 │   │   ├── physics/            # Projectile integration, swept queries, collision
 │   │   ├── audio/  input/  content/  net/  debug/
@@ -102,7 +102,7 @@ simplish/
 │   │   └── distributor/        # steam/, epic/, ps5/, xbox/            — stubs, unwired
 │   ├── editor/                 # Desktop editor — links platform + engine
 │   │   ├── project/            # Project format, open/create, recent list       ✔ built
-│   │   └── shell/              # Title bar, menu bar, toolbar, viewport         ✔ built
+│   │   └── shell/              # Title bar, menu bar, toolbar, viewport, assets ✔ built
 │   ├── game/                   # Gameplay — links engine (to write)
 │   │   ├── player/  weapons/  projectiles/  enemies/  director/  run/  coop/
 │   └── bin/                    # Executables
@@ -124,7 +124,7 @@ Package boundaries are where the dependency rules in §5 are enforced: `src/engi
 |---|---|---|
 | Engine | `math`, `core`, `image`, `render`, `gui`, `client` | Math, allocators, logging, event bus, engine init, expression evaluator, plugin host, audit system; the abstract RHI interface (29 headers); a retained-mode GUI with layout, widgets, docking, theming, FreeType text, and a markdown renderer; `GameClient` / `RenderedGameClient` |
 | Platform | `render` (+ 5 backends), `client`, `distributor` | `RhiDeviceFactory`; Metal, Vulkan, DX12, OpenGL, and stub backends, one compiled in per binary; the SDL3 `DesktopGameClient`. Distributor packages are stubs, not yet wired into the build |
-| Editor | `project`, `shell` | Project open/create against `.simplish/project.json`, a recent-projects list, and the editor shell: title bar, menu bar with dropdown menus, tool toolbar, and a pan-and-zoom dimetric viewport |
+| Editor | `project`, `shell` | Project open/create against `.simplish/project.json`, a recent-projects list, and the editor shell: title bar, menu bar with dropdown menus, tool toolbar, a pan-and-zoom dimetric viewport, and an asset strip whose models drag into the world as depth-tested 3D meshes |
 
 ```bash
 cmake --preset debug && cmake --build --preset debug && ctest --preset debug

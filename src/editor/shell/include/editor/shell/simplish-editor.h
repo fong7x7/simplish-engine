@@ -6,7 +6,10 @@
 //   - Inherits DesktopGameClient for the platform window, engine init, GUI
 //     routing, and per-frame RHI presentation
 //   - Builds the editor chrome on init: title bar, menu bar, toolbar,
-//     viewport
+//     viewport, asset panel
+//   - Lists the open project's assets, and places one in the world when it
+//     is dragged from the panel onto the viewport
+//   - Draws placed meshes in a depth-tested scene pass under the interface
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
 //   - Per frame: lays the chrome out for the current window size and pushes
@@ -32,6 +35,7 @@
 //   - src/bin/editor/src/main.cpp: constructs, initialises, and runs this
 
 #include <cstdint>
+#include <editor/shell/editor-asset-panel-widget.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-shell-state.h>
@@ -39,8 +43,10 @@
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gui/gui-widget-id.h>
+#include <engine/render-mesh/mesh-renderer.h>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace eng::editor {
 
@@ -61,6 +67,8 @@ public:
 
 protected:
   bool onInit() override;
+  [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
+  void recordScene(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
   void onShutdown() override;
   void onClientKeyDown(uint32_t key, ClientKeyDownKind kind) override;
@@ -76,10 +84,36 @@ private:
   void initMenuBar(GuiWidgetTree& tree);
   /// Create the toolbar and the viewport.
   void initWorkArea(GuiWidgetTree& tree);
+  /// Create the asset panel and wire its drops back to this editor.
+  void initAssetPanel(GuiWidgetTree& tree);
+  /// Rescan the open project's assets and refresh the panel.
+  void refreshAssets();
+  /// Place the asset at @p index at a layout position, if that position is
+  /// over the viewport.
+  void dropAsset(size_t index, float x, float y);
+  /// Load and upload an asset's mesh if it is not on the GPU yet. False
+  /// when it cannot be loaded, which is remembered rather than retried.
+  bool ensureAssetMesh(size_t index);
+  /// Read, orient, and upload one asset's mesh.
+  bool loadAssetMesh(EditorAsset& asset);
+  /// The whole drawable surface as a GPU viewport.
+  [[nodiscard]] RhiViewport surfaceViewport();
+  /// Build the draw parameters for this frame's scene pass.
+  [[nodiscard]] MeshRenderer::DrawParams
+  sceneDrawParams(const EditorViewportWidget& viewport);
+  /// Rebuild `scene_instances_` from the current placements.
+  void buildSceneInstances();
+  /// Push placement footprints into the viewport for its overlay.
+  void refreshPlacementMarkers();
+  /// The viewport widget, or nullptr before the chrome exists.
+  [[nodiscard]] EditorViewportWidget* viewportWidget();
   /// Position the chrome for the current window size.
   void layoutChrome();
   /// Place the title bar and its label across @p window.
   void layoutTitleBar(GuiWidgetTree& tree, const Rect& window);
+  /// Place the viewport and the asset strip below @p top.
+  void layoutViewportAndAssets(GuiWidgetTree& tree, const Rect& window,
+                               float top);
   /// Place the menu bar, toolbar, and viewport down @p window.
   void layoutWorkArea(GuiWidgetTree& tree, const Rect& window);
   /// Push project name and viewport status into the toolbar.
@@ -117,6 +151,13 @@ private:
   GuiWidgetId toolbar_id_ = GUI_WIDGET_ID_INVALID;
   /// Viewport widget id in the tree (owned by the tree).
   GuiWidgetId viewport_id_ = GUI_WIDGET_ID_INVALID;
+  /// Asset panel widget id in the tree (owned by the tree).
+  GuiWidgetId asset_panel_id_ = GUI_WIDGET_ID_INVALID;
+  /// Mesh pipeline, uploaded meshes, and the scene depth target.
+  MeshRenderer mesh_renderer_{};
+  /// Instances rebuilt each frame from the placements. Kept as a member so
+  /// a frame does not allocate.
+  std::vector<MeshInstance> scene_instances_{};
   /// Backing store for the title label's string_view.
   std::string title_text_{"Simplish Editor"};
   /// Message shown in place of the toolbar status while it lasts.

@@ -1,10 +1,18 @@
+#include <algorithm>
+#include <cmath>
 #include <editor/project/project-ops.h>
+#include <editor/project/project-paths.h>
+#include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/core/logger.h>
 #include <engine/gui/gui-label.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <engine/gui/gui-widget-tree.h>
+#include <engine/render-mesh/mesh-transform.h>
+#include <engine/render-mesh/obj-loader.h>
 #include <string>
 #include <utility>
 
@@ -16,6 +24,15 @@ namespace {
   constexpr float TITLE_INSET = 10.0f;
   /// How long File > About leaves its line in the toolbar status.
   constexpr float ABOUT_SECONDS = 4.0f;
+
+  /// A layout rect as a pixel scissor. The surface is larger than the
+  /// layout on a HiDPI display, so the rect has to be scaled, not copied.
+  RhiScissor toSurfaceScissor(const Rect& rect, float scale) {
+    return {static_cast<int32_t>(rect.x * scale),
+            static_cast<int32_t>(rect.y * scale),
+            static_cast<uint32_t>(std::max(0.0f, rect.w * scale)),
+            static_cast<uint32_t>(std::max(0.0f, rect.h * scale))};
+  }
 
   /// Zoom the viewport about its own centre, the way a menu command has to:
   /// there is no cursor position to anchor on.
@@ -86,6 +103,11 @@ bool SimplishEditor::onInit() {
   if (!state_.recent_path.empty()) {
     state_.recent = loadRecentProjects(state_.recent_path);
   }
+  if (rhiDevice() != nullptr && !mesh_renderer_.init(*rhiDevice())) {
+    // Not fatal: the editor runs, placements still show their footprints,
+    // and only the geometry is missing.
+    LOG_WARN("editor", "Backend has no mesh pipeline; assets will not draw");
+  }
   initChrome();
   applyProjectToChrome();
   layoutChrome();
@@ -144,6 +166,14 @@ void SimplishEditor::initMenuBar(GuiWidgetTree& tree) {
   }
 }
 
+void SimplishEditor::initAssetPanel(GuiWidgetTree& tree) {
+  auto panel = std::make_unique<EditorAssetPanelWidget>();
+  panel->on_asset_dropped = [this](size_t index, float x, float y) {
+    dropAsset(index, x, y);
+  };
+  asset_panel_id_ = tree.insertExternalWidget(std::move(panel), root_panel_);
+}
+
 void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   auto toolbar = std::make_unique<EditorToolbarWidget>();
   toolbar->on_tool_selected = [this](EditorTool tool) {
@@ -156,6 +186,12 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   }
   viewport_id_ = tree.insertExternalWidget(
       std::make_unique<EditorViewportWidget>(), root_panel_);
+  initAssetPanel(tree);
+}
+
+EditorViewportWidget* SimplishEditor::viewportWidget() {
+  return dynamic_cast<EditorViewportWidget*>(
+      guiWidgetTree().findWidget(viewport_id_));
 }
 
 void SimplishEditor::layoutChrome() {
@@ -195,9 +231,19 @@ void SimplishEditor::layoutWorkArea(GuiWidgetTree& tree, const Rect& window) {
           dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
     bar->layout(tree, makeRect(0.0f, toolbar_top, window.w, TOOLBAR_HEIGHT));
   }
+  layoutViewportAndAssets(tree, window, toolbar_top + TOOLBAR_HEIGHT);
+}
+
+void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
+                                             const Rect& window, float top) {
+  // The asset strip takes the bottom; the viewport gets what is left, which
+  // may be nothing at all on a very short window.
+  const float panel_top = std::max(top, window.h - ASSET_PANEL_HEIGHT);
   if (auto* viewport = tree.findWidget(viewport_id_)) {
-    const float top = toolbar_top + TOOLBAR_HEIGHT;
-    viewport->rect = makeRect(0.0f, top, window.w, window.h - top);
+    viewport->rect = makeRect(0.0f, top, window.w, panel_top - top);
+  }
+  if (auto* panel = tree.findWidget(asset_panel_id_)) {
+    panel->rect = makeRect(0.0f, panel_top, window.w, window.h - panel_top);
   }
 }
 
@@ -234,6 +280,151 @@ void SimplishEditor::applyProjectToWidgets() {
                                     : EditorProjectPresence::NONE);
     menu->setRecentProjects(state_.recent);
   }
+  refreshAssets();
+}
+
+void SimplishEditor::refreshAssets() {
+  // Placements index into the asset list, and a rescan renumbers it, so
+  // they go with it. Nothing is persisted yet either way.
+  state_.placements.clear();
+  state_.assets = state_.project.loaded
+                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
+                      : std::vector<EditorAsset>{};
+  std::vector<std::string> names;
+  names.reserve(state_.assets.size());
+  for (const auto& asset : state_.assets) {
+    names.push_back(asset.name);
+  }
+  if (auto* panel = dynamic_cast<EditorAssetPanelWidget*>(
+          guiWidgetTree().findWidget(asset_panel_id_))) {
+    panel->setAssetNames(std::move(names));
+  }
+  refreshPlacementMarkers();
+}
+
+bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
+  auto mesh = loadObjMesh(asset.path);
+  if (!mesh.has_value()) {
+    LOG_WARN("editor", "Could not load mesh: " + asset.path.string());
+    return false;
+  }
+  orientYUpToZUp(*mesh);
+  auto uploaded = mesh_renderer_.upload(*rhiDevice(), *mesh);
+  if (!uploaded.has_value()) {
+    return false;
+  }
+  asset.mesh = *uploaded;
+  asset.min = mesh->min;
+  asset.max = mesh->max;
+  return true;
+}
+
+bool SimplishEditor::ensureAssetMesh(size_t index) {
+  EditorAsset& asset = state_.assets[index];
+  if (asset.mesh != MESH_GPU_INVALID) {
+    return true;
+  }
+  // A failed load is remembered, so a bad file is not reparsed on every
+  // drop attempt.
+  if (asset.load_failed || !mesh_renderer_.ready()) {
+    return false;
+  }
+  asset.load_failed = !loadAssetMesh(asset);
+  return !asset.load_failed;
+}
+
+void SimplishEditor::dropAsset(size_t index, float x, float y) {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr || index >= state_.assets.size()) {
+    return;
+  }
+  // A drop anywhere but the viewport is not a placement.
+  if (!containsPoint(viewport->rect, x, y)) {
+    return;
+  }
+  if (!ensureAssetMesh(index)) {
+    return;
+  }
+  const IsoView view = makeIsoView(viewport->camera, viewport->rect);
+  const WorldPoint world = screenToWorld(view, {x, y});
+  state_.placements.push_back(
+      {index, {std::floor(world.x), std::floor(world.y)}});
+  refreshPlacementMarkers();
+}
+
+void SimplishEditor::refreshPlacementMarkers() {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  viewport->placement_markers.clear();
+  viewport->placement_markers.reserve(state_.placements.size());
+  for (const auto& placement : state_.placements) {
+    viewport->placement_markers.push_back(placement.position);
+  }
+}
+
+void SimplishEditor::buildSceneInstances() {
+  scene_instances_.clear();
+  for (const auto& placement : state_.placements) {
+    if (placement.asset >= state_.assets.size()) {
+      continue;
+    }
+    const EditorAsset& asset = state_.assets[placement.asset];
+    if (asset.mesh == MESH_GPU_INVALID) {
+      continue;
+    }
+    scene_instances_.push_back(
+        {asset.mesh, makePlacementTransform(asset, placement.position)});
+  }
+}
+
+RhiTextureHandle SimplishEditor::sceneDepthTarget() {
+  eng::RhiDevice* device = rhiDevice();
+  // No placements means no scene pass at all, which leaves the frame
+  // exactly as it was before any of this existed.
+  if (device == nullptr || state_.placements.empty()) {
+    return RHI_TEXTURE_INVALID;
+  }
+  return mesh_renderer_.depthTarget(*device, backbufferWidth(),
+                                    backbufferHeight());
+}
+
+RhiViewport SimplishEditor::surfaceViewport() {
+  return {0.0f,
+          0.0f,
+          static_cast<float>(backbufferWidth()),
+          static_cast<float>(backbufferHeight()),
+          0.0f,
+          1.0f};
+}
+
+MeshRenderer::DrawParams
+SimplishEditor::sceneDrawParams(const EditorViewportWidget& viewport) {
+  const auto width = static_cast<float>(guiLayoutWidth());
+  const auto height = static_cast<float>(guiLayoutHeight());
+  // The projection maps into full-layout clip space, so the GPU viewport is
+  // the whole surface and the scissor is what confines meshes to the
+  // editor's viewport rect.
+  MeshRenderer::DrawParams params{};
+  params.view_projection =
+      makeIsoViewProjection(makeIsoView(viewport.camera, viewport.rect),
+                            {viewport.rect, width, height});
+  params.instances = scene_instances_;
+  params.viewport = surfaceViewport();
+  params.scissor = toSurfaceScissor(
+      viewport.rect,
+      width > 0.0f ? static_cast<float>(backbufferWidth()) / width : 1.0f);
+  return params;
+}
+
+void SimplishEditor::recordScene(RhiCommandList& cmd) {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  buildSceneInstances();
+  mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
 }
 
 void SimplishEditor::refreshToolbar() {
@@ -355,6 +546,9 @@ void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind) {
 
 void SimplishEditor::onShutdown() {
   shutdownChrome();
+  if (rhiDevice() != nullptr) {
+    mesh_renderer_.shutdown(*rhiDevice());
+  }
   // Release the GuiContext last: the widgets above live in its tree.
   eng::client::RenderedGameClient::onShutdown();
 }
@@ -376,6 +570,7 @@ void SimplishEditor::shutdownChrome() {
 
 void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   // The root goes last: destroying it takes every descendant with it.
+  tree.destroyWidget(asset_panel_id_);
   tree.destroyWidget(menu_bar_id_);
   tree.destroyWidget(toolbar_id_);
   tree.destroyWidget(viewport_id_);
@@ -387,6 +582,7 @@ void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   title_panel_ = GUI_WIDGET_ID_INVALID;
   title_label_ = GUI_WIDGET_ID_INVALID;
   root_panel_ = GUI_WIDGET_ID_INVALID;
+  asset_panel_id_ = GUI_WIDGET_ID_INVALID;
 }
 
 }  // namespace eng::editor

@@ -15,6 +15,8 @@ inline constexpr std::string_view PROJECT_DIR_NAME = ".simplish";
 inline constexpr std::string_view PROJECT_FILE_NAME = "project.json";
 /// Directory inside a project root holding authored content.
 inline constexpr std::string_view PROJECT_DATA_DIR_NAME = "data";
+/// Directory inside a project root holding importable source assets.
+inline constexpr std::string_view PROJECT_ASSETS_DIR_NAME = "assets";
 
 /// Path to a project root's editor directory (`<root>/.simplish`).
 [[nodiscard]] inline std::filesystem::path
@@ -32,6 +34,13 @@ projectFilePath(const std::filesystem::path& root) {
 [[nodiscard]] inline std::filesystem::path
 projectDataPath(const std::filesystem::path& root) {
   return root / PROJECT_DATA_DIR_NAME;
+}
+
+/// Path to a project root's asset directory (`<root>/assets`), which the
+/// editor's asset panel lists.
+[[nodiscard]] inline std::filesystem::path
+projectAssetsPath(const std::filesystem::path& root) {
+  return root / PROJECT_ASSETS_DIR_NAME;
 }
 
 }  // namespace eng::editor
