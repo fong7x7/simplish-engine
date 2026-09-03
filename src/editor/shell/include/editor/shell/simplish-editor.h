@@ -12,6 +12,8 @@
 //   - Draws placed meshes in a depth-tested scene pass under the interface
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
+//   - File > New Project asks the OS for a location and name, then creates
+//     and opens a project there
 //   - Per frame: lays the chrome out for the current window size and pushes
 //     hovered-tile and zoom into the toolbar status text
 //
@@ -67,6 +69,7 @@ public:
 
 protected:
   bool onInit() override;
+  void onSaveLocationChosen(const std::filesystem::path& path) override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
@@ -124,10 +127,17 @@ private:
   void applyProjectToWidgets();
   /// Carry out one menu command.
   void executeCommand(EditorMenuCommand command);
+  /// Carry out the File menu's project commands. Returns false when the
+  /// command belongs to another menu.
+  bool runProjectCommand(EditorMenuCommand command);
   /// Carry out the View menu's camera and grid commands.
   void applyViewCommand(EditorMenuCommand command);
   /// Close the open project, leaving the editor with none.
   void closeProject();
+  /// Create a project at @p root and open it. The directory's own name
+  /// becomes the project name, which is what the user just typed into the
+  /// dialog.
+  bool createProjectAt(const std::filesystem::path& root);
   /// Show build information in the toolbar status line for a few seconds.
   void showAbout();
   /// Run the View accelerators. Returns true when @p key was one of them.

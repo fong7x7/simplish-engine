@@ -80,10 +80,10 @@ namespace {
   /// Commands the editor can actually carry out today. Everything else is
   /// listed but disabled — see `editor-menu-command.h`.
   constexpr EditorMenuCommand IMPLEMENTED_COMMANDS[] = {
-      EditorMenuCommand::CLOSE_PROJECT, EditorMenuCommand::EXIT,
-      EditorMenuCommand::RESET_VIEW,    EditorMenuCommand::ZOOM_IN,
-      EditorMenuCommand::ZOOM_OUT,      EditorMenuCommand::TOGGLE_GRID,
-      EditorMenuCommand::ABOUT,
+      EditorMenuCommand::NEW_PROJECT, EditorMenuCommand::CLOSE_PROJECT,
+      EditorMenuCommand::EXIT,        EditorMenuCommand::RESET_VIEW,
+      EditorMenuCommand::ZOOM_IN,     EditorMenuCommand::ZOOM_OUT,
+      EditorMenuCommand::TOGGLE_GRID, EditorMenuCommand::ABOUT,
   };
 
   GuiButtonStyle titleStyle() {

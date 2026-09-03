@@ -460,21 +460,32 @@ bool SimplishEditor::onTick(float dt) {
   return !quit_requested_;
 }
 
-void SimplishEditor::executeCommand(EditorMenuCommand command) {
-  switch (command) {
-    case EditorMenuCommand::EXIT:
-      quit_requested_ = true;
-      return;
-    case EditorMenuCommand::CLOSE_PROJECT:
-      closeProject();
-      return;
-    case EditorMenuCommand::ABOUT:
-      showAbout();
-      return;
-    default:
-      applyViewCommand(command);
-      return;
+bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
+  if (command == EditorMenuCommand::NEW_PROJECT) {
+    // The dialog answers later, through onSaveLocationChosen.
+    showSaveLocationDialog();
+    return true;
   }
+  if (command == EditorMenuCommand::CLOSE_PROJECT) {
+    closeProject();
+    return true;
+  }
+  if (command == EditorMenuCommand::EXIT) {
+    quit_requested_ = true;
+    return true;
+  }
+  return false;
+}
+
+void SimplishEditor::executeCommand(EditorMenuCommand command) {
+  if (runProjectCommand(command)) {
+    return;
+  }
+  if (command == EditorMenuCommand::ABOUT) {
+    showAbout();
+    return;
+  }
+  applyViewCommand(command);
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
@@ -492,6 +503,27 @@ void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
   } else if (command == EditorMenuCommand::TOGGLE_GRID) {
     viewport->show_grid = !viewport->show_grid;
   }
+}
+
+void SimplishEditor::onSaveLocationChosen(const std::filesystem::path& path) {
+  (void)createProjectAt(path);
+}
+
+bool SimplishEditor::createProjectAt(const std::filesystem::path& root) {
+  // The dialog hands back the full path the user typed, so its last
+  // component is the name they chose.
+  std::string name = root.filename().string();
+  if (name.empty()) {
+    name = "Untitled";
+  }
+  auto result = createProject(root, name, isoTimestampNow());
+  if (!result.ok()) {
+    LOG_ERROR("editor", std::string("Cannot create project: ")
+                            .append(projectOpenErrorMessage(result.error)));
+    return false;
+  }
+  LOG_INFO("editor", "Created project: " + name);
+  return openProjectAt(root);
 }
 
 void SimplishEditor::closeProject() {

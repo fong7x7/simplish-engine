@@ -25,6 +25,8 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 
 What the slice deliberately does not do yet: nothing is authored. The tools select but do not edit, the viewport draws a grid but holds no level data, and there is no dockspace, save, or undo. Those arrive with the level format (§4.4) and the sections below.
 
+File > New Project is live too: it opens the OS "save as" dialog, starting in the user's Documents folder — where a person keeps their own work — and falling back to home when there is no Documents to start in. The folder name they type becomes the project name, and the new project opens immediately with its `.simplish/`, `data/`, and `assets/` directories in place.
+
 Asset placement is the second exception. The strip along the bottom lists the `.obj` files under `<project>/assets/`, and dragging one onto the viewport loads it, uploads it, and draws it as a real depth-tested mesh on the tile it was dropped on. What it does not do is persist: placements live in memory until the level format (§4.4) gives them somewhere to go, so closing the editor loses them. It is a placement tool, not yet an authoring one.
 
 The menu bar is the exception that proves the point. It is built — File, Edit, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.

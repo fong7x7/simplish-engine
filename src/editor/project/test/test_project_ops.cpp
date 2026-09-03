@@ -56,6 +56,16 @@ TEST_CASE("createProject writes a manifest and a data directory") {
   REQUIRE(fs::is_directory(projectDataPath(root)));
 }
 
+TEST_CASE("createProject makes the assets directory") {
+  TempDir tmp("assets");
+  const fs::path root = tmp.path() / "my-project";
+
+  REQUIRE(createProject(root, "My Project", STAMP).ok());
+  // The editor's asset panel lists this directory; a new project should
+  // show an empty panel, not a missing one.
+  REQUIRE(fs::is_directory(projectAssetsPath(root)));
+}
+
 TEST_CASE("createProject refuses to overwrite an existing project") {
   TempDir tmp("no-overwrite");
   const fs::path root = tmp.path() / "existing";

@@ -3,7 +3,9 @@
 #include <chrono>
 #include <cstdint>
 #include <engine/client/rendered-game-client.h>
+#include <filesystem>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -84,7 +86,26 @@ protected:
   /// `onClientKeyDown`) so hooks stay wired.
   virtual void onEvent(const SDL_Event& event);
 
+  /// Open the OS "save as" dialog so the user can pick a folder and type a
+  /// name, starting in Documents (or home, or wherever the OS prefers).
+  ///
+  /// Returns immediately: the dialog is modal to the window but answers
+  /// asynchronously, and SDL may run its callback on another thread. The
+  /// answer arrives on the main thread through `onSaveLocationChosen`,
+  /// before the next `onTick`. A cancelled dialog reports nothing at all.
+  void showSaveLocationDialog();
+
+  /// Called on the main thread with the path the user chose. Default no-op.
+  virtual void onSaveLocationChosen(const std::filesystem::path& /*path*/) {}
+
 private:
+  /// Hand any pending dialog answer to `onSaveLocationChosen`.
+  void drainSaveLocation();
+
+  /// Store a dialog answer for the main thread to pick up. Called from
+  /// whichever thread SDL runs the dialog callback on.
+  void storeSaveLocation(const char* path);
+
   /// Create SDL window and query initial backbuffer size.
   std::optional<std::string>
   initSdlWindow(const eng::client::GameClientConfig& config);
@@ -118,6 +139,10 @@ private:
   SDL_Window* window_ = nullptr;
   /// RHI device; created in init() via RhiDeviceFactory.
   std::unique_ptr<eng::RhiDevice> rhi_device_{};
+  /// Guards `pending_save_location_` against the dialog callback's thread.
+  std::mutex save_location_mutex_{};
+  /// Path chosen but not yet handed to the main thread.
+  std::optional<std::string> pending_save_location_{};
 };
 
 }  // namespace eng::client

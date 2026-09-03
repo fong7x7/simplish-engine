@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <engine/client/desktop-dialog-start-folder.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/client/desktop-platform-mouse-button.h>
 #include <engine/client/desktop-platform-utility.h>
@@ -356,12 +357,58 @@ bool DesktopGameClient::runOneFrame(
   if (!pollEvents()) {
     return false;
   }
+  // Between polling and ticking: the dialog callback may have run on
+  // another thread, and this is where its answer joins the main thread.
+  drainSaveLocation();
   float dt = computeDeltaTime(last_frame);
   if (!onTick(dt)) {
     return false;
   }
   presentGuiFrame();
   return true;
+}
+
+namespace {
+
+  /// SDL hands the callback a null list on error and an empty one on
+  /// cancel; only a first entry is a real answer.
+  const char* firstChosenPath(const char* const* filelist) {
+    if (filelist == nullptr || filelist[0] == nullptr) {
+      return nullptr;
+    }
+    return filelist[0];
+  }
+
+}  // namespace
+
+void DesktopGameClient::storeSaveLocation(const char* path) {
+  const std::lock_guard<std::mutex> lock(save_location_mutex_);
+  pending_save_location_ = std::string(path);
+}
+
+void DesktopGameClient::drainSaveLocation() {
+  std::optional<std::string> chosen;
+  {
+    const std::lock_guard<std::mutex> lock(save_location_mutex_);
+    chosen.swap(pending_save_location_);
+  }
+  if (chosen.has_value()) {
+    onSaveLocationChosen(std::filesystem::path(*chosen));
+  }
+}
+
+void DesktopGameClient::showSaveLocationDialog() {
+  const std::string start =
+      chooseDialogStartFolder(SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS),
+                              SDL_GetUserFolder(SDL_FOLDER_HOME));
+  SDL_ShowSaveFileDialog(
+      [](void* userdata, const char* const* filelist, int /*filter*/) {
+        const char* path = firstChosenPath(filelist);
+        if (path != nullptr) {
+          static_cast<DesktopGameClient*>(userdata)->storeSaveLocation(path);
+        }
+      },
+      this, window_, nullptr, 0, start.empty() ? nullptr : start.c_str());
 }
 
 void DesktopGameClient::run() {
