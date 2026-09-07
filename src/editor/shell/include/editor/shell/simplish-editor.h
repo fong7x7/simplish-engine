@@ -13,7 +13,8 @@
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
 //   - File > New Project asks the OS for a location and name, then creates
-//     and opens a project there
+//     and opens a project there; File > Open Project asks for a folder and
+//     opens the project in it
 //   - Per frame: lays the chrome out for the current window size and pushes
 //     hovered-tile and zoom into the toolbar status text
 //
@@ -37,6 +38,7 @@
 //   - src/bin/editor/src/main.cpp: constructs, initialises, and runs this
 
 #include <cstdint>
+#include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-panel-widget.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
@@ -70,6 +72,7 @@ public:
 protected:
   bool onInit() override;
   void onSaveLocationChosen(const std::filesystem::path& path) override;
+  void onFolderChosen(const std::filesystem::path& path) override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
@@ -130,6 +133,11 @@ private:
   /// Carry out the File menu's project commands. Returns false when the
   /// command belongs to another menu.
   bool runProjectCommand(EditorMenuCommand command);
+  /// Open the OS dialog a command needs. Returns false for commands that
+  /// need no dialog.
+  bool runDialogCommand(EditorMenuCommand command);
+  /// Stamp the manifest and promote the project in the recent list.
+  void recordProjectOpened(const std::string& stamp);
   /// Carry out the View menu's camera and grid commands.
   void applyViewCommand(EditorMenuCommand command);
   /// Close the open project, leaving the editor with none.
@@ -140,6 +148,10 @@ private:
   bool createProjectAt(const std::filesystem::path& root);
   /// Show build information in the toolbar status line for a few seconds.
   void showAbout();
+  /// Put a message in the toolbar status line for a few seconds.
+  void showStatusMessage(std::string text);
+  /// Log and surface why a project could not be opened.
+  void reportProjectOpenFailure(ProjectOpenError error);
   /// Run the View accelerators. Returns true when @p key was one of them.
   bool handleViewKey(uint32_t key);
   /// Let the chrome widgets release what they own, then destroy them.

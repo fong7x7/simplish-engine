@@ -64,33 +64,40 @@ void SimplishEditor::setRecentProjectsPath(std::filesystem::path path) {
   state_.recent_path = std::move(path);
 }
 
+void SimplishEditor::reportProjectOpenFailure(ProjectOpenError error) {
+  std::string reason(projectOpenErrorMessage(error));
+  LOG_ERROR("editor", "Cannot open project: " + reason);
+  // The log is invisible to whoever just picked the wrong folder, and
+  // picking the wrong folder is the likely mistake.
+  showStatusMessage("Cannot open project: " + reason);
+}
+
 bool SimplishEditor::openProjectAt(const std::filesystem::path& root) {
   auto result = openProject(root);
   if (!result.ok()) {
-    LOG_ERROR("editor", std::string("Cannot open project: ")
-                            .append(projectOpenErrorMessage(result.error)));
+    reportProjectOpenFailure(result.error);
     return false;
   }
 
   state_.project = std::move(result.context);
-
-  const std::string stamp = isoTimestampNow();
-  // A failed stamp is not fatal — a read-only project still opens; the write
-  // failure is worth a line in the log but not a refusal to load.
-  if (!touchProjectOpened(state_.project, stamp)) {
-    LOG_WARN("editor", "Could not update last_opened_at in project.json");
-  }
-
-  promoteRecentProject(state_.recent, state_.project, stamp);
-  if (!state_.recent_path.empty()) {
-    (void)saveRecentProjects(state_.recent, state_.recent_path);
-  }
-
+  recordProjectOpened(isoTimestampNow());
   LOG_INFO(
       "editor",
       std::string("Opened project: ").append(state_.project.metadata.name));
   applyProjectToChrome();
   return true;
+}
+
+void SimplishEditor::recordProjectOpened(const std::string& stamp) {
+  // A failed stamp is not fatal — a read-only project still opens; the write
+  // failure is worth a line in the log but not a refusal to load.
+  if (!touchProjectOpened(state_.project, stamp)) {
+    LOG_WARN("editor", "Could not update last_opened_at in project.json");
+  }
+  promoteRecentProject(state_.recent, state_.project, stamp);
+  if (!state_.recent_path.empty()) {
+    (void)saveRecentProjects(state_.recent, state_.recent_path);
+  }
 }
 
 bool SimplishEditor::onInit() {
@@ -460,10 +467,21 @@ bool SimplishEditor::onTick(float dt) {
   return !quit_requested_;
 }
 
-bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
+bool SimplishEditor::runDialogCommand(EditorMenuCommand command) {
+  // Both answer later, on the main thread, through the on*Chosen overrides.
   if (command == EditorMenuCommand::NEW_PROJECT) {
-    // The dialog answers later, through onSaveLocationChosen.
     showSaveLocationDialog();
+    return true;
+  }
+  if (command == EditorMenuCommand::OPEN_PROJECT) {
+    showOpenFolderDialog();
+    return true;
+  }
+  return false;
+}
+
+bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
+  if (runDialogCommand(command)) {
     return true;
   }
   if (command == EditorMenuCommand::CLOSE_PROJECT) {
@@ -509,6 +527,12 @@ void SimplishEditor::onSaveLocationChosen(const std::filesystem::path& path) {
   (void)createProjectAt(path);
 }
 
+void SimplishEditor::onFolderChosen(const std::filesystem::path& path) {
+  // openProjectAt reports its own failure, and leaves any open project
+  // alone when the folder turns out not to be one.
+  (void)openProjectAt(path);
+}
+
 bool SimplishEditor::createProjectAt(const std::filesystem::path& root) {
   // The dialog hands back the full path the user typed, so its last
   // component is the name they chose.
@@ -537,11 +561,15 @@ void SimplishEditor::closeProject() {
   applyProjectToChrome();
 }
 
-void SimplishEditor::showAbout() {
-  // There is no dialog system yet, so About borrows the toolbar's status
-  // line rather than pretending to open a window.
-  status_override_ = "Simplish Editor — engine and editor, C++20";
+void SimplishEditor::showStatusMessage(std::string text) {
+  // There is no notification system yet, so messages borrow the toolbar's
+  // status line rather than pretending to open a window.
+  status_override_ = std::move(text);
   status_override_left_ = ABOUT_SECONDS;
+}
+
+void SimplishEditor::showAbout() {
+  showStatusMessage("Simplish Editor — engine and editor, C++20");
 }
 
 bool SimplishEditor::handleViewKey(uint32_t key) {

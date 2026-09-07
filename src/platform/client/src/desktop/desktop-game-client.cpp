@@ -359,7 +359,7 @@ bool DesktopGameClient::runOneFrame(
   }
   // Between polling and ticking: the dialog callback may have run on
   // another thread, and this is where its answer joins the main thread.
-  drainSaveLocation();
+  drainDialogPath();
   float dt = computeDeltaTime(last_frame);
   if (!onTick(dt)) {
     return false;
@@ -381,34 +381,69 @@ namespace {
 
 }  // namespace
 
-void DesktopGameClient::storeSaveLocation(const char* path) {
-  const std::lock_guard<std::mutex> lock(save_location_mutex_);
-  pending_save_location_ = std::string(path);
+void DesktopGameClient::storeDialogPath(DialogPurpose purpose,
+                                        const char* path) {
+  const std::lock_guard<std::mutex> lock(dialog_mutex_);
+  pending_dialog_path_ = std::make_pair(purpose, std::string(path));
 }
 
-void DesktopGameClient::drainSaveLocation() {
-  std::optional<std::string> chosen;
+void DesktopGameClient::drainDialogPath() {
+  std::optional<std::pair<DialogPurpose, std::string>> chosen;
   {
-    const std::lock_guard<std::mutex> lock(save_location_mutex_);
-    chosen.swap(pending_save_location_);
+    const std::lock_guard<std::mutex> lock(dialog_mutex_);
+    chosen.swap(pending_dialog_path_);
   }
-  if (chosen.has_value()) {
-    onSaveLocationChosen(std::filesystem::path(*chosen));
+  if (!chosen.has_value()) {
+    return;
   }
+  const std::filesystem::path path(chosen->second);
+  if (chosen->first == DialogPurpose::SAVE_LOCATION) {
+    onSaveLocationChosen(path);
+    return;
+  }
+  onFolderChosen(path);
 }
+
+namespace {
+
+  /// Where both dialogs open. Empty means "no default location", which is
+  /// what SDL takes a null for.
+  std::string dialogStartFolder() {
+    return chooseDialogStartFolder(SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS),
+                                   SDL_GetUserFolder(SDL_FOLDER_HOME));
+  }
+
+  /// Null when the folder is unknown, which SDL reads as "your choice".
+  const char* startFolderOrNull(const std::string& start) {
+    return start.empty() ? nullptr : start.c_str();
+  }
+
+}  // namespace
 
 void DesktopGameClient::showSaveLocationDialog() {
-  const std::string start =
-      chooseDialogStartFolder(SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS),
-                              SDL_GetUserFolder(SDL_FOLDER_HOME));
+  const std::string start = dialogStartFolder();
   SDL_ShowSaveFileDialog(
       [](void* userdata, const char* const* filelist, int /*filter*/) {
         const char* path = firstChosenPath(filelist);
         if (path != nullptr) {
-          static_cast<DesktopGameClient*>(userdata)->storeSaveLocation(path);
+          static_cast<DesktopGameClient*>(userdata)->storeDialogPath(
+              DialogPurpose::SAVE_LOCATION, path);
         }
       },
-      this, window_, nullptr, 0, start.empty() ? nullptr : start.c_str());
+      this, window_, nullptr, 0, startFolderOrNull(start));
+}
+
+void DesktopGameClient::showOpenFolderDialog() {
+  const std::string start = dialogStartFolder();
+  SDL_ShowOpenFolderDialog(
+      [](void* userdata, const char* const* filelist, int /*filter*/) {
+        const char* path = firstChosenPath(filelist);
+        if (path != nullptr) {
+          static_cast<DesktopGameClient*>(userdata)->storeDialogPath(
+              DialogPurpose::OPEN_FOLDER, path);
+        }
+      },
+      this, window_, startFolderOrNull(start), false);
 }
 
 void DesktopGameClient::run() {

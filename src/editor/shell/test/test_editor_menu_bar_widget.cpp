@@ -230,6 +230,16 @@ TEST_CASE("unimplemented commands are listed but disabled") {
   REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "Exit"))].enabled);
 }
 
+TEST_CASE("the project commands that have a dialog behind them are enabled") {
+  MenuFixture fx;
+  const eng::GuiDropdown& file = *fx.menu(FILE_MENU);
+  // Both open an OS dialog, so neither needs a project already loaded.
+  REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "New Project..."))]
+              .enabled);
+  REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "Open Project..."))]
+              .enabled);
+}
+
 TEST_CASE("Close Project is disabled until a project is open") {
   MenuFixture fx;
   auto closeRow = [&fx]() {

@@ -36,6 +36,15 @@ namespace eng::client {
 
 class DesktopGameClient : public eng::client::RenderedGameClient {
 public:
+  /// Which dialog an answer came back from. One pending slot serves both,
+  /// so the purpose is what routes the answer to the right handler.
+  enum class DialogPurpose : uint8_t {
+    /// A location and name for something to be created.
+    SAVE_LOCATION,
+    /// An existing folder.
+    OPEN_FOLDER,
+  };
+
   /// Whether an SDL key-down came from the first press or OS key-repeat.
   enum class ClientKeyDownKind : uint8_t {
     /// First `SDL_EVENT_KEY_DOWN` for this physical press.
@@ -95,16 +104,23 @@ protected:
   /// before the next `onTick`. A cancelled dialog reports nothing at all.
   void showSaveLocationDialog();
 
-  /// Called on the main thread with the path the user chose. Default no-op.
+  /// Open the OS folder picker, starting in the same place. Answers through
+  /// `onFolderChosen`, with the same timing and cancellation behaviour.
+  void showOpenFolderDialog();
+
+  /// Called on the main thread with a chosen save location. Default no-op.
   virtual void onSaveLocationChosen(const std::filesystem::path& /*path*/) {}
 
+  /// Called on the main thread with a chosen existing folder. Default no-op.
+  virtual void onFolderChosen(const std::filesystem::path& /*path*/) {}
+
 private:
-  /// Hand any pending dialog answer to `onSaveLocationChosen`.
-  void drainSaveLocation();
+  /// Hand any pending dialog answer to the handler its purpose names.
+  void drainDialogPath();
 
   /// Store a dialog answer for the main thread to pick up. Called from
   /// whichever thread SDL runs the dialog callback on.
-  void storeSaveLocation(const char* path);
+  void storeDialogPath(DialogPurpose purpose, const char* path);
 
   /// Create SDL window and query initial backbuffer size.
   std::optional<std::string>
@@ -139,10 +155,10 @@ private:
   SDL_Window* window_ = nullptr;
   /// RHI device; created in init() via RhiDeviceFactory.
   std::unique_ptr<eng::RhiDevice> rhi_device_{};
-  /// Guards `pending_save_location_` against the dialog callback's thread.
-  std::mutex save_location_mutex_{};
-  /// Path chosen but not yet handed to the main thread.
-  std::optional<std::string> pending_save_location_{};
+  /// Guards `pending_dialog_path_` against the dialog callback's thread.
+  std::mutex dialog_mutex_{};
+  /// Path chosen but not yet handed to the main thread, and what it is for.
+  std::optional<std::pair<DialogPurpose, std::string>> pending_dialog_path_{};
 };
 
 }  // namespace eng::client
