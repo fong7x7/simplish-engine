@@ -340,12 +340,15 @@ namespace {
   }
 
   /// Upload vertex/index data and bind pipeline + buffers.
-  void uploadAndBind(GuiRendererContext& ctx, RhiCommandList& cmd_list,
-                     uint32_t vert_count, uint32_t idx_count) {
+  void uploadFrameBuffers(GuiRendererContext& ctx, uint32_t vert_count,
+                          uint32_t idx_count) {
     uploadBuffer(*ctx.device, ctx.vertex_buffer, ctx.vertices.data(),
                  static_cast<uint64_t>(vert_count) * gui::GUI_VERTEX_STRIDE);
     uploadBuffer(*ctx.device, ctx.index_buffer, ctx.indices.data(),
                  static_cast<uint64_t>(idx_count) * sizeof(uint32_t));
+  }
+
+  void bindFrameState(GuiRendererContext& ctx, RhiCommandList& cmd_list) {
     if (ctx.pipeline != RHI_PIPELINE_INVALID) {
       cmd_list.bindPipeline(ctx.pipeline);
     }
@@ -415,13 +418,6 @@ namespace {
       submitQuadBatch(cmd, cmd_list);
     } else {
       submitScissorCommand(cmd, cmd_list, ctx);
-    }
-  }
-
-  void submitAllDrawCommands(GuiRendererContext& ctx,
-                             RhiCommandList& cmd_list) {
-    for (const auto& cmd : ctx.commands) {
-      submitDrawCommand(cmd, cmd_list, ctx);
     }
   }
 
@@ -513,6 +509,7 @@ void GuiRendererContext::beginFrame() {
   vertices.clear();
   indices.clear();
   commands.clear();
+  scene_split = NO_SCENE_SPLIT;
   // The stack has to be cleared with the stream it describes. A widget that
   // returns between pushScissor and popScissor would otherwise leave a clip
   // on the stack that narrows every later frame.
@@ -608,23 +605,52 @@ void GuiRendererContext::popScissor() {
   appendScissorCommand(*this, DrawCommandType::POP_SCISSOR, restore);
 }
 
-void GuiRendererContext::endFrame(RhiCommandList& cmd_list) {
+void GuiRendererContext::markSceneSplit() {
+  scene_split = commands.size();
+}
+
+size_t GuiRendererContext::sceneSplit() const {
+  return scene_split == NO_SCENE_SPLIT ? commands.size() : scene_split;
+}
+
+void GuiRendererContext::uploadFrame() {
   if (vertices.empty() || device == nullptr) {
     return;
   }
-
   const auto vert_count = static_cast<uint32_t>(vertices.size());
   const auto idx_count = static_cast<uint32_t>(indices.size());
   growVertexBufferIfNeeded(*this, vert_count);
   growIndexBufferIfNeeded(*this, idx_count);
-  uploadAndBind(*this, cmd_list, vert_count, idx_count);
-  setFullViewport(*this, cmd_list);
+  uploadFrameBuffers(*this, vert_count, idx_count);
+}
 
-  if (!commands.empty()) {
-    submitAllDrawCommands(*this, cmd_list);
+void GuiRendererContext::bindFrame(RhiCommandList& cmd_list) {
+  if (vertices.empty() || device == nullptr) {
     return;
   }
-  drawFullMeshFallback(cmd_list, idx_count);
+  bindFrameState(*this, cmd_list);
+  setFullViewport(*this, cmd_list);
+}
+
+void GuiRendererContext::submitCommandRange(RhiCommandList& cmd_list,
+                                            size_t first, size_t count) {
+  const size_t last = std::min(commands.size(), first + count);
+  for (size_t i = first; i < last; ++i) {
+    submitDrawCommand(commands[i], cmd_list, *this);
+  }
+}
+
+void GuiRendererContext::endFrame(RhiCommandList& cmd_list) {
+  if (vertices.empty() || device == nullptr) {
+    return;
+  }
+  uploadFrame();
+  bindFrame(cmd_list);
+  if (!commands.empty()) {
+    submitCommandRange(cmd_list, 0, commands.size());
+    return;
+  }
+  drawFullMeshFallback(cmd_list, static_cast<uint32_t>(indices.size()));
 }
 
 }  // namespace eng

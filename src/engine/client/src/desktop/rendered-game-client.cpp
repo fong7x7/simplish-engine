@@ -185,6 +185,9 @@ void RenderedGameClient::beginScenePass(RhiCommandList& cmd, RhiDevice& device,
   rp.depth_load_op = RhiLoadOp::CLEAR;
   rp.clear_depth = 1.0f;
   setClearColor(rp, frameClearColor());
+  // The pass under this one already cleared and painted the ground-plane
+  // overlays; the scene draws over them, not over a fresh surface.
+  rp.color_load_op = RhiLoadOp::LOAD;
   cmd.beginRenderPass(rp);
 }
 
@@ -202,18 +205,42 @@ void RenderedGameClient::beginGuiPass(RhiCommandList& cmd, RhiDevice& device,
   cmd.beginRenderPass(rp);
 }
 
+void RenderedGameClient::recordLayeredFrame(RhiCommandList& cmd,
+                                            RhiDevice& device,
+                                            RhiTextureHandle depth) {
+  // Three passes, in paint order: what goes under the scene, the scene, and
+  // what goes over it. The split is wherever the GUI marked it.
+  const size_t split = gui_.renderer->sceneSplit();
+  const size_t total = gui_.renderer->commands.size();
+  gui_.renderer->uploadFrame();
+
+  beginGuiPass(cmd, device, RhiLoadOp::CLEAR);
+  gui_.renderer->bindFrame(cmd);
+  gui_.renderer->submitCommandRange(cmd, 0, split);
+  cmd.endRenderPass();
+
+  beginScenePass(cmd, device, depth);
+  recordScene(cmd);
+  cmd.endRenderPass();
+
+  beginGuiPass(cmd, device, RhiLoadOp::LOAD);
+  gui_.renderer->bindFrame(cmd);
+  gui_.renderer->submitCommandRange(cmd, split, total - split);
+  cmd.endRenderPass();
+}
+
 void RenderedGameClient::recordFrame(RhiCommandList& cmd, RhiDevice& device) {
   cmd.begin();
   const RhiTextureHandle depth = sceneDepthTarget();
-  const bool has_scene = depth != RHI_TEXTURE_INVALID;
-  if (has_scene) {
-    beginScenePass(cmd, device, depth);
-    recordScene(cmd);
+  if (depth == RHI_TEXTURE_INVALID || gui_.renderer->commands.empty()) {
+    // Nothing to layer around: one pass, exactly as before any of this.
+    beginGuiPass(cmd, device, RhiLoadOp::CLEAR);
+    gui_.renderer->endFrame(cmd);
     cmd.endRenderPass();
+    cmd.end();
+    return;
   }
-  beginGuiPass(cmd, device, has_scene ? RhiLoadOp::LOAD : RhiLoadOp::CLEAR);
-  gui_.renderer->endFrame(cmd);
-  cmd.endRenderPass();
+  recordLayeredFrame(cmd, device, depth);
   cmd.end();
 }
 

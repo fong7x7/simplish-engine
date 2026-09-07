@@ -144,6 +144,10 @@ private:
   /// Record the whole frame: the optional scene pass, then the GUI pass.
   void recordFrame(RhiCommandList& cmd, RhiDevice& device);
 
+  /// Record a frame with a scene in it: GUI under, scene, GUI over.
+  void recordLayeredFrame(RhiCommandList& cmd, RhiDevice& device,
+                          RhiTextureHandle depth);
+
   /// Begin the pass 3D geometry draws into, clearing colour and depth.
   void beginScenePass(RhiCommandList& cmd, RhiDevice& device,
                       RhiTextureHandle depth);

@@ -88,7 +88,7 @@ The GUI renderer batches draw calls through the engine's RHI:
 - **SDF text** — Signed-distance-field rendering for resolution-independent text at arbitrary scale.
 - **Clipping** — Scissor-rect stack for scroll containers and overflow. A push both intersects with the enclosing rect and emits a `PUSH_SCISSOR` draw command; the stack on its own is only bookkeeping, and content whose clip never reaches the command stream paints over the rest of the frame. Batching stops at a scissor command, so quads on either side of one cannot merge. The CPU rasterizer (§4.4) reads vertices rather than commands and so does not clip — a headless capture of an overflowing widget shows the overflow.
 - **Blur and shadow** — Gaussian blur pass for panel drop shadows and frosted-glass backgrounds (opt-in per panel, with quality tier fallback to solid colour on lower-end hardware).
-- **Draw order** — Z-sorted layers: game viewport, HUD, menus/overlays, editor panels, tooltips, modals.
+- **Draw order** — Z-sorted layers: game viewport, HUD, menus/overlays, editor panels, tooltips, modals. A frame may also carry a *scene split*: `markSceneSplit` records the point in the paint order where a depth-tested 3D pass composites, and the client submits the commands before it, then the scene, then the rest. That is what lets ground-plane overlays sit under geometry while the interface stays over it.
 
 ### 4.5 Theming & Customization
 

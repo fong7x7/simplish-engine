@@ -93,8 +93,8 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
   }
 }
 
-void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
-  const IsoView view = makeIsoView(camera, rect);
+void EditorViewportWidget::renderGround(GuiRendererContext& renderer,
+                                        const IsoView& view) const {
   // Grid lines run past the viewport by design; scissor keeps them inside.
   renderer.pushScissor(rect);
   if (show_grid) {
@@ -102,10 +102,23 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
   }
   renderAxes(renderer, view);
   renderPlacements(renderer, view);
-  if (has_hover_) {
-    renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
-  }
   renderer.popScissor();
+}
+
+void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
+  const IsoView view = makeIsoView(camera, rect);
+  // Everything that lies on the ground plane goes first, so 3D geometry
+  // standing on a tile hides the grid it covers rather than being drawn
+  // over by it. The scissor is balanced on both sides of the split: the
+  // scene is composited between them, and a clip cannot span the two.
+  renderGround(renderer, view);
+  renderer.markSceneSplit();
+  if (has_hover_) {
+    // Cursor feedback belongs on top, where it stays visible over geometry.
+    renderer.pushScissor(rect);
+    renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
+    renderer.popScissor();
+  }
 }
 
 void EditorViewportWidget::render(const GuiDrawContext& ctx) const {

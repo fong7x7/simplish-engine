@@ -8,6 +8,8 @@
 //   - The grid can be hidden without affecting axes, hover, or picking
 //   - Outlines the footprint of every placement, so placed assets are
 //     visible even on a backend with no mesh pipeline
+//   - Marks where the 3D scene composites: grid, axes and placements paint
+//     under it, the hover highlight over it
 //   - Left-drag or middle-drag pans the camera; the world tracks the
 //     cursor one-to-one at any zoom
 //   - Scroll wheel zooms about the cursor
@@ -97,8 +99,11 @@ public:
   std::vector<WorldPoint> placement_markers{};
 
 private:
-  /// Draw the scissored world layer: grid, axes, placements, and hover.
+  /// Draw the world layer, marking where the 3D scene composites into it.
   void renderScene(GuiRendererContext& renderer) const;
+
+  /// Draw what lies on the ground plane: grid, axes, and placements.
+  void renderGround(GuiRendererContext& renderer, const IsoView& view) const;
 
   /// Outline the footprint of every placement.
   void renderPlacements(GuiRendererContext& renderer,

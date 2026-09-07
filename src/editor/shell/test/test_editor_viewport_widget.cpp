@@ -81,6 +81,46 @@ TEST_CASE("the viewport paints no opaque background over itself") {
   }
 }
 
+TEST_CASE("the scene composites between the ground and the cursor") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.placement_markers.push_back({2.0f, 3.0f});
+  viewport.handleMouseMove(mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT));
+  const RenderedViewport rendered(viewport);
+  const auto& renderer = rendered.renderer;
+
+  // Grid, axes and placements draw under the 3D; the hover highlight draws
+  // over it. A split at either end would put all of it on one side.
+  const size_t split = renderer.sceneSplit();
+  REQUIRE(split > 0);
+  REQUIRE(split < renderer.commands.size());
+}
+
+TEST_CASE("the scissor is balanced on both sides of the scene split") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.handleMouseMove(mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT));
+  const RenderedViewport rendered(viewport);
+  const auto& commands = rendered.renderer.commands;
+  const size_t split = rendered.renderer.sceneSplit();
+
+  // Each half is submitted as its own render pass, and a clip cannot span
+  // two passes: a push left open at the split would never be popped, and
+  // its pop would arrive in a pass that never pushed.
+  int depth = 0;
+  for (size_t i = 0; i < commands.size(); ++i) {
+    if (i == split) {
+      REQUIRE(depth == 0);
+    }
+    if (commands[i].type == eng::DrawCommandType::PUSH_SCISSOR) {
+      ++depth;
+    }
+    if (commands[i].type == eng::DrawCommandType::POP_SCISSOR) {
+      --depth;
+    }
+    REQUIRE(depth >= 0);
+  }
+  REQUIRE(depth == 0);
+}
+
 TEST_CASE("the grid is clipped to the viewport") {
   const EditorViewportWidget viewport = makeViewport();
   const RenderedViewport rendered(viewport);

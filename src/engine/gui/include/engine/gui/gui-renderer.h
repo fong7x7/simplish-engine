@@ -18,6 +18,9 @@
 
 namespace eng {
 
+/// `GuiRendererContext::scene_split` when no scene split was marked.
+inline constexpr size_t NO_SCENE_SPLIT = static_cast<size_t>(-1);
+
 using RhiTextureHandle = uint64_t;
 
 /// Default vertex buffer capacity (number of vertices).
@@ -36,6 +39,9 @@ public:
   std::vector<DrawCommand> commands{};
   /// Clipping scissor rect stack.
   ScissorStack scissor_stack;
+  /// Command index where a 3D scene composites; `NO_SCENE_SPLIT` when the
+  /// frame marked none.
+  size_t scene_split = NO_SCENE_SPLIT;
 
   /// GPU vertex buffer handle.
   uint64_t vertex_buffer = 0;
@@ -136,6 +142,30 @@ public:
 
   /// Emit a line as a thin rotated quad.
   void emitLine(const EmitLineParams& params);
+
+  /// Mark the current point in the paint order as where a 3D scene is
+  /// composited.
+  ///
+  /// Everything emitted before this draws under the scene; everything after
+  /// draws over it. The editor marks it between the ground-plane overlays —
+  /// grid, axes, placement footprints — and the interface, so geometry
+  /// standing on a tile hides the grid it covers instead of being drawn
+  /// over by it.
+  void markSceneSplit();
+
+  /// Command index the scene composites at, or the command count when no
+  /// split was marked, in which case the whole frame draws over the scene.
+  [[nodiscard]] size_t sceneSplit() const;
+
+  /// Upload this frame's geometry. Call once, before any submission.
+  void uploadFrame();
+
+  /// Bind this frame's buffers and pipeline. Needed once per render pass:
+  /// bindings do not survive the end of an encoder.
+  void bindFrame(RhiCommandList& cmd_list);
+
+  /// Submit the draw commands in `[first, first + count)`.
+  void submitCommandRange(RhiCommandList& cmd_list, size_t first, size_t count);
 
   /// Push a clipping rect (intersected with current top-of-stack).
   void pushScissor(const Rect& rect);
