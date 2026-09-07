@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-viewport-widget.h>
@@ -47,6 +48,38 @@ struct RenderedViewport {
 };
 
 }  // namespace
+
+TEST_CASE("the viewport paints no opaque background over itself") {
+  // 3D geometry is drawn in the scene pass, which runs before the GUI pass.
+  // A filled quad covering the viewport rect would erase every mesh in it,
+  // which is exactly what used to happen; the frame clear provides the
+  // background instead.
+  const EditorViewportWidget viewport = makeViewport();
+  const RenderedViewport rendered(viewport);
+  const auto& vertices = rendered.renderer.vertices;
+
+  for (size_t q = 0; q + 3 < vertices.size(); q += 4) {
+    // A border-only quad draws a frame, not a fill, so it may span the rect.
+    if (vertices[q].border_width > 0.0f) {
+      continue;
+    }
+    float min_x = vertices[q].pos[0];
+    float max_x = vertices[q].pos[0];
+    float min_y = vertices[q].pos[1];
+    float max_y = vertices[q].pos[1];
+    for (size_t i = 1; i < 4; ++i) {
+      min_x = std::min(min_x, vertices[q + i].pos[0]);
+      max_x = std::max(max_x, vertices[q + i].pos[0]);
+      min_y = std::min(min_y, vertices[q + i].pos[1]);
+      max_y = std::max(max_y, vertices[q + i].pos[1]);
+    }
+    const bool covers_viewport = min_x <= viewport.rect.x &&
+                                 min_y <= viewport.rect.y &&
+                                 max_x >= viewport.rect.x + viewport.rect.w &&
+                                 max_y >= viewport.rect.y + viewport.rect.h;
+    REQUIRE_FALSE(covers_viewport);
+  }
+}
 
 TEST_CASE("the grid is clipped to the viewport") {
   const EditorViewportWidget viewport = makeViewport();

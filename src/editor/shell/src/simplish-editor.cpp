@@ -137,7 +137,9 @@ void SimplishEditor::initRoot(GuiWidgetTree& tree) {
   // unclickable.
   root_panel_ = tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
   if (auto* panel = dynamic_cast<GuiPanel*>(tree.findWidget(root_panel_))) {
-    panel->fill_color = THEME_BG;
+    // Transparent: the chrome tiles the whole window with its own opaque
+    // panels, and an opaque root would paint over the scene pass.
+    panel->fill_color = GuiColor{0, 0, 0, 0};
     panel->debug_name = "editor-root";
   }
 }
@@ -384,6 +386,12 @@ void SimplishEditor::buildSceneInstances() {
     scene_instances_.push_back(
         {asset.mesh, makePlacementTransform(asset, placement.position)});
   }
+}
+
+GuiColor SimplishEditor::frameClearColor() const {
+  // What shows through the viewport, which paints no background of its own
+  // so that the scene pass can draw there.
+  return EDITOR_VIEWPORT_BG;
 }
 
 RhiTextureHandle SimplishEditor::sceneDepthTarget() {

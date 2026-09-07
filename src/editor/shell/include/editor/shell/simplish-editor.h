@@ -73,6 +73,7 @@ protected:
   bool onInit() override;
   void onSaveLocationChosen(const std::filesystem::path& path) override;
   void onFolderChosen(const std::filesystem::path& path) override;
+  [[nodiscard]] GuiColor frameClearColor() const override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
   bool onTick(float dt) override;

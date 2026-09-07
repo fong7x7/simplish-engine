@@ -10,7 +10,6 @@ namespace eng::editor {
 
 namespace {
 
-  constexpr GuiColor VIEWPORT_BG{22, 22, 26, 255};
   constexpr GuiColor GRID_LINE{44, 44, 50, 255};
   constexpr GuiColor GRID_MAJOR{64, 64, 72, 255};
   constexpr GuiColor AXIS_X{200, 70, 70, 255};
@@ -114,9 +113,9 @@ void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
     return;
   }
 
-  const auto bg = GuiColor::applyOpacity(VIEWPORT_BG, opacity);
-  ctx.drawFilledRect(rect, bg);
-
+  // No background fill: the frame clear already painted VIEWPORT_BG, and
+  // the scene pass drew geometry on top of it before the GUI pass began.
+  // Filling here would erase every mesh in the viewport.
   if (ctx.renderer != nullptr) {
     renderScene(*ctx.renderer);
   }

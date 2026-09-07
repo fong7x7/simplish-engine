@@ -20,6 +20,9 @@
 //
 // Invariants:
 //   - The camera never rotates (ADR-003); only focus and zoom change
+//   - The widget never fills its rect. 3D geometry is drawn in the scene
+//     pass, which runs before the GUI pass, so an opaque background here
+//     would erase it. The frame clear provides the background instead
 //   - Grid drawing is clipped to the widget rect via the renderer scissor
 //
 // Integration Points:
@@ -28,11 +31,20 @@
 
 #include <editor/shell/iso-camera.h>
 #include <editor/shell/iso-projection.h>
+#include <engine/gui/gui-color.h>
 #include <engine/gui/gui-widget.h>
 #include <memory>
 #include <vector>
 
 namespace eng::editor {
+
+/// Background behind the level.
+///
+/// The widget does not paint this: the frame clear does, so that the scene
+/// pass can draw geometry the GUI pass will not erase. It lives here
+/// because it is the viewport's colour, and the editor sets the frame clear
+/// from it.
+inline constexpr GuiColor EDITOR_VIEWPORT_BG{22, 22, 26, 255};
 
 /// The level viewport: a dimetric tile grid with pan and zoom.
 /// @thread_safety Main-thread only.

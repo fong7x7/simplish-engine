@@ -13,12 +13,6 @@
 namespace eng::client {
 namespace {
 
-  /// Dark background clear color (byte values, converted to 0–1 float range).
-  constexpr float BYTE_TO_FLOAT = 1.0f / 255.0f;
-  constexpr float CLEAR_RED = 30.0f * BYTE_TO_FLOAT;
-  constexpr float CLEAR_GREEN = 30.0f * BYTE_TO_FLOAT;
-  constexpr float CLEAR_BLUE = 34.0f * BYTE_TO_FLOAT;
-  constexpr float CLEAR_ALPHA = 1.0f;
 
   /// Font directory searched under the engine data directory.
   constexpr const char* GUI_FONT_SUBDIR = "fonts";
@@ -28,11 +22,14 @@ namespace {
   /// editor are tuned against this size.
   constexpr uint32_t GUI_TEXT_PIXEL_H = 14;
 
-  void setDarkClearColors(RhiRenderPassBeginInfo& rp) {
-    rp.clear_color[0] = CLEAR_RED;
-    rp.clear_color[1] = CLEAR_GREEN;
-    rp.clear_color[2] = CLEAR_BLUE;
-    rp.clear_color[3] = CLEAR_ALPHA;
+  /// Byte colour components to the 0-1 range the RHI clears with.
+  constexpr float BYTE_TO_FLOAT = 1.0f / 255.0f;
+
+  void setClearColor(RhiRenderPassBeginInfo& rp, const GuiColor& color) {
+    rp.clear_color[0] = static_cast<float>(color.r) * BYTE_TO_FLOAT;
+    rp.clear_color[1] = static_cast<float>(color.g) * BYTE_TO_FLOAT;
+    rp.clear_color[2] = static_cast<float>(color.b) * BYTE_TO_FLOAT;
+    rp.clear_color[3] = static_cast<float>(color.a) * BYTE_TO_FLOAT;
     rp.color_load_op = RhiLoadOp::CLEAR;
   }
 
@@ -183,7 +180,7 @@ void RenderedGameClient::beginScenePass(RhiCommandList& cmd, RhiDevice& device,
   rp.depth_target = depth;
   rp.depth_load_op = RhiLoadOp::CLEAR;
   rp.clear_depth = 1.0f;
-  setDarkClearColors(rp);
+  setClearColor(rp, frameClearColor());
   cmd.beginRenderPass(rp);
 }
 
@@ -196,7 +193,7 @@ void RenderedGameClient::beginGuiPass(RhiCommandList& cmd, RhiDevice& device,
   // No depth: the GUI is painted in draw order, and sharing the scene's
   // depth buffer would let 3D geometry reject interface pixels.
   rp.depth_target = RHI_TEXTURE_INVALID;
-  setDarkClearColors(rp);
+  setClearColor(rp, frameClearColor());
   rp.color_load_op = color_load;
   cmd.beginRenderPass(rp);
 }

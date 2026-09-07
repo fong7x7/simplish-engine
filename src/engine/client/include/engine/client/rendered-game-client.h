@@ -1,6 +1,7 @@
 #pragma once
 
 #include <engine/client/game-client.h>
+#include <engine/gui/gui-color.h>
 #include <engine/gui/gui-context.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-key-event.h>
@@ -108,6 +109,17 @@ protected:
 
   /// FreeType raster supersample factor (e.g. `SDL_GetWindowPixelDensity`).
   [[nodiscard]] virtual float textRasterSupersample() const { return 1.0f; }
+
+  /// Colour the frame is cleared to, and therefore what shows wherever no
+  /// widget paints.
+  ///
+  /// Whichever pass clears uses this, so a frame with a scene pass and a
+  /// frame without one come out identical everywhere the scene draws
+  /// nothing. A widget that paints its own opaque background over the
+  /// scene's region would erase the scene, since the GUI pass runs second.
+  [[nodiscard]] virtual GuiColor frameClearColor() const {
+    return {30, 30, 34, 255};
+  }
 
   /// Depth target for the scene pass, or invalid to draw no scene at all.
   ///
