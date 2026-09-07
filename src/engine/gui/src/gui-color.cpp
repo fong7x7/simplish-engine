@@ -1,8 +1,34 @@
 #include "engine/gui/gui-color.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace eng {
+
+namespace {
+
+  /// Below this the sRGB transfer function is a straight line.
+  constexpr float SRGB_LINEAR_CUTOFF = 0.04045F;
+  /// Slope of that straight segment.
+  constexpr float SRGB_LINEAR_SLOPE = 12.92F;
+  /// Offset and scale of the curved segment.
+  constexpr float SRGB_OFFSET = 0.055F;
+  constexpr float SRGB_SCALE = 1.055F;
+  /// Exponent of the curved segment.
+  constexpr float SRGB_GAMMA = 2.4F;
+  /// Byte to unit range.
+  constexpr float BYTE_TO_UNIT = 1.0F / 255.0F;
+
+}  // namespace
+
+float srgbByteToLinear(uint8_t channel) {
+  const float value = static_cast<float>(channel) * BYTE_TO_UNIT;
+  if (value <= SRGB_LINEAR_CUTOFF) {
+    return value / SRGB_LINEAR_SLOPE;
+  }
+  return std::pow((value + SRGB_OFFSET) / SRGB_SCALE, SRGB_GAMMA);
+}
+
 
 GuiColor GuiColor::lerp(const GuiColor& a, const GuiColor& b, float t) {
   float ct = std::clamp(t, 0.0f, 1.0f);

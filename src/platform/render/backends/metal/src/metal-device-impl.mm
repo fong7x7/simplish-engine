@@ -159,12 +159,27 @@ namespace {
            bytesPerRow:bytes_per_row];
   }
 
+  /// Swap the red and blue channels in place.
+  ///
+  /// The swapchain is BGRA8 and the blit copies its bytes untouched, while
+  /// PNG and JPEG both want RGBA. Without this every capture comes back
+  /// with red and blue exchanged.
+  void swizzleBgraToRgba(std::vector<uint8_t>& pixels) {
+    for (size_t i = 0; i + 3 < pixels.size(); i += CAPTURE_CHANNELS) {
+      std::swap(pixels[i], pixels[i + 2]);
+    }
+  }
+
   /// Encode staging buffer contents to PNG or JPEG.
   RhiCaptureResult buildCaptureResult(id<MTLBuffer> staging,
                                       const RhiCaptureBlitParams& params,
                                       const RhiCaptureRequest& request) {
     const auto* raw = static_cast<const uint8_t*>([staging contents]);
-    auto encoded = encodePixels(raw, params.width, params.height,
+    const size_t count = static_cast<size_t>(params.width) * params.height *
+                         CAPTURE_CHANNELS;
+    std::vector<uint8_t> pixels(raw, raw + count);
+    swizzleBgraToRgba(pixels);
+    auto encoded = encodePixels(pixels.data(), params.width, params.height,
                                 request.format, request.jpeg_quality);
     RhiCaptureResult result;
     result.width = params.width;

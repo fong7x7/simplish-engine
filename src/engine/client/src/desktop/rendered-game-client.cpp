@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <engine/core/logger.h>
+#include <engine/gui/gui-color.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-font-discovery.h>
 #include <engine/gui/gui-renderer.h>
@@ -22,13 +23,16 @@ namespace {
   /// editor are tuned against this size.
   constexpr uint32_t GUI_TEXT_PIXEL_H = 14;
 
-  /// Byte colour components to the 0-1 range the RHI clears with.
+  /// Byte to unit range, for alpha, which carries no transfer function.
   constexpr float BYTE_TO_FLOAT = 1.0f / 255.0f;
 
   void setClearColor(RhiRenderPassBeginInfo& rp, const GuiColor& color) {
-    rp.clear_color[0] = static_cast<float>(color.r) * BYTE_TO_FLOAT;
-    rp.clear_color[1] = static_cast<float>(color.g) * BYTE_TO_FLOAT;
-    rp.clear_color[2] = static_cast<float>(color.b) * BYTE_TO_FLOAT;
+    // Clear values are linear. The colour attachment is sRGB and encodes on
+    // write, so passing the sRGB byte straight through would encode it a
+    // second time and clear to a visibly lighter shade.
+    rp.clear_color[0] = srgbByteToLinear(color.r);
+    rp.clear_color[1] = srgbByteToLinear(color.g);
+    rp.clear_color[2] = srgbByteToLinear(color.b);
     rp.clear_color[3] = static_cast<float>(color.a) * BYTE_TO_FLOAT;
     rp.color_load_op = RhiLoadOp::CLEAR;
   }

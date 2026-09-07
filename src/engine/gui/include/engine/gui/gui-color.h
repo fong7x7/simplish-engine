@@ -33,6 +33,15 @@ struct GuiColor {
   static GuiColor applyOpacity(const GuiColor& c, float opacity);
 };
 
+/// Convert one sRGB-encoded colour byte to a linear value in [0, 1].
+///
+/// UI colours are authored as sRGB bytes, which is what a colour picker
+/// shows and what a shader reading a byte must decode. A render pass clear
+/// is the one place that does not decode: an sRGB render target encodes on
+/// write, so its clear value is linear, and handing it a raw byte over 255
+/// paints the surface visibly lighter than the colour asked for.
+[[nodiscard]] float srgbByteToLinear(uint8_t channel);
+
 inline constexpr GuiColor GUI_COLOR_WHITE{255, 255, 255, 255};
 inline constexpr GuiColor GUI_COLOR_BLACK{0, 0, 0, 255};
 
