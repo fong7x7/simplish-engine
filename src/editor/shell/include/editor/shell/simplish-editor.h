@@ -63,8 +63,9 @@ public:
   /// leaves any current project untouched when the open fails.
   bool openProjectAt(const std::filesystem::path& root);
 
-  /// Path the recent-projects list is read from and written to. Must be set
-  /// before init() to take effect at startup.
+  /// Path the recent-projects list is read from and written to, and which
+  /// the list is read from as soon as it is known. Must be set before
+  /// init() to take effect at startup.
   void setRecentProjectsPath(std::filesystem::path path);
 
   /// Read-only view of shell state, for tests and the entry point.

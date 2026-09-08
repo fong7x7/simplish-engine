@@ -73,6 +73,15 @@ namespace {
 
 void SimplishEditor::setRecentProjectsPath(std::filesystem::path path) {
   state_.recent_path = std::move(path);
+  if (state_.recent_path.empty()) {
+    return;
+  }
+  // Read here rather than in onInit, which run() calls. A project named on
+  // the command line is opened between init() and run(), and opening one
+  // promotes it into this list and saves the result — so loading any later
+  // than this means saving over the file before ever having read it, and
+  // every launch with a project argument would drop the history.
+  state_.recent = loadRecentProjects(state_.recent_path);
 }
 
 void SimplishEditor::reportProjectOpenFailure(ProjectOpenError error) {
@@ -117,9 +126,6 @@ bool SimplishEditor::onInit() {
   // this must run first and its failure must abort startup.
   if (!eng::client::RenderedGameClient::onInit()) {
     return false;
-  }
-  if (!state_.recent_path.empty()) {
-    state_.recent = loadRecentProjects(state_.recent_path);
   }
   if (rhiDevice() != nullptr && !mesh_renderer_.init(*rhiDevice())) {
     // Not fatal: the editor runs, placements still show their footprints,

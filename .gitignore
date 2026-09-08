@@ -43,4 +43,9 @@ post-task-test-failures.md
 
 # Test capture artifacts
 *-capture.png
+
+# Written by the editor at runtime when the platform offers no user data
+# directory. The list belongs to whoever is running the editor, not to the
+# checkout — see resolveRecentProjectsPath in src/bin/editor.
+data/editor/recent-projects.json
 build-checklist.md
