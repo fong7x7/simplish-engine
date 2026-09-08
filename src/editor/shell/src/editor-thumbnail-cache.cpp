@@ -1,9 +1,9 @@
+#include <cctype>
 #include <cstdint>
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <engine/gui/gui-software-rasterizer.h>
 #include <engine/gui/image-loader.h>
 #include <string>
-#include <system_error>
 
 namespace eng::editor {
 
@@ -89,10 +89,9 @@ bool storeCachedThumbnail(const ThumbnailCacheEntry& entry,
   if (image.pixels.empty()) {
     return false;
   }
-  std::error_code ec;
-  fs::create_directories(entry.cache_dir, ec);
-  // The PNG encoder happens to live on the software rasterizer, which is
-  // the one place in the engine that had to write one before now.
+  // writePng creates the directories it needs, and reports its own failure
+  // to do so. The PNG encoder happens to live on the software rasterizer,
+  // which is the one place in the engine that had to write one before now.
   return GuiSoftwareRasterizer::writePng(image,
                                          thumbnailCacheFile(entry).string());
 }

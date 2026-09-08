@@ -16,9 +16,12 @@ namespace eng::editor {
 /// listed in @p expanded.
 ///
 /// The root is always the first row, so the pane always offers somewhere to
-/// go back to. A folder in @p expanded that no longer exists is ignored,
-/// which is what lets the browser keep an expansion set across a rescan
-/// without having to reconcile it.
+/// go back to. A folder in @p expanded that this tree does not have is
+/// ignored, so a set left over from a larger tree cannot walk off the end
+/// of this one. It will still name the wrong folders, though — indices
+/// only mean anything against the tree they came from — so a caller whose
+/// tree has been rebuilt should start the set again rather than lean on
+/// this.
 [[nodiscard]] std::vector<EditorAssetFolderRow>
 flattenAssetFolderRows(const EditorAssetTree& tree,
                        const std::unordered_set<size_t>& expanded);

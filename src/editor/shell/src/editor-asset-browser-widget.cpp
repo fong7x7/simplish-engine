@@ -98,6 +98,11 @@ void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
   dragging_ = -1;
   nav_scroll_ = 0.0f;
   grid_scroll_ = 0.0f;
+  // Cleared, not carried over: what is expanded is remembered as folder
+  // indices, and the same index in a new tree is a different folder. Keeping
+  // the set across a rescan would open folders nobody opened, and opening
+  // another project would open them from the shape of the one before it.
+  expanded_.clear();
   expanded_.insert(EDITOR_ASSET_FOLDER_ROOT);
   rebuildRows();
   rebuildHeaderText();
@@ -346,20 +351,31 @@ void EditorAssetBrowserWidget::renderFolderRow(const GuiDrawContext& ctx,
                folderLabel(entry.folder));
 }
 
-void EditorAssetBrowserWidget::renderNav(const GuiDrawContext& ctx) const {
+void EditorAssetBrowserWidget::renderFolderRows(
+    const GuiDrawContext& ctx) const {
   const Rect nav = layout().nav;
-  if (nav.w <= 0.0f) {
-    return;
-  }
-  ctx.drawFilledRect(nav, GuiColor::applyOpacity(NAV_FILL, opacity));
   for (size_t i = 0; i < rows_.size(); ++i) {
-    // Rows scrolled out of the pane are dropped rather than drawn over the
-    // panel around them.
+    // Rows entirely outside the pane are skipped rather than clipped, which
+    // is the same picture for less work.
     const Rect row = folderRowRect(i);
     if (row.y + row.h > nav.y && row.y < nav.y + nav.h) {
       renderFolderRow(ctx, i);
     }
   }
+}
+
+void EditorAssetBrowserWidget::renderNav(const GuiDrawContext& ctx) const {
+  const Rect nav = layout().nav;
+  if (nav.w <= 0.0f || ctx.renderer == nullptr) {
+    return;
+  }
+  ctx.drawFilledRect(nav, GuiColor::applyOpacity(NAV_FILL, opacity));
+  // Scrolling walks rows past the top of the pane, and the row half way out
+  // has to be cut off there rather than drawn across the header and the
+  // viewport above it.
+  ctx.renderer->pushScissor(nav);
+  renderFolderRows(ctx);
+  ctx.renderer->popScissor();
 }
 
 void EditorAssetBrowserWidget::renderCard(const GuiDrawContext& ctx,
@@ -372,20 +388,38 @@ void EditorAssetBrowserWidget::renderCard(const GuiDrawContext& ctx,
                drawPosInset(card, LABEL_INSET, LABEL_INSET), names_[asset]);
 }
 
-void EditorAssetBrowserWidget::renderGrid(const GuiDrawContext& ctx) const {
+void EditorAssetBrowserWidget::renderEmptyGrid(
+    const GuiDrawContext& ctx) const {
+  ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
+               drawPosInset(layout().grid, SIDE_PADDING, TEXT_DROP),
+               "Drop .obj files into the project's assets/ folder");
+}
+
+void EditorAssetBrowserWidget::renderCards(const GuiDrawContext& ctx) const {
   const Rect grid = layout().grid;
-  if (visibleAssets().empty()) {
-    ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
-                 drawPosInset(grid, SIDE_PADDING, TEXT_DROP),
-                 "Drop .obj files into the project's assets/ folder");
-    return;
-  }
   for (size_t slot = 0; slot < visibleAssets().size(); ++slot) {
+    // As the folder pane: cards wholly outside the grid are skipped rather
+    // than clipped.
     const Rect card = cardRect(slot);
     if (card.y + card.h > grid.y && card.y < grid.y + grid.h) {
       renderCard(ctx, slot);
     }
   }
+}
+
+void EditorAssetBrowserWidget::renderGrid(const GuiDrawContext& ctx) const {
+  if (visibleAssets().empty()) {
+    renderEmptyGrid(ctx);
+    return;
+  }
+  if (ctx.renderer == nullptr) {
+    return;
+  }
+  // A card scrolled half way out of the grid is cut off at its edge, not
+  // drawn across the chrome above the panel.
+  ctx.renderer->pushScissor(layout().grid);
+  renderCards(ctx);
+  ctx.renderer->popScissor();
 }
 
 void EditorAssetBrowserWidget::renderDragGhost(

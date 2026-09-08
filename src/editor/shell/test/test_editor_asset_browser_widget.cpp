@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <editor/shell/editor-asset-browser-widget.h>
+#include <engine/gui/gui-draw-context.h>
+#include <engine/gui/gui-renderer.h>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -20,8 +22,10 @@ EditorAsset makeAsset(const std::string& relative) {
   return {path.stem().string(), fs::path("/project/assets") / path, path};
 }
 
-/// A browser listing the given relative asset paths.
-EditorAssetBrowserWidget makeBrowser(const std::vector<std::string>& paths) {
+/// Point an existing browser at a project holding the given relative asset
+/// paths, the way a rescan does.
+void loadInto(EditorAssetBrowserWidget& browser,
+              const std::vector<std::string>& paths) {
   EditorAssetScan scan;
   for (const std::string& path : paths) {
     scan.assets.push_back(makeAsset(path));
@@ -30,9 +34,14 @@ EditorAssetBrowserWidget makeBrowser(const std::vector<std::string>& paths) {
   for (const EditorAsset& asset : scan.assets) {
     names.push_back(asset.name);
   }
+  browser.setAssets(buildEditorAssetTree(scan), std::move(names));
+}
+
+/// A browser listing the given relative asset paths.
+EditorAssetBrowserWidget makeBrowser(const std::vector<std::string>& paths) {
   EditorAssetBrowserWidget browser;
   browser.rect = PANEL_RECT;
-  browser.setAssets(buildEditorAssetTree(scan), std::move(names));
+  loadInto(browser, paths);
   return browser;
 }
 
@@ -48,6 +57,50 @@ eng::GuiMouseEvent mouseAt(float x, float y) {
 eng::GuiMouseEvent centreOf(const eng::Rect& rect) {
   return mouseAt(rect.x + rect.w * 0.5f, rect.y + rect.h * 0.5f);
 }
+
+/// A browser listing enough assets that its grid has to scroll.
+EditorAssetBrowserWidget makeScrollingBrowser() {
+  std::vector<std::string> many;
+  for (int i = 0; i < 60; ++i) {
+    many.push_back("asset" + std::to_string(i) + ".obj");
+  }
+  return makeBrowser(many);
+}
+
+/// Render the browser through a device-less renderer and hand back the
+/// command stream, which is where clipping actually lives.
+struct RenderedBrowser {
+  eng::GuiRendererContext renderer;
+
+  explicit RenderedBrowser(const EditorAssetBrowserWidget& browser) {
+    REQUIRE(renderer.init(nullptr));
+    renderer.viewport_width = 1280;
+    renderer.viewport_height = 900;
+    renderer.beginFrame();
+    eng::GuiDrawContext ctx;
+    ctx.renderer = &renderer;
+    browser.render(ctx);
+  }
+  ~RenderedBrowser() { renderer.shutdown(); }
+  RenderedBrowser(const RenderedBrowser&) = delete;
+  RenderedBrowser& operator=(const RenderedBrowser&) = delete;
+  RenderedBrowser(RenderedBrowser&&) = delete;
+  RenderedBrowser& operator=(RenderedBrowser&&) = delete;
+
+  /// Whether a scissor covering exactly @p clip was pushed.
+  [[nodiscard]] bool pushed(const eng::Rect& clip) const {
+    for (const auto& cmd : renderer.commands) {
+      if (cmd.type != eng::DrawCommandType::PUSH_SCISSOR) {
+        continue;
+      }
+      if (cmd.scissor.x == Approx(clip.x) && cmd.scissor.y == Approx(clip.y) &&
+          cmd.scissor.w == Approx(clip.w) && cmd.scissor.h == Approx(clip.h)) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
 
 eng::GuiScrollEvent scrollAt(float x, float y, float delta) {
   eng::GuiScrollEvent event{};
@@ -469,4 +522,104 @@ TEST_CASE("rescanning leaves the fold state alone") {
 
   REQUIRE(browser.navCollapsed());
   REQUIRE(browser.panelCollapsed());
+}
+
+TEST_CASE("a scrolled card would otherwise reach outside the panel") {
+  EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  const eng::Rect grid = browser.layout().grid;
+
+  for (int i = 0; i < 20; ++i) {
+    browser.handleScroll(scrollAt(grid.x + 20.0f, grid.y + 20.0f, -1.0f));
+  }
+
+  // Not a hypothetical: three rows of cards in a 198px grid scroll far
+  // enough that the top row clears the panel's own top edge. This is what
+  // the clip below is for, and without the clip it paints over the
+  // viewport.
+  REQUIRE(browser.cardRect(0).y < browser.rect.y);
+}
+
+TEST_CASE("the cards are clipped to the grid") {
+  const EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  const RenderedBrowser rendered(browser);
+
+  REQUIRE(rendered.pushed(browser.layout().grid));
+}
+
+TEST_CASE("the folder rows are clipped to the pane") {
+  const EditorAssetBrowserWidget browser =
+      makeBrowser({"props/barrel.obj", "terrain/mud.obj"});
+  const RenderedBrowser rendered(browser);
+
+  REQUIRE(rendered.pushed(browser.layout().nav));
+}
+
+TEST_CASE("every clip the browser pushes is popped again") {
+  EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  browser.handleMouseDown(centreOf(browser.cardRect(0)));
+  browser.handleMouseMove(mouseAt(400.0f, 200.0f));
+  const RenderedBrowser rendered(browser);
+
+  // A push left open runs on into whatever is drawn next, and a stray pop
+  // unclips something that was meant to stay clipped.
+  int depth = 0;
+  for (const auto& cmd : rendered.renderer.commands) {
+    depth += cmd.type == eng::DrawCommandType::PUSH_SCISSOR ? 1 : 0;
+    depth -= cmd.type == eng::DrawCommandType::POP_SCISSOR ? 1 : 0;
+    REQUIRE(depth >= 0);
+  }
+  REQUIRE(depth == 0);
+}
+
+TEST_CASE("a folded panel pushes no clip at all") {
+  EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  browser.collapsePanel();
+  const RenderedBrowser rendered(browser);
+
+  size_t pushes = 0;
+  for (const auto& cmd : rendered.renderer.commands) {
+    pushes += cmd.type == eng::DrawCommandType::PUSH_SCISSOR ? 1 : 0;
+  }
+  REQUIRE(pushes == 0);
+}
+
+TEST_CASE("the drag ghost is not clipped to either pane") {
+  EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  browser.handleMouseDown(centreOf(browser.cardRect(0)));
+  browser.handleMouseMove(mouseAt(400.0f, 200.0f));
+  const RenderedBrowser rendered(browser);
+
+  // The ghost follows the cursor over the viewport, so it has to be drawn
+  // after every clip has been popped.
+  const auto& commands = rendered.renderer.commands;
+  size_t last_pop = 0;
+  for (size_t i = 0; i < commands.size(); ++i) {
+    if (commands[i].type == eng::DrawCommandType::POP_SCISSOR) {
+      last_pop = i;
+    }
+  }
+  REQUIRE(last_pop + 1 < commands.size());
+}
+
+TEST_CASE("rescanning does not open folders from the tree before it") {
+  EditorAssetBrowserWidget browser = makeBrowser({"terrain/rocks/boulder.obj"});
+  // Open the one folder that can be opened, which is index 1 in this tree.
+  browser.expandFolder(browser.folderRows()[1].folder);
+  REQUIRE(browser.folderRows().size() == 3);
+
+  // The same browser, pointed at a project whose index 1 is a different
+  // folder that also has children — which is what opening another project
+  // does to it.
+  loadInto(browser, {"audio/music/theme.obj", "props/crate.obj"});
+
+  // Expansion is remembered as folder indices, so carrying the set over
+  // would open whichever folder landed on the old number: "audio" here,
+  // which nobody touched. Four rows instead of three is that bug.
+  REQUIRE(browser.folderRows().size() == 3);
+  REQUIRE(browser.folderExpanded(EDITOR_ASSET_FOLDER_ROOT));
+  for (const EditorAssetFolderRow& row : browser.folderRows()) {
+    if (row.folder != EDITOR_ASSET_FOLDER_ROOT) {
+      REQUIRE_FALSE(row.expanded);
+    }
+  }
 }

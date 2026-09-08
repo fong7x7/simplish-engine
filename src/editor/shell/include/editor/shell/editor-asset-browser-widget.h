@@ -157,12 +157,18 @@ public:
 private:
   /// Draw the panel heading and the selected folder's path.
   void renderHeader(const GuiDrawContext& ctx) const;
-  /// Draw the folder pane's background and rows.
+  /// Draw the folder pane's background, clipped to it.
   void renderNav(const GuiDrawContext& ctx) const;
+  /// Draw every folder row that shows in the pane.
+  void renderFolderRows(const GuiDrawContext& ctx) const;
   /// Draw one folder row's highlight, chevron, and name.
   void renderFolderRow(const GuiDrawContext& ctx, size_t index) const;
-  /// Draw every card that shows in the grid, or the empty-state line.
+  /// Draw the cards clipped to the grid, or the empty-state line.
   void renderGrid(const GuiDrawContext& ctx) const;
+  /// Draw the line shown in place of cards when a folder holds none.
+  void renderEmptyGrid(const GuiDrawContext& ctx) const;
+  /// Draw every card that shows in the grid.
+  void renderCards(const GuiDrawContext& ctx) const;
   /// Draw one card's frame and label.
   void renderCard(const GuiDrawContext& ctx, size_t slot) const;
   /// Draw the ghost that follows the cursor mid-drag.
