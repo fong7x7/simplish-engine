@@ -6,7 +6,9 @@ namespace eng {
 namespace {
 
   /// Y-up to Z-up: (x, y, z) becomes (x, -z, y).
-  Vec3 toZUp(const Vec3& v) { return {v.x, -v.z, v.y}; }
+  Vec3 toZUp(const Vec3& v) {
+    return {v.x, -v.z, v.y};
+  }
 
   /// Recompute bounds from the vertices, which is cheaper to get right than
   /// rotating the old corners and re-deriving min and max from them.

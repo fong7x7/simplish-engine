@@ -89,7 +89,6 @@ public:
   };
 
 private:
-
   /// Record one instance's draw. Separated so `draw` stays a loop.
   void drawInstance(RhiCommandList& cmd, const MeshInstance& instance,
                     const Mat4& view_projection) const;

@@ -66,9 +66,9 @@ namespace {
     const std::string_view position = token.substr(0, first_slash);
     const std::string_view rest = token.substr(first_slash + 1);
     const size_t second_slash = rest.find('/');
-    const std::string_view normal =
-        (second_slash == std::string_view::npos) ? std::string_view{}
-                                                 : rest.substr(second_slash + 1);
+    const std::string_view normal = (second_slash == std::string_view::npos)
+                                        ? std::string_view{}
+                                        : rest.substr(second_slash + 1);
     return {resolveIndex(position, src.positions.size()),
             resolveIndex(normal, src.normals.size())};
   }
@@ -212,18 +212,17 @@ namespace {
 
   /// Position for a corner, or the origin when its index is out of range.
   Vec3 cornerPosition(const ObjSource& src, const ObjCorner& corner) {
-    const bool valid = corner.position >= 0 &&
-                       static_cast<size_t>(corner.position) <
-                           src.positions.size();
+    const bool valid =
+        corner.position >= 0 &&
+        static_cast<size_t>(corner.position) < src.positions.size();
     return valid ? src.positions[static_cast<size_t>(corner.position)] : Vec3{};
   }
 
   /// Normal for a corner, falling back to @p fallback when it declared none.
   Vec3 cornerNormal(const ObjSource& src, const ObjCorner& corner,
                     const Vec3& fallback) {
-    const bool valid =
-        corner.normal >= 0 &&
-        static_cast<size_t>(corner.normal) < src.normals.size();
+    const bool valid = corner.normal >= 0 &&
+                       static_cast<size_t>(corner.normal) < src.normals.size();
     return valid ? src.normals[static_cast<size_t>(corner.normal)] : fallback;
   }
 
