@@ -31,6 +31,10 @@ inline constexpr float ASSET_CARD_WIDTH = 104.0f;
 inline constexpr float ASSET_CARD_HEIGHT = 88.0f;
 /// Gap between cards, and between a card and the edge it sits against.
 inline constexpr float ASSET_CARD_GAP = 8.0f;
+/// Room reserved at the top of a card for its name.
+inline constexpr float ASSET_CARD_LABEL_HEIGHT = 24.0f;
+/// Margin between a card's picture and its own edges.
+inline constexpr float ASSET_CARD_PICTURE_INSET = 4.0f;
 /// Height of the panel folded down to its header alone.
 inline constexpr float ASSET_PANEL_COLLAPSED_HEIGHT = ASSET_HEADER_HEIGHT;
 /// Width of one of the header's fold controls.
@@ -90,5 +94,21 @@ layoutAssetBrowser(const EditorAssetBrowserLayoutParams& params);
 /// fits, and never past its end when it does not.
 [[nodiscard]] float clampAssetScroll(float offset, float content_height,
                                      float view_height);
+
+/// Where a card's picture goes, under the room its label takes.
+[[nodiscard]] Rect assetCardThumbnailRect(const Rect& card);
+
+/// First slot whose card reaches into @p grid at @p scroll_y.
+///
+/// This and the count below are what let the editor generate pictures only
+/// for the cards someone is actually looking at. They err towards a slot
+/// too many rather than too few: a picture made a moment early costs a
+/// little work, one made late is a card that stayed blank.
+[[nodiscard]] size_t assetFirstVisibleSlot(const Rect& grid, float scroll_y);
+
+/// How many slots from `assetFirstVisibleSlot` reach into @p grid, out of
+/// @p count cards in total.
+[[nodiscard]] size_t assetVisibleSlotCount(const Rect& grid, size_t count,
+                                           float scroll_y);
 
 }  // namespace eng::editor

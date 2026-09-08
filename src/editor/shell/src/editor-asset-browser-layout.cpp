@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <editor/shell/editor-asset-browser-layout.h>
 
 namespace eng::editor {
@@ -98,6 +99,39 @@ float clampAssetScroll(float offset, float content_height, float view_height) {
     return 0.0f;
   }
   return std::clamp(offset, 0.0f, overflow);
+}
+
+
+Rect assetCardThumbnailRect(const Rect& card) {
+  const float top = card.y + ASSET_CARD_LABEL_HEIGHT;
+  const float height = std::max(0.0f, card.h - ASSET_CARD_LABEL_HEIGHT -
+                                          ASSET_CARD_PICTURE_INSET);
+  return makeRect(card.x + ASSET_CARD_PICTURE_INSET, top,
+                  std::max(0.0f, card.w - (2.0f * ASSET_CARD_PICTURE_INSET)),
+                  height);
+}
+
+size_t assetFirstVisibleSlot(const Rect& grid, float scroll_y) {
+  const float pitch = ASSET_CARD_HEIGHT + ASSET_CARD_GAP;
+  const float above = std::max(0.0f, scroll_y - ASSET_CARD_GAP);
+  const auto row = static_cast<size_t>(std::floor(above / pitch));
+  return row * assetCardsPerRow(grid);
+}
+
+size_t assetVisibleSlotCount(const Rect& grid, size_t count, float scroll_y) {
+  if (count == 0 || grid.h <= 0.0f) {
+    return 0;
+  }
+  const size_t first = assetFirstVisibleSlot(grid, scroll_y);
+  if (first >= count) {
+    return 0;
+  }
+  const float pitch = ASSET_CARD_HEIGHT + ASSET_CARD_GAP;
+  const float reach = grid.h + scroll_y - ASSET_CARD_GAP;
+  const auto last_row = static_cast<size_t>(std::floor(reach / pitch));
+  const size_t per_row = assetCardsPerRow(grid);
+  const size_t past_end = std::min(count, (last_row + 1) * per_row);
+  return past_end > first ? past_end - first : 0;
 }
 
 }  // namespace eng::editor

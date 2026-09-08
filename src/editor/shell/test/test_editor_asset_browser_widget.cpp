@@ -623,3 +623,84 @@ TEST_CASE("rescanning does not open folders from the tree before it") {
     }
   }
 }
+
+TEST_CASE("a card with no picture yet still draws its well") {
+  const EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  const RenderedBrowser rendered(browser);
+
+  // Cards keep their shape whether or not a picture has arrived; the only
+  // thing that changes is what fills the well.
+  REQUIRE_FALSE(rendered.renderer.vertices.empty());
+}
+
+TEST_CASE("a texture handed to the browser reaches the card that draws it") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj", "barrel.obj"});
+  browser.setAssetThumbnail(1, 42);
+  const RenderedBrowser rendered(browser);
+
+  bool textured = false;
+  for (const auto& cmd : rendered.renderer.commands) {
+    textured = textured || cmd.batch.texture == 42;
+  }
+  REQUIRE(textured);
+}
+
+TEST_CASE("a texture for an asset that does not exist is ignored") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+
+  // The editor indexes by the whole asset list, and a rescan can shorten it
+  // under an in-flight upload.
+  browser.setAssetThumbnail(99, 42);
+
+  const RenderedBrowser rendered(browser);
+  for (const auto& cmd : rendered.renderer.commands) {
+    REQUIRE(cmd.batch.texture != 42);
+  }
+}
+
+TEST_CASE("rescanning forgets the textures the last project had") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  browser.setAssetThumbnail(0, 42);
+
+  // The editor destroys those textures when it replaces the list, so a
+  // handle kept here would name a texture that no longer exists.
+  loadInto(browser, {"other.obj"});
+
+  const RenderedBrowser rendered(browser);
+  for (const auto& cmd : rendered.renderer.commands) {
+    REQUIRE(cmd.batch.texture != 42);
+  }
+}
+
+TEST_CASE("the browser names only the cards on screen as visible") {
+  std::vector<std::string> many;
+  for (int i = 0; i < 60; ++i) {
+    many.push_back("asset" + std::to_string(i) + ".obj");
+  }
+  const EditorAssetBrowserWidget browser = makeBrowser(many);
+
+  // Every asset is listed, but only a screenful is worth making pictures
+  // for — that gap is the whole point of generating them lazily.
+  REQUIRE(browser.visibleSlotCount() > 0);
+  REQUIRE(browser.visibleSlotCount() < browser.assetCount());
+}
+
+TEST_CASE("scrolling moves which cards the browser names as visible") {
+  EditorAssetBrowserWidget browser = makeScrollingBrowser();
+  const eng::Rect grid = browser.layout().grid;
+  const size_t before = browser.firstVisibleSlot();
+
+  for (int i = 0; i < 12; ++i) {
+    browser.handleScroll(scrollAt(grid.x + 20.0f, grid.y + 20.0f, -1.0f));
+  }
+
+  REQUIRE(browser.firstVisibleSlot() > before);
+}
+
+TEST_CASE("a folder with nothing in it names no visible cards") {
+  EditorAssetBrowserWidget browser = makeBrowser({"terrain/rocks/boulder.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+
+  REQUIRE(browser.visibleAssets().empty());
+  REQUIRE(browser.visibleSlotCount() == 0);
+}

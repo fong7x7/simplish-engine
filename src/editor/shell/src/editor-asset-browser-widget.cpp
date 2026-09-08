@@ -27,6 +27,13 @@ namespace {
   constexpr GuiColor ROW_SELECTED{THEME_ACCENT.r, THEME_ACCENT.g,
                                   THEME_ACCENT.b, 90};
 
+  /// Sunk area a card's picture drops into, drawn whether or not one has
+  /// arrived, so a card does not change shape when it does. The backdrop
+  /// token again, as the folder pane uses: recessed surfaces read alike.
+  constexpr GuiColor PICTURE_WELL = THEME_BG;
+  /// Untinted: a thumbnail is a picture, not an icon to be coloured.
+  constexpr GuiColor PICTURE_TINT{255, 255, 255, 255};
+
   /// Name shown for the root, which has none of its own.
   constexpr std::string_view ROOT_LABEL = "assets";
 
@@ -94,6 +101,7 @@ void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
     tree_.folders.emplace_back();
   }
   names_ = std::move(names);
+  thumbnails_.assign(names_.size(), RHI_TEXTURE_INVALID);
   selected_folder_ = EDITOR_ASSET_FOLDER_ROOT;
   dragging_ = -1;
   nav_scroll_ = 0.0f;
@@ -106,6 +114,23 @@ void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
   expanded_.insert(EDITOR_ASSET_FOLDER_ROOT);
   rebuildRows();
   rebuildHeaderText();
+}
+
+void EditorAssetBrowserWidget::setAssetThumbnail(size_t asset,
+                                                 RhiTextureHandle texture) {
+  if (asset >= thumbnails_.size()) {
+    return;
+  }
+  thumbnails_[asset] = texture;
+}
+
+size_t EditorAssetBrowserWidget::firstVisibleSlot() const {
+  return assetFirstVisibleSlot(layout().grid, grid_scroll_);
+}
+
+size_t EditorAssetBrowserWidget::visibleSlotCount() const {
+  return assetVisibleSlotCount(layout().grid, visibleAssets().size(),
+                               grid_scroll_);
 }
 
 void EditorAssetBrowserWidget::rebuildRows() {
@@ -378,6 +403,25 @@ void EditorAssetBrowserWidget::renderNav(const GuiDrawContext& ctx) const {
   ctx.renderer->popScissor();
 }
 
+void EditorAssetBrowserWidget::renderCardPicture(const GuiDrawContext& ctx,
+                                                 const Rect& card,
+                                                 size_t asset) const {
+  const Rect picture = assetCardThumbnailRect(card);
+  if (picture.w <= 0.0f || picture.h <= 0.0f) {
+    return;
+  }
+  const RhiTextureHandle texture =
+      asset < thumbnails_.size() ? thumbnails_[asset] : RHI_TEXTURE_INVALID;
+  if (texture == RHI_TEXTURE_INVALID) {
+    // A well for the picture to drop into, so a card does not change shape
+    // the moment one arrives.
+    ctx.drawFilledRect(picture, GuiColor::applyOpacity(PICTURE_WELL, opacity));
+    return;
+  }
+  ctx.drawTexturedRect(
+      {picture, texture, GuiColor::applyOpacity(PICTURE_TINT, opacity)});
+}
+
 void EditorAssetBrowserWidget::renderCard(const GuiDrawContext& ctx,
                                           size_t slot) const {
   const Rect card = cardRect(slot);
@@ -386,6 +430,7 @@ void EditorAssetBrowserWidget::renderCard(const GuiDrawContext& ctx,
   ctx.drawBorderRect(card, GuiColor::applyOpacity(CARD_BORDER, opacity));
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
                drawPosInset(card, LABEL_INSET, LABEL_INSET), names_[asset]);
+  renderCardPicture(ctx, card, asset);
 }
 
 void EditorAssetBrowserWidget::renderEmptyGrid(

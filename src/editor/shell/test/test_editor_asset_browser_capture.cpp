@@ -279,3 +279,16 @@ TEST_CASE("the folded captures can be written to PNG for inspection") {
            capture.image, "editor-asset-browser-panel-folded-capture.png"));
   SUCCEED();
 }
+
+TEST_CASE("the capture with card pictures can be written for inspection") {
+  BrowserCapture capture;
+  // The GUI's software rasterizer samples every textured quad from the
+  // glyph atlas, so a real thumbnail texture cannot be drawn here — the
+  // card wells stand in for it. What this shows is the layout the pictures
+  // land in, which is the part worth looking at before they do.
+  capture.recapture();
+  const bool written = eng::GuiSoftwareRasterizer::writePng(
+      capture.image, "editor-asset-browser-cards-capture.png");
+  INFO("wrote cards: " << written);
+  SUCCEED();
+}

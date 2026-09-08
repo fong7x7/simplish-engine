@@ -146,6 +146,18 @@ public:
   /// Number of assets listed across every folder.
   [[nodiscard]] size_t assetCount() const { return names_.size(); }
 
+  /// Give an asset the texture its card draws. Indexed as the whole asset
+  /// list is, so the editor names an asset the same way everywhere.
+  void setAssetThumbnail(size_t asset, RhiTextureHandle texture);
+
+  /// First grid slot whose card is on screen.
+  [[nodiscard]] size_t firstVisibleSlot() const;
+
+  /// How many slots from there are on screen. Together with the above this
+  /// is what the editor generates pictures for, so an asset nobody has
+  /// scrolled to is never opened.
+  [[nodiscard]] size_t visibleSlotCount() const;
+
   /// Asset being dragged, as an index into the whole asset list, or -1 when
   /// no drag is in flight.
   [[nodiscard]] int draggingIndex() const { return dragging_; }
@@ -169,8 +181,11 @@ private:
   void renderEmptyGrid(const GuiDrawContext& ctx) const;
   /// Draw every card that shows in the grid.
   void renderCards(const GuiDrawContext& ctx) const;
-  /// Draw one card's frame and label.
+  /// Draw one card's frame, label, and picture.
   void renderCard(const GuiDrawContext& ctx, size_t slot) const;
+  /// Draw a card's picture, or the placeholder standing in for one.
+  void renderCardPicture(const GuiDrawContext& ctx, const Rect& card,
+                         size_t asset) const;
   /// Draw the ghost that follows the cursor mid-drag.
   void renderDragGhost(const GuiDrawContext& ctx) const;
   /// Flip one row's folder open or shut.
@@ -201,6 +216,9 @@ private:
   EditorAssetTree tree_{};
   /// Display names, indexed as the tree's asset indices are.
   std::vector<std::string> names_{};
+  /// Card pictures, indexed alongside `names_`. Not owned: the editor makes
+  /// and destroys them, and hands the browser the handles to draw.
+  std::vector<RhiTextureHandle> thumbnails_{};
   /// Folders whose children are listed.
   std::unordered_set<size_t> expanded_{};
   /// Flattened pane rows, rebuilt whenever the tree or expansion changes.

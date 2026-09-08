@@ -4,12 +4,28 @@
 /// @brief One importable asset the editor's asset panel lists.
 /// @par Threading Main-thread-only.
 
+#include <cstdint>
 #include <engine/math/vec3.h>
 #include <engine/render-mesh/mesh-instance.h>
+#include <engine/render/rhi-core-types.h>
 #include <filesystem>
 #include <string>
 
 namespace eng::editor {
+
+/// How far an asset's card picture has got.
+///
+/// Colocated with the asset it belongs to: it is not a state anything else
+/// in the editor has an opinion about.
+/// @thread_safety Immutable value type.
+enum class EditorAssetThumbnailState : uint8_t {
+  /// Nothing has been attempted yet.
+  PENDING,
+  /// Uploaded, and the card draws it.
+  READY,
+  /// Could not be made. Remembered so it is not attempted every frame.
+  FAILED,
+};
 
 /// A model on disk, and its GPU mesh once something has placed it.
 ///
@@ -36,6 +52,12 @@ struct EditorAsset {
   /// Set when a load was attempted and failed, so it is not retried on
   /// every drop and the panel can show the asset as unusable.
   bool load_failed = false;
+  /// Texture holding the card's picture, or `RHI_TEXTURE_INVALID` until one
+  /// has been made. Owned by the editor, which destroys it on rescan.
+  RhiTextureHandle thumbnail = RHI_TEXTURE_INVALID;
+  /// How far that picture has got.
+  EditorAssetThumbnailState thumbnail_state =
+      EditorAssetThumbnailState::PENDING;
 };
 
 }  // namespace eng::editor

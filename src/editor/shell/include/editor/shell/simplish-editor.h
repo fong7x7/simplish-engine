@@ -47,6 +47,7 @@
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gui/gui-widget-id.h>
+#include <engine/gui/image-data.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <filesystem>
 #include <string>
@@ -106,6 +107,25 @@ private:
   bool ensureAssetMesh(size_t index);
   /// Read, orient, and upload one asset's mesh.
   bool loadAssetMesh(EditorAsset& asset);
+  /// Make pictures for a few of the cards on screen, and no more than a
+  /// few: this runs every frame and must not stall one.
+  void pumpThumbnails();
+  /// Make pictures for grid slots `[first, last)`, up to the frame's
+  /// budget. Returns how many were made.
+  size_t pumpThumbnailRange(EditorAssetBrowserWidget& browser, size_t first,
+                            size_t last);
+  /// Make and upload one asset's card picture if it has none yet. False
+  /// when it already has one, or when it has already failed.
+  bool ensureAssetThumbnail(size_t index);
+  /// The picture for an asset: the project's cached one, or a fresh render
+  /// which is then cached. Empty when the mesh could not be read.
+  [[nodiscard]] ImageData buildAssetThumbnail(const EditorAsset& asset);
+  /// Upload a picture and hand the browser the texture. False when the
+  /// device would not make one.
+  bool uploadAssetThumbnail(EditorAsset& asset, const ImageData& image);
+  /// Destroy every uploaded card picture. Called before the asset list is
+  /// replaced, and again on shutdown.
+  void releaseAssetThumbnails();
   /// The whole drawable surface as a GPU viewport.
   [[nodiscard]] RhiViewport surfaceViewport();
   /// Build the draw parameters for this frame's scene pass.

@@ -3,8 +3,10 @@
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/core/logger.h>
@@ -58,6 +60,14 @@ namespace {
     }
     return status;
   }
+
+  /// Card pictures made per frame.
+  ///
+  /// Making one means parsing a mesh on a cache miss, which is far too slow
+  /// to do for a whole folder at once. A handful a frame fills a screenful
+  /// of cards within a few frames of scrolling to them, and never holds a
+  /// frame up long enough to be felt.
+  constexpr size_t THUMBNAILS_PER_FRAME = 2;
 
 }  // namespace
 
@@ -309,6 +319,9 @@ void SimplishEditor::refreshAssets() {
   // Placements index into the asset list, and a rescan renumbers it, so
   // they go with it. Nothing is persisted yet either way.
   state_.placements.clear();
+  // The textures belong to the list about to be replaced, and nothing else
+  // will ever hold their handles again.
+  releaseAssetThumbnails();
   EditorAssetScan scan =
       state_.project.loaded
           ? scanEditorAssets(projectAssetsPath(state_.project.root))
@@ -346,6 +359,92 @@ bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
   asset.min = mesh->min;
   asset.max = mesh->max;
   return true;
+}
+
+void SimplishEditor::releaseAssetThumbnails() {
+  RhiDevice* device = rhiDevice();
+  for (EditorAsset& asset : state_.assets) {
+    if (device != nullptr && asset.thumbnail != RHI_TEXTURE_INVALID) {
+      device->destroyTexture(asset.thumbnail);
+    }
+    asset.thumbnail = RHI_TEXTURE_INVALID;
+    asset.thumbnail_state = EditorAssetThumbnailState::PENDING;
+  }
+}
+
+ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
+  const ThumbnailCacheEntry entry{projectThumbnailsPath(state_.project.root),
+                                  asset.path, asset.relative_path};
+  if (std::optional<ImageData> cached = loadCachedThumbnail(entry)) {
+    return std::move(*cached);
+  }
+  // The expensive half, and the reason the cache exists: parsing a mesh the
+  // editor may never otherwise need to read.
+  std::optional<MeshData> mesh = loadObjMesh(asset.path);
+  if (!mesh.has_value()) {
+    return {};
+  }
+  orientYUpToZUp(*mesh);
+  ImageData image = renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE);
+  storeCachedThumbnail(entry, image);
+  return image;
+}
+
+bool SimplishEditor::uploadAssetThumbnail(EditorAsset& asset,
+                                          const ImageData& image) {
+  RhiDevice* device = rhiDevice();
+  if (device == nullptr || image.pixels.empty()) {
+    return false;
+  }
+  RhiTextureDesc desc{};
+  desc.width = image.width;
+  desc.height = image.height;
+  desc.format = RhiFormat::RGB_A8_SRGB;
+  desc.usage = RhiTextureUsage::SAMPLED;
+  desc.debug_name = "asset-thumbnail";
+  desc.initial_pixels = image.pixels.data();
+  asset.thumbnail = device->createTexture(desc);
+  return asset.thumbnail != RHI_TEXTURE_INVALID;
+}
+
+bool SimplishEditor::ensureAssetThumbnail(size_t index) {
+  EditorAsset& asset = state_.assets[index];
+  if (asset.thumbnail_state != EditorAssetThumbnailState::PENDING) {
+    return false;
+  }
+  const ImageData image = buildAssetThumbnail(asset);
+  const bool ready = uploadAssetThumbnail(asset, image);
+  // Failure is remembered either way: a mesh that will not parse would
+  // otherwise be reparsed for as long as its card is on screen.
+  asset.thumbnail_state = ready ? EditorAssetThumbnailState::READY
+                                : EditorAssetThumbnailState::FAILED;
+  return true;
+}
+
+size_t SimplishEditor::pumpThumbnailRange(EditorAssetBrowserWidget& browser,
+                                          size_t first, size_t last) {
+  const std::vector<size_t>& shown = browser.visibleAssets();
+  size_t made = 0;
+  for (size_t slot = first; slot < last && made < THUMBNAILS_PER_FRAME;
+       ++slot) {
+    const size_t asset = shown[slot];
+    if (ensureAssetThumbnail(asset)) {
+      browser.setAssetThumbnail(asset, state_.assets[asset].thumbnail);
+      ++made;
+    }
+  }
+  return made;
+}
+
+void SimplishEditor::pumpThumbnails() {
+  auto* browser = assetBrowserWidget();
+  if (browser == nullptr) {
+    return;
+  }
+  const size_t first = browser->firstVisibleSlot();
+  const size_t last = std::min(first + browser->visibleSlotCount(),
+                               browser->visibleAssets().size());
+  pumpThumbnailRange(*browser, first, last);
 }
 
 bool SimplishEditor::ensureAssetMesh(size_t index) {
@@ -493,6 +592,7 @@ bool SimplishEditor::onTick(float dt) {
     menu->tick(tree);
   }
   refreshToolbar();
+  pumpThumbnails();
   return !quit_requested_;
 }
 
@@ -634,6 +734,7 @@ void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind) {
 }
 
 void SimplishEditor::onShutdown() {
+  releaseAssetThumbnails();
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     mesh_renderer_.shutdown(*rhiDevice());

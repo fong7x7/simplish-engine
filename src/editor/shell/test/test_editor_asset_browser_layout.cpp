@@ -205,3 +205,82 @@ TEST_CASE("the fold controls span the header's height") {
   REQUIRE(assetNavToggleRect(header).h == Approx(header.h));
   REQUIRE(assetPanelToggleRect(header).h == Approx(header.h));
 }
+
+TEST_CASE("a card's picture sits under its label, inside the card") {
+  const eng::Rect card = assetCardRect(layoutOf(PANEL).grid, 0, 0.0f);
+  const eng::Rect picture = assetCardThumbnailRect(card);
+
+  REQUIRE(picture.y >= card.y + ASSET_CARD_LABEL_HEIGHT);
+  REQUIRE(picture.x >= card.x);
+  REQUIRE(picture.x + picture.w <= card.x + card.w);
+  REQUIRE(picture.y + picture.h <= card.y + card.h);
+  REQUIRE(picture.w > 0.0f);
+  REQUIRE(picture.h > 0.0f);
+}
+
+TEST_CASE("a card too short for a picture asks for none") {
+  const eng::Rect squashed{0.0f, 0.0f, ASSET_CARD_WIDTH, 8.0f};
+
+  // Better an empty rect the caller skips than a negative one it draws.
+  REQUIRE(assetCardThumbnailRect(squashed).h == Approx(0.0f));
+}
+
+TEST_CASE("an unscrolled grid starts at the first slot") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+
+  REQUIRE(assetFirstVisibleSlot(grid, 0.0f) == 0);
+}
+
+TEST_CASE("scrolling moves the first visible slot along, a row behind") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+  const size_t per_row = assetCardsPerRow(grid);
+  const float pitch = ASSET_CARD_HEIGHT + ASSET_CARD_GAP;
+
+  // A row of slack on purpose. Naming a slot too early costs one picture
+  // nobody looked at; naming one too late is a card that stays blank while
+  // someone is looking straight at it, so the error goes this way.
+  REQUIRE(assetFirstVisibleSlot(grid, pitch) == 0);
+  REQUIRE(assetFirstVisibleSlot(grid, 2.0f * pitch) == per_row);
+}
+
+TEST_CASE("the visible count covers every card on screen") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+  const size_t per_row = assetCardsPerRow(grid);
+
+  // Two rows fit in the grid's height, so an unscrolled grid full of cards
+  // shows both of them.
+  const size_t shown = assetVisibleSlotCount(grid, per_row * 8, 0.0f);
+  REQUIRE(shown >= per_row * 2);
+}
+
+TEST_CASE("the visible count never runs past the cards there are") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+
+  REQUIRE(assetVisibleSlotCount(grid, 3, 0.0f) == 3);
+  REQUIRE(assetVisibleSlotCount(grid, 0, 0.0f) == 0);
+}
+
+TEST_CASE("scrolling past the last card leaves nothing visible") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+
+  REQUIRE(assetVisibleSlotCount(grid, 4, 100000.0f) == 0);
+}
+
+TEST_CASE("every card the grid draws is one the visible range names") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+  const size_t total = assetCardsPerRow(grid) * 6;
+  const float scroll = 140.0f;
+  const size_t first = assetFirstVisibleSlot(grid, scroll);
+  const size_t count = assetVisibleSlotCount(grid, total, scroll);
+
+  // The range is what the editor generates pictures for; a card drawn
+  // outside it would stay blank however long it sat on screen.
+  for (size_t slot = 0; slot < total; ++slot) {
+    const eng::Rect card = assetCardRect(grid, slot, scroll);
+    const bool on_screen = card.y + card.h > grid.y && card.y < grid.y + grid.h;
+    if (on_screen) {
+      REQUIRE(slot >= first);
+      REQUIRE(slot < first + count);
+    }
+  }
+}
