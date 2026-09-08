@@ -3,16 +3,44 @@
 
 namespace eng::editor {
 
-EditorAssetBrowserLayout layoutAssetBrowser(const Rect& panel) {
+namespace {
+
+  /// Split the area below the header between the folder pane and the cards.
+  void layoutBody(const EditorAssetBrowserLayoutParams& params,
+                  const Rect& body, EditorAssetBrowserLayout& out) {
+    const float nav_w = params.nav_collapsed
+                            ? 0.0f
+                            : std::min(ASSET_NAV_WIDTH, std::max(0.0f, body.w));
+    out.nav = makeRect(body.x, body.y, nav_w, body.h);
+    out.grid = makeRect(body.x + nav_w, body.y, std::max(0.0f, body.w - nav_w),
+                        body.h);
+  }
+
+}  // namespace
+
+EditorAssetBrowserLayout
+layoutAssetBrowser(const EditorAssetBrowserLayoutParams& params) {
+  const Rect& panel = params.panel;
   EditorAssetBrowserLayout out;
   out.header = makeRect(panel.x, panel.y, panel.w, ASSET_HEADER_HEIGHT);
-  const float body_y = panel.y + ASSET_HEADER_HEIGHT;
-  const float body_h = std::max(0.0f, panel.h - ASSET_HEADER_HEIGHT);
-  const float nav_w = std::min(ASSET_NAV_WIDTH, std::max(0.0f, panel.w));
-  out.nav = makeRect(panel.x, body_y, nav_w, body_h);
-  out.grid = makeRect(panel.x + nav_w, body_y, std::max(0.0f, panel.w - nav_w),
-                      body_h);
+  if (params.panel_collapsed) {
+    // Both other regions stay zero-sized, which is what keeps a folded
+    // panel from drawing or answering a hit test below its header.
+    return out;
+  }
+  const Rect body = makeRect(panel.x, panel.y + ASSET_HEADER_HEIGHT, panel.w,
+                             std::max(0.0f, panel.h - ASSET_HEADER_HEIGHT));
+  layoutBody(params, body, out);
   return out;
+}
+
+Rect assetPanelToggleRect(const Rect& header) {
+  return makeRect(header.x + header.w - ASSET_TOGGLE_WIDTH, header.y,
+                  ASSET_TOGGLE_WIDTH, header.h);
+}
+
+Rect assetNavToggleRect(const Rect& header) {
+  return makeRect(header.x, header.y, ASSET_TOGGLE_WIDTH, header.h);
 }
 
 Rect assetFolderRowRect(const Rect& nav, size_t index, float scroll_y) {

@@ -323,3 +323,150 @@ TEST_CASE("selecting a folder that does not exist changes nothing") {
 
   REQUIRE(browser.selectedFolder() == EDITOR_ASSET_FOLDER_ROOT);
 }
+
+TEST_CASE("the browser opens with both panes showing") {
+  const EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+
+  REQUIRE_FALSE(browser.navCollapsed());
+  REQUIRE_FALSE(browser.panelCollapsed());
+  REQUIRE(browser.preferredHeight() == Approx(ASSET_PANEL_HEIGHT));
+}
+
+TEST_CASE("the header's right-hand control folds the panel away") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  const eng::Rect toggle = assetPanelToggleRect(browser.layout().header);
+
+  browser.handleMouseDown(centreOf(toggle));
+
+  REQUIRE(browser.panelCollapsed());
+  REQUIRE(browser.preferredHeight() == Approx(ASSET_PANEL_COLLAPSED_HEIGHT));
+}
+
+TEST_CASE("the same control brings a folded panel back") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  const eng::Rect toggle = assetPanelToggleRect(browser.layout().header);
+
+  browser.handleMouseDown(centreOf(toggle));
+  browser.handleMouseDown(centreOf(toggle));
+
+  REQUIRE_FALSE(browser.panelCollapsed());
+  REQUIRE(browser.preferredHeight() == Approx(ASSET_PANEL_HEIGHT));
+}
+
+TEST_CASE("the header's left-hand control folds the folder pane away") {
+  EditorAssetBrowserWidget browser = makeBrowser({"props/barrel.obj"});
+  const eng::Rect toggle = assetNavToggleRect(browser.layout().header);
+
+  browser.handleMouseDown(centreOf(toggle));
+
+  REQUIRE(browser.navCollapsed());
+  REQUIRE(browser.layout().nav.w == Approx(0.0f));
+  // The panel keeps its height: only the pane went away.
+  REQUIRE(browser.preferredHeight() == Approx(ASSET_PANEL_HEIGHT));
+}
+
+TEST_CASE("folding the folder pane widens the grid") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  const size_t before = assetCardsPerRow(browser.layout().grid);
+
+  browser.handleMouseDown(
+      centreOf(assetNavToggleRect(browser.layout().header)));
+
+  REQUIRE(assetCardsPerRow(browser.layout().grid) > before);
+}
+
+TEST_CASE("folding the folder pane keeps the selection") {
+  EditorAssetBrowserWidget browser =
+      makeBrowser({"crate.obj", "props/barrel.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+  const size_t selected = browser.selectedFolder();
+
+  browser.hideFolderPane();
+
+  // The pane is how a folder is chosen, not what makes the choice stick.
+  REQUIRE(browser.selectedFolder() == selected);
+  REQUIRE(browser.visibleAssets().size() == 1);
+}
+
+TEST_CASE("a folded panel takes no press below its header") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  const eng::Rect card = browser.cardRect(0);
+  browser.collapsePanel();
+
+  REQUIRE_FALSE(browser.handleMouseDown(centreOf(card)));
+  REQUIRE(browser.draggingIndex() == -1);
+  REQUIRE(browser.hitTestCard(card.x + 2.0f, card.y + 2.0f) == -1);
+}
+
+TEST_CASE("a folded panel takes no press in the folder pane") {
+  EditorAssetBrowserWidget browser = makeBrowser({"props/barrel.obj"});
+  const eng::Rect row = browser.folderRowRect(1);
+  browser.collapsePanel();
+
+  REQUIRE_FALSE(browser.handleMouseDown(centreOf(row)));
+  REQUIRE(browser.hitTestFolderRow(row.x + 2.0f, row.y + 2.0f) == -1);
+}
+
+TEST_CASE("a folded panel does not scroll") {
+  std::vector<std::string> many;
+  for (int i = 0; i < 60; ++i) {
+    many.push_back("asset" + std::to_string(i) + ".obj");
+  }
+  EditorAssetBrowserWidget browser = makeBrowser(many);
+  const eng::Rect grid = browser.layout().grid;
+  browser.collapsePanel();
+
+  REQUIRE_FALSE(
+      browser.handleScroll(scrollAt(grid.x + 20.0f, grid.y + 20.0f, -1.0f)));
+}
+
+TEST_CASE("folding the panel mid-drag drops the drag") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  bool dropped = false;
+  browser.on_asset_dropped = [&](size_t, float, float) {
+    dropped = true;
+  };
+  browser.handleMouseDown(centreOf(browser.cardRect(0)));
+
+  browser.collapsePanel();
+  browser.handleMouseUp(mouseAt(600.0f, 300.0f));
+
+  // The grid the drag came out of is gone; placing from it would be a lie.
+  REQUIRE(browser.draggingIndex() == -1);
+  REQUIRE_FALSE(dropped);
+}
+
+TEST_CASE("the nav control does nothing while the panel is folded") {
+  EditorAssetBrowserWidget browser = makeBrowser({"props/barrel.obj"});
+  browser.collapsePanel();
+
+  browser.handleMouseDown(
+      centreOf(assetNavToggleRect(browser.layout().header)));
+
+  REQUIRE_FALSE(browser.navCollapsed());
+}
+
+TEST_CASE("unfolding restores the panes as they were") {
+  EditorAssetBrowserWidget browser =
+      makeBrowser({"crate.obj", "props/barrel.obj"});
+  browser.hideFolderPane();
+  browser.collapsePanel();
+
+  browser.expandPanel();
+
+  REQUIRE(browser.navCollapsed());
+  REQUIRE(browser.layout().grid.w == Approx(browser.rect.w));
+}
+
+TEST_CASE("rescanning leaves the fold state alone") {
+  EditorAssetBrowserWidget browser = makeBrowser({"crate.obj"});
+  browser.hideFolderPane();
+  browser.collapsePanel();
+
+  // Folding is how the user wants to look at the project, not something
+  // the project says, so a rescan has no business undoing it.
+  browser.setAssets(EditorAssetTree{}, {});
+
+  REQUIRE(browser.navCollapsed());
+  REQUIRE(browser.panelCollapsed());
+}

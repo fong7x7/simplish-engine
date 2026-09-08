@@ -204,6 +204,16 @@ EditorViewportWidget* SimplishEditor::viewportWidget() {
       guiWidgetTree().findWidget(viewport_id_));
 }
 
+EditorAssetBrowserWidget* SimplishEditor::assetBrowserWidget() {
+  return dynamic_cast<EditorAssetBrowserWidget*>(
+      guiWidgetTree().findWidget(asset_panel_id_));
+}
+
+float SimplishEditor::assetBrowserHeight() {
+  const EditorAssetBrowserWidget* panel = assetBrowserWidget();
+  return panel != nullptr ? panel->preferredHeight() : ASSET_PANEL_HEIGHT;
+}
+
 void SimplishEditor::layoutChrome() {
   GuiWidgetTree& tree = guiWidgetTree();
   const Rect window = makeRect(0.0f, 0.0f, static_cast<float>(guiLayoutWidth()),
@@ -217,6 +227,7 @@ void SimplishEditor::layoutChrome() {
   layoutWorkArea(tree, window);
   laid_out_width_ = guiLayoutWidth();
   laid_out_height_ = guiLayoutHeight();
+  laid_out_panel_height_ = assetBrowserHeight();
 }
 
 void SimplishEditor::layoutTitleBar(GuiWidgetTree& tree, const Rect& window) {
@@ -246,9 +257,10 @@ void SimplishEditor::layoutWorkArea(GuiWidgetTree& tree, const Rect& window) {
 
 void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
                                              const Rect& window, float top) {
-  // The asset strip takes the bottom; the viewport gets what is left, which
-  // may be nothing at all on a very short window.
-  const float panel_top = std::max(top, window.h - ASSET_PANEL_HEIGHT);
+  // The asset browser takes the bottom; the viewport gets what is left,
+  // which may be nothing at all on a very short window. Folding the browser
+  // hands most of that back.
+  const float panel_top = std::max(top, window.h - assetBrowserHeight());
   if (auto* viewport = tree.findWidget(viewport_id_)) {
     viewport->rect = makeRect(0.0f, top, window.w, panel_top - top);
   }
@@ -468,7 +480,8 @@ bool SimplishEditor::onTick(float dt) {
   // Re-layout only when the window actually changed size; the chrome is
   // placed manually, so an unconditional pass would be wasted work.
   if (guiLayoutWidth() != laid_out_width_ ||
-      guiLayoutHeight() != laid_out_height_) {
+      guiLayoutHeight() != laid_out_height_ ||
+      assetBrowserHeight() != laid_out_panel_height_) {
     layoutChrome();
   }
   if (status_override_left_ > 0.0f) {

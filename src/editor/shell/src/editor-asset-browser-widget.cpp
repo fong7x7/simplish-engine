@@ -48,7 +48,32 @@ std::unique_ptr<GuiWidget> EditorAssetBrowserWidget::clone() const {
 }
 
 EditorAssetBrowserLayout EditorAssetBrowserWidget::layout() const {
-  return layoutAssetBrowser(rect);
+  return layoutAssetBrowser({rect, nav_collapsed_, panel_collapsed_});
+}
+
+float EditorAssetBrowserWidget::preferredHeight() const {
+  return panel_collapsed_ ? ASSET_PANEL_COLLAPSED_HEIGHT : ASSET_PANEL_HEIGHT;
+}
+
+void EditorAssetBrowserWidget::hideFolderPane() {
+  nav_collapsed_ = true;
+  clampScroll();
+}
+
+void EditorAssetBrowserWidget::showFolderPane() {
+  nav_collapsed_ = false;
+  clampScroll();
+}
+
+void EditorAssetBrowserWidget::collapsePanel() {
+  panel_collapsed_ = true;
+  // A drag cannot survive the grid it started in going away.
+  dragging_ = -1;
+}
+
+void EditorAssetBrowserWidget::expandPanel() {
+  panel_collapsed_ = false;
+  clampScroll();
 }
 
 const std::vector<size_t>& EditorAssetBrowserWidget::visibleAssets() const {
@@ -193,8 +218,45 @@ bool EditorAssetBrowserWidget::pressGrid(const GuiMouseEvent& event) {
   return true;
 }
 
+void EditorAssetBrowserWidget::togglePanelFold() {
+  if (panel_collapsed_) {
+    expandPanel();
+  } else {
+    collapsePanel();
+  }
+}
+
+void EditorAssetBrowserWidget::toggleNavFold() {
+  if (nav_collapsed_) {
+    showFolderPane();
+  } else {
+    hideFolderPane();
+  }
+}
+
+bool EditorAssetBrowserWidget::pressHeader(const GuiMouseEvent& event) {
+  const Rect header = layout().header;
+  if (containsPoint(assetPanelToggleRect(header), event.x, event.y)) {
+    togglePanelFold();
+    return true;
+  }
+  // The pane's control is hidden while the panel is folded, so a press
+  // where it would be must not act on it.
+  if (panel_collapsed_ ||
+      !containsPoint(assetNavToggleRect(header), event.x, event.y)) {
+    return false;
+  }
+  toggleNavFold();
+  return true;
+}
+
 bool EditorAssetBrowserWidget::handleMouseDown(const GuiMouseEvent& event) {
   if (event.button != GuiMouseButton::LEFT || !visible) {
+    return false;
+  }
+  // A fold control takes the press, but there is nothing to capture: the
+  // panel changed shape and no drag began.
+  if (pressHeader(event)) {
     return false;
   }
   if (containsPoint(layout().nav, event.x, event.y)) {
@@ -242,10 +304,27 @@ bool EditorAssetBrowserWidget::handleScroll(const GuiScrollEvent& event) {
   return true;
 }
 
+void EditorAssetBrowserWidget::renderToggles(const GuiDrawContext& ctx) const {
+  const Rect header = layout().header;
+  const auto color = GuiColor::applyOpacity(THEME_DIM, opacity);
+  ctx.drawText(color,
+               drawPosInset(assetPanelToggleRect(header), 6.0f, TEXT_DROP),
+               panel_collapsed_ ? "^" : "v");
+  if (panel_collapsed_) {
+    return;
+  }
+  ctx.drawText(color, drawPosInset(assetNavToggleRect(header), 6.0f, TEXT_DROP),
+               nav_collapsed_ ? ">" : "<");
+}
+
 void EditorAssetBrowserWidget::renderHeader(const GuiDrawContext& ctx) const {
   const Rect header = layout().header;
-  ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
-               drawPosInset(header, SIDE_PADDING, TEXT_DROP), header_text_);
+  // The title clears the fold control on the left rather than starting at
+  // the panel edge, so the two never sit on top of each other.
+  const DrawPos title{header.x + ASSET_TOGGLE_WIDTH + SIDE_PADDING,
+                      header.y + TEXT_DROP};
+  ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity), title, header_text_);
+  renderToggles(ctx);
 }
 
 void EditorAssetBrowserWidget::renderFolderRow(const GuiDrawContext& ctx,
@@ -269,6 +348,9 @@ void EditorAssetBrowserWidget::renderFolderRow(const GuiDrawContext& ctx,
 
 void EditorAssetBrowserWidget::renderNav(const GuiDrawContext& ctx) const {
   const Rect nav = layout().nav;
+  if (nav.w <= 0.0f) {
+    return;
+  }
   ctx.drawFilledRect(nav, GuiColor::applyOpacity(NAV_FILL, opacity));
   for (size_t i = 0; i < rows_.size(); ++i) {
     // Rows scrolled out of the pane are dropped rather than drawn over the
@@ -327,8 +409,10 @@ void EditorAssetBrowserWidget::render(const GuiDrawContext& ctx) const {
   renderPanel({ctx, GuiColor::applyOpacity(fill_color, opacity)});
   ctx.drawBorderRect(rect, GuiColor::applyOpacity(THEME_BORDER, opacity));
   renderHeader(ctx);
-  renderNav(ctx);
-  renderGrid(ctx);
+  if (!panel_collapsed_) {
+    renderNav(ctx);
+    renderGrid(ctx);
+  }
   // Last, and outside either pane's bounds check: the ghost follows the
   // cursor anywhere on screen, including over the panes it started in.
   renderDragGhost(ctx);

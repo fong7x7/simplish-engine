@@ -139,6 +139,31 @@ struct BrowserCapture {
             image.pixels[offset + 2]};
   }
 
+  /// Resize the panel to the height it asks for and re-anchor it to the
+  /// bottom, which is what the editor's own layout pass does for it.
+  void applyPreferredHeight() {
+    EditorAssetBrowserWidget& browser = browserMutable();
+    const float height = browser.preferredHeight();
+    browser.rect = eng::makeRect(0.0f, static_cast<float>(CAPTURE_H) - height,
+                                 static_cast<float>(CAPTURE_W), height);
+  }
+
+  /// Re-render after changing what the browser is showing.
+  void recapture() {
+    renderer.beginFrame();
+    renderTree();
+    image = eng::GuiSoftwareRasterizer::rasterizeQuads(
+        renderer.vertices, window(), eng::GUI_RASTER_DEFAULT_BG, font.atlas());
+  }
+
+  /// The browser, for changing what the next capture shows.
+  [[nodiscard]] EditorAssetBrowserWidget& browserMutable() {
+    auto* widget =
+        dynamic_cast<EditorAssetBrowserWidget*>(tree.findWidget(browser_id));
+    REQUIRE(widget != nullptr);
+    return *widget;
+  }
+
   /// The browser, for asking where it put things.
   [[nodiscard]] const EditorAssetBrowserWidget& browser() const {
     const auto* widget = dynamic_cast<const EditorAssetBrowserWidget*>(
@@ -235,5 +260,22 @@ TEST_CASE("the browser capture can be written to PNG for inspection") {
   const bool written =
       eng::GuiSoftwareRasterizer::writePng(capture.image, path);
   INFO("wrote " << path << ": " << written);
+  SUCCEED();
+}
+
+TEST_CASE("the folded captures can be written to PNG for inspection") {
+  BrowserCapture capture;
+
+  capture.browserMutable().hideFolderPane();
+  capture.recapture();
+  INFO("wrote nav-folded: " << eng::GuiSoftwareRasterizer::writePng(
+           capture.image, "editor-asset-browser-nav-folded-capture.png"));
+
+  capture.browserMutable().showFolderPane();
+  capture.browserMutable().collapsePanel();
+  capture.applyPreferredHeight();
+  capture.recapture();
+  INFO("wrote panel-folded: " << eng::GuiSoftwareRasterizer::writePng(
+           capture.image, "editor-asset-browser-panel-folded-capture.png"));
   SUCCEED();
 }

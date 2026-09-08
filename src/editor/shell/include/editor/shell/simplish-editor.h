@@ -117,6 +117,10 @@ private:
   void refreshPlacementMarkers();
   /// The viewport widget, or nullptr before the chrome exists.
   [[nodiscard]] EditorViewportWidget* viewportWidget();
+  /// The asset browser, or nullptr before the chrome exists.
+  [[nodiscard]] EditorAssetBrowserWidget* assetBrowserWidget();
+  /// Height the asset browser wants, which shrinks when it is folded away.
+  [[nodiscard]] float assetBrowserHeight();
   /// Position the chrome for the current window size.
   void layoutChrome();
   /// Place the title bar and its label across @p window.
@@ -196,6 +200,9 @@ private:
   uint32_t laid_out_width_ = 0;
   /// Last window height the chrome was laid out for.
   uint32_t laid_out_height_ = 0;
+  /// Asset browser height the chrome was laid out for. Folding the browser
+  /// changes it, and the viewport above has to be given the difference.
+  float laid_out_panel_height_ = ASSET_PANEL_HEIGHT;
 };
 
 }  // namespace eng::editor

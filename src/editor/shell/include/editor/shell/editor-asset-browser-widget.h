@@ -81,8 +81,30 @@ public:
   /// the tree's folders hold, which is the editor's whole asset list.
   void setAssets(EditorAssetTree tree, std::vector<std::string> names);
 
-  /// The panel's regions for its current rect.
+  /// The panel's regions for its current rect and fold state.
   [[nodiscard]] EditorAssetBrowserLayout layout() const;
+
+  /// Height the panel wants from the editor's layout: its full height, or
+  /// its header alone when folded.
+  [[nodiscard]] float preferredHeight() const;
+
+  /// Whether the folder pane is folded away.
+  [[nodiscard]] bool navCollapsed() const { return nav_collapsed_; }
+
+  /// Fold the folder pane away, giving the cards its width.
+  void hideFolderPane();
+
+  /// Bring the folder pane back.
+  void showFolderPane();
+
+  /// Whether the panel is folded down to its header.
+  [[nodiscard]] bool panelCollapsed() const { return panel_collapsed_; }
+
+  /// Fold the panel down to its header, giving the viewport its height.
+  void collapsePanel();
+
+  /// Unfold the panel.
+  void expandPanel();
 
   /// Rows the folder pane currently lists, root first.
   [[nodiscard]] const std::vector<EditorAssetFolderRow>& folderRows() const {
@@ -147,6 +169,14 @@ private:
   void renderDragGhost(const GuiDrawContext& ctx) const;
   /// Flip one row's folder open or shut.
   void toggleFolder(const EditorAssetFolderRow& entry);
+  /// Draw the header's two fold controls.
+  void renderToggles(const GuiDrawContext& ctx) const;
+  /// Act on a press in the header. Returns true when a control took it.
+  bool pressHeader(const GuiMouseEvent& event);
+  /// Fold the panel, or unfold it.
+  void togglePanelFold();
+  /// Fold the folder pane, or bring it back.
+  void toggleNavFold();
   /// Handle a press in the folder pane. Returns false: the pane never
   /// captures, because opening a folder is done by the press alone.
   bool pressFolderPane(const GuiMouseEvent& event);
@@ -183,6 +213,10 @@ private:
   float nav_scroll_ = 0.0f;
   /// How far the grid is scrolled, in pixels.
   float grid_scroll_ = 0.0f;
+  /// Whether the folder pane is folded away.
+  bool nav_collapsed_ = false;
+  /// Whether the panel is folded down to its header.
+  bool panel_collapsed_ = false;
 };
 
 }  // namespace eng::editor
