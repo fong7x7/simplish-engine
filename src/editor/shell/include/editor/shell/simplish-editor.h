@@ -39,7 +39,7 @@
 
 #include <cstdint>
 #include <editor/project/project-open-error.h>
-#include <editor/shell/editor-asset-panel-widget.h>
+#include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-shell-state.h>
@@ -91,12 +91,12 @@ private:
   void initMenuBar(GuiWidgetTree& tree);
   /// Create the toolbar and the viewport.
   void initWorkArea(GuiWidgetTree& tree);
-  /// Create the asset panel and wire its drops back to this editor.
+  /// Create the asset browser and wire its drops back to this editor.
   void initAssetPanel(GuiWidgetTree& tree);
   /// Rescan the open project's assets, rebuild the folder tree, and
   /// refresh the panel.
   void refreshAssets();
-  /// Push the scanned assets into the asset panel.
+  /// Push the scanned assets and their folders into the browser.
   void refreshAssetPanel();
   /// Place the asset at @p index at a layout position, if that position is
   /// over the viewport.

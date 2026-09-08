@@ -177,7 +177,7 @@ void SimplishEditor::initMenuBar(GuiWidgetTree& tree) {
 }
 
 void SimplishEditor::initAssetPanel(GuiWidgetTree& tree) {
-  auto panel = std::make_unique<EditorAssetPanelWidget>();
+  auto panel = std::make_unique<EditorAssetBrowserWidget>();
   panel->on_asset_dropped = [this](size_t index, float x, float y) {
     dropAsset(index, x, y);
   };
@@ -313,9 +313,9 @@ void SimplishEditor::refreshAssetPanel() {
   for (const EditorAsset& asset : state_.assets) {
     names.push_back(asset.name);
   }
-  if (auto* panel = dynamic_cast<EditorAssetPanelWidget*>(
+  if (auto* panel = dynamic_cast<EditorAssetBrowserWidget*>(
           guiWidgetTree().findWidget(asset_panel_id_))) {
-    panel->setAssetNames(std::move(names));
+    panel->setAssets(state_.asset_tree, std::move(names));
   }
 }
 
