@@ -93,8 +93,11 @@ private:
   void initWorkArea(GuiWidgetTree& tree);
   /// Create the asset panel and wire its drops back to this editor.
   void initAssetPanel(GuiWidgetTree& tree);
-  /// Rescan the open project's assets and refresh the panel.
+  /// Rescan the open project's assets, rebuild the folder tree, and
+  /// refresh the panel.
   void refreshAssets();
+  /// Push the scanned assets into the asset panel.
+  void refreshAssetPanel();
   /// Place the asset at @p index at a layout position, if that position is
   /// over the viewport.
   void dropAsset(size_t index, float x, float y);

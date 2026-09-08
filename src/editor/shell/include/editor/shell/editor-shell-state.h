@@ -6,6 +6,7 @@
 
 #include <editor/project/project-context.h>
 #include <editor/project/recent-projects-list.h>
+#include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-tool.h>
@@ -25,8 +26,11 @@ struct EditorShellState {
   std::filesystem::path recent_path;
   /// Currently selected authoring tool.
   EditorTool active_tool = EditorTool::SELECT;
-  /// Assets found under the open project, in panel order.
+  /// Assets found under the open project, in scan order. Placements
+  /// index into this list, so it is the numbering that must stay put.
   std::vector<EditorAsset> assets;
+  /// The folders those assets sit in, holding indices into `assets`.
+  EditorAssetTree asset_tree;
   /// Assets placed in the world. In memory only — see `editor-placement.h`.
   std::vector<EditorPlacement> placements;
 };

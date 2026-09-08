@@ -22,6 +22,11 @@ struct EditorAsset {
   std::string name;
   /// Absolute path to the source file.
   std::filesystem::path path;
+  /// Path relative to the project's assets directory, file name included
+  /// (`props/crate.obj`). This is what identifies the asset for grouping
+  /// under a folder, and it is stable across machines in a way `path` is
+  /// not.
+  std::filesystem::path relative_path;
   /// Uploaded mesh, or `MESH_GPU_INVALID` until first placed.
   MeshGpuId mesh = MESH_GPU_INVALID;
   /// Minimum bounds corner, in world orientation. Valid once uploaded.

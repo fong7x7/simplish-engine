@@ -3,6 +3,7 @@
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
@@ -296,19 +297,26 @@ void SimplishEditor::refreshAssets() {
   // Placements index into the asset list, and a rescan renumbers it, so
   // they go with it. Nothing is persisted yet either way.
   state_.placements.clear();
-  state_.assets = state_.project.loaded
-                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
-                      : std::vector<EditorAsset>{};
+  EditorAssetScan scan =
+      state_.project.loaded
+          ? scanEditorAssets(projectAssetsPath(state_.project.root))
+          : EditorAssetScan{};
+  state_.asset_tree = buildEditorAssetTree(scan);
+  state_.assets = std::move(scan.assets);
+  refreshAssetPanel();
+  refreshPlacementMarkers();
+}
+
+void SimplishEditor::refreshAssetPanel() {
   std::vector<std::string> names;
   names.reserve(state_.assets.size());
-  for (const auto& asset : state_.assets) {
+  for (const EditorAsset& asset : state_.assets) {
     names.push_back(asset.name);
   }
   if (auto* panel = dynamic_cast<EditorAssetPanelWidget*>(
           guiWidgetTree().findWidget(asset_panel_id_))) {
     panel->setAssetNames(std::move(names));
   }
-  refreshPlacementMarkers();
 }
 
 bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {

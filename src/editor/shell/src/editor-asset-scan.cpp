@@ -2,10 +2,13 @@
 #include <cctype>
 #include <editor/shell/editor-asset-scan.h>
 #include <string>
+#include <system_error>
 
 namespace eng::editor {
 
 namespace {
+
+  namespace fs = std::filesystem;
 
   /// Lowercase copy, so `.OBJ` lists alongside `.obj`.
   std::string toLower(std::string text) {
@@ -15,38 +18,77 @@ namespace {
     return text;
   }
 
-  bool isMeshFile(const std::filesystem::path& path) {
+  bool isMeshFile(const fs::path& path) {
     return toLower(path.extension().string()) == ASSET_MESH_EXTENSION;
   }
 
-  /// Add one directory entry to the list if it is a mesh file.
-  void collectAsset(const std::filesystem::directory_entry& entry,
-                    std::vector<EditorAsset>& out) {
+  /// Whether a name starts with a dot. Dot-directories hold editor and
+  /// version-control metadata, and their whole subtree is skipped.
+  bool isHiddenName(const fs::path& path) {
+    const std::string name = path.filename().string();
+    return !name.empty() && name.front() == '.';
+  }
+
+  /// Add one directory entry to the scan, as a folder or as a mesh file.
+  void collectEntry(const fs::directory_entry& entry, const fs::path& root,
+                    EditorAssetScan& out) {
+    // Lexical, not `fs::relative`: the entry came from a walk of `root`, so
+    // the answer is known without touching the filesystem again.
+    const fs::path relative = entry.path().lexically_relative(root);
     std::error_code ec;
-    if (!entry.is_regular_file(ec) || !isMeshFile(entry.path())) {
+    if (entry.is_directory(ec)) {
+      out.folders.push_back(relative);
       return;
     }
-    out.push_back({entry.path().stem().string(), entry.path()});
+    if (entry.is_regular_file(ec) && isMeshFile(entry.path())) {
+      out.assets.push_back(
+          {entry.path().stem().string(), entry.path(), relative});
+    }
+  }
+
+  /// Walk from @p it to the end, collecting entries and pruning hidden
+  /// subtrees. Iteration errors stop the walk with what was found so far.
+  void walk(fs::recursive_directory_iterator& it, const fs::path& root,
+            EditorAssetScan& out) {
+    const fs::recursive_directory_iterator end;
+    std::error_code ec;
+    while (it != end) {
+      if (isHiddenName(it->path())) {
+        it.disable_recursion_pending();
+      } else {
+        collectEntry(*it, root, out);
+      }
+      it.increment(ec);
+      if (ec) {
+        return;
+      }
+    }
+  }
+
+  /// Put the scan in relative-path order, which is stable across machines.
+  void sortScan(EditorAssetScan& scan) {
+    std::ranges::sort(scan.assets, {}, &EditorAsset::relative_path);
+    std::ranges::sort(scan.folders);
   }
 
 }  // namespace
 
-std::vector<EditorAsset>
-scanEditorAssets(const std::filesystem::path& assets_dir) {
-  std::vector<EditorAsset> assets;
+EditorAssetScan scanEditorAssets(const fs::path& assets_dir) {
+  EditorAssetScan scan;
   std::error_code ec;
-  if (!std::filesystem::is_directory(assets_dir, ec)) {
-    return assets;
+  if (!fs::is_directory(assets_dir, ec)) {
+    return scan;
   }
-  for (const auto& entry :
-       std::filesystem::directory_iterator(assets_dir, ec)) {
-    if (ec) {
-      break;
-    }
-    collectAsset(entry, assets);
+  // Skipping permission-denied entries keeps one unreadable sub-directory
+  // from costing the whole scan.
+  fs::recursive_directory_iterator it(
+      assets_dir, fs::directory_options::skip_permission_denied, ec);
+  if (ec) {
+    return scan;
   }
-  std::ranges::sort(assets, {}, &EditorAsset::name);
-  return assets;
+  walk(it, assets_dir, scan);
+  sortScan(scan);
+  return scan;
 }
 
 }  // namespace eng::editor

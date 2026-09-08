@@ -4,9 +4,9 @@
 /// @brief Discovery of placeable assets under a project.
 /// @par Threading Main-thread-only (reads the filesystem).
 
-#include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-asset-scan-result.h>
 #include <filesystem>
-#include <vector>
+#include <string_view>
 
 namespace eng::editor {
 
@@ -15,12 +15,17 @@ namespace eng::editor {
 /// listed as broken.
 inline constexpr std::string_view ASSET_MESH_EXTENSION = ".obj";
 
-/// List the placeable assets directly under @p assets_dir, sorted by name
-/// so the panel's order does not depend on directory iteration order.
+/// List the placeable assets and directories under @p assets_dir, walking
+/// sub-directories, sorted by relative path so the browser's order does not
+/// depend on directory iteration order.
 ///
-/// A missing or unreadable directory yields an empty list, which is the
-/// same thing the panel shows for a project with no assets yet.
-[[nodiscard]] std::vector<EditorAsset>
+/// Directories whose name starts with a dot are skipped whole: they hold
+/// editor and version-control metadata, not content.
+///
+/// A missing or unreadable directory yields an empty result, which is the
+/// same thing the browser shows for a project with no assets yet. An
+/// unreadable sub-directory costs only its own subtree.
+[[nodiscard]] EditorAssetScan
 scanEditorAssets(const std::filesystem::path& assets_dir);
 
 }  // namespace eng::editor
