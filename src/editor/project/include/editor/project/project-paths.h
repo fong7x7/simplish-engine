@@ -17,6 +17,8 @@ inline constexpr std::string_view PROJECT_FILE_NAME = "project.json";
 inline constexpr std::string_view PROJECT_DATA_DIR_NAME = "data";
 /// Directory inside a project root holding importable source assets.
 inline constexpr std::string_view PROJECT_ASSETS_DIR_NAME = "assets";
+/// Directory inside `PROJECT_DIR_NAME` holding generated asset thumbnails.
+inline constexpr std::string_view PROJECT_THUMBNAILS_DIR_NAME = "thumbnails";
 
 /// Path to a project root's editor directory (`<root>/.simplish`).
 [[nodiscard]] inline std::filesystem::path
@@ -41,6 +43,17 @@ projectDataPath(const std::filesystem::path& root) {
 [[nodiscard]] inline std::filesystem::path
 projectAssetsPath(const std::filesystem::path& root) {
   return root / PROJECT_ASSETS_DIR_NAME;
+}
+
+/// Path to a project root's generated thumbnails
+/// (`<root>/.simplish/thumbnails`).
+///
+/// Under the editor's own directory rather than beside the assets: these
+/// are derived files, cheap to rebuild, and nothing a person authored. A
+/// project can be committed without them.
+[[nodiscard]] inline std::filesystem::path
+projectThumbnailsPath(const std::filesystem::path& root) {
+  return projectDirPath(root) / PROJECT_THUMBNAILS_DIR_NAME;
 }
 
 }  // namespace eng::editor
