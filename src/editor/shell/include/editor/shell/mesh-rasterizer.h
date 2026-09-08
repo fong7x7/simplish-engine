@@ -1,19 +1,21 @@
 #pragma once
 
-/// @file mesh-raster.h
-/// @brief Test support: a CPU rasterizer for placed meshes.
+/// @file mesh-rasterizer.h
+/// @brief A CPU rasterizer for meshes, shaded the way the viewport shades
+/// them.
 ///
-/// A real Metal device needs a native window, so a headless test only ever
-/// gets `MetalStubDevice`, which has no pipelines. Nothing about the GPU
-/// path can be exercised here.
+/// This exists because the GPU path is not always available. A real Metal
+/// device needs a native window, so a headless test only ever gets
+/// `MetalStubDevice`, which has no pipelines; and an asset thumbnail is
+/// wanted whether or not a mesh pipeline came up at all.
 ///
-/// What this rasterizer does cover is everything fed *to* that path: the
-/// view-projection matrix, the depth ordering that oblique projection
-/// demands, the placement transform, and the mesh data itself. If a model
-/// lands on the wrong tile, sits through the floor, or fails to occlude its
-/// neighbour, this sees it. The shaders remain the user's to verify by
+/// What it covers is everything fed *to* the GPU path: the view-projection
+/// matrix, the depth ordering that oblique projection demands, the
+/// placement transform, and the mesh data itself. If a model lands on the
+/// wrong tile, sits through the floor, or fails to occlude its neighbour,
+/// this sees it. The shaders themselves remain the user's to verify by
 /// running the editor.
-/// @par Threading Main-thread-only.
+/// @par Threading Thread-safe (pure function over the scene it is given).
 
 #include <cstdint>
 #include <engine/gui/image-data.h>
@@ -22,7 +24,7 @@
 #include <span>
 #include <vector>
 
-namespace eng::editor::test {
+namespace eng::editor {
 
 /// Everything one CPU render needs.
 /// @thread_safety Immutable value type.
@@ -49,4 +51,4 @@ struct MeshRasterScene {
 /// directional shading the mesh shader applies.
 [[nodiscard]] ImageData rasterizeMeshScene(const MeshRasterScene& scene);
 
-}  // namespace eng::editor::test
+}  // namespace eng::editor

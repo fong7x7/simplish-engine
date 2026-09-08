@@ -9,12 +9,14 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-folder-rows.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-scan.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-thumbnail.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-tree.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
 )
 

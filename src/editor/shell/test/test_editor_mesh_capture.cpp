@@ -1,4 +1,3 @@
-#include "mesh-raster.h"
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
@@ -7,6 +6,7 @@
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/iso-camera.h>
 #include <editor/shell/iso-view-matrix.h>
+#include <editor/shell/mesh-rasterizer.h>
 #include <engine/gui/gui-software-rasterizer.h>
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
@@ -16,7 +16,7 @@
 
 using namespace eng;
 using namespace eng::editor;
-using eng::editor::test::MeshRasterScene;
+using eng::editor::MeshRasterScene;
 
 namespace {
 
@@ -85,7 +85,7 @@ struct CubeScene {
     scene.draws = draws;
     scene.width = CAPTURE_W;
     scene.height = CAPTURE_H;
-    image = eng::editor::test::rasterizeMeshScene(scene);
+    image = eng::editor::rasterizeMeshScene(scene);
   }
 
   /// Read a pixel as (r, g, b).

@@ -1,9 +1,8 @@
-#include "mesh-raster.h"
-
 #include <algorithm>
 #include <cmath>
+#include <editor/shell/mesh-rasterizer.h>
 
-namespace eng::editor::test {
+namespace eng::editor {
 
 namespace {
 
@@ -188,4 +187,4 @@ ImageData rasterizeMeshScene(const MeshRasterScene& scene) {
   return image;
 }
 
-}  // namespace eng::editor::test
+}  // namespace eng::editor
