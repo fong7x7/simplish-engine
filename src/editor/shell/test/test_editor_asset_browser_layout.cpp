@@ -284,3 +284,49 @@ TEST_CASE("every card the grid draws is one the visible range names") {
     }
   }
 }
+
+TEST_CASE("a card's picture is square") {
+  const eng::Rect card = assetCardRect(layoutOf(PANEL).grid, 0, 0.0f);
+  const eng::Rect picture = assetCardThumbnailRect(card);
+
+  // Thumbnails are rendered square and drawn across the whole rect they are
+  // given, so a rect of any other shape stretches the model. A 96x60 rect
+  // squashed every one of them to 62% height.
+  REQUIRE(picture.w == Approx(picture.h));
+  REQUIRE(picture.w > 0.0f);
+}
+
+TEST_CASE("a card wider than it is tall still gets a square picture") {
+  const eng::Rect wide{0.0f, 0.0f, 400.0f, ASSET_CARD_HEIGHT};
+  const eng::Rect picture = assetCardThumbnailRect(wide);
+
+  REQUIRE(picture.w == Approx(picture.h));
+  REQUIRE(picture.x > wide.x);
+  REQUIRE(picture.x + picture.w < wide.x + wide.w);
+}
+
+TEST_CASE("a card taller than it is wide still gets a square picture") {
+  const eng::Rect tall{0.0f, 0.0f, ASSET_CARD_WIDTH, 400.0f};
+  const eng::Rect picture = assetCardThumbnailRect(tall);
+
+  REQUIRE(picture.w == Approx(picture.h));
+  REQUIRE(picture.y + picture.h <= tall.y + tall.h);
+}
+
+TEST_CASE("the card is sized so its picture fills the width it has") {
+  const eng::Rect card = assetCardRect(layoutOf(PANEL).grid, 0, 0.0f);
+  const eng::Rect picture = assetCardThumbnailRect(card);
+
+  // The height is chosen for the width, not the other way round, so no
+  // card space is wasted either side of the picture.
+  REQUIRE(picture.w ==
+          Approx(ASSET_CARD_WIDTH - (2.0f * ASSET_CARD_PICTURE_INSET)));
+}
+
+TEST_CASE("the panel is exactly one row of cards tall") {
+  const eng::Rect grid = layoutOf(PANEL).grid;
+
+  // Scrolling reaches the rest; a second row would cost the viewport
+  // another 132px for assets nobody has scrolled to.
+  REQUIRE(assetGridContentHeight(grid, 1) == Approx(grid.h));
+}

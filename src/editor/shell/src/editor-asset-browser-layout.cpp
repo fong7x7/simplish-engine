@@ -103,12 +103,15 @@ float clampAssetScroll(float offset, float content_height, float view_height) {
 
 
 Rect assetCardThumbnailRect(const Rect& card) {
-  const float top = card.y + ASSET_CARD_LABEL_HEIGHT;
-  const float height = std::max(0.0f, card.h - ASSET_CARD_LABEL_HEIGHT -
-                                          ASSET_CARD_PICTURE_INSET);
-  return makeRect(card.x + ASSET_CARD_PICTURE_INSET, top,
-                  std::max(0.0f, card.w - (2.0f * ASSET_CARD_PICTURE_INSET)),
-                  height);
+  const float across =
+      std::max(0.0f, card.w - (2.0f * ASSET_CARD_PICTURE_INSET));
+  const float down = std::max(0.0f, card.h - ASSET_CARD_LABEL_HEIGHT -
+                                        ASSET_CARD_PICTURE_INSET);
+  // The largest square that fits. A rect any other shape would stretch the
+  // picture, which is rendered square and drawn across the whole of it.
+  const float side = std::min(across, down);
+  return makeRect(card.x + ((card.w - side) * 0.5f),
+                  card.y + ASSET_CARD_LABEL_HEIGHT, side, side);
 }
 
 size_t assetFirstVisibleSlot(const Rect& grid, float scroll_y) {

@@ -12,9 +12,10 @@ namespace eng::editor {
 
 /// Height of the browser panel in logical pixels.
 ///
-/// Taller than a single row of cards needs, because the folder pane beside
-/// them has to show enough of a hierarchy to be worth navigating.
-inline constexpr float ASSET_PANEL_HEIGHT = 220.0f;
+/// Exactly one row of cards, gaps and header included. A second row would
+/// take another 132px off the viewport for assets nobody has scrolled to;
+/// the grid scrolls to reach them instead.
+inline constexpr float ASSET_PANEL_HEIGHT = 162.0f;
 /// Width of the folder pane down the left.
 inline constexpr float ASSET_NAV_WIDTH = 190.0f;
 /// Height of the panel's title strip.
@@ -27,8 +28,12 @@ inline constexpr float ASSET_ROW_INDENT = 12.0f;
 inline constexpr float ASSET_CHEVRON_WIDTH = 12.0f;
 /// Card width.
 inline constexpr float ASSET_CARD_WIDTH = 104.0f;
-/// Card height.
-inline constexpr float ASSET_CARD_HEIGHT = 88.0f;
+/// Card height: its label, a square picture, and the margin under it.
+///
+/// Derived rather than chosen, so the picture stays square. A card shorter
+/// than this leaves the picture less height than width, and the picture is
+/// what the card is for.
+inline constexpr float ASSET_CARD_HEIGHT = 124.0f;
 /// Gap between cards, and between a card and the edge it sits against.
 inline constexpr float ASSET_CARD_GAP = 8.0f;
 /// Room reserved at the top of a card for its name.
@@ -96,6 +101,10 @@ layoutAssetBrowser(const EditorAssetBrowserLayoutParams& params);
                                      float view_height);
 
 /// Where a card's picture goes, under the room its label takes.
+///
+/// Always square, and never wider than the card: thumbnails are rendered
+/// square and drawn across the whole rect they are given, so a rect of any
+/// other shape stretches the model rather than framing it.
 [[nodiscard]] Rect assetCardThumbnailRect(const Rect& card);
 
 /// First slot whose card reaches into @p grid at @p scroll_y.
