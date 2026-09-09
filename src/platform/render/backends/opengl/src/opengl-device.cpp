@@ -77,8 +77,13 @@
 #define GL_VERSION 0x1F02
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #define GL_PIXEL_PACK_BUFFER 0x88EB
+#define GL_FLOAT 0x1406
+#define GL_FALSE 0
 
 using GLboolean = unsigned char;
+/// What GL calls a size or a count. Missing from these stubs until the mesh
+/// pipeline needed one, which is why a build without glad did not compile.
+using GLsizei = int;
 
 // Stub function declarations — these never run because tryCreate fails first.
 inline int gladLoadGLLoader(void* (* /*load*/)(const char*)) {
@@ -130,6 +135,12 @@ inline void glUseProgram(GLuint /*program*/) {}
 inline GLint glGetUniformLocation(GLuint /*program*/, const char* /*name*/) {
   return -1;
 }
+inline void glUniform1ui(GLint /*location*/, GLuint /*value*/) {}
+inline void glUniform4fv(GLint /*location*/, int /*count*/,
+                         const float* /*value*/) {}
+inline void glUniformMatrix4fv(GLint /*location*/, int /*count*/,
+                               GLboolean /*transpose*/,
+                               const float* /*value*/) {}
 inline void glUniform2fv(GLint /*location*/, int /*count*/,
                          const float* /*value*/) {}
 inline void glBlendFuncSeparate(GLenum /*src_rgb*/, GLenum /*dst_rgb*/,
@@ -827,21 +838,72 @@ void OpenGlDevice::executeCommand(const GlCmdBindVertexBuffer& cmd) {
   }
 }
 
+namespace {
+
+  /// The mesh light block's header: a count and the rest of its register.
+  constexpr uint32_t MESH_LIGHT_HEADER_BYTES = 16;
+  /// How many `vec4`s the light array is: three per light, eight lights.
+  constexpr int MESH_LIGHT_VECTORS = 3 * 8;
+  /// The whole block, header included, as the shader expects it — see
+  /// `MeshRenderer`'s FragmentLights, which is what fills it in.
+  constexpr uint32_t MESH_LIGHT_BLOCK_BYTES =
+      MESH_LIGHT_HEADER_BYTES +
+      (static_cast<uint32_t>(MESH_LIGHT_VECTORS) * 16U);
+
+}  // namespace
+
 void OpenGlDevice::executeCommand(const GlCmdSetVertexStageBytes& cmd) {
-  if (cmd.size == 0 || cmd.size > sizeof(cmd.data) ||
+  if (cmd.size == 0 || cmd.size > sizeof(cmd.data) || cmd.slot != 1U ||
       !pipelines_.contains(current_pipeline_)) {
     return;
   }
   auto& pe = pipelines_[current_pipeline_];
-  if (cmd.slot != 1U || pe.loc_u_screen_scale < 0) {
+  const auto* f = reinterpret_cast<const float*>(cmd.data);
+  glUseProgram(pe.program);
+  // Which uniforms the pipeline has is what says how to read the payload:
+  // the mesh program takes two matrices, the GUI program a screen scale.
+  // Neither needs to be told which it is.
+  if (pe.loc_u_view_projection >= 0 && cmd.size >= sizeof(float) * 32) {
+    setMeshMatrices(pe, f);
+  } else if (pe.loc_u_screen_scale >= 0 && cmd.size >= sizeof(float) * 2) {
+    glUniform2fv(pe.loc_u_screen_scale, 1, f);
+  }
+}
+
+void OpenGlDevice::setMeshMatrices(const GlPipelineEntry& pe,
+                                   const float* matrices) {
+  glUniformMatrix4fv(pe.loc_u_view_projection, 1, GL_FALSE, matrices);
+  if (pe.loc_u_model >= 0) {
+    glUniformMatrix4fv(pe.loc_u_model, 1, GL_FALSE, matrices + 16);
+  }
+}
+
+void OpenGlDevice::executeCommand(const GlCmdSetFragmentStageBytes& cmd) {
+  if (cmd.size == 0 || cmd.size > sizeof(cmd.data) || cmd.slot != 0U ||
+      !pipelines_.contains(current_pipeline_)) {
     return;
   }
-  if (cmd.size < sizeof(float) * 2) {
+  const auto& pe = pipelines_[current_pipeline_];
+  if (pe.loc_u_light_count < 0 || cmd.size < MESH_LIGHT_BLOCK_BYTES) {
     return;
   }
   glUseProgram(pe.program);
-  const auto* f = reinterpret_cast<const float*>(cmd.data);
-  glUniform2fv(pe.loc_u_screen_scale, 1, f);
+  setMeshLights(pe, cmd.data);
+}
+
+void OpenGlDevice::setMeshLights(const GlPipelineEntry& pe,
+                                 const uint8_t* block) {
+  // A count in the first register, then the lights — see `MeshRenderer`'s
+  // FragmentLights, whose layout this reads by hand because GL has no
+  // struct binding short of a uniform buffer.
+  uint32_t count = 0;
+  std::memcpy(&count, block, sizeof(count));
+  glUniform1ui(pe.loc_u_light_count, count);
+  if (pe.loc_u_lights >= 0) {
+    const auto* lights =
+        reinterpret_cast<const float*>(block + MESH_LIGHT_HEADER_BYTES);
+    glUniform4fv(pe.loc_u_lights, MESH_LIGHT_VECTORS, lights);
+  }
 }
 
 void OpenGlDevice::executeCommand(const GlCmdBindFragmentTexture& cmd) {
@@ -1009,6 +1071,116 @@ namespace {
   /// Keep in sync with `sizeof(eng::GuiVertex)` /
   /// `eng::gui::GUI_VERTEX_STRIDE`.
   constexpr uint32_t GUI_VERTEX_STRIDE_BYTES = 40;
+  /// Size of one `eng::MeshVertex`: position, normal, and texture
+  /// coordinate. Restated here as every backend restates it — see
+  /// `mesh-vertex.h`, whose own test asserts this number.
+  constexpr uint32_t MESH_VERTEX_STRIDE_BYTES = 32;
+  /// Byte offsets of the mesh vertex attributes within that stride.
+  constexpr uint32_t MESH_NORMAL_OFFSET = 12;
+  constexpr uint32_t MESH_UV_OFFSET = 24;
+
+  /// Mesh shaders, mirroring MESH_MSL_SOURCE in the Metal backend and
+  /// MESH_HLSL_SOURCE in the DX12 one function for function: the same
+  /// ambient and diffuse split, the same point falloff, the same sRGB
+  /// encode on the way out, and the same diffuse map sampled before the
+  /// lighting is applied. Three shaders that must agree, in three
+  /// languages, none of which can include the C++ header the constants
+  /// live in — so `mesh-light.h` is restated here and moves with them.
+  constexpr const char MESH_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+layout(location = 2) in vec2 a_uv;
+uniform mat4 u_view_projection;
+uniform mat4 u_model;
+out vec3 v_world_position;
+out vec3 v_normal;
+out vec2 v_uv;
+void main() {
+  vec4 world = u_model * vec4(a_position, 1.0);
+  gl_Position = u_view_projection * world;
+  v_world_position = world.xyz;
+  // The placement transform is a rotation and a uniform scale, so the same
+  // matrix carries the normal; the length the scale adds comes back out in
+  // the normalize below.
+  v_normal = (u_model * vec4(a_normal, 0.0)).xyz;
+  v_uv = a_uv;
+}
+)glsl";
+
+  constexpr const char MESH_FRAGMENT_SHADER_GLSL[] = R"glsl(
+#version 460 core
+const uint MESH_MAX_LIGHTS = 8u;
+const float MESH_LIGHT_AMBIENT = 0.38;
+const float MESH_LIGHT_DIFFUSE = 0.62;
+const float MESH_LIGHT_POINT = 1.0;
+
+in vec3 v_world_position;
+in vec3 v_normal;
+in vec2 v_uv;
+uniform uint u_light_count;
+// Three vec4s per light, as `MeshLight` is laid out: position and range,
+// direction and intensity, colour and kind.
+uniform vec4 u_lights[3 * 8];
+layout(binding = 0) uniform sampler2D u_mesh_tex;
+out vec4 frag_color;
+
+float srgb_to_lin(float srgb) {
+  if (srgb <= 0.04045) {
+    return srgb / 12.92;
+  }
+  return pow((srgb + 0.055) / 1.055, 2.4);
+}
+
+/// How much of a point light reaches a surface this far from it: full at the
+/// light, nothing at its range, and squared in between so the falloff reads
+/// as light rather than as a gradient.
+float mesh_falloff(float dist, float range) {
+  if (range <= 0.0) {
+    return 0.0;
+  }
+  float reach = clamp(1.0 - dist / range, 0.0, 1.0);
+  return reach * reach;
+}
+
+/// What one light adds to a surface.
+vec3 mesh_light_contribution(uint index, vec3 world_position, vec3 normal) {
+  vec4 position_range = u_lights[index * 3u];
+  vec4 direction_intensity = u_lights[index * 3u + 1u];
+  vec4 color_kind = u_lights[index * 3u + 2u];
+  vec3 to_light = direction_intensity.xyz;
+  float attenuation = 1.0;
+  if (color_kind.w == MESH_LIGHT_POINT) {
+    vec3 offset = position_range.xyz - world_position;
+    attenuation = mesh_falloff(length(offset), position_range.w);
+    to_light = offset;
+  }
+  // A light aimed nowhere lights nothing, rather than dividing by zero.
+  float aim = length(to_light);
+  if (aim < 1e-4 || attenuation <= 0.0) {
+    return vec3(0.0);
+  }
+  float lambert = clamp(dot(normal, to_light / aim), 0.0, 1.0);
+  return color_kind.xyz * direction_intensity.w * lambert * attenuation *
+         MESH_LIGHT_DIFFUSE;
+}
+
+void main() {
+  vec3 n = normalize(v_normal);
+  vec3 lit = vec3(MESH_LIGHT_AMBIENT);
+  uint count = min(u_light_count, MESH_MAX_LIGHTS);
+  for (uint i = 0u; i < count; ++i) {
+    lit += mesh_light_contribution(i, v_world_position, n);
+  }
+  // The map is unorm, so this is the sRGB value the artist authored, shaded
+  // and then converted on the way out. An instance with no map of its own
+  // samples one texel of the flat colour this replaced, so there is no
+  // untextured branch here.
+  vec3 base = clamp(texture(u_mesh_tex, v_uv).rgb * lit, 0.0, 1.0);
+  frag_color = vec4(srgb_to_lin(base.r), srgb_to_lin(base.g),
+                    srgb_to_lin(base.b), 1.0);
+}
+)glsl";
 
   constexpr const char GUI_VERTEX_SHADER_GLSL[] = R"glsl(
 #version 460 core
@@ -1104,6 +1276,22 @@ void main() {
 }
 )glsl";
 
+  /// Vertex array for `eng::MeshVertex`: three float attributes from one
+  /// interleaved buffer.
+  void setupMeshVertexArray(GLuint vao) {
+    glBindVertexArray(vao);
+    glEnableVertexAttribArray(0);
+    glVertexAttribFormat(0, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribBinding(0, 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribFormat(1, 3, GL_FLOAT, GL_FALSE, MESH_NORMAL_OFFSET);
+    glVertexAttribBinding(1, 0);
+    glEnableVertexAttribArray(2);
+    glVertexAttribFormat(2, 2, GL_FLOAT, GL_FALSE, MESH_UV_OFFSET);
+    glVertexAttribBinding(2, 0);
+    glBindVertexArray(0);
+  }
+
   void setupGuiVertexArray(GLuint vao) {
     glBindVertexArray(vao);
     glEnableVertexAttribArray(0);
@@ -1132,6 +1320,80 @@ void main() {
   }
 
 }  // namespace
+
+RhiShaderHandle OpenGlDevice::compileStage(const char* glsl,
+                                           RhiShaderStage stage) {
+  RhiShaderDesc desc{};
+  desc.stage = stage;
+  desc.bytecode = reinterpret_cast<const uint8_t*>(glsl);
+  desc.bytecode_size = std::strlen(glsl);
+  return createShader(desc);
+}
+
+GLuint OpenGlDevice::linkShaderSource(const char* vertex_glsl,
+                                      const char* fragment_glsl) {
+  const RhiShaderHandle vs = compileStage(vertex_glsl, RhiShaderStage::VERTEX);
+  if (vs == RHI_SHADER_INVALID) {
+    return 0;
+  }
+  const RhiShaderHandle fs =
+      compileStage(fragment_glsl, RhiShaderStage::FRAGMENT);
+  if (fs == RHI_SHADER_INVALID) {
+    destroyShader(vs);
+    return 0;
+  }
+  const GLuint program = linkProgram(vs, fs);
+  destroyShader(vs);
+  destroyShader(fs);
+  return program;
+}
+
+namespace {
+
+  /// Fixed function state for the mesh pipeline.
+  ///
+  /// Opaque geometry, depth-tested, and drawn without culling: OBJ files in
+  /// the wild disagree about winding, and showing the geometry beats saving
+  /// the fragments. The Metal and DX12 backends make the same call for the
+  /// same reason.
+  RhiGraphicsPipelineDesc meshPipelineDesc() {
+    RhiGraphicsPipelineDesc desc{};
+    desc.vertex_layout.stride = MESH_VERTEX_STRIDE_BYTES;
+    desc.blend.enabled = false;
+    desc.depth_stencil.depth_test = true;
+    desc.depth_stencil.depth_write = true;
+    desc.raster.cull_back = false;
+    desc.color_format = RhiFormat::RGB_A8_SRGB;
+    return desc;
+  }
+
+}  // namespace
+
+bool OpenGlDevice::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
+  const GLuint program =
+      linkShaderSource(MESH_VERTEX_SHADER_GLSL, MESH_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  GLuint vao = 0;
+  glGenVertexArrays(1, &vao);
+  if (vao == 0) {
+    glDeleteProgram(program);
+    return false;
+  }
+  setupMeshVertexArray(vao);
+
+  GlPipelineEntry entry = buildGraphicsEntry(program, vao, meshPipelineDesc());
+  entry.loc_u_view_projection =
+      glGetUniformLocation(program, "u_view_projection");
+  entry.loc_u_model = glGetUniformLocation(program, "u_model");
+  entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
+  entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
+  const RhiPipelineHandle handle = allocHandle();
+  pipelines_[handle] = entry;
+  out_pipeline = handle;
+  return true;
+}
 
 bool OpenGlDevice::tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) {
   RhiShaderDesc vs_desc{};

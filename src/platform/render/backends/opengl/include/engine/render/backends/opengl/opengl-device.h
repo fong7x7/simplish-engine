@@ -92,6 +92,7 @@ public:
   void destroyPipeline(RhiPipelineHandle handle) override;
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;
@@ -198,7 +199,20 @@ private:
   void executeCommand(const GlCmdBindPipeline& cmd);
   void executeCommand(const GlCmdBindVertexBuffer& cmd);
   void executeCommand(const GlCmdBindIndexBuffer& cmd);
+  /// Compile one GLSL stage. `RHI_SHADER_INVALID` on failure.
+  RhiShaderHandle compileStage(const char* glsl, RhiShaderStage stage);
+
+  /// Compile and link one GLSL vertex/fragment pair. Zero on failure.
+  GLuint linkShaderSource(const char* vertex_glsl, const char* fragment_glsl);
+
+  /// Push the mesh program's two matrices, read from one payload.
+  static void setMeshMatrices(const GlPipelineEntry& pe, const float* matrices);
+
+  /// Push the mesh program's light count and light array from one block.
+  static void setMeshLights(const GlPipelineEntry& pe, const uint8_t* block);
+
   void executeCommand(const GlCmdSetVertexStageBytes& cmd);
+  void executeCommand(const GlCmdSetFragmentStageBytes& cmd);
   void executeCommand(const GlCmdBindFragmentTexture& cmd);
   void executeCommand(const GlCmdBindDescriptorSet& cmd);
   void executeCommand(const GlCmdSetViewport& cmd);

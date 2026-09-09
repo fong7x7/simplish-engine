@@ -48,6 +48,19 @@ void OpenGlCommandList::setVertexStageBytes(const void* data, size_t size,
   commands_.emplace_back(cmd);
 }
 
+void OpenGlCommandList::setFragmentStageBytes(const void* data, size_t size,
+                                              uint32_t slot) {
+  if (data == nullptr || size == 0) {
+    return;
+  }
+  GlCmdSetFragmentStageBytes cmd{};
+  cmd.slot = slot;
+  cmd.size = static_cast<uint32_t>(
+      std::min(size, sizeof(GlCmdSetFragmentStageBytes::data)));
+  std::memcpy(cmd.data, data, cmd.size);
+  commands_.emplace_back(cmd);
+}
+
 void OpenGlCommandList::bindFragmentTexture(RhiTextureHandle texture,
                                             uint32_t slot) {
   commands_.emplace_back(GlCmdBindFragmentTexture{texture, slot});

@@ -50,6 +50,8 @@ public:
 
   void setVertexStageBytes(const void* data, size_t size,
                            uint32_t slot) override;
+  void setFragmentStageBytes(const void* data, size_t size,
+                             uint32_t slot) override;
   void bindFragmentTexture(RhiTextureHandle texture, uint32_t slot) override;
 
   // --- Viewport and scissor ---
