@@ -375,16 +375,63 @@ TEST_CASE("an edit leaves changes to save, and a save takes them away") {
   REQUIRE(hasUnsavedEditorChanges(fx.history));
 }
 
-TEST_CASE("undo and redo are changes to save like any other") {
+TEST_CASE("undoing everything since the save takes the marker off again") {
   HistoryFixture fx;
   fx.place(0);
   markEditorChangesSaved(fx.history);
+  fx.place(1);
+  fx.move(1, 7.0f);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
 
   REQUIRE(undoEditorAction(fx.history, fx.document));
   REQUIRE(hasUnsavedEditorChanges(fx.history));
 
+  // Back to the document the file holds, so there is nothing to save.
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+  REQUIRE(fx.placements().size() == 1);
+}
+
+TEST_CASE("redoing past the save point needs saving again") {
+  HistoryFixture fx;
+  fx.place(0);
   markEditorChangesSaved(fx.history);
+  fx.place(1);
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+
   REQUIRE(redoEditorAction(fx.history, fx.document));
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("undoing to a saved document without saving it stays unsaved") {
+  HistoryFixture fx;
+  fx.place(0);
+  fx.place(1);
+  markEditorChangesSaved(fx.history);
+
+  // The file holds both; memory now holds one.
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("a different edit after an undo cannot reach the saved document") {
+  HistoryFixture fx;
+  fx.place(0);
+  fx.place(1);
+  markEditorChangesSaved(fx.history);
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+
+  // This discards the redo tail the save was recorded against, so the
+  // cursor lands back on the same number describing a different document.
+  fx.place(2);
+  REQUIRE(fx.history.applied == 2);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+
+  // And no amount of undoing gets back to what was written.
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+  REQUIRE(undoEditorAction(fx.history, fx.document));
   REQUIRE(hasUnsavedEditorChanges(fx.history));
 }
 
@@ -397,6 +444,15 @@ TEST_CASE("an undo with nothing to undo changes nothing to save") {
   markEditorChangesSaved(fx.history);
   // The history is empty now, so this reverts nothing and dirties nothing.
   REQUIRE_FALSE(undoEditorAction(fx.history, fx.document));
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("forgetting the actions keeps a saved document saved") {
+  HistoryFixture fx;
+  fx.place(0);
+  markEditorChangesSaved(fx.history);
+
+  clearEditorActions(fx.history);
   REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
 }
 

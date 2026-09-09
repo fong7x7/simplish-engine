@@ -102,22 +102,27 @@ namespace {
 void performEditorAction(EditorActionHistory& history, EditorDocument& document,
                          const EditorAction& action) {
   applyOne(action, document);
+  // The redo tail goes, and the saved point with it when it sat in there:
+  // a document that can no longer be undone back to the one on disk has no
+  // cursor position left that means "saved".
+  if (history.saved_at > history.applied) {
+    history.saved_at = EDITOR_SAVED_POINT_NONE;
+  }
   history.actions.resize(history.applied);
   history.actions.push_back(action);
   history.applied = history.actions.size();
-  history.unsaved_changes = true;
 }
 
 bool hasUnsavedEditorChanges(const EditorActionHistory& history) {
-  return history.unsaved_changes;
+  return history.applied != history.saved_at;
 }
 
 void markEditorChangesSaved(EditorActionHistory& history) {
-  history.unsaved_changes = false;
+  history.saved_at = history.applied;
 }
 
 void markEditorChangesUnsaved(EditorActionHistory& history) {
-  history.unsaved_changes = true;
+  history.saved_at = EDITOR_SAVED_POINT_NONE;
 }
 
 bool canUndoEditorAction(const EditorActionHistory& history) {
@@ -134,11 +139,9 @@ bool undoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   }
   --history.applied;
   revertOne(history.actions[history.applied], document);
-  // An undo changes the document as surely as the edit it reverts did.
-  // Landing back on exactly what is on disk is possible and is reported as
-  // unsaved anyway: the cost of that is one redundant save, and the cost of
-  // the other mistake is a lost level.
-  history.unsaved_changes = true;
+  // Nothing to mark: moving the cursor is what says whether the document
+  // still matches its file, and undoing back to where a save left it means
+  // it does again.
   return true;
 }
 
@@ -148,7 +151,6 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   }
   applyOne(history.actions[history.applied], document);
   ++history.applied;
-  history.unsaved_changes = true;
   return true;
 }
 
@@ -190,8 +192,13 @@ EditorSelection editorSelectionAfterRedo(const EditorAction& action,
 }
 
 void clearEditorActions(EditorActionHistory& history) {
+  // Whether the document matches its file survives the clear; where in a
+  // list of actions that was true does not, because there is no longer a
+  // list. A rescan clears the history and keeps the document it describes.
+  const bool saved = !hasUnsavedEditorChanges(history);
   history.actions.clear();
   history.applied = 0;
+  history.saved_at = saved ? 0 : EDITOR_SAVED_POINT_NONE;
 }
 
 }  // namespace eng::editor

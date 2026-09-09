@@ -64,12 +64,17 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   or `shape:cube` — a saved index would decay the moment a rescan renumbered
   the list. Level reading happens after the asset scan for that reason, and a
   prop whose asset is gone is dropped and counted, never silently rebound.
-- **The unsaved-changes flag lives on `EditorActionHistory`**, not on
-  `EditorShellState`. `performEditorAction`, `undoEditorAction` and
-  `redoEditorAction` are the three functions both the panels and the agent
-  API funnel every document change through, so marking there is the whole of
-  the bookkeeping. A flag on the shell would have to be set at every call
-  site, and the one somebody forgot would be a level that claims to be saved.
+- **Unsaved-ness is a position, not a flag**, and it lives on
+  `EditorActionHistory`: `saved_at` is where the undo cursor stood when the
+  level was last written, and the document matches its file exactly when
+  `applied` equals it. So undoing every edit since a save clears the marker.
+  It lives there rather than on `EditorShellState` because
+  `performEditorAction`, `undoEditorAction` and `redoEditorAction` are the
+  three functions both the panels and the agent API funnel every document
+  change through, so nothing has to be remembered at a call site. An edit
+  made after undoing past the saved point discards the redo tail holding it,
+  and `saved_at` becomes `EDITOR_SAVED_POINT_NONE` — the cursor would
+  otherwise land on the same number describing a different document.
 - **`applyProjectToChrome` reloads the project's assets** — and so drops the
   document and re-reads the level. Never call it to refresh something small;
   `applyProjectNameToChrome` is the narrow one.

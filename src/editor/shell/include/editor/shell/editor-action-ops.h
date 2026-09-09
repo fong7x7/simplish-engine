@@ -47,14 +47,20 @@ editorSelectionAfterUndo(const EditorAction& action, EditorSelection selection);
 editorSelectionAfterRedo(const EditorAction& action, EditorSelection selection);
 
 /// Whether the document has changed since it was last written to disk.
+///
+/// False again once every edit made since the last save has been undone:
+/// the document is then the one in the file, whatever route it took to get
+/// back there, and saying otherwise would put an unsaved marker on a level
+/// with nothing to save.
 [[nodiscard]] bool hasUnsavedEditorChanges(const EditorActionHistory& history);
 
 /// Record that the document now matches what is on disk. What a successful
 /// save calls, and what opening a project calls once its level is read.
 void markEditorChangesSaved(EditorActionHistory& history);
 
-/// Record that the document no longer matches what is on disk, for a change
-/// that is not an action: a rescan dropping a prop whose asset has gone.
+/// Record that the document no longer matches what is on disk, and that no
+/// undo will take it back — for a change that is not an action, such as a
+/// rescan dropping a prop whose asset has gone.
 void markEditorChangesUnsaved(EditorActionHistory& history);
 
 /// Forget every action, applied or not.
@@ -64,9 +70,10 @@ void markEditorChangesUnsaved(EditorActionHistory& history);
 /// invalidates all of it. Keeping actions across that would let undo write
 /// old indices into a new list.
 ///
-/// Leaves the unsaved marker alone: forgetting how the document got here
-/// says nothing about whether it matches the file, and only the caller
-/// replacing the document knows which it is.
+/// Carries the unsaved marker across rather than the cursor position it
+/// was recorded at: forgetting how the document got here says nothing
+/// about whether it matches the file, but there is no longer a list of
+/// actions for a position to index into.
 void clearEditorActions(EditorActionHistory& history);
 
 }  // namespace eng::editor
