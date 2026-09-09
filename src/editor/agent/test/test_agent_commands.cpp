@@ -231,6 +231,18 @@ TEST_CASE("a menu command the editor lists as disabled is refused") {
   REQUIRE(result.status == AgentStatus::UNAVAILABLE);
 }
 
+TEST_CASE("saving is queued once there is a project to save into") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const AgentResult result =
+      runAgentTool(state, "run_command", R"({"command": "save"})");
+
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.kind == AgentHostRequestKind::RUN_COMMAND);
+  REQUIRE(result.host.command == EditorMenuCommand::SAVE);
+}
+
 TEST_CASE("an enabled menu command is queued for the editor to run") {
   EditorShellState state;
 

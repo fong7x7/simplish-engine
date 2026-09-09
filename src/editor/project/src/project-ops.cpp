@@ -6,8 +6,7 @@
 #include <editor/project/project-json-ops.h>
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
-#include <fstream>
-#include <sstream>
+#include <editor/project/project-text-file.h>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -15,38 +14,6 @@
 namespace eng::editor {
 
 namespace {
-
-  /// Read a whole file. Returns nullopt when it cannot be opened or read.
-  std::optional<std::string> readFile(const std::filesystem::path& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-      return std::nullopt;
-    }
-    std::ostringstream buffer;
-    buffer << in.rdbuf();
-    if (in.bad()) {
-      return std::nullopt;
-    }
-    return buffer.str();
-  }
-
-  /// Write a whole file, creating parent directories. Returns false on any
-  /// filesystem failure — `std::error_code` overloads are used throughout
-  /// because this build has exceptions disabled (ADR-001).
-  bool writeFile(const std::filesystem::path& path, std::string_view contents) {
-    std::error_code ec;
-    std::filesystem::create_directories(path.parent_path(), ec);
-    if (ec) {
-      return false;
-    }
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
-    if (!out) {
-      return false;
-    }
-    out.write(contents.data(), static_cast<std::streamsize>(contents.size()));
-    out.flush();
-    return out.good();
-  }
 
   /// Validate that @p root is an existing directory. Returns NONE when it is.
   ProjectOpenError classifyRoot(const std::filesystem::path& root) {
@@ -62,6 +29,49 @@ namespace {
 
   ProjectOpenResult fail(ProjectOpenError error) {
     return {{}, error};
+  }
+
+  /// A successful result for the project rooted at @p root.
+  ///
+  /// The root is made absolute here, once, so that nothing downstream
+  /// depends on the directory the editor happened to be launched from.
+  ProjectOpenResult opened(const std::filesystem::path& root,
+                           ProjectMetadata metadata) {
+    ProjectOpenResult result;
+    std::error_code ec;
+    auto absolute = std::filesystem::absolute(root, ec);
+    result.context.root = ec ? root : absolute;
+    result.context.metadata = std::move(metadata);
+    result.context.loaded = true;
+    return result;
+  }
+
+  /// The manifest a project is created with.
+  ProjectMetadata newProjectMetadata(std::string_view name,
+                                     std::string_view timestamp) {
+    ProjectMetadata metadata;
+    metadata.name = std::string(name);
+    metadata.engine_version = SIMPLISH_ENGINE_VERSION;
+    metadata.created_at = std::string(timestamp);
+    metadata.last_opened_at = std::string(timestamp);
+    return metadata;
+  }
+
+  /// Create the directories a project is born with, so that a new project
+  /// already has the shape project-format.md describes. Each is empty until
+  /// something is put in it. NONE when every one of them is there.
+  ProjectOpenError makeProjectDirectories(const std::filesystem::path& root) {
+    const std::filesystem::path dirs[] = {root, projectDataPath(root),
+                                          projectAssetsPath(root),
+                                          projectLevelsPath(root)};
+    std::error_code ec;
+    for (const std::filesystem::path& dir : dirs) {
+      std::filesystem::create_directories(dir, ec);
+      if (ec) {
+        return ProjectOpenError::WRITE_FAILED;
+      }
+    }
+    return ProjectOpenError::NONE;
   }
 
 }  // namespace
@@ -80,7 +90,7 @@ ProjectOpenResult openProject(const std::filesystem::path& root) {
     return fail(ProjectOpenError::NOT_A_PROJECT);
   }
 
-  auto contents = readFile(projectFilePath(root));
+  auto contents = readProjectTextFile(projectFilePath(root));
   if (!contents) {
     return fail(ProjectOpenError::UNREADABLE);
   }
@@ -89,13 +99,7 @@ ProjectOpenResult openProject(const std::filesystem::path& root) {
     return fail(ProjectOpenError::MALFORMED);
   }
 
-  ProjectOpenResult result;
-  std::error_code ec;
-  auto absolute = std::filesystem::absolute(root, ec);
-  result.context.root = ec ? root : absolute;
-  result.context.metadata = std::move(*metadata);
-  result.context.loaded = true;
-  return result;
+  return opened(root, std::move(*metadata));
 }
 
 ProjectOpenResult createProject(const std::filesystem::path& root,
@@ -107,36 +111,17 @@ ProjectOpenResult createProject(const std::filesystem::path& root,
     return fail(ProjectOpenError::ALREADY_EXISTS);
   }
 
-  std::error_code ec;
-  std::filesystem::create_directories(root, ec);
-  if (ec) {
-    return fail(ProjectOpenError::WRITE_FAILED);
-  }
-  std::filesystem::create_directories(projectDataPath(root), ec);
-  if (ec) {
-    return fail(ProjectOpenError::WRITE_FAILED);
-  }
-  std::filesystem::create_directories(projectAssetsPath(root), ec);
-  if (ec) {
-    return fail(ProjectOpenError::WRITE_FAILED);
+  if (auto error = makeProjectDirectories(root);
+      error != ProjectOpenError::NONE) {
+    return fail(error);
   }
 
-  ProjectMetadata metadata;
-  metadata.name = std::string(name);
-  metadata.engine_version = SIMPLISH_ENGINE_VERSION;
-  metadata.created_at = std::string(timestamp);
-  metadata.last_opened_at = std::string(timestamp);
-
-  if (!writeFile(projectFilePath(root), serializeProjectMetadata(metadata))) {
+  ProjectMetadata metadata = newProjectMetadata(name, timestamp);
+  if (!writeProjectTextFile(projectFilePath(root),
+                            serializeProjectMetadata(metadata))) {
     return fail(ProjectOpenError::WRITE_FAILED);
   }
-
-  ProjectOpenResult result;
-  auto absolute = std::filesystem::absolute(root, ec);
-  result.context.root = ec ? root : absolute;
-  result.context.metadata = std::move(metadata);
-  result.context.loaded = true;
-  return result;
+  return opened(root, std::move(metadata));
 }
 
 bool touchProjectOpened(ProjectContext& context, std::string_view timestamp) {
@@ -144,20 +129,20 @@ bool touchProjectOpened(ProjectContext& context, std::string_view timestamp) {
     return false;
   }
   context.metadata.last_opened_at = std::string(timestamp);
-  return writeFile(projectFilePath(context.root),
-                   serializeProjectMetadata(context.metadata));
+  return writeProjectTextFile(projectFilePath(context.root),
+                              serializeProjectMetadata(context.metadata));
 }
 
 bool saveProjectMetadata(const ProjectContext& context) {
   if (!context.loaded) {
     return false;
   }
-  return writeFile(projectFilePath(context.root),
-                   serializeProjectMetadata(context.metadata));
+  return writeProjectTextFile(projectFilePath(context.root),
+                              serializeProjectMetadata(context.metadata));
 }
 
 RecentProjectsList loadRecentProjects(const std::filesystem::path& path) {
-  auto contents = readFile(path);
+  auto contents = readProjectTextFile(path);
   if (!contents) {
     // First run, or the file was removed. Both are ordinary states.
     return {};
@@ -168,7 +153,7 @@ RecentProjectsList loadRecentProjects(const std::filesystem::path& path) {
 
 bool saveRecentProjects(const RecentProjectsList& list,
                         const std::filesystem::path& path) {
-  return writeFile(path, serializeRecentProjects(list));
+  return writeProjectTextFile(path, serializeRecentProjects(list));
 }
 
 void promoteRecentProject(RecentProjectsList& list,

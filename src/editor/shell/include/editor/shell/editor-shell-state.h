@@ -36,14 +36,23 @@ struct EditorShellState {
   /// those assets sit in. Both hold entry numbers, of which the assets are
   /// the first `assets.size()`.
   EditorAssetTree asset_tree;
-  /// What has been placed and what lights it. In memory only — see
-  /// `editor-document.h`.
+  /// What has been placed and what lights it. Written to the project's
+  /// level file on save and read back when one is opened — see
+  /// `editor-level-io.h`.
   EditorDocument document;
   /// The one entry of that document the properties panel edits, or nothing.
   EditorSelection selection;
-  /// Every edit made to `document` this session, and the undo cursor into
-  /// them. Cleared with the document, since it describes it by index.
+  /// Every edit made to `document` this session, the undo cursor into them,
+  /// and whether any of them are unwritten. Cleared with the document,
+  /// since it describes it by index.
   EditorActionHistory history;
+  /// Whether the open project's level file was read, or there was none to
+  /// read. False only when a file is there and could not be parsed.
+  ///
+  /// This is what stops a save from writing an empty level over a file
+  /// somebody has mistyped by hand: the editor cannot show what it could
+  /// not read, and overwriting it would turn a typo into a lost level.
+  bool level_readable = true;
   /// Where the viewport camera sits and what it is over, refreshed from
   /// the widget once a tick. Read-only — see `editor-view-state.h`.
   EditorViewState view;

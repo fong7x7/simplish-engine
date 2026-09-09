@@ -14,12 +14,15 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-tree.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-light-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-thumbnail-cache.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-pick.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-project-title.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-layout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-ops.cpp"
@@ -41,6 +44,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-render
         simplish-engine-render-mesh
         simplish-platform-client
+        nlohmann_json::nlohmann_json
 )
 
 file(GLOB _shell_tests "${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp")

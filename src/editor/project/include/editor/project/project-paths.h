@@ -17,6 +17,10 @@ inline constexpr std::string_view PROJECT_FILE_NAME = "project.json";
 inline constexpr std::string_view PROJECT_DATA_DIR_NAME = "data";
 /// Directory inside a project root holding importable source assets.
 inline constexpr std::string_view PROJECT_ASSETS_DIR_NAME = "assets";
+/// Directory inside a project root holding authored content files.
+inline constexpr std::string_view PROJECT_CONTENT_DIR_NAME = "content";
+/// Directory inside `PROJECT_CONTENT_DIR_NAME` holding level files.
+inline constexpr std::string_view PROJECT_LEVELS_DIR_NAME = "levels";
 /// Directory inside `PROJECT_DIR_NAME` holding generated asset thumbnails.
 inline constexpr std::string_view PROJECT_THUMBNAILS_DIR_NAME = "thumbnails";
 
@@ -43,6 +47,22 @@ projectDataPath(const std::filesystem::path& root) {
 [[nodiscard]] inline std::filesystem::path
 projectAssetsPath(const std::filesystem::path& root) {
   return root / PROJECT_ASSETS_DIR_NAME;
+}
+
+/// Path to a project root's authored content (`<root>/content`).
+///
+/// Separate from `assets/`, and the split is the point: assets are source
+/// material the pipeline imports, content is what the editor authors over
+/// them (docs/editor/project-format.md §2).
+[[nodiscard]] inline std::filesystem::path
+projectContentPath(const std::filesystem::path& root) {
+  return root / PROJECT_CONTENT_DIR_NAME;
+}
+
+/// Path to a project root's level files (`<root>/content/levels`).
+[[nodiscard]] inline std::filesystem::path
+projectLevelsPath(const std::filesystem::path& root) {
+  return projectContentPath(root) / PROJECT_LEVELS_DIR_NAME;
 }
 
 /// Path to a project root's generated thumbnails

@@ -17,6 +17,11 @@
 //     viewport, and opens a properties panel down the right; the panel
 //     moves and turns a placement, and aims, dims and tints a light, and
 //     clicking bare ground or pressing Escape puts the panel away again
+//   - File > Save writes what has been placed and what lights it to the
+//     project's own level file, and Ctrl/Cmd+S does the same; opening a
+//     project reads that file back and puts everything in it back in the
+//     viewport. While the level holds unwritten edits the project's name
+//     carries a trailing asterisk, in the title bar and in the toolbar
 //   - Records every placement and every light as an action, which Edit >
 //     Undo reverts and Edit > Redo reapplies; both rows are live only when
 //     they would do something, and both answer to Ctrl/Cmd+Z and
@@ -41,8 +46,17 @@
 //   - No project on the command line: the editor opens with no project and
 //     the toolbar shows "No project". File > Close Project is the one
 //     project-gated command, and it is disabled until one is open
-//   - Menu commands whose subsystem does not exist yet (save, cut, copy,
+//   - Menu commands whose subsystem does not exist yet (save as, cut, copy,
 //     paste, settings) are listed but disabled; see editor-menu-command.h
+//   - A project with no level file yet — one nothing has been saved into —
+//     opens with an empty document rather than an error
+//   - A saved prop whose asset the project no longer holds is dropped on
+//     load and counted in the log, for the reason a rescan drops one — and
+//     the level counts as unsaved afterwards, since it no longer matches
+//     the file it was read from
+//   - A level file that is there but will not parse leaves the document
+//     empty and refuses to be saved over, so a hand-edited typo costs a
+//     session rather than the level
 //   - A rescan renumbers the asset list, so it drops the document and the
 //     history together: an action holding an old index would otherwise undo
 //     into the new list, and the selection goes with them
@@ -78,6 +92,7 @@
 //   - src/editor/agent/: installs the state hook and calls runMenuCommand,
 //     openProjectAt and rescanAssets on behalf of an agent
 
+#include <cstddef>
 #include <cstdint>
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
@@ -175,6 +190,21 @@ private:
   void initPropertiesPanel(GuiWidgetTree& tree);
   /// Drop the document and load the newly-opened project's assets.
   void refreshAssets();
+  /// Write the level to the open project, and say so in the status line.
+  void saveDocument();
+  /// Whether the level may be written right now, saying why in the status
+  /// line when it may not.
+  [[nodiscard]] bool canSaveDocument();
+  /// Write the level file, logging and showing the reason when it fails.
+  bool writeLevelFile();
+  /// Remember and report a level file that is there but will not parse.
+  void reportLevelUnreadable();
+  /// Say how many props the level lost because their asset is gone.
+  void reportDroppedProps(size_t dropped);
+  /// Read the open project's level back into the document, if it has one.
+  /// Runs after the assets are scanned, because a prop names its asset by
+  /// an id that only the scanned list can be searched for.
+  void loadDocument();
   /// Rescan the assets directory and refresh the panel, leaving the
   /// document alone.
   void reloadAssets();
@@ -352,6 +382,12 @@ private:
   void refreshToolbar();
   /// Apply the open project to the window title, menu bar, and toolbar.
   void applyProjectToChrome();
+  /// Put the project's name, and its unsaved asterisk, on the title bar,
+  /// the window, and the toolbar — and touch nothing else.
+  void applyProjectNameToChrome();
+  /// Redraw that name when the level has gone from saved to unsaved, or
+  /// back. A no-op on every other call, which is most of them.
+  void refreshUnsavedMarker();
   /// Push the open project's state into the chrome widgets.
   void applyProjectToWidgets();
   /// Carry out one menu command.
@@ -380,6 +416,9 @@ private:
   void reportProjectOpenFailure(ProjectOpenError error);
   /// Run the View accelerators. Returns true when @p key was one of them.
   bool handleViewKey(uint32_t key);
+  /// Run the File accelerators — save, with Ctrl or Command. Returns true
+  /// when @p key with @p modifiers was one of them.
+  bool handleFileKey(uint32_t key, ClientKeyModifiers modifiers);
   /// Run the Edit accelerators — undo, and redo with Shift. Returns true
   /// when @p key with @p modifiers was one of them.
   bool handleEditKey(uint32_t key, ClientKeyModifiers modifiers);
@@ -427,6 +466,8 @@ private:
   std::vector<MeshLight> scene_lights_{};
   /// Backing store for the title label's string_view.
   std::string title_text_{"Simplish Editor"};
+  /// Whether the name currently on screen carries the unsaved asterisk.
+  bool shown_unsaved_ = false;
   /// Message shown in place of the toolbar status while it lasts.
   std::string status_override_{};
   /// Seconds `status_override_` still has to run.

@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 21 tools, HTTP transport, MCP bridge
+**Status:** Built — 22 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-08
 
 The editor answers to an agent the same way it answers to a person: through
@@ -163,6 +163,7 @@ one's parameters; this table is the map.
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
+| `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
 
 ### Editing
@@ -281,9 +282,10 @@ which is where the `static_assert`s that catch a forgotten one live.
   port does not exist unless someone asked for it, and cannot be reached off
   the machine when it does.
 - **It can quit the editor.** `run_command` with `exit` does what File >
-  Exit does. It can also close a project and drop an unsaved document — and
-  since nothing is persisted yet ([REQUIREMENTS §4.4](REQUIREMENTS.md#44-level-format)),
-  that loses the level. An agent should read `list_commands` and mean it.
+  Exit does. It can also close a project or open another one, and either
+  drops the document held in memory — everything placed since the last
+  `run_command` with `save`. An agent should read `list_commands` and mean
+  it, and save before it closes anything.
 - **One caller at a time is assumed.** Requests are answered in the order
   they arrive on a single thread; nothing coordinates two agents editing the
   same document, and nothing needs to yet.

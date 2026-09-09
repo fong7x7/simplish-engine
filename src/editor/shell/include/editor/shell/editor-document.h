@@ -15,9 +15,8 @@ namespace eng::editor {
 ///
 /// One record rather than a list per kind passed around separately, because
 /// the history describes all of it: an action names a list and a slot in
-/// it, and undo has to reach whichever list that was. Nothing here is
-/// persisted yet — the level format ([Editor REQUIREMENTS §4.4]) is what
-/// gives it somewhere to go.
+/// it, and undo has to reach whichever list that was. This is what a level
+/// file holds: `editor-level-json.h` writes it and reads it back.
 /// @thread_safety Main-thread-only.
 struct EditorDocument {
   /// Assets placed in the world, in the order they were placed.

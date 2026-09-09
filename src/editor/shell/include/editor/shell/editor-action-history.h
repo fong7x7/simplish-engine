@@ -28,6 +28,21 @@ struct EditorActionHistory {
   std::vector<EditorAction> actions;
   /// How many leading entries of `actions` are currently applied.
   size_t applied = 0;
+  /// Whether the document has changed since it was last written to disk.
+  ///
+  /// It lives here, rather than in `EditorShellState` beside the project,
+  /// because this is the one record every change to the document passes
+  /// through: `performEditorAction`, `undoEditorAction` and
+  /// `redoEditorAction` are what the panels *and* the agent API both call,
+  /// so one line in each of them is the whole of the bookkeeping. A flag
+  /// on the shell would have to be set at every call site instead, and the
+  /// one somebody forgot would be a level that says it is saved and is
+  /// not.
+  ///
+  /// Not derived from `applied`: undoing back to where the last save left
+  /// the cursor and then making a different edit lands on the same number
+  /// with a different document.
+  bool unsaved_changes = false;
 };
 
 }  // namespace eng::editor

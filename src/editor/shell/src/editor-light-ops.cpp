@@ -73,6 +73,12 @@ std::string_view editorLightKindId(EditorLightKind kind) {
   return kind == EditorLightKind::DIRECTIONAL ? "directional" : "point";
 }
 
+EditorLightKind editorLightKindFromId(std::string_view id) {
+  return id == editorLightKindId(EditorLightKind::POINT)
+             ? EditorLightKind::POINT
+             : EditorLightKind::DIRECTIONAL;
+}
+
 EditorLight makeEditorLight(EditorLightKind kind, WorldPoint position) {
   EditorLight light;
   light.kind = kind;

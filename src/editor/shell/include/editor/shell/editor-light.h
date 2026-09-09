@@ -31,8 +31,8 @@ enum class EditorLightKind : uint8_t {
 ///
 /// One record for both kinds rather than a type per kind: they differ by
 /// three numbers, the properties panel lists whichever the kind uses, and
-/// the renderer walks one array. Lights live in memory only, as placements
-/// do — see `editor-placement.h`.
+/// the renderer walks one array. Lights are saved and loaded with the level
+/// as placements are — see `editor-placement.h`.
 /// @thread_safety Main-thread-only.
 struct EditorLight {
   /// Stable identifier for this one light: `point_01`. Assigned when it is

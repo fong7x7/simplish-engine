@@ -3,7 +3,7 @@
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
 **Status:** Living register — update it in the change that moves a row
-**Last Updated:** 2026-09-08
+**Last Updated:** 2026-09-09
 
 What the editor can do, and whether an agent can do it too. One row per
 capability, three states per row.
@@ -44,7 +44,11 @@ puzzled over.
 | Close a project | ✅ | `run_command` (`close_project`) | |
 | Recent projects list | ✅ | ❌ | Reachable from the menu, not from the API. Add `list_recent` when something needs it |
 | Read the open project | ✅ | `get_state` | Name, root, and whether one is open |
-| Save a level | ❌ | ❌ | Nothing is persisted yet — [REQUIREMENTS §4.4](REQUIREMENTS.md#44-level-format) |
+| Save a level | 🚧 | `run_command` (`save`) | Props and lights only, to `content/levels/main.level.json`; `Ctrl`/`Cmd`+S runs the same command. Tiles, entities and regions wait on the tools that author them — [project-format.md §4.1](project-format.md#41-what-the-editor-writes-today) |
+| Load a level when a project opens | 🚧 | `open_project`, `list_placements`, `list_lights` | Read after the assets are scanned, so a prop binds by asset id; a prop whose asset is gone is dropped and counted |
+| See whether the level has unsaved changes | ✅ | `get_level`, `get_state` | The project's name carries a trailing asterisk in the title bar and toolbar while it does |
+| See where the level is written, and whether one is there | ✅ | `get_level` | Also whether the file could be read; a file that would not parse is not saved over |
+| Save under another name | ❌ | ❌ | One level per project, so there is nothing to name. Listed in the menu, disabled |
 
 ## 3. Assets
 
@@ -106,7 +110,6 @@ exist, and so that whoever builds one knows the API is part of building it.
 | Capability | Specified in |
 |---|---|
 | Tile and height painting | [§4.1](REQUIREMENTS.md#41-the-grid) |
-| Level save and load | [§4.4](REQUIREMENTS.md#44-level-format) |
 | Entity placement and property blocks | [§4.2](REQUIREMENTS.md#42-props-and-entities) |
 | Flow-field and reachability overlays | [§4.3](REQUIREMENTS.md#43-navigation-and-flow) |
 | Encounter and wave authoring | [§5](REQUIREMENTS.md#5-encounter-and-wave-authoring) |

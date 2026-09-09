@@ -37,6 +37,9 @@ namespace eng::editor {
 /// The session's edits, oldest first, and how many are applied.
 [[nodiscard]] std::string agentHistoryJson(const EditorShellState& state);
 
+/// The level file behind the document, and whether the two agree.
+[[nodiscard]] std::string agentLevelJson(const EditorShellState& state);
+
 /// Every menu command, and whether it would do anything right now.
 [[nodiscard]] std::string agentCommandsJson(const EditorShellState& state);
 

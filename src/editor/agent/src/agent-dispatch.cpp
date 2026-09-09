@@ -18,7 +18,7 @@ namespace {
 
   /// Every tool has this shape, whether or not it reads its parameters or
   /// edits the state it is given. One signature is what lets the table
-  /// below be a table rather than twenty-one branches.
+  /// below be a table rather than twenty-two branches.
   using AgentToolFn = AgentResult (*)(EditorShellState&, const json&);
 
   AgentResult toolDescribe(EditorShellState& state, const json&) {
@@ -53,6 +53,10 @@ namespace {
     return agentOk(agentHistoryJson(state));
   }
 
+  AgentResult toolGetLevel(EditorShellState& state, const json&) {
+    return agentOk(agentLevelJson(state));
+  }
+
   AgentResult toolListCommands(EditorShellState& state, const json&) {
     return agentOk(agentCommandsJson(state));
   }
@@ -80,31 +84,21 @@ namespace {
   /// What answers each tool, in `AgentTool` order.
   ///
   /// A table rather than a switch, for the reason `EDITOR_PROPERTY_TRAITS`
-  /// is one: twenty-one two-line arms say no more than twenty-one rows, and
+  /// is one: twenty-two two-line arms say no more than twenty-two rows, and
   /// the assertion below catches the tool added to the enum without an
   /// answer here.
   constexpr AgentToolFn AGENT_TOOL_FNS[] = {
-      toolDescribe,
-      toolGetState,
-      toolListAssets,
-      runAgentGetAsset,
-      toolListFolders,
-      toolListPlacements,
-      toolListLights,
-      toolGetSelection,
-      toolGetHistory,
-      toolListCommands,
-      runAgentPlaceAsset,
-      runAgentAddLight,
-      runAgentSetProperty,
-      runAgentTranslate,
-      runAgentSelect,
-      runAgentSetTool,
-      toolRunCommand,
-      toolUndo,
-      toolRedo,
-      toolOpenProject,
-      toolRescanAssets,
+      toolDescribe,      toolGetState,
+      toolListAssets,    runAgentGetAsset,
+      toolListFolders,   toolListPlacements,
+      toolListLights,    toolGetSelection,
+      toolGetHistory,    toolGetLevel,
+      toolListCommands,  runAgentPlaceAsset,
+      runAgentAddLight,  runAgentSetProperty,
+      runAgentTranslate, runAgentSelect,
+      runAgentSetTool,   toolRunCommand,
+      toolUndo,          toolRedo,
+      toolOpenProject,   toolRescanAssets,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

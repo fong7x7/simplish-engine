@@ -185,7 +185,7 @@ TEST_CASE("a disabled row raises nothing") {
   };
 
   clickTitle(fx, FILE_MENU);
-  clickRow(fx, FILE_MENU, rowWithLabel(*fx.menu(FILE_MENU), "Save"));
+  clickRow(fx, FILE_MENU, rowWithLabel(*fx.menu(FILE_MENU), "Save As..."));
 
   REQUIRE(raised.empty());
 }
@@ -243,8 +243,22 @@ TEST_CASE("unimplemented commands are listed but disabled") {
   MenuFixture fx;
   const eng::GuiDropdown& file = *fx.menu(FILE_MENU);
   REQUIRE_FALSE(
-      file.items[static_cast<size_t>(rowWithLabel(file, "Save"))].enabled);
+      file.items[static_cast<size_t>(rowWithLabel(file, "Save As..."))]
+          .enabled);
   REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "Exit"))].enabled);
+}
+
+TEST_CASE("Save is disabled until there is a project to save into") {
+  MenuFixture fx;
+  auto saveRow = [&fx]() {
+    const eng::GuiDropdown& file = *fx.menu(FILE_MENU);
+    return file.items[static_cast<size_t>(rowWithLabel(file, "Save"))].enabled;
+  };
+  REQUIRE_FALSE(saveRow());
+
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  REQUIRE(saveRow());
 }
 
 TEST_CASE("the project commands that have a dialog behind them are enabled") {
@@ -401,8 +415,12 @@ TEST_CASE("only commands with a working key show a shortcut") {
   REQUIRE(
       view.items[static_cast<size_t>(rowWithLabel(view, "Zoom In"))].shortcut ==
       "=");
-  REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "Save"))]
+  REQUIRE(file.items[static_cast<size_t>(rowWithLabel(file, "Save As..."))]
               .shortcut.empty());
+  // The hint names this platform's modifier; the handler accepts both.
+  REQUIRE(
+      file.items[static_cast<size_t>(rowWithLabel(file, "Save"))].shortcut.find(
+          "+S") != std::string_view::npos);
 }
 
 TEST_CASE("the undo keys are hinted with this platform's modifier") {

@@ -11,8 +11,11 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - [docs/editor/REQUIREMENTS.md](../../docs/editor/REQUIREMENTS.md) — what the
   editor must do, and its §1 *Current State* for what is actually built.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
-  on-disk format. Only `.simplish/project.json` exists today; levels,
-  encounters, scenarios, and data tables are specified but unwritten.
+  on-disk format. Two files exist today: `.simplish/project.json`, and
+  `content/levels/main.level.json`, which carries the props and lights the
+  editor authors (§4.1 — it differs from §4's sketch in two documented
+  ways). Tiles, entities, regions, encounters, scenarios, and data tables
+  are specified but unwritten.
 - [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,
   and §6's checklist. **Read it before adding a tool, a panel, or a menu
   command**, because exposing it is part of the same change.
@@ -57,6 +60,22 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - **A tool is described in exactly one place** — `AGENT_TOOL_INFO`. The HTTP
   manifest is generated from it and the MCP bridge reads that manifest at run
   time, so never write a second list of tools anywhere.
+- **A prop names its asset by reference, never by index.** `mesh:props_crate`
+  or `shape:cube` — a saved index would decay the moment a rescan renumbered
+  the list. Level reading happens after the asset scan for that reason, and a
+  prop whose asset is gone is dropped and counted, never silently rebound.
+- **The unsaved-changes flag lives on `EditorActionHistory`**, not on
+  `EditorShellState`. `performEditorAction`, `undoEditorAction` and
+  `redoEditorAction` are the three functions both the panels and the agent
+  API funnel every document change through, so marking there is the whole of
+  the bookkeeping. A flag on the shell would have to be set at every call
+  site, and the one somebody forgot would be a level that claims to be saved.
+- **`applyProjectToChrome` reloads the project's assets** — and so drops the
+  document and re-reads the level. Never call it to refresh something small;
+  `applyProjectNameToChrome` is the narrow one.
+- **The editor authors one level per project**, `main`, so its id is a
+  constant rather than a setting. A level browser is what makes that a
+  choice; until then Save As stays disabled rather than pretending.
 - **The recent-projects list is written outside the checkout** when the
   platform offers a user data directory. `data/editor/recent-projects.json` is
   gitignored on purpose — it belongs to whoever runs the editor.

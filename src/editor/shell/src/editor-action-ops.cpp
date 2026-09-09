@@ -105,6 +105,19 @@ void performEditorAction(EditorActionHistory& history, EditorDocument& document,
   history.actions.resize(history.applied);
   history.actions.push_back(action);
   history.applied = history.actions.size();
+  history.unsaved_changes = true;
+}
+
+bool hasUnsavedEditorChanges(const EditorActionHistory& history) {
+  return history.unsaved_changes;
+}
+
+void markEditorChangesSaved(EditorActionHistory& history) {
+  history.unsaved_changes = false;
+}
+
+void markEditorChangesUnsaved(EditorActionHistory& history) {
+  history.unsaved_changes = true;
 }
 
 bool canUndoEditorAction(const EditorActionHistory& history) {
@@ -121,6 +134,11 @@ bool undoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   }
   --history.applied;
   revertOne(history.actions[history.applied], document);
+  // An undo changes the document as surely as the edit it reverts did.
+  // Landing back on exactly what is on disk is possible and is reported as
+  // unsaved anyway: the cost of that is one redundant save, and the cost of
+  // the other mistake is a lost level.
+  history.unsaved_changes = true;
   return true;
 }
 
@@ -130,6 +148,7 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   }
   applyOne(history.actions[history.applied], document);
   ++history.applied;
+  history.unsaved_changes = true;
   return true;
 }
 

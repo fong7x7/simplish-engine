@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — not yet implemented
+**Status:** Specification — the manifest and the level file's props and lights are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -33,7 +33,7 @@ my-project/
 │   └── crate.obj
 ├── content/
 │   ├── levels/
-│   │   └── transit-station.level.json
+│   │   └── main.level.json   # props and lights — exists today
 │   ├── encounters/
 │   │   └── transit-station-waves.encounter.json
 │   ├── scenarios/
@@ -49,7 +49,9 @@ my-project/
 
 `assets/` is source material the asset pipeline consumes ([Editor §8](REQUIREMENTS.md#8-asset-pipeline)). `content/` is authored data this document specifies. The split matters: assets are imported and cached, content is generated and compiled.
 
-**The manifest** is the one file that exists today, and it holds what is true of the project rather than of any one level:
+`.simplish/project.json` and `content/levels/main.level.json` are the two files that exist today; `createProject` makes `.simplish/`, `data/`, `assets/` and `content/levels/` so a new project has this shape from the start.
+
+**The manifest** holds what is true of the project rather than of any one level:
 
 ```json
 {
@@ -141,6 +143,39 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 **Props and entities are separate lists** because they behave differently: a prop is geometry with a transform and no per-instance state; an entity carries a definition id and a property block validated against that definition's schema ([Editor §4.2](REQUIREMENTS.md#42-props-and-entities)). `yaw_steps` is quarter turns, not radians — the projection has no yaw ([ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md)), so props snap to four orientations and an integer keeps that exact.
 
 `regions` are the named rectangles logic refers to: spawn volumes, trigger areas, objective zones. They are declared once here and referenced by id from encounter and logic files, so moving a region updates everything that uses it.
+
+### 4.1 What the editor writes today
+
+File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/main.level.json`, and opening a project reads it back. The editor authors one level per project, so its id is the constant `main` rather than something to choose; a level browser is what turns that into a choice. Its `name` is the project's, rewritten on every save, because nothing in the editor shows or edits a level name yet.
+
+Two parts of §4 are written, and one of them differs from the shape above:
+
+```json
+{
+  "schema": "simplish/level/1.0",
+  "id": "main",
+  "name": "Transit Station",
+  "content": {
+    "props": [
+      { "id": "props_crate_01", "asset": "mesh:props_crate",
+        "at": [3.0, 4.0, 0.0], "rotation": [0.0, 0.0, 45.0] }
+    ],
+    "lights": [
+      { "id": "point_01", "kind": "point", "at": [1.0, 1.0, 3.0],
+        "direction": [-0.35, -0.45, 0.82], "color": [1.0, 1.0, 1.0],
+        "intensity": 1.0, "range": 8.0 }
+    ]
+  }
+}
+```
+
+**A prop carries three rotation angles, not `yaw_steps`.** The properties panel edits rotation X, Y and Z as free degrees and the agent API sets them the same way, so `yaw_steps` would round somebody's authored value away on the first save. The integer stays the right answer for the projection — which has no yaw — and the snap belongs with the tool that enforces it; when that tool arrives, a §10 migration converts a rotation to the steps it was rounding to. `variant` is absent because nothing produces one yet.
+
+**Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
+
+Everything else in §4 — bounds, the tile palette, the RLE layers, entities and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
+
+**A prop names its asset by reference, never by index.** `mesh:props_crate` for a model on disk, `shape:cube` for a built-in shape. The index a session holds an asset at is renumbered by any rescan, so a level saved with indices would decay the moment a file was added beside it; a reference is resolved against the scan when the level loads. A prop whose asset the project no longer holds is dropped on load and counted in the log — one deleted `.obj` costs that prop and nothing else. A prop with no `id` is given one, so nothing in a level is unnameable even after a hand edit.
 
 ---
 
@@ -386,7 +421,7 @@ Migrations are code, not configuration: a function per version step, unit-tested
 The format is specified; none of it is built. A sensible order, each step useful on its own:
 
 1. **Schemas and the envelope** — schema ids, the validator wired to them, and `data/` tables, which are the simplest file kind and already have a runtime consumer.
-2. **Level files** — the tile layer, props, entities, and regions, with the editor writing what it already holds in memory. This is what makes placements survive a restart, which today they do not.
+2. **Level files** — ~~the tile layer, props, entities, and regions~~. Props and lights are done (§4.1): placements and light sources survive a restart. The tile layer, entities and regions wait on the tools that author them.
 3. **The generator** — starting with data tables and ids, before logic.
 4. **Encounters and scenarios** — once the director exists to consume them.
 5. **Logic and expressions** — last, because the equivalence test and the expression golden test are what make it safe, and both want the earlier pieces in place.

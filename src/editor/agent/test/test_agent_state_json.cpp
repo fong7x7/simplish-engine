@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/agent/agent-dispatch.h>
 #include <editor/agent/agent-state-json.h>
+#include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-general-section.h>
 #include <nlohmann/json.hpp>
 
@@ -131,10 +132,13 @@ TEST_CASE("commands say which are built and which would work right now") {
         [name](const json& row) { return row.at("name") == name; });
   };
 
-  REQUIRE(find("save").at("implemented") == false);
+  REQUIRE(find("save_as").at("implemented") == false);
   REQUIRE(find("close_project").at("implemented") == true);
   // Built, but there is no project to close.
   REQUIRE(find("close_project").at("enabled") == false);
+  // Save is built, and needs a project for the same reason.
+  REQUIRE(find("save").at("implemented") == true);
+  REQUIRE(find("save").at("enabled") == false);
   REQUIRE(find("toggle_grid").at("enabled") == true);
   // The projection is written back to project.json, so with nothing open
   // there is nowhere for the choice to go.
@@ -172,4 +176,41 @@ TEST_CASE("describe carries both the manifest and the current state") {
   REQUIRE_FALSE(described.at("tools").empty());
   REQUIRE(described.at("state").at("project").at("open") == false);
   REQUIRE_FALSE(described.at("axes").get<std::string>().empty());
+}
+
+TEST_CASE("the level says where it is written and whether it has been") {
+  EditorShellState state;
+  state.project.loaded = true;
+  state.project.root = "/tmp/a-project";
+
+  const json level = json::parse(agentLevelJson(state));
+
+  REQUIRE(level.at("id") == "main");
+  REQUIRE(level.at("path") == "/tmp/a-project/content/levels/main.level.json");
+  // Nothing has been written there, and nothing needs to be.
+  REQUIRE(level.at("on_disk") == false);
+  REQUIRE(level.at("readable") == true);
+  REQUIRE(level.at("unsaved_changes") == false);
+  REQUIRE(level.at("prop_count") == 0);
+}
+
+TEST_CASE("the level reports an edit that has not been written") {
+  EditorShellState state;
+  state.project.loaded = true;
+  performEditorAction(state.history, state.document,
+                      {.kind = EditorActionKind::PLACE_ASSET, .index = 0});
+
+  const json level = json::parse(agentLevelJson(state));
+  REQUIRE(level.at("unsaved_changes") == true);
+  REQUIRE(level.at("prop_count") == 1);
+  // And at a glance, without a second call.
+  REQUIRE(json::parse(agentStateJson(state)).at("unsaved_changes") == true);
+}
+
+TEST_CASE("the level of a closed project names no path") {
+  const EditorShellState state;
+
+  const json level = json::parse(agentLevelJson(state));
+  REQUIRE(level.at("project_open") == false);
+  REQUIRE(level.at("path") == "");
 }

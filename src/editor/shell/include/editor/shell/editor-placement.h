@@ -13,10 +13,9 @@ namespace eng::editor {
 
 /// An asset placed at a world position.
 ///
-/// Placements live in memory only. Persisting them needs the level format
-/// ([Editor REQUIREMENTS §4.4]), so closing the editor loses them — which
-/// is why the asset panel is a placement tool today rather than an
-/// authoring one.
+/// Saved to the project's level file and read back when the project is
+/// opened (`editor-level-io.h`), which is what makes the asset panel an
+/// authoring tool rather than only a placement one.
 /// @thread_safety Main-thread-only.
 struct EditorPlacement {
   /// Stable identifier for this one placed thing: `crate_01`. Assigned

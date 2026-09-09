@@ -46,12 +46,27 @@ editorSelectionAfterUndo(const EditorAction& action, EditorSelection selection);
 [[nodiscard]] EditorSelection
 editorSelectionAfterRedo(const EditorAction& action, EditorSelection selection);
 
+/// Whether the document has changed since it was last written to disk.
+[[nodiscard]] bool hasUnsavedEditorChanges(const EditorActionHistory& history);
+
+/// Record that the document now matches what is on disk. What a successful
+/// save calls, and what opening a project calls once its level is read.
+void markEditorChangesSaved(EditorActionHistory& history);
+
+/// Record that the document no longer matches what is on disk, for a change
+/// that is not an action: a rescan dropping a prop whose asset has gone.
+void markEditorChangesUnsaved(EditorActionHistory& history);
+
 /// Forget every action, applied or not.
 ///
 /// The history describes one document by index, so whatever replaces that
 /// document — a rescan renumbering the assets, a project being closed —
 /// invalidates all of it. Keeping actions across that would let undo write
 /// old indices into a new list.
+///
+/// Leaves the unsaved marker alone: forgetting how the document got here
+/// says nothing about whether it matches the file, and only the caller
+/// replacing the document knows which it is.
 void clearEditorActions(EditorActionHistory& history);
 
 }  // namespace eng::editor

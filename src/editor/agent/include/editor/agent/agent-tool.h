@@ -40,6 +40,9 @@ enum class AgentTool : uint8_t {
   GET_SELECTION,
   /// The undo history and its cursor.
   GET_HISTORY,
+  /// The level file behind the document: where it is, and whether what is
+  /// on screen has been written to it.
+  GET_LEVEL,
   /// Every menu command, and whether it would do anything right now.
   LIST_COMMANDS,
   /// Place an asset on a tile, as dragging it from the browser would.
@@ -76,13 +79,13 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::LIST_ASSETS,   AgentTool::GET_ASSET,
     AgentTool::LIST_FOLDERS,  AgentTool::LIST_PLACEMENTS,
     AgentTool::LIST_LIGHTS,   AgentTool::GET_SELECTION,
-    AgentTool::GET_HISTORY,   AgentTool::LIST_COMMANDS,
-    AgentTool::PLACE_ASSET,   AgentTool::ADD_LIGHT,
-    AgentTool::SET_PROPERTY,  AgentTool::TRANSLATE,
-    AgentTool::SELECT,        AgentTool::SET_TOOL,
-    AgentTool::RUN_COMMAND,   AgentTool::UNDO,
-    AgentTool::REDO,          AgentTool::OPEN_PROJECT,
-    AgentTool::RESCAN_ASSETS,
+    AgentTool::GET_HISTORY,   AgentTool::GET_LEVEL,
+    AgentTool::LIST_COMMANDS, AgentTool::PLACE_ASSET,
+    AgentTool::ADD_LIGHT,     AgentTool::SET_PROPERTY,
+    AgentTool::TRANSLATE,     AgentTool::SELECT,
+    AgentTool::SET_TOOL,      AgentTool::RUN_COMMAND,
+    AgentTool::UNDO,          AgentTool::REDO,
+    AgentTool::OPEN_PROJECT,  AgentTool::RESCAN_ASSETS,
 };
 
 }  // namespace eng::editor

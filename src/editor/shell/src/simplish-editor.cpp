@@ -8,8 +8,10 @@
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-level-io.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/editor-project-title.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-shape.h>
 #include <editor/shell/editor-thumbnail-cache.h>
@@ -377,26 +379,41 @@ void SimplishEditor::applyProjectToChrome() {
   if (toolbar_id_ == GUI_WIDGET_ID_INVALID) {
     return;
   }
-  const bool loaded = state_.project.loaded;
-  const std::string& name = state_.project.metadata.name;
-
-  title_text_ = loaded ? ("Simplish Editor — " + name) : "Simplish Editor";
-  setWindowTitle(title_text_);
-
+  applyProjectNameToChrome();
   applyProjectToWidgets();
   applyProjectionToWidgets();
 }
 
-void SimplishEditor::applyProjectToWidgets() {
-  const bool loaded = state_.project.loaded;
+void SimplishEditor::applyProjectNameToChrome() {
+  shown_unsaved_ = hasUnsavedEditorChanges(state_.history);
+  title_text_ = editorProjectTitle(state_);
+  setWindowTitle(title_text_);
   GuiWidgetTree& tree = guiWidgetTree();
   if (auto* label = dynamic_cast<GuiLabel*>(tree.findWidget(title_label_))) {
     label->text = title_text_;
   }
   if (auto* bar =
           dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
-    bar->setProjectName(loaded ? state_.project.metadata.name : "No project");
+    bar->setProjectName(editorProjectDisplayName(state_));
   }
+}
+
+void SimplishEditor::refreshUnsavedMarker() {
+  if (toolbar_id_ == GUI_WIDGET_ID_INVALID ||
+      hasUnsavedEditorChanges(state_.history) == shown_unsaved_) {
+    return;
+  }
+  // The name and nothing else. `applyProjectToChrome` reloads the project's
+  // assets, which drops the document and reads the level back from disk —
+  // out from under the very edit that just set this flag. And only on the
+  // transition: this runs after every edit, and a property drag is an edit
+  // a frame.
+  applyProjectNameToChrome();
+}
+
+void SimplishEditor::applyProjectToWidgets() {
+  const bool loaded = state_.project.loaded;
+  GuiWidgetTree& tree = guiWidgetTree();
   if (auto* menu =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     menu->setProjectPresence(loaded ? EditorProjectPresence::OPEN
@@ -441,11 +458,91 @@ void SimplishEditor::reloadAssets() {
 void SimplishEditor::refreshAssets() {
   // A different project, so the document goes with the old one: the lights
   // name no asset, but they belong to the level being closed, and leaving
-  // them behind would light the next project with them. Nothing is
-  // persisted yet either way.
+  // them behind would light the next project with them.
   clearDocument();
   reloadAssets();
+  loadDocument();
+  // What is in memory is what is on disk, whether that was read from a
+  // level file or is the empty document a project without one opens at.
+  markEditorChangesSaved(state_.history);
   applyEditToChrome();
+}
+
+bool SimplishEditor::canSaveDocument() {
+  if (!state_.project.loaded) {
+    return false;
+  }
+  // The editor cannot show a level it could not parse, so what it would
+  // write here is an empty one over whatever the file actually holds.
+  if (!state_.level_readable) {
+    showStatusMessage("Not saving over a level file that could not be read");
+    return false;
+  }
+  return true;
+}
+
+bool SimplishEditor::writeLevelFile() {
+  if (saveEditorLevel(state_)) {
+    return true;
+  }
+  LOG_ERROR("editor",
+            "Could not write " + editorLevelPath(state_.project.root).string());
+  showStatusMessage("Could not save the level");
+  return false;
+}
+
+void SimplishEditor::saveDocument() {
+  if (!canSaveDocument()) {
+    return;
+  }
+  // A property drag still in flight has already changed the document, so
+  // recording it first is what makes the file on disk the level on screen.
+  commitPendingEdit();
+  if (!writeLevelFile()) {
+    return;
+  }
+  markEditorChangesSaved(state_.history);
+  // The name only, for the reason `refreshUnsavedMarker` gives: the whole
+  // chrome would re-read the level that was just written and drop the undo
+  // history describing it.
+  applyProjectNameToChrome();
+  LOG_INFO("editor",
+           "Saved level: " + editorLevelPath(state_.project.root).string());
+  showStatusMessage("Saved " + state_.project.metadata.name);
+}
+
+void SimplishEditor::loadDocument() {
+  state_.level_readable = true;
+  // No file is the ordinary state of a project nothing has been saved into,
+  // and it is not something to report as a failure.
+  if (!editorLevelExists(state_)) {
+    return;
+  }
+  std::optional<EditorLevelLoad> load = loadEditorLevel(state_);
+  if (!load) {
+    reportLevelUnreadable();
+    return;
+  }
+  reportDroppedProps(load->dropped_props);
+  state_.document = std::move(load->document);
+  ensurePlacedMeshes();
+}
+
+void SimplishEditor::reportLevelUnreadable() {
+  // Remembered, not just logged: this is what stops the next save from
+  // writing an empty level over the file that could not be parsed.
+  state_.level_readable = false;
+  LOG_ERROR("editor",
+            "Could not read " + editorLevelPath(state_.project.root).string());
+  showStatusMessage("Could not read the project's level");
+}
+
+void SimplishEditor::reportDroppedProps(size_t dropped) {
+  if (dropped == 0) {
+    return;
+  }
+  LOG_WARN("editor", "Level dropped " + std::to_string(dropped) +
+                         " prop(s) whose asset is gone");
 }
 
 void SimplishEditor::refreshAssetPanel() {
@@ -843,6 +940,7 @@ void SimplishEditor::commitLightEdit() {
 }
 
 void SimplishEditor::applyEditToChrome() {
+  refreshUnsavedMarker();
   applySelectionToChrome();
   if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
           guiWidgetTree().findWidget(menu_bar_id_))) {
@@ -1019,8 +1117,14 @@ std::vector<std::string> SimplishEditor::assetIds() const {
 
 void SimplishEditor::rebindPlacements(
     const std::vector<std::string>& previous_ids) {
-  reselectAfterRescan(
-      rebindPlacementAssets(state_.document, previous_ids, state_.assets));
+  const size_t dropped =
+      rebindPlacementAssets(state_.document, previous_ids, state_.assets);
+  if (dropped > 0) {
+    // Not an action, but the document no longer matches the file it came
+    // from, and a save is what would make the two agree again.
+    markEditorChangesUnsaved(state_.history);
+  }
+  reselectAfterRescan(dropped);
 }
 
 void SimplishEditor::reselectAfterRescan(size_t dropped) {
@@ -1113,6 +1217,10 @@ bool SimplishEditor::runDialogCommand(EditorMenuCommand command) {
 
 bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
   if (runDialogCommand(command)) {
+    return true;
+  }
+  if (command == EditorMenuCommand::SAVE) {
+    saveDocument();
     return true;
   }
   if (command == EditorMenuCommand::CLOSE_PROJECT) {
@@ -1324,6 +1432,15 @@ bool SimplishEditor::handleEditKey(uint32_t key, ClientKeyModifiers modifiers) {
   return true;
 }
 
+bool SimplishEditor::handleFileKey(uint32_t key, ClientKeyModifiers modifiers) {
+  // Control and Command both, as the Edit accelerators already accept both.
+  if ((!modifiers.ctrl && !modifiers.gui) || (key != 's' && key != 'S')) {
+    return false;
+  }
+  executeCommand(EditorMenuCommand::SAVE);
+  return true;
+}
+
 bool SimplishEditor::handleSelectionKey(uint32_t key) {
   // Escape drops the selection, which is also what puts the properties
   // panel away and gives the viewport its width back.
@@ -1343,6 +1460,11 @@ void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
     return;
   }
   if (kind == ClientKeyDownKind::REPEAT) {
+    return;
+  }
+  // First-press only, unlike undo: holding the key would write the same
+  // file over and over for as long as it was down.
+  if (handleFileKey(key, modifiers)) {
     return;
   }
   if (handleSelectionKey(key)) {

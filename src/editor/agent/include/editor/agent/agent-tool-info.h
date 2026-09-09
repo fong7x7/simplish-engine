@@ -119,8 +119,9 @@ inline constexpr AgentParam AGENT_PARAMS_RUN_COMMAND[] = {
 /// `open_project` points the editor at a directory.
 inline constexpr AgentParam AGENT_PARAMS_OPEN_PROJECT[] = {
     {"path", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "Directory holding the project. Opening one drops the in-memory "
-     "document, since nothing is persisted yet."},
+     "Directory holding the project. Opening one drops the document held "
+     "in memory and reads the new project's own level file, so save first "
+     "if the current one has unsaved edits."},
 };
 
 /// One tool's published description.
@@ -199,6 +200,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Every edit made this session, oldest first, and how many of them are "
      "currently applied. The ones past that cursor are undone and waiting "
      "to be redone.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::GET_LEVEL,
+     "get_level",
+     "The level file behind the document: its id, where it is written, "
+     "whether one is there yet, whether it could be read, and whether the "
+     "document on screen has unwritten changes. Save with run_command and "
+     "the command \"save\", which is the same thing File > Save does.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_COMMANDS,

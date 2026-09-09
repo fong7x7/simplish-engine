@@ -356,3 +356,65 @@ TEST_CASE("undoing or redoing a light edit selects the light") {
   REQUIRE(sameSelection(editorSelectionAfterRedo(dimmed, placementAt(0)),
                         lightAt(2)));
 }
+
+TEST_CASE("a fresh history has nothing to save") {
+  HistoryFixture fx;
+
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("an edit leaves changes to save, and a save takes them away") {
+  HistoryFixture fx;
+  fx.place(0);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+
+  markEditorChangesSaved(fx.history);
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+
+  fx.move(0, 4.0f);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("undo and redo are changes to save like any other") {
+  HistoryFixture fx;
+  fx.place(0);
+  markEditorChangesSaved(fx.history);
+
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+
+  markEditorChangesSaved(fx.history);
+  REQUIRE(redoEditorAction(fx.history, fx.document));
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("an undo with nothing to undo changes nothing to save") {
+  HistoryFixture fx;
+  fx.place(0);
+  markEditorChangesSaved(fx.history);
+
+  REQUIRE(undoEditorAction(fx.history, fx.document));
+  markEditorChangesSaved(fx.history);
+  // The history is empty now, so this reverts nothing and dirties nothing.
+  REQUIRE_FALSE(undoEditorAction(fx.history, fx.document));
+  REQUIRE_FALSE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("forgetting the actions says nothing about the file") {
+  HistoryFixture fx;
+  fx.place(0);
+
+  // A rescan clears the history and keeps the document, so the document is
+  // still the one that has not been written.
+  clearEditorActions(fx.history);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+  REQUIRE(fx.placements().size() == 1);
+}
+
+TEST_CASE("a change that is not an action still needs saving") {
+  HistoryFixture fx;
+  markEditorChangesSaved(fx.history);
+
+  markEditorChangesUnsaved(fx.history);
+  REQUIRE(hasUnsavedEditorChanges(fx.history));
+}

@@ -38,6 +38,14 @@ inline constexpr float EDITOR_LIGHT_MARKER_RADIUS = 0.25f;
 /// apart from its display names for the same reason.
 [[nodiscard]] std::string_view editorLightKindId(EditorLightKind kind);
 
+/// The light kind @p id names.
+///
+/// Anything unrecognised — a hand-edited level file, a word from a format
+/// version this build predates — reads as directional, for the reason
+/// `projectProjectionFromName` reads an unknown projection as dimetric: a
+/// file should open at a recoverable default rather than refuse to load.
+[[nodiscard]] EditorLightKind editorLightKindFromId(std::string_view id);
+
 /// A new light of @p kind at @p position, with the defaults a dropped one
 /// gets: the key light's direction and strength, white, and a range that
 /// covers the tiles around it.

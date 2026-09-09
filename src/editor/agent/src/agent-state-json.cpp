@@ -7,6 +7,8 @@
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
+#include <editor/shell/editor-level-io.h>
+#include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-property-ops.h>
@@ -227,8 +229,25 @@ std::string agentStateJson(const EditorShellState& state) {
               {"placement_count", state.document.placements.size()},
               {"light_count", state.document.lights.size()},
               {"can_undo", canUndoEditorAction(state.history)},
-              {"can_redo", canRedoEditorAction(state.history)}};
+              {"can_redo", canRedoEditorAction(state.history)},
+              {"unsaved_changes", hasUnsavedEditorChanges(state.history)}};
   out["selection"] = json::parse(agentSelectionJson(state));
+  return out.dump(2);
+}
+
+std::string agentLevelJson(const EditorShellState& state) {
+  const bool loaded = state.project.loaded;
+  json out = {{"id", EDITOR_LEVEL_ID},
+              {"project_open", loaded},
+              {"on_disk", editorLevelExists(state)},
+              {"readable", state.level_readable},
+              {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
+              {"prop_count", state.document.placements.size()},
+              {"light_count", state.document.lights.size()}};
+  // Only where there is a project to be relative to; an absolute path made
+  // from an empty root would name the working directory, not a level.
+  out["path"] =
+      loaded ? editorLevelPath(state.project.root).generic_string() : "";
   return out.dump(2);
 }
 
