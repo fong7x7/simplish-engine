@@ -9,5 +9,20 @@
 	},
 	"enabledPlugins": {
 		"compound-engineering@every-marketplace": true
+	},
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-invariants-hook.sh",
+						"timeout": 30,
+						"statusMessage": "Checking coding invariants..."
+					}
+				]
+			}
+		]
 	}
 }
