@@ -353,6 +353,22 @@ TEST_CASE("only commands with a working key show a shortcut") {
               .shortcut.empty());
 }
 
+TEST_CASE("the undo keys are hinted with this platform's modifier") {
+  MenuFixture fx;
+  const eng::GuiDropdown& edit = *fx.menu(EDIT_MENU);
+  const std::string_view undo =
+      edit.items[static_cast<size_t>(rowWithLabel(edit, "Undo"))].shortcut;
+  const std::string_view redo =
+      edit.items[static_cast<size_t>(rowWithLabel(edit, "Redo"))].shortcut;
+
+  // Both modifiers work at the handler; only the hint text is per-platform,
+  // so the test pins the shape rather than one platform's spelling.
+  REQUIRE(undo.ends_with("Z"));
+  REQUIRE_FALSE(undo.contains("Shift"));
+  REQUIRE(redo.ends_with("Shift+Z"));
+  REQUIRE(redo.starts_with(undo.substr(0, undo.size() - 1)));
+}
+
 TEST_CASE("shutdown removes every widget the bar created") {
   MenuFixture fx;
   const size_t before = fx.tree.widget_nodes.size();

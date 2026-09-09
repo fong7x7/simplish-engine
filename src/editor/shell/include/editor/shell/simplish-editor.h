@@ -11,7 +11,7 @@
 //     is dragged from the panel onto the viewport
 //   - Records every placement as an action, which Edit > Undo reverts and
 //     Edit > Redo reapplies; both rows are live only when they would do
-//     something
+//     something, and both answer to Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
 //   - Draws placed meshes in a depth-tested scene pass under the interface
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
@@ -32,6 +32,9 @@
 //     into the new list
 //   - openProject failure: the reason is logged and the previous project (if
 //     any) stays open
+//   - Undo and redo are the one pair of keys that act on OS key-repeat, so
+//     holding the accelerator walks back through a run of edits. Every
+//     other key here is first-press only
 //
 // Invariants:
 //   - init() runs exactly once before run()
@@ -86,7 +89,8 @@ protected:
   void recordScene(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
   void onShutdown() override;
-  void onClientKeyDown(uint32_t key, ClientKeyDownKind kind) override;
+  void onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
+                       ClientKeyModifiers modifiers) override;
 
 private:
   /// Create the title bar, menu bar, toolbar, and viewport under the root.
@@ -198,6 +202,9 @@ private:
   void reportProjectOpenFailure(ProjectOpenError error);
   /// Run the View accelerators. Returns true when @p key was one of them.
   bool handleViewKey(uint32_t key);
+  /// Run the Edit accelerators — undo, and redo with Shift. Returns true
+  /// when @p key with @p modifiers was one of them.
+  bool handleEditKey(uint32_t key, ClientKeyModifiers modifiers);
   /// Let the chrome widgets release what they own, then destroy them.
   void shutdownChrome();
   /// Destroy the chrome nodes and forget their ids.

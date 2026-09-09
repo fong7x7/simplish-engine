@@ -119,6 +119,15 @@ namespace {
     engine.reset();
   }
 
+  /// The modifier state SDL reports alongside a keyboard event.
+  DesktopGameClient::ClientKeyModifiers
+  buildKeyModifiers(const SDL_KeyboardEvent& key) {
+    return {.shift = (key.mod & SDL_KMOD_SHIFT) != 0,
+            .ctrl = (key.mod & SDL_KMOD_CTRL) != 0,
+            .alt = (key.mod & SDL_KMOD_ALT) != 0,
+            .gui = (key.mod & SDL_KMOD_GUI) != 0};
+  }
+
   /// Compute delta time since last frame in seconds.
   float
   computeDeltaTime(std::chrono::steady_clock::time_point& last_frame_time) {
@@ -148,7 +157,8 @@ void DesktopGameClient::onEvent(const SDL_Event& event) {
     const auto kind = event.key.repeat != 0U
                           ? DesktopGameClient::ClientKeyDownKind::REPEAT
                           : DesktopGameClient::ClientKeyDownKind::FIRST_PRESS;
-    onClientKeyDown(static_cast<uint32_t>(event.key.key), kind);
+    onClientKeyDown(static_cast<uint32_t>(event.key.key), kind,
+                    buildKeyModifiers(event.key));
   }
 }
 
@@ -226,10 +236,11 @@ namespace {
     e.scancode = static_cast<uint32_t>(key.scancode);
     e.pressed = true;
     e.repeat = key.repeat;
-    e.shift = (key.mod & SDL_KMOD_SHIFT) != 0;
-    e.ctrl = (key.mod & SDL_KMOD_CTRL) != 0;
-    e.alt = (key.mod & SDL_KMOD_ALT) != 0;
-    e.gui = (key.mod & SDL_KMOD_GUI) != 0;
+    const auto mods = buildKeyModifiers(key);
+    e.shift = mods.shift;
+    e.ctrl = mods.ctrl;
+    e.alt = mods.alt;
+    e.gui = mods.gui;
     return e;
   }
 

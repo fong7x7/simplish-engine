@@ -25,7 +25,7 @@ namespace eng::client {
 // - Create and manage an SDL3 window
 // - Poll SDL3 events; map SDL_EVENT_* to RenderedGameClient guiDispatch* calls
 // - Expose windowClientSizePx() and onClientKeyDown() so game/editor code
-//   stays free of SDL includes
+//   stays free of SDL includes, modifier state included
 // - Initialize the engine with the SDL window as native handle
 // - Create the RhiDevice via render::RhiDeviceFactory
 // - Drive the loop: poll -> onTick -> presentGuiFrame
@@ -51,6 +51,23 @@ public:
     FIRST_PRESS,
     /// Auto-repeat while the key is held.
     REPEAT,
+  };
+
+  /// Modifier keys held when a key went down.
+  ///
+  /// Reported as the four physical groups rather than one "accelerator"
+  /// flag: which of them a shortcut wants is the consumer's convention, not
+  /// the platform's, and the engine GUI already accepts either Control or
+  /// Command for its own clipboard keys on every platform.
+  struct ClientKeyModifiers {
+    /// Either Shift key.
+    bool shift = false;
+    /// Either Control key.
+    bool ctrl = false;
+    /// Either Alt/Option key.
+    bool alt = false;
+    /// The Command, Super, or Windows key.
+    bool gui = false;
   };
 
   DesktopGameClient() = default;
@@ -88,7 +105,8 @@ protected:
 
   /// After GUI key dispatch; `key` is the platform key symbol (SDL keycode).
   virtual void onClientKeyDown([[maybe_unused]] uint32_t key,
-                               [[maybe_unused]] ClientKeyDownKind kind) {}
+                               [[maybe_unused]] ClientKeyDownKind kind,
+                               [[maybe_unused]] ClientKeyModifiers modifiers) {}
 
   /// Resize and input dispatch; subclasses that override must call this base
   /// implementation (or replicate resize, `dispatchSdlInputToGui`, and

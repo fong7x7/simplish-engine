@@ -763,7 +763,29 @@ bool SimplishEditor::handleViewKey(uint32_t key) {
   return false;
 }
 
-void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind) {
+bool SimplishEditor::handleEditKey(uint32_t key, ClientKeyModifiers modifiers) {
+  // Control and Command are both accepted everywhere, which is what the
+  // GUI's own clipboard keys already do — and what someone arriving from
+  // either convention will reach for.
+  if (!modifiers.ctrl && !modifiers.gui) {
+    return false;
+  }
+  if (key != 'z' && key != 'Z') {
+    return false;
+  }
+  executeCommand(modifiers.shift ? EditorMenuCommand::REDO
+                                 : EditorMenuCommand::UNDO);
+  return true;
+}
+
+void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
+                                     ClientKeyModifiers modifiers) {
+  // Before the repeat guard: holding the accelerator to walk back through a
+  // run of edits is most of what the gesture is for, and undo stops on its
+  // own once the history runs out.
+  if (handleEditKey(key, modifiers)) {
+    return;
+  }
   if (kind == ClientKeyDownKind::REPEAT) {
     return;
   }

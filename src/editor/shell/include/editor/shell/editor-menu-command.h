@@ -78,8 +78,16 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SAVE_AS, "Save As...", ""},
     {EditorMenuCommand::CLOSE_PROJECT, "Close Project", ""},
     {EditorMenuCommand::EXIT, "Exit", ""},
-    {EditorMenuCommand::UNDO, "Undo", ""},
-    {EditorMenuCommand::REDO, "Redo", ""},
+// Both Control and Command work on every platform — the handler accepts
+// either. The hint names the one this platform's users expect, which is the
+// only thing the choice below decides.
+#ifdef __APPLE__
+    {EditorMenuCommand::UNDO, "Undo", "Cmd+Z"},
+    {EditorMenuCommand::REDO, "Redo", "Cmd+Shift+Z"},
+#else
+    {EditorMenuCommand::UNDO, "Undo", "Ctrl+Z"},
+    {EditorMenuCommand::REDO, "Redo", "Ctrl+Shift+Z"},
+#endif
     {EditorMenuCommand::CUT, "Cut", ""},
     {EditorMenuCommand::COPY, "Copy", ""},
     {EditorMenuCommand::PASTE, "Paste", ""},
