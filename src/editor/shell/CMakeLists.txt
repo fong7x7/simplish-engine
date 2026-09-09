@@ -5,6 +5,7 @@
 # a window or a GPU.
 
 set(_shell_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-action-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-layout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-folder-rows.cpp"

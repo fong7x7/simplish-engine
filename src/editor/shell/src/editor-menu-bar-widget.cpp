@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <engine/gui/gui-button.h>
 #include <engine/gui/gui-color.h>
@@ -78,14 +79,27 @@ namespace {
   };
 
   /// Commands the editor can actually carry out today. Everything else is
-  /// listed but disabled — see `editor-menu-command.h`.
+  /// listed but disabled — see `editor-menu-command.h`. Some of these are
+  /// gated further by `commandEnabled`: being built is necessary for a row
+  /// to be live, not sufficient.
   constexpr EditorMenuCommand IMPLEMENTED_COMMANDS[] = {
       EditorMenuCommand::NEW_PROJECT,   EditorMenuCommand::OPEN_PROJECT,
       EditorMenuCommand::CLOSE_PROJECT, EditorMenuCommand::EXIT,
+      EditorMenuCommand::UNDO,          EditorMenuCommand::REDO,
       EditorMenuCommand::RESET_VIEW,    EditorMenuCommand::ZOOM_IN,
       EditorMenuCommand::ZOOM_OUT,      EditorMenuCommand::TOGGLE_GRID,
       EditorMenuCommand::ABOUT,
   };
+
+  /// Whether @p command names work that exists at all.
+  bool isImplemented(EditorMenuCommand command) {
+    for (EditorMenuCommand implemented : IMPLEMENTED_COMMANDS) {
+      if (implemented == command) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   GuiButtonStyle titleStyle() {
     return {THEME_BG, THEME_TEXT, THEME_HOVER, 0.0f};
@@ -269,15 +283,18 @@ void EditorMenuBarWidget::rebuildItems(GuiWidgetTree& tree) {
 }
 
 bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
+  // The state-dependent rows first: each is built, and each would still do
+  // nothing if it were live right now.
   if (command == EditorMenuCommand::CLOSE_PROJECT) {
     return project_ == EditorProjectPresence::OPEN;
   }
-  for (EditorMenuCommand implemented : IMPLEMENTED_COMMANDS) {
-    if (implemented == command) {
-      return true;
-    }
+  if (command == EditorMenuCommand::UNDO) {
+    return can_undo_;
   }
-  return false;
+  if (command == EditorMenuCommand::REDO) {
+    return can_redo_;
+  }
+  return isImplemented(command);
 }
 
 void EditorMenuBarWidget::placeDropdown(GuiWidgetTree& tree, size_t index) {
@@ -408,6 +425,17 @@ void EditorMenuBarWidget::setProjectPresence(EditorProjectPresence presence) {
     return;
   }
   project_ = presence;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setHistory(const EditorActionHistory& history) {
+  const bool undo = canUndoEditorAction(history);
+  const bool redo = canRedoEditorAction(history);
+  if (undo == can_undo_ && redo == can_redo_) {
+    return;
+  }
+  can_undo_ = undo;
+  can_redo_ = redo;
   items_dirty_ = true;
 }
 

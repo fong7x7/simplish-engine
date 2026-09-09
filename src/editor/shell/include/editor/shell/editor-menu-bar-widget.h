@@ -8,6 +8,8 @@
 //   - With a menu open, moving onto another title switches to that menu
 //   - Choosing a row raises on_command and closes the menu; rows whose
 //     command is not implemented yet are drawn disabled and do nothing
+//   - Undo and Redo are enabled only while the action history has something
+//     for them to do, which the editor pushes in with setHistory()
 //   - The File menu lists recent projects, which raise on_open_recent
 //
 // Edge Cases:
@@ -32,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <editor/project/recent-projects-list.h>
+#include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-menu-command.h>
 #include <engine/gui/gui-dropdown.h>
 #include <engine/gui/gui-panel.h>
@@ -107,6 +110,13 @@ public:
   /// Enable or disable the rows that need an open project.
   void setProjectPresence(EditorProjectPresence presence);
 
+  /// Gate the Undo and Redo rows on what @p history holds.
+  ///
+  /// Takes the history rather than two flags so the bar cannot be told a
+  /// state the history is not actually in, and copies nothing out of it:
+  /// the history is unbounded and this is called after every edit.
+  void setHistory(const EditorActionHistory& history);
+
   /// Raised when a row is chosen. Never called with SEPARATOR.
   std::function<void(EditorMenuCommand)> on_command{};
 
@@ -169,6 +179,10 @@ private:
   RecentProjectsList recent_{};
   /// Whether a project is open, which gates some rows.
   EditorProjectPresence project_ = EditorProjectPresence::NONE;
+  /// Whether the history has an applied action for Undo to revert.
+  bool can_undo_ = false;
+  /// Whether the history has a reverted action for Redo to reapply.
+  bool can_redo_ = false;
   /// Set when the rows are stale and tick() must rebuild them.
   bool items_dirty_ = true;
 };

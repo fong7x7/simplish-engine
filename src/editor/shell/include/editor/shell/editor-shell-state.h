@@ -6,6 +6,7 @@
 
 #include <editor/project/project-context.h>
 #include <editor/project/recent-projects-list.h>
+#include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-placement.h>
@@ -33,6 +34,9 @@ struct EditorShellState {
   EditorAssetTree asset_tree;
   /// Assets placed in the world. In memory only — see `editor-placement.h`.
   std::vector<EditorPlacement> placements;
+  /// Every edit made to `placements` this session, and the undo cursor into
+  /// them. Cleared with the placements, since it describes them by index.
+  EditorActionHistory history;
 };
 
 }  // namespace eng::editor

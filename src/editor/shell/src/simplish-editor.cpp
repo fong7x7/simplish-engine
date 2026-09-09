@@ -2,6 +2,7 @@
 #include <cmath>
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
+#include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
@@ -323,8 +324,11 @@ void SimplishEditor::applyProjectToWidgets() {
 
 void SimplishEditor::refreshAssets() {
   // Placements index into the asset list, and a rescan renumbers it, so
-  // they go with it. Nothing is persisted yet either way.
+  // they go with it — and the history with them, since every action names a
+  // placement by an index that is about to mean something else. Nothing is
+  // persisted yet either way.
   state_.placements.clear();
+  clearEditorActions(state_.history);
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
   releaseAssetThumbnails();
@@ -335,7 +339,7 @@ void SimplishEditor::refreshAssets() {
   state_.asset_tree = buildEditorAssetTree(scan);
   state_.assets = std::move(scan.assets);
   refreshAssetPanel();
-  refreshPlacementMarkers();
+  applyEditToChrome();
 }
 
 void SimplishEditor::refreshAssetPanel() {
@@ -481,9 +485,25 @@ void SimplishEditor::dropAsset(size_t index, float x, float y) {
   }
   const IsoView view = makeIsoView(viewport->camera, viewport->rect);
   const WorldPoint world = screenToWorld(view, {x, y});
-  state_.placements.push_back(
-      {index, {std::floor(world.x), std::floor(world.y)}});
+  placeAsset(index, {std::floor(world.x), std::floor(world.y)});
+}
+
+void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
+  // Appended, so undo takes the newest placement off the end and redo puts
+  // it back at the same index.
+  performEditorAction(state_.history, state_.placements,
+                      {.kind = EditorActionKind::PLACE_ASSET,
+                       .index = state_.placements.size(),
+                       .placement = {index, position}});
+  applyEditToChrome();
+}
+
+void SimplishEditor::applyEditToChrome() {
   refreshPlacementMarkers();
+  if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
+          guiWidgetTree().findWidget(menu_bar_id_))) {
+    menu->setHistory(state_.history);
+  }
 }
 
 void SimplishEditor::refreshPlacementMarkers() {
@@ -630,8 +650,27 @@ bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
   return false;
 }
 
+bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
+  if (command == EditorMenuCommand::UNDO) {
+    if (undoEditorAction(state_.history, state_.placements)) {
+      applyEditToChrome();
+    }
+    return true;
+  }
+  if (command == EditorMenuCommand::REDO) {
+    if (redoEditorAction(state_.history, state_.placements)) {
+      applyEditToChrome();
+    }
+    return true;
+  }
+  return false;
+}
+
 void SimplishEditor::executeCommand(EditorMenuCommand command) {
   if (runProjectCommand(command)) {
+    return;
+  }
+  if (runEditCommand(command)) {
     return;
   }
   if (command == EditorMenuCommand::ABOUT) {

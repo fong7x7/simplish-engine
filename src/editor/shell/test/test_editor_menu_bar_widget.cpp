@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <engine/gui/gui-button.h>
 #include <engine/gui/gui-dropdown.h>
@@ -19,6 +20,7 @@ constexpr eng::Rect BAR_RECT{0.0f, 28.0f, 1280.0f, MENU_BAR_HEIGHT};
 
 /// Menu indices, in the order `MENU_SPECS` declares them.
 constexpr size_t FILE_MENU = 0;
+constexpr size_t EDIT_MENU = 1;
 constexpr size_t VIEW_MENU = 2;
 
 /// A tree holding a window-sized root and an initialised, laid-out menu bar.
@@ -77,6 +79,23 @@ int rowWithLabel(const eng::GuiDropdown& menu, std::string_view label) {
     }
   }
   return -1;
+}
+
+/// Whether the Edit menu row labelled @p label is live.
+bool editRowEnabled(MenuFixture& fx, std::string_view label) {
+  const eng::GuiDropdown& edit = *fx.menu(EDIT_MENU);
+  return edit.items[static_cast<size_t>(rowWithLabel(edit, label))].enabled;
+}
+
+/// A history holding one applied placement, over @p placements.
+EditorActionHistory
+historyWithOnePlacement(std::vector<EditorPlacement>& placements) {
+  EditorActionHistory history;
+  performEditorAction(history, placements,
+                      {.kind = EditorActionKind::PLACE_ASSET,
+                       .index = 0,
+                       .placement = {0, {0.0f, 0.0f}}});
+  return history;
 }
 
 }  // namespace
@@ -252,6 +271,34 @@ TEST_CASE("Close Project is disabled until a project is open") {
   fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
   fx.bar()->tick(fx.tree);
   REQUIRE(closeRow());
+}
+
+TEST_CASE("Undo is disabled until an action has been taken") {
+  MenuFixture fx;
+  REQUIRE_FALSE(editRowEnabled(fx, "Undo"));
+
+  std::vector<EditorPlacement> placements;
+  const EditorActionHistory history = historyWithOnePlacement(placements);
+  fx.bar()->setHistory(history);
+  fx.bar()->tick(fx.tree);
+
+  REQUIRE(editRowEnabled(fx, "Undo"));
+}
+
+TEST_CASE("Redo is disabled until an action has been undone") {
+  MenuFixture fx;
+  std::vector<EditorPlacement> placements;
+  EditorActionHistory history = historyWithOnePlacement(placements);
+  fx.bar()->setHistory(history);
+  fx.bar()->tick(fx.tree);
+  REQUIRE_FALSE(editRowEnabled(fx, "Redo"));
+
+  REQUIRE(undoEditorAction(history, placements));
+  fx.bar()->setHistory(history);
+  fx.bar()->tick(fx.tree);
+
+  REQUIRE(editRowEnabled(fx, "Redo"));
+  REQUIRE_FALSE(editRowEnabled(fx, "Undo"));
 }
 
 TEST_CASE("recent projects become rows in the File menu") {

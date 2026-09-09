@@ -9,6 +9,9 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
+//   - Records every placement as an action, which Edit > Undo reverts and
+//     Edit > Redo reapplies; both rows are live only when they would do
+//     something
 //   - Draws placed meshes in a depth-tested scene pass under the interface
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
@@ -22,8 +25,11 @@
 //   - No project on the command line: the editor opens with no project and
 //     the toolbar shows "No project". File > Close Project is the one
 //     project-gated command, and it is disabled until one is open
-//   - Menu commands whose subsystem does not exist yet (save, undo, redo,
-//     settings) are listed but disabled; see editor-menu-command.h
+//   - Menu commands whose subsystem does not exist yet (save, cut, copy,
+//     paste, settings) are listed but disabled; see editor-menu-command.h
+//   - A rescan renumbers the asset list, so it drops the placements and the
+//     history together: an action holding an old index would otherwise undo
+//     into the new list
 //   - openProject failure: the reason is logged and the previous project (if
 //     any) stays open
 //
@@ -103,6 +109,15 @@ private:
   /// Place the asset at @p index at a layout position, if that position is
   /// over the viewport.
   void dropAsset(size_t index, float x, float y);
+  /// Put the asset at @p index on the tile at @p position, as an action the
+  /// user can undo.
+  void placeAsset(size_t index, WorldPoint position);
+  /// Carry out the Edit menu's undo and redo. Returns false when the
+  /// command belongs to another menu.
+  bool runEditCommand(EditorMenuCommand command);
+  /// Push a document change into the chrome: the viewport's placement
+  /// markers, and whether the Edit menu's undo and redo rows are live.
+  void applyEditToChrome();
   /// Load and upload an asset's mesh if it is not on the GPU yet. False
   /// when it cannot be loaded, which is remembered rather than retried.
   bool ensureAssetMesh(size_t index);

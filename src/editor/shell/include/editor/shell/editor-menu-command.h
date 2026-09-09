@@ -11,10 +11,10 @@ namespace eng::editor {
 
 /// Every command reachable from the menu bar.
 ///
-/// Many of these name work that does not exist yet (there is no level
-/// document, so nothing to save; no command history, so nothing to undo).
-/// They are listed anyway and rendered disabled, so the menu shows the shape
-/// of the editor rather than only the parts that happen to be built.
+/// Some of these name work that does not exist yet (there is no level
+/// document, so nothing to save; no clipboard, so nothing to paste). They
+/// are listed anyway and rendered disabled, so the menu shows the shape of
+/// the editor rather than only the parts that happen to be built.
 /// @thread_safety Immutable value type.
 enum class EditorMenuCommand : uint8_t {
   /// Layout marker: draws a divider row and is never dispatched.
