@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdint>
+#include <editor/shell/editor-placement-pick.h>
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/gui/gui-color.h>
 #include <engine/gui/gui-draw-context.h>
@@ -16,6 +17,7 @@ namespace {
   constexpr GuiColor AXIS_Y{70, 180, 90, 255};
   constexpr GuiColor HOVER_FILL{0, 122, 204, 90};
   constexpr GuiColor PLACEMENT_OUTLINE{210, 170, 90, 200};
+  constexpr GuiColor SELECTION_OUTLINE{0, 170, 255, 255};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -25,6 +27,11 @@ namespace {
   constexpr int GRID_MAJOR_EVERY = 8;
 
   constexpr float LABEL_INSET = 8.0f;
+
+  /// How far the cursor may travel between press and release and still
+  /// count as a click rather than a pan. A few pixels of drift is what a
+  /// hand does on the way to letting go of a button.
+  constexpr float CLICK_SLOP = 4.0f;
 
   void emitIsoLine(GuiRendererContext& renderer, IsoPoint a, IsoPoint b,
                    uint32_t color) {
@@ -75,6 +82,44 @@ namespace {
     }
   }
 
+  /// Outline the box's footprint on the plane it rests on.
+  void renderFootprintOutline(GuiRendererContext& renderer, const IsoView& view,
+                              const PlacementBounds& bounds, uint32_t color) {
+    const float z = bounds.min.z;
+    const IsoPoint corners[] = {
+        worldToScreen(view, {bounds.min.x, bounds.min.y, z}),
+        worldToScreen(view, {bounds.max.x, bounds.min.y, z}),
+        worldToScreen(view, {bounds.max.x, bounds.max.y, z}),
+        worldToScreen(view, {bounds.min.x, bounds.max.y, z}),
+    };
+    for (size_t i = 0; i < 4; ++i) {
+      emitIsoLine(renderer, corners[i], corners[(i + 1) % 4], color);
+    }
+  }
+
+  /// Outline all twelve edges of a box.
+  ///
+  /// A box rather than a footprint for the selection: a footprint alone
+  /// says which tile is selected but not which of two props standing on
+  /// neighbouring tiles, and it says nothing at all about a placement
+  /// lifted off the ground.
+  void renderBoxOutline(GuiRendererContext& renderer, const IsoView& view,
+                        const PlacementBounds& bounds, uint32_t color) {
+    IsoPoint low[4];
+    IsoPoint high[4];
+    const float xs[] = {bounds.min.x, bounds.max.x, bounds.max.x, bounds.min.x};
+    const float ys[] = {bounds.min.y, bounds.min.y, bounds.max.y, bounds.max.y};
+    for (size_t i = 0; i < 4; ++i) {
+      low[i] = worldToScreen(view, {xs[i], ys[i], bounds.min.z});
+      high[i] = worldToScreen(view, {xs[i], ys[i], bounds.max.z});
+    }
+    for (size_t i = 0; i < 4; ++i) {
+      emitIsoLine(renderer, low[i], low[(i + 1) % 4], color);
+      emitIsoLine(renderer, high[i], high[(i + 1) % 4], color);
+      emitIsoLine(renderer, low[i], high[i], color);
+    }
+  }
+
 }  // namespace
 
 EditorViewportWidget::EditorViewportWidget() {
@@ -88,8 +133,28 @@ std::unique_ptr<GuiWidget> EditorViewportWidget::clone() const {
 
 void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
                                             const IsoView& view) const {
-  for (const WorldPoint& marker : placement_markers) {
-    renderTileOutline(renderer, view, marker, PLACEMENT_OUTLINE.pack());
+  for (const EditorPlacementMarker& marker : placement_markers) {
+    renderFootprintOutline(
+        renderer, view, marker.bounds,
+        (marker.selected ? SELECTION_OUTLINE : PLACEMENT_OUTLINE).pack());
+  }
+}
+
+bool EditorViewportWidget::hasSelectedMarker() const {
+  for (const EditorPlacementMarker& marker : placement_markers) {
+    if (marker.selected) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void EditorViewportWidget::renderSelection(GuiRendererContext& renderer,
+                                           const IsoView& view) const {
+  for (const EditorPlacementMarker& marker : placement_markers) {
+    if (marker.selected) {
+      renderBoxOutline(renderer, view, marker.bounds, SELECTION_OUTLINE.pack());
+    }
   }
 }
 
@@ -113,12 +178,22 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
   // scene is composited between them, and a clip cannot span the two.
   renderGround(renderer, view);
   renderer.markSceneSplit();
-  if (has_hover_) {
-    // Cursor feedback belongs on top, where it stays visible over geometry.
-    renderer.pushScissor(rect);
-    renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
-    renderer.popScissor();
+  const bool has_selection = hasSelectedMarker();
+  if (!has_selection && !has_hover_) {
+    return;
   }
+  // The selection box and the cursor feedback belong on top, where they
+  // stay visible over the geometry they are pointing at. The clip is opened
+  // only when there is something to put inside it, so a viewport with
+  // neither emits the same command stream it always did.
+  renderer.pushScissor(rect);
+  if (has_selection) {
+    renderSelection(renderer, view);
+  }
+  if (has_hover_) {
+    renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
+  }
+  renderer.popScissor();
 }
 
 void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
@@ -147,11 +222,29 @@ bool EditorViewportWidget::handleMouseDown(const GuiMouseEvent& event) {
   panning_ = true;
   drag_last_x_ = event.x;
   drag_last_y_ = event.y;
+  press_x_ = event.x;
+  press_y_ = event.y;
+  left_press_ = event.button == GuiMouseButton::LEFT;
   return true;
 }
 
-void EditorViewportWidget::handleMouseUp(const GuiMouseEvent& /*event*/) {
+void EditorViewportWidget::handleMouseUp(const GuiMouseEvent& event) {
   panning_ = false;
+  const bool clicked = left_press_ &&
+                       std::abs(event.x - press_x_) <= CLICK_SLOP &&
+                       std::abs(event.y - press_y_) <= CLICK_SLOP;
+  left_press_ = false;
+  if (clicked && containsPoint(rect, event.x, event.y)) {
+    pickAt(event.x, event.y);
+  }
+}
+
+void EditorViewportWidget::pickAt(float x, float y) {
+  if (!on_placement_picked) {
+    return;
+  }
+  on_placement_picked(pickPlacementMarker(makeIsoView(camera, rect),
+                                          placement_markers, {x, y}));
 }
 
 void EditorViewportWidget::handleMouseMove(const GuiMouseEvent& event) {

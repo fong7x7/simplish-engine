@@ -18,7 +18,18 @@ struct HistoryFixture {
     performEditorAction(history, placements,
                         {.kind = EditorActionKind::PLACE_ASSET,
                          .index = placements.size(),
-                         .placement = {asset, {0.0f, 0.0f}}});
+                         .placement = {asset, {0.0f, 0.0f}, {}}});
+  }
+
+  /// Move the placement at @p index, as a finished property edit does.
+  void move(size_t index, float x) {
+    EditorPlacement moved = placements[index];
+    moved.position.x = x;
+    performEditorAction(history, placements,
+                        {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
+                         .index = index,
+                         .placement = moved,
+                         .prior = placements[index]});
   }
 
   bool undo() { return undoEditorAction(history, placements); }
@@ -152,4 +163,95 @@ TEST_CASE("clearing forgets applied and reverted actions alike") {
   REQUIRE_FALSE(canUndoEditorAction(fx.history));
   REQUIRE_FALSE(canRedoEditorAction(fx.history));
   REQUIRE(fx.history.actions.empty());
+}
+
+TEST_CASE("a transform is applied when it is recorded") {
+  HistoryFixture fixture;
+  fixture.place(0);
+  fixture.move(0, 4.5f);
+  REQUIRE(fixture.placements[0].position.x == 4.5f);
+}
+
+TEST_CASE("undoing a transform puts the placement back where it was") {
+  HistoryFixture fixture;
+  fixture.place(0);
+  fixture.move(0, 4.5f);
+
+  REQUIRE(fixture.undo());
+  REQUIRE(fixture.placements[0].position.x == 0.0f);
+  // The placement itself is still there: a transform moves one, it does not
+  // add or remove one.
+  REQUIRE(fixture.placements.size() == 1);
+}
+
+TEST_CASE("redoing a transform moves the placement again") {
+  HistoryFixture fixture;
+  fixture.place(0);
+  fixture.move(0, 4.5f);
+  REQUIRE(fixture.undo());
+
+  REQUIRE(fixture.redo());
+  REQUIRE(fixture.placements[0].position.x == 4.5f);
+}
+
+TEST_CASE("a run of transforms undoes one gesture at a time") {
+  HistoryFixture fixture;
+  fixture.place(0);
+  fixture.move(0, 1.0f);
+  fixture.move(0, 2.0f);
+  fixture.move(0, 3.0f);
+
+  REQUIRE(fixture.undo());
+  REQUIRE(fixture.placements[0].position.x == 2.0f);
+  REQUIRE(fixture.undo());
+  REQUIRE(fixture.placements[0].position.x == 1.0f);
+  REQUIRE(fixture.undo());
+  REQUIRE(fixture.placements[0].position.x == 0.0f);
+}
+
+TEST_CASE("a transform names a placement that is no longer there") {
+  // The history and the document have diverged, which is a bug elsewhere.
+  // Writing past the end would be a worse answer than doing nothing.
+  std::vector<EditorPlacement> placements;
+  EditorActionHistory history;
+  performEditorAction(history, placements,
+                      {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
+                       .index = 3,
+                       .placement = {},
+                       .prior = {}});
+  REQUIRE(placements.empty());
+}
+
+TEST_CASE("undoing a placement drops a selection of it") {
+  const EditorAction placed{
+      .kind = EditorActionKind::PLACE_ASSET, .index = 2, .placement = {}};
+  REQUIRE(editorSelectionAfterUndo(placed, 2) == EDITOR_PLACEMENT_NONE);
+}
+
+TEST_CASE("undoing a placement renumbers a selection after it") {
+  const EditorAction placed{
+      .kind = EditorActionKind::PLACE_ASSET, .index = 1, .placement = {}};
+  // Everything past the removed entry slid down one, and the selection has
+  // to slide with it or it names a different placement.
+  REQUIRE(editorSelectionAfterUndo(placed, 3) == 2);
+  REQUIRE(editorSelectionAfterUndo(placed, 0) == 0);
+  REQUIRE(editorSelectionAfterUndo(placed, EDITOR_PLACEMENT_NONE) ==
+          EDITOR_PLACEMENT_NONE);
+}
+
+TEST_CASE("redoing a placement renumbers a selection at or after it") {
+  const EditorAction placed{
+      .kind = EditorActionKind::PLACE_ASSET, .index = 1, .placement = {}};
+  REQUIRE(editorSelectionAfterRedo(placed, 1) == 2);
+  REQUIRE(editorSelectionAfterRedo(placed, 0) == 0);
+}
+
+TEST_CASE("undoing or redoing a transform selects what it moved") {
+  const EditorAction moved{.kind = EditorActionKind::TRANSFORM_PLACEMENT,
+                           .index = 4,
+                           .placement = {},
+                           .prior = {}};
+  // A reverted move nobody can see is a reverted move nobody trusts.
+  REQUIRE(editorSelectionAfterUndo(moved, EDITOR_PLACEMENT_NONE) == 4);
+  REQUIRE(editorSelectionAfterRedo(moved, 1) == 4);
 }

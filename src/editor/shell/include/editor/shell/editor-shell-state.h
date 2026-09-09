@@ -10,6 +10,7 @@
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-placement.h>
+#include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
 #include <filesystem>
 #include <vector>
@@ -34,6 +35,9 @@ struct EditorShellState {
   EditorAssetTree asset_tree;
   /// Assets placed in the world. In memory only — see `editor-placement.h`.
   std::vector<EditorPlacement> placements;
+  /// Index into `placements` of the selected one, or `EDITOR_PLACEMENT_NONE`.
+  /// The properties panel edits this placement and nothing else.
+  int selection = EDITOR_PLACEMENT_NONE;
   /// Every edit made to `placements` this session, and the undo cursor into
   /// them. Cleared with the placements, since it describes them by index.
   EditorActionHistory history;

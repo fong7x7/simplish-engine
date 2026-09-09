@@ -9,6 +9,10 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
+//   - Clicking a placed asset selects it, outlines it in the viewport, and
+//     opens a properties panel down the right; the panel moves it along
+//     world X, Y and Z and turns it about all three, and clicking bare
+//     ground or pressing Escape puts the panel away again
 //   - Records every placement as an action, which Edit > Undo reverts and
 //     Edit > Redo reapplies; both rows are live only when they would do
 //     something, and both answer to Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
@@ -29,7 +33,12 @@
 //     paste, settings) are listed but disabled; see editor-menu-command.h
 //   - A rescan renumbers the asset list, so it drops the placements and the
 //     history together: an action holding an old index would otherwise undo
-//     into the new list
+//     into the new list, and the selection goes with them
+//   - Undo and redo renumber the placements, so the selection is moved with
+//     them rather than left pointing at whatever took the slot
+//   - A drag on a property scrubs a value continuously but records one
+//     history entry, taken against the placement as it was when the drag
+//     began
 //   - openProject failure: the reason is logged and the previous project (if
 //     any) stays open
 //   - Undo and redo are the one pair of keys that act on OS key-repeat, so
@@ -51,6 +60,9 @@
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-properties-widget.h>
+#include <editor/shell/editor-property-edit.h>
+#include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-shell-state.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
@@ -59,6 +71,7 @@
 #include <engine/gui/image-data.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -105,6 +118,8 @@ private:
   void initWorkArea(GuiWidgetTree& tree);
   /// Create the asset browser and wire its drops back to this editor.
   void initAssetPanel(GuiWidgetTree& tree);
+  /// Create the properties panel and wire its edits back to this editor.
+  void initPropertiesPanel(GuiWidgetTree& tree);
   /// Rescan the open project's assets, rebuild the folder tree, and
   /// refresh the panel.
   void refreshAssets();
@@ -119,6 +134,25 @@ private:
   /// Carry out the Edit menu's undo and redo. Returns false when the
   /// command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
+  /// Revert the newest action, carrying the selection with it.
+  void runUndo();
+  /// Reapply the oldest reverted action, carrying the selection with it.
+  void runRedo();
+  /// Run the selection accelerators. Returns true when @p key was one.
+  bool handleSelectionKey(uint32_t key);
+  /// Select a tool from a number key, if @p key is one of them.
+  void handleToolKey(uint32_t key);
+  /// Select the placement at @p index, or nothing for
+  /// `EDITOR_PLACEMENT_NONE`. An index past the end selects nothing.
+  void selectPlacement(int index);
+  /// Push the selection into the properties panel and the viewport.
+  void applySelectionToChrome();
+  /// Apply one property change to the selected placement, recording history
+  /// when the gesture that produced it has finished.
+  void applyPropertyEdit(EditorPropertyField field, float value,
+                         EditorPropertyEdit edit);
+  /// Record the finished property edit as one undoable action.
+  void commitPropertyEdit();
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -153,12 +187,21 @@ private:
   sceneDrawParams(const EditorViewportWidget& viewport);
   /// Rebuild `scene_instances_` from the current placements.
   void buildSceneInstances();
-  /// Push placement footprints into the viewport for its overlay.
+  /// Push placement boxes into the viewport for its overlay and picking.
   void refreshPlacementMarkers();
+  /// The viewport's marker for the placement at @p index.
+  [[nodiscard]] EditorPlacementMarker placementMarker(size_t index);
+  /// Whether anything the chrome's layout depends on has changed.
+  [[nodiscard]] bool chromeNeedsLayout();
   /// The viewport widget, or nullptr before the chrome exists.
   [[nodiscard]] EditorViewportWidget* viewportWidget();
   /// The asset browser, or nullptr before the chrome exists.
   [[nodiscard]] EditorAssetBrowserWidget* assetBrowserWidget();
+  /// The properties panel, or nullptr before the chrome exists.
+  [[nodiscard]] EditorPropertiesWidget* propertiesWidget();
+  /// Width the properties panel wants, which is nothing without a
+  /// selection.
+  [[nodiscard]] float propertiesPanelWidth();
   /// Height the asset browser wants, which shrinks when it is folded away.
   [[nodiscard]] float assetBrowserHeight();
   /// Position the chrome for the current window size.
@@ -226,6 +269,8 @@ private:
   GuiWidgetId viewport_id_ = GUI_WIDGET_ID_INVALID;
   /// Asset panel widget id in the tree (owned by the tree).
   GuiWidgetId asset_panel_id_ = GUI_WIDGET_ID_INVALID;
+  /// Properties panel widget id in the tree (owned by the tree).
+  GuiWidgetId properties_panel_id_ = GUI_WIDGET_ID_INVALID;
   /// Mesh pipeline, uploaded meshes, and the scene depth target.
   MeshRenderer mesh_renderer_{};
   /// Instances rebuilt each frame from the placements. Kept as a member so
@@ -246,6 +291,14 @@ private:
   /// Asset browser height the chrome was laid out for. Folding the browser
   /// changes it, and the viewport above has to be given the difference.
   float laid_out_panel_height_ = ASSET_PANEL_HEIGHT;
+  /// Properties panel width the chrome was laid out for. Selecting or
+  /// deselecting changes it, and the viewport beside it takes the
+  /// difference.
+  float laid_out_properties_width_ = 0.0f;
+  /// The selected placement as it was before the running property gesture,
+  /// or nothing when no edit is in flight. This is the half of a transform
+  /// action that undo restores.
+  std::optional<EditorPlacement> edit_prior_{};
 };
 
 }  // namespace eng::editor

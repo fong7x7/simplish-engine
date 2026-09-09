@@ -7,9 +7,11 @@
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
+#include <engine/client/desktop-platform-keycode.h>
 #include <engine/core/logger.h>
 #include <engine/gui/gui-label.h>
 #include <engine/gui/gui-panel.h>
@@ -61,6 +63,25 @@ namespace {
     }
     return status;
   }
+
+  /// Whether two placements sit and face exactly the same way.
+  ///
+  /// A gesture that ended where it began is not an edit, and an undo entry
+  /// that changes nothing is worse than no entry at all. Exact comparison
+  /// is right here: the values come from the same arithmetic on both sides,
+  /// and a tolerance would swallow the smallest nudge the panel can make.
+  bool sameTransform(const EditorPlacement& a, const EditorPlacement& b) {
+    return a.position.x == b.position.x && a.position.y == b.position.y &&
+           a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
+           a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z;
+  }
+
+  /// Stands in for an asset a placement names but the list no longer has.
+  ///
+  /// A reference to this rather than a copy of the real one: markers are
+  /// rebuilt on every frame of a property drag, and an EditorAsset carries
+  /// two paths and a name.
+  const EditorAsset UNKNOWN_ASSET{};
 
   /// Card pictures made per frame.
   ///
@@ -201,6 +222,16 @@ void SimplishEditor::initAssetPanel(GuiWidgetTree& tree) {
   asset_panel_id_ = tree.insertExternalWidget(std::move(panel), root_panel_);
 }
 
+void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
+  auto panel = std::make_unique<EditorPropertiesWidget>();
+  panel->on_property_changed = [this](EditorPropertyField field, float value,
+                                      EditorPropertyEdit edit) {
+    applyPropertyEdit(field, value, edit);
+  };
+  properties_panel_id_ =
+      tree.insertExternalWidget(std::move(panel), root_panel_);
+}
+
 void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   auto toolbar = std::make_unique<EditorToolbarWidget>();
   toolbar->on_tool_selected = [this](EditorTool tool) {
@@ -211,8 +242,12 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
           dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
     bar->init(tree);
   }
-  viewport_id_ = tree.insertExternalWidget(
-      std::make_unique<EditorViewportWidget>(), root_panel_);
+  auto viewport = std::make_unique<EditorViewportWidget>();
+  viewport->on_placement_picked = [this](int index) {
+    selectPlacement(index);
+  };
+  viewport_id_ = tree.insertExternalWidget(std::move(viewport), root_panel_);
+  initPropertiesPanel(tree);
   initAssetPanel(tree);
 }
 
@@ -224,6 +259,16 @@ EditorViewportWidget* SimplishEditor::viewportWidget() {
 EditorAssetBrowserWidget* SimplishEditor::assetBrowserWidget() {
   return dynamic_cast<EditorAssetBrowserWidget*>(
       guiWidgetTree().findWidget(asset_panel_id_));
+}
+
+EditorPropertiesWidget* SimplishEditor::propertiesWidget() {
+  return dynamic_cast<EditorPropertiesWidget*>(
+      guiWidgetTree().findWidget(properties_panel_id_));
+}
+
+float SimplishEditor::propertiesPanelWidth() {
+  const EditorPropertiesWidget* panel = propertiesWidget();
+  return panel != nullptr ? panel->preferredWidth() : 0.0f;
 }
 
 float SimplishEditor::assetBrowserHeight() {
@@ -245,6 +290,7 @@ void SimplishEditor::layoutChrome() {
   laid_out_width_ = guiLayoutWidth();
   laid_out_height_ = guiLayoutHeight();
   laid_out_panel_height_ = assetBrowserHeight();
+  laid_out_properties_width_ = propertiesPanelWidth();
 }
 
 void SimplishEditor::layoutTitleBar(GuiWidgetTree& tree, const Rect& window) {
@@ -278,8 +324,15 @@ void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
   // which may be nothing at all on a very short window. Folding the browser
   // hands most of that back.
   const float panel_top = std::max(top, window.h - assetBrowserHeight());
+  // The properties panel takes the right of what is left, and only while
+  // something is selected; the viewport gets the rest.
+  const float properties_w = std::min(propertiesPanelWidth(), window.w);
+  const float viewport_w = window.w - properties_w;
   if (auto* viewport = tree.findWidget(viewport_id_)) {
-    viewport->rect = makeRect(0.0f, top, window.w, panel_top - top);
+    viewport->rect = makeRect(0.0f, top, viewport_w, panel_top - top);
+  }
+  if (auto* panel = tree.findWidget(properties_panel_id_)) {
+    panel->rect = makeRect(viewport_w, top, properties_w, panel_top - top);
   }
   if (auto* panel = tree.findWidget(asset_panel_id_)) {
     panel->rect = makeRect(0.0f, panel_top, window.w, window.h - panel_top);
@@ -328,6 +381,8 @@ void SimplishEditor::refreshAssets() {
   // placement by an index that is about to mean something else. Nothing is
   // persisted yet either way.
   state_.placements.clear();
+  state_.selection = EDITOR_PLACEMENT_NONE;
+  edit_prior_.reset();
   clearEditorActions(state_.history);
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
@@ -491,19 +546,105 @@ void SimplishEditor::dropAsset(size_t index, float x, float y) {
 void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
   // Appended, so undo takes the newest placement off the end and redo puts
   // it back at the same index.
+  const auto placed = static_cast<int>(state_.placements.size());
   performEditorAction(state_.history, state_.placements,
                       {.kind = EditorActionKind::PLACE_ASSET,
                        .index = state_.placements.size(),
-                       .placement = {index, position}});
+                       .placement = {index, position, {}}});
+  // Selecting what was just dropped opens the panel on it, which is what
+  // somebody who wants it a quarter-tile to the left is about to reach for.
+  state_.selection = placed;
+  edit_prior_.reset();
+  applyEditToChrome();
+}
+
+void SimplishEditor::selectPlacement(int index) {
+  const auto count = static_cast<int>(state_.placements.size());
+  state_.selection =
+      (index >= 0 && index < count) ? index : EDITOR_PLACEMENT_NONE;
+  // A selection change ends any edit the panel had in flight; the next one
+  // starts from whatever is selected now.
+  edit_prior_.reset();
+  applySelectionToChrome();
+}
+
+void SimplishEditor::applySelectionToChrome() {
+  auto* panel = propertiesWidget();
+  if (panel == nullptr) {
+    return;
+  }
+  const auto count = static_cast<int>(state_.placements.size());
+  if (state_.selection < 0 || state_.selection >= count) {
+    panel->clearSelection();
+  } else {
+    const EditorPlacement& placement =
+        state_.placements[static_cast<size_t>(state_.selection)];
+    const std::string name = placement.asset < state_.assets.size()
+                                 ? state_.assets[placement.asset].name
+                                 : std::string{};
+    panel->setSelection(name, placement);
+  }
+  refreshPlacementMarkers();
+}
+
+void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
+                                       EditorPropertyEdit edit) {
+  const auto count = static_cast<int>(state_.placements.size());
+  if (state_.selection < 0 || state_.selection >= count) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.placements[static_cast<size_t>(state_.selection)];
+  // The first change of a gesture is what the eventual undo restores, so
+  // the placement is copied before it is written to.
+  if (!edit_prior_.has_value()) {
+    edit_prior_ = placement;
+  }
+  setEditorPropertyValue(placement, field, value);
+  if (edit == EditorPropertyEdit::COMMIT) {
+    commitPropertyEdit();
+  }
+  refreshPlacementMarkers();
+}
+
+void SimplishEditor::commitPropertyEdit() {
+  if (!edit_prior_.has_value()) {
+    return;
+  }
+  const EditorPlacement prior = *edit_prior_;
+  edit_prior_.reset();
+  const EditorPlacement& placement =
+      state_.placements[static_cast<size_t>(state_.selection)];
+  if (sameTransform(prior, placement)) {
+    return;
+  }
+  // The placement already holds the new value, so the action is recorded
+  // against it rather than applied over it.
+  performEditorAction(state_.history, state_.placements,
+                      {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
+                       .index = static_cast<size_t>(state_.selection),
+                       .placement = placement,
+                       .prior = prior});
   applyEditToChrome();
 }
 
 void SimplishEditor::applyEditToChrome() {
-  refreshPlacementMarkers();
+  applySelectionToChrome();
   if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
           guiWidgetTree().findWidget(menu_bar_id_))) {
     menu->setHistory(state_.history);
   }
+}
+
+EditorPlacementMarker SimplishEditor::placementMarker(size_t index) {
+  const EditorPlacement& placement = state_.placements[index];
+  // An asset the list no longer has is measured as an empty one, which
+  // reports the unit box on its tile rather than nothing at all.
+  const EditorAsset& asset = placement.asset < state_.assets.size()
+                                 ? state_.assets[placement.asset]
+                                 : UNKNOWN_ASSET;
+  return {placementWorldBounds(asset, placement),
+          static_cast<int>(index) == state_.selection};
 }
 
 void SimplishEditor::refreshPlacementMarkers() {
@@ -513,8 +654,8 @@ void SimplishEditor::refreshPlacementMarkers() {
   }
   viewport->placement_markers.clear();
   viewport->placement_markers.reserve(state_.placements.size());
-  for (const auto& placement : state_.placements) {
-    viewport->placement_markers.push_back(placement.position);
+  for (size_t i = 0; i < state_.placements.size(); ++i) {
+    viewport->placement_markers.push_back(placementMarker(i));
   }
 }
 
@@ -529,7 +670,7 @@ void SimplishEditor::buildSceneInstances() {
       continue;
     }
     scene_instances_.push_back(
-        {asset.mesh, makePlacementTransform(asset, placement.position)});
+        {asset.mesh, makePlacementTransform(asset, placement)});
   }
 }
 
@@ -601,12 +742,19 @@ void SimplishEditor::refreshToolbar() {
   bar->tick(tree);
 }
 
+bool SimplishEditor::chromeNeedsLayout() {
+  // Only when something the layout depends on actually changed; the chrome
+  // is placed manually, so an unconditional pass would be wasted work. The
+  // two panels are in here because folding one, or selecting a placement,
+  // changes how much room the viewport beside it gets.
+  return guiLayoutWidth() != laid_out_width_ ||
+         guiLayoutHeight() != laid_out_height_ ||
+         assetBrowserHeight() != laid_out_panel_height_ ||
+         propertiesPanelWidth() != laid_out_properties_width_;
+}
+
 bool SimplishEditor::onTick(float dt) {
-  // Re-layout only when the window actually changed size; the chrome is
-  // placed manually, so an unconditional pass would be wasted work.
-  if (guiLayoutWidth() != laid_out_width_ ||
-      guiLayoutHeight() != laid_out_height_ ||
-      assetBrowserHeight() != laid_out_panel_height_) {
+  if (chromeNeedsLayout()) {
     layoutChrome();
   }
   if (status_override_left_ > 0.0f) {
@@ -650,17 +798,38 @@ bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
   return false;
 }
 
+void SimplishEditor::runUndo() {
+  if (!canUndoEditorAction(state_.history)) {
+    return;
+  }
+  // Read before the cursor moves: this is the action about to be undone,
+  // and it is what says where the selection lands.
+  const EditorAction action =
+      state_.history.actions[state_.history.applied - 1];
+  if (undoEditorAction(state_.history, state_.placements)) {
+    selectPlacement(editorSelectionAfterUndo(action, state_.selection));
+    applyEditToChrome();
+  }
+}
+
+void SimplishEditor::runRedo() {
+  if (!canRedoEditorAction(state_.history)) {
+    return;
+  }
+  const EditorAction action = state_.history.actions[state_.history.applied];
+  if (redoEditorAction(state_.history, state_.placements)) {
+    selectPlacement(editorSelectionAfterRedo(action, state_.selection));
+    applyEditToChrome();
+  }
+}
+
 bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
   if (command == EditorMenuCommand::UNDO) {
-    if (undoEditorAction(state_.history, state_.placements)) {
-      applyEditToChrome();
-    }
+    runUndo();
     return true;
   }
   if (command == EditorMenuCommand::REDO) {
-    if (redoEditorAction(state_.history, state_.placements)) {
-      applyEditToChrome();
-    }
+    runRedo();
     return true;
   }
   return false;
@@ -778,6 +947,16 @@ bool SimplishEditor::handleEditKey(uint32_t key, ClientKeyModifiers modifiers) {
   return true;
 }
 
+bool SimplishEditor::handleSelectionKey(uint32_t key) {
+  // Escape drops the selection, which is also what puts the properties
+  // panel away and gives the viewport its width back.
+  if (key != eng::client::DesktopPlatformKeycode::ESCAPE) {
+    return false;
+  }
+  selectPlacement(EDITOR_PLACEMENT_NONE);
+  return true;
+}
+
 void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
                                      ClientKeyModifiers modifiers) {
   // Before the repeat guard: holding the accelerator to walk back through a
@@ -789,9 +968,16 @@ void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
   if (kind == ClientKeyDownKind::REPEAT) {
     return;
   }
+  if (handleSelectionKey(key)) {
+    return;
+  }
   if (handleViewKey(key)) {
     return;
   }
+  handleToolKey(key);
+}
+
+void SimplishEditor::handleToolKey(uint32_t key) {
   // Number keys select tools, matching the toolbar's left-to-right order.
   constexpr uint32_t KEY_1 = '1';
   const auto count = static_cast<uint32_t>(std::size(EDITOR_TOOLS));
@@ -828,6 +1014,7 @@ void SimplishEditor::shutdownChrome() {
 void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   // The root goes last: destroying it takes every descendant with it.
   tree.destroyWidget(asset_panel_id_);
+  tree.destroyWidget(properties_panel_id_);
   tree.destroyWidget(menu_bar_id_);
   tree.destroyWidget(toolbar_id_);
   tree.destroyWidget(viewport_id_);
@@ -840,6 +1027,7 @@ void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   title_label_ = GUI_WIDGET_ID_INVALID;
   root_panel_ = GUI_WIDGET_ID_INVALID;
   asset_panel_id_ = GUI_WIDGET_ID_INVALID;
+  properties_panel_id_ = GUI_WIDGET_ID_INVALID;
 }
 
 }  // namespace eng::editor

@@ -69,11 +69,18 @@ struct CubeScene {
   std::vector<MeshRasterScene::Draw> draws;
   ImageData image;
 
+  /// A placement of the asset on one tile.
+  static EditorPlacement onTile(const WorldPoint& tile) {
+    EditorPlacement placement;
+    placement.position = tile;
+    return placement;
+  }
+
   /// Place one cube per tile and render.
   void render(std::span<const WorldPoint> tiles) {
     draws.clear();
     for (const WorldPoint& tile : tiles) {
-      draws.push_back({&mesh, makePlacementTransform(asset, tile)});
+      draws.push_back({&mesh, makePlacementTransform(asset, onTile(tile))});
     }
     IsoCamera camera;
     camera.focus = worldToIso({1.5f, 1.5f});

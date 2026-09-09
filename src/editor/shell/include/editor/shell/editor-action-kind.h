@@ -19,6 +19,8 @@ namespace eng::editor {
 enum class EditorActionKind : uint8_t {
   /// An asset was placed in the world.
   PLACE_ASSET,
+  /// A placement's transform was changed — moved, turned, or both.
+  TRANSFORM_PLACEMENT,
 };
 
 }  // namespace eng::editor

@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <editor/shell/iso-projection.h>
+#include <engine/math/vec3.h>
 
 namespace eng::editor {
 
@@ -21,6 +22,14 @@ struct EditorPlacement {
   size_t asset = 0;
   /// World position of the placement's base.
   WorldPoint position{};
+  /// Rotation about the placement's own origin, in degrees.
+  ///
+  /// Euler angles rather than a quaternion: this is what the properties
+  /// panel shows and what a designer types, and the level format will
+  /// serialise the same three numbers. The conversion to a matrix is one
+  /// place (`makePlacementTransform`), which is where the axis order is
+  /// defined.
+  Vec3 rotation{};
 };
 
 }  // namespace eng::editor

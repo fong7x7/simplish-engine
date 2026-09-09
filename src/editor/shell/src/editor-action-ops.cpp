@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-selection.h>
 #include <iterator>
 
 namespace eng::editor {
@@ -30,12 +31,26 @@ namespace {
     placements.erase(at(placements, action.index));
   }
 
+  /// Write a placement an action names, if it is still there. A missing
+  /// index means the history and the document have diverged, which is a
+  /// bug elsewhere — the write is dropped rather than growing the list.
+  void writePlacement(size_t index, const EditorPlacement& placement,
+                      std::vector<EditorPlacement>& placements) {
+    if (index >= placements.size()) {
+      return;
+    }
+    placements[index] = placement;
+  }
+
   /// Do what @p action describes.
   void applyOne(const EditorAction& action,
                 std::vector<EditorPlacement>& placements) {
     switch (action.kind) {
       case EditorActionKind::PLACE_ASSET:
         insertPlacement(action, placements);
+        break;
+      case EditorActionKind::TRANSFORM_PLACEMENT:
+        writePlacement(action.index, action.placement, placements);
         break;
     }
   }
@@ -48,7 +63,25 @@ namespace {
       case EditorActionKind::PLACE_ASSET:
         erasePlacement(action, placements);
         break;
+      case EditorActionKind::TRANSFORM_PLACEMENT:
+        writePlacement(action.index, action.prior, placements);
+        break;
     }
+  }
+
+  /// Where a selection lands once the entry at @p index is removed.
+  int selectionAfterErase(size_t index, int selection) {
+    const auto erased = static_cast<int>(index);
+    if (selection == erased) {
+      return EDITOR_PLACEMENT_NONE;
+    }
+    return selection > erased ? selection - 1 : selection;
+  }
+
+  /// Where a selection lands once an entry is inserted at @p index.
+  int selectionAfterInsert(size_t index, int selection) {
+    const auto inserted = static_cast<int>(index);
+    return selection >= inserted ? selection + 1 : selection;
   }
 
 }  // namespace
@@ -88,6 +121,29 @@ bool redoEditorAction(EditorActionHistory& history,
   applyOne(history.actions[history.applied], placements);
   ++history.applied;
   return true;
+}
+
+int editorSelectionAfterUndo(const EditorAction& action, int selection) {
+  switch (action.kind) {
+    case EditorActionKind::PLACE_ASSET:
+      // The placement is gone; anything numbered after it moved down one.
+      return selectionAfterErase(action.index, selection);
+    case EditorActionKind::TRANSFORM_PLACEMENT:
+      // Show what just moved back, so a reverted edit is visible rather
+      // than something the viewer has to go looking for.
+      return static_cast<int>(action.index);
+  }
+  return selection;
+}
+
+int editorSelectionAfterRedo(const EditorAction& action, int selection) {
+  switch (action.kind) {
+    case EditorActionKind::PLACE_ASSET:
+      return selectionAfterInsert(action.index, selection);
+    case EditorActionKind::TRANSFORM_PLACEMENT:
+      return static_cast<int>(action.index);
+  }
+  return selection;
 }
 
 void clearEditorActions(EditorActionHistory& history) {

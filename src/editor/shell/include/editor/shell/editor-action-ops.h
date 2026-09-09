@@ -6,6 +6,7 @@
 
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-placement.h>
+#include <editor/shell/editor-selection.h>
 #include <vector>
 
 namespace eng::editor {
@@ -33,6 +34,19 @@ bool undoEditorAction(EditorActionHistory& history,
 /// Reapply the oldest reverted action. False when there is none.
 bool redoEditorAction(EditorActionHistory& history,
                       std::vector<EditorPlacement>& placements);
+
+/// Where the selection lands after @p action is undone.
+///
+/// Selection is not itself undoable — nobody expects Ctrl+Z to give them
+/// back a highlight — but it names a placement by index, and an undo that
+/// removes or reinserts one renumbers the list under it. Left alone, the
+/// panel would show the properties of whatever slid into that slot.
+[[nodiscard]] int editorSelectionAfterUndo(const EditorAction& action,
+                                           int selection);
+
+/// Where the selection lands after @p action is redone.
+[[nodiscard]] int editorSelectionAfterRedo(const EditorAction& action,
+                                           int selection);
 
 /// Forget every action, applied or not.
 ///

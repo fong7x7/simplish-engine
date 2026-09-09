@@ -124,7 +124,7 @@ Package boundaries are where the dependency rules in §5 are enforced: `src/engi
 |---|---|---|
 | Engine | `math`, `core`, `image`, `render`, `gui`, `client` | Math, allocators, logging, event bus, engine init, expression evaluator, plugin host, audit system; the abstract RHI interface (29 headers); a retained-mode GUI with layout, widgets, docking, theming, FreeType text, and a markdown renderer; `GameClient` / `RenderedGameClient` |
 | Platform | `render` (+ 5 backends), `client`, `distributor` | `RhiDeviceFactory`; Metal, Vulkan, DX12, OpenGL, and stub backends, one compiled in per binary; the SDL3 `DesktopGameClient`. Distributor packages are stubs, not yet wired into the build |
-| Editor | `project`, `shell` | Project open and create against `.simplish/project.json` through a native dialog, a recent-projects list, and the editor shell: title bar, menu bar with dropdown menus, tool toolbar, a pan-and-zoom dimetric viewport, and an asset strip whose models drag into the world as depth-tested 3D meshes |
+| Editor | `project`, `shell` | Project open and create against `.simplish/project.json` through a native dialog, a recent-projects list, and the editor shell: title bar, menu bar with dropdown menus, tool toolbar, a pan-and-zoom dimetric viewport, an asset strip whose models drag into the world as depth-tested 3D meshes, and click-to-select with a properties panel that moves and turns what is selected |
 
 ```bash
 cmake --preset debug && cmake --build --preset debug && ctest --preset debug

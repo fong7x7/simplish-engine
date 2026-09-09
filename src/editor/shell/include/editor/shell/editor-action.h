@@ -22,10 +22,17 @@ namespace eng::editor {
 struct EditorAction {
   /// Which operation this record describes.
   EditorActionKind kind = EditorActionKind::PLACE_ASSET;
-  /// Where in the placement list the operation added or removed an entry.
+  /// Which entry of the placement list the operation added, removed, or
+  /// changed.
   size_t index = 0;
-  /// The placement added or removed, kept so redo restores it exactly.
+  /// The placement as the operation left it: what was added, or what a
+  /// transform changed it to. Kept so redo restores it exactly.
   EditorPlacement placement{};
+  /// The placement as it was before a transform, and unused by every other
+  /// kind. An edit that replaces a value cannot be inverted from the value
+  /// alone, so the record carries both halves rather than making undo
+  /// reconstruct one.
+  EditorPlacement prior{};
 };
 
 }  // namespace eng::editor
