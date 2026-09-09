@@ -148,6 +148,14 @@ bool touchProjectOpened(ProjectContext& context, std::string_view timestamp) {
                    serializeProjectMetadata(context.metadata));
 }
 
+bool saveProjectMetadata(const ProjectContext& context) {
+  if (!context.loaded) {
+    return false;
+  }
+  return writeFile(projectFilePath(context.root),
+                   serializeProjectMetadata(context.metadata));
+}
+
 RecentProjectsList loadRecentProjects(const std::filesystem::path& path) {
   auto contents = readFile(path);
   if (!contents) {

@@ -40,12 +40,26 @@ static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
 /// never dispatches, and giving it a name would let `run_command` ask for
 /// something that does not exist.
 inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
-    "",         "new_project", "open_project",
-    "save",     "save_as",     "close_project",
-    "exit",     "undo",        "redo",
-    "cut",      "copy",        "paste",
-    "settings", "reset_view",  "zoom_in",
-    "zoom_out", "toggle_grid", "about",
+    "",
+    "new_project",
+    "open_project",
+    "save",
+    "save_as",
+    "close_project",
+    "exit",
+    "undo",
+    "redo",
+    "cut",
+    "copy",
+    "paste",
+    "settings",
+    "reset_view",
+    "zoom_in",
+    "zoom_out",
+    "toggle_grid",
+    "set_view_dimetric",
+    "set_view_isometric",
+    "about",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==

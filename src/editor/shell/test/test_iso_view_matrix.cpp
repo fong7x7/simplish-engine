@@ -83,12 +83,13 @@ TEST_CASE("a taller point is nearer in depth") {
 
 TEST_CASE("points along the projection ray order by depth") {
   const eng::Mat4 mvp = makeIsoViewProjection(viewAt(1.0f, {}), TARGET);
-  // Points collapse to one pixel along (0, RISE, DEPTH) = (0, 64, 48):
-  // four tiles toward the viewer for every three tiles up. Two points on
+  // Points collapse to one pixel along `isoProjectionRay`. Two points on
   // that ray must land on the same pixel and differ only in depth, or the
-  // depth buffer cannot tell them apart.
+  // depth buffer cannot tell them apart. Derived rather than written out:
+  // the ray is a property of the projection, not a constant.
+  const WorldPoint ray = isoProjectionRay(ISO_AXES_DIMETRIC);
   const WorldPoint near_point{2.0f, 5.0f, 0.0f};
-  const WorldPoint far_point{2.0f, 5.0f - 4.0f / 3.0f, -1.0f};
+  const WorldPoint far_point{2.0f, 5.0f - ray.y / ray.z, -1.0f};
 
   const IsoPoint a = matrixToScreen(mvp, near_point);
   const IsoPoint b = matrixToScreen(mvp, far_point);

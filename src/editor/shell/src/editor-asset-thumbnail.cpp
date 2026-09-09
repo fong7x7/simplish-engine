@@ -29,9 +29,8 @@ namespace {
   /// Where a world point lands on the isometric plane, before zoom. This is
   /// `makeIsoViewProjection`'s own mapping with the zoom and the viewport
   /// centre left out, which is what makes it usable for measuring.
-  IsoPoint projectToIsoPlane(const Vec3& world) {
-    return {world.x * ISO_TILE_WIDTH,
-            world.y * ISO_TILE_DEPTH - world.z * ISO_TILE_RISE};
+  IsoPoint projectToIsoPlane(const IsoAxes& axes, const Vec3& world) {
+    return worldToIso(axes, {world.x, world.y, world.z});
   }
 
   /// One corner of an axis-aligned box, chosen by the low bits of @p corner.
@@ -46,11 +45,12 @@ namespace {
   /// The corners, not the min and max points themselves: the projection
   /// mixes Y and Z into one screen axis, so the box's own extremes are not
   /// the extremes of its picture.
-  ProjectedBounds projectBounds(const Vec3& min, const Vec3& max) {
-    const IsoPoint first = projectToIsoPlane(boxCorner(min, max, 0));
+  ProjectedBounds projectBounds(const IsoAxes& axes, const Vec3& min,
+                                const Vec3& max) {
+    const IsoPoint first = projectToIsoPlane(axes, boxCorner(min, max, 0));
     ProjectedBounds out{first, first};
     for (int corner = 1; corner < 8; ++corner) {
-      const IsoPoint p = projectToIsoPlane(boxCorner(min, max, corner));
+      const IsoPoint p = projectToIsoPlane(axes, boxCorner(min, max, corner));
       out.min.x = std::min(out.min.x, p.x);
       out.min.y = std::min(out.min.y, p.y);
       out.max.x = std::max(out.max.x, p.x);
@@ -60,7 +60,8 @@ namespace {
   }
 
   /// The view that centres @p bounds in the frame and fills it.
-  IsoView fitView(const ProjectedBounds& bounds, uint32_t size) {
+  IsoView fitView(const IsoAxes& axes, const ProjectedBounds& bounds,
+                  uint32_t size) {
     const float span_x = std::max(bounds.max.x - bounds.min.x, MIN_SPAN);
     const float span_y = std::max(bounds.max.y - bounds.min.y, MIN_SPAN);
     const float frame = static_cast<float>(size) * ASSET_THUMBNAIL_FILL;
@@ -69,17 +70,19 @@ namespace {
     const float zoom = std::min(frame / span_x, frame / span_y);
     const IsoPoint focus{(bounds.min.x + bounds.max.x) * 0.5f,
                          (bounds.min.y + bounds.max.y) * 0.5f};
-    return {frameRect(size), focus, zoom};
+    return {frameRect(size), focus, zoom, axes};
   }
 
 }  // namespace
 
-ImageData renderAssetThumbnail(const MeshData& mesh, uint32_t size) {
+ImageData renderAssetThumbnail(const MeshData& mesh, uint32_t size,
+                               const IsoAxes& axes) {
   if (mesh.indices.empty() || size == 0) {
     return {};
   }
   const auto side = static_cast<float>(size);
-  const IsoView view = fitView(projectBounds(mesh.min, mesh.max), size);
+  const IsoView view =
+      fitView(axes, projectBounds(axes, mesh.min, mesh.max), size);
   const MeshRasterScene::Draw draw{&mesh, Mat4::identity()};
   MeshRasterScene scene;
   scene.view_projection =

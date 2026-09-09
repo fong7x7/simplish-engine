@@ -138,6 +138,29 @@ TEST_CASE("touchProjectOpened stamps last_opened_at and persists it") {
   REQUIRE(reopened.context.metadata.last_opened_at == STAMP);
 }
 
+TEST_CASE("saveProjectMetadata persists a changed projection") {
+  TempDir tmp("projection");
+  const fs::path root = tmp.path() / "p";
+  REQUIRE(createProject(root, "P", STAMP).ok());
+
+  auto opened = openProject(root);
+  REQUIRE(opened.ok());
+  // A new project starts dimetric, which is what every project written
+  // before the setting existed reads as.
+  REQUIRE(opened.context.metadata.projection == ProjectProjection::DIMETRIC);
+  opened.context.metadata.projection = ProjectProjection::ISOMETRIC;
+  REQUIRE(saveProjectMetadata(opened.context));
+
+  auto reopened = openProject(root);
+  REQUIRE(reopened.ok());
+  REQUIRE(reopened.context.metadata.projection == ProjectProjection::ISOMETRIC);
+}
+
+TEST_CASE("saveProjectMetadata is a no-op with no project loaded") {
+  ProjectContext empty;
+  REQUIRE_FALSE(saveProjectMetadata(empty));
+}
+
 TEST_CASE("touchProjectOpened is a no-op with no project loaded") {
   ProjectContext empty;
   REQUIRE_FALSE(touchProjectOpened(empty, STAMP));

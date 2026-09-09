@@ -86,8 +86,9 @@ puzzled over.
 
 | Capability | In the editor | Agent | Notes |
 |---|---|---|---|
-| Read the camera, zoom, grid, and hovered tile | ✅ | `get_state` | Mirrored into shell state once a tick — `editor-view-state.h` |
-| Reset the view, zoom, toggle the grid | ✅ | `run_command` | |
+| Read the camera, zoom, grid, projection, and hovered tile | ✅ | `get_state` | Mirrored into shell state once a tick — `editor-view-state.h`; `camera.projection` names the projection |
+| Reset the view, zoom, toggle the grid | ✅ | `run_command` | Reset keeps the projection: that is the project's setting, not the camera's position |
+| Switch between the dimetric and isometric projections | ✅ | `run_command` (`set_view_dimetric`, `set_view_isometric`) | Writes the choice into `project.json`; refused with no project open |
 | Pan and zoom by dragging | ✅ | — gesture only | An agent uses the camera commands |
 | Choose the active tool | ✅ | `set_tool`, `get_state` | Only Select does anything today |
 | Read every menu command and its state | ✅ | `list_commands` | Says which are built and which would work right now |

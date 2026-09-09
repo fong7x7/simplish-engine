@@ -5,6 +5,7 @@
 /// @par Threading Thread-safe (pure function over the mesh it is given).
 
 #include <cstdint>
+#include <editor/shell/iso-projection.h>
 #include <editor/shell/mesh-rasterizer.h>
 #include <engine/gui/image-data.h>
 #include <engine/render-mesh/mesh-data.h>
@@ -23,16 +24,17 @@ inline constexpr float ASSET_THUMBNAIL_FILL = 0.82f;
 
 /// Render @p mesh into a square thumbnail @p size pixels on a side.
 ///
-/// The camera is the editor's own: the same dimetric projection, the same
-/// shading, so a card shows the model at the angle the viewport will show
-/// it at once it is placed. What differs is the framing — the model is
+/// The camera is the editor's own: @p axes are the viewport's, and the
+/// shading is the viewport's, so a card shows the model at the angle it
+/// will be seen at once it is placed — including after the project switches
+/// projection. What differs is the framing — the model is
 /// centred and fitted to the frame rather than standing on a world tile,
 /// since a thumbnail is for recognising an asset, not for placing it.
 ///
 /// A mesh with no triangles, or a zero size, yields an empty image rather
 /// than a blank one: there is a difference between "nothing to draw" and
 /// "drew nothing", and the caller wants to tell them apart.
-[[nodiscard]] ImageData renderAssetThumbnail(const MeshData& mesh,
-                                             uint32_t size);
+[[nodiscard]] ImageData
+renderAssetThumbnail(const MeshData& mesh, uint32_t size, const IsoAxes& axes);
 
 }  // namespace eng::editor

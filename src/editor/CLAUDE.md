@@ -22,14 +22,30 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 
 ## Fixed decisions — do not re-derive these
 
-- **The projection is 4:3 dimetric with zero yaw**, not 45° isometric: tiles
-  are axis-aligned, 64 px wide, foreshortened to 48 px deep, with an
-  unforeshortened height axis (`ISO_TILE_WIDTH` / `_DEPTH` / `_RISE` in
-  [iso-projection.h](shell/include/editor/shell/iso-projection.h)). Sprites are
-  authored against these constants — they are constants, not settings. Closed
-  as Open Question 1 on 2026-08-26; see the
-  [ADR-003 amendment](../../docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-08-26-straight-on-projection).
-- **The camera never rotates.** Code may depend on that (design principle 4).
+- **The projection is a project's setting, and there are exactly two of
+  them** — 4:3 dimetric with zero yaw (the default, 64×48 axis-aligned tiles)
+  and 2:1 isometric (64×32 diamonds). Both are held as an `IsoAxes` in
+  [iso-axes.h](shell/include/editor/shell/iso-axes.h); which one a project
+  uses is a `ProjectProjection` in its `project.json`. Nothing may reintroduce
+  a compile-time constant for the axes: derive from the axes instead, the way
+  `isoProjectionRay` derives the direction points collapse along. `ISO_TILE_WIDTH`
+  is the one number both share. See the
+  [ADR-003 amendment](../../docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-08-projection-as-a-project-setting).
+- **Both projections are rotations of the world, never shears.** The height
+  scale is derived by `isoRiseFor`, not chosen: the two rows of the
+  projection have to be perpendicular and the same length, or round things
+  draw as ovals. This is invisible in anything built from the axes — tiles,
+  grid, cubes and bounds all agree either way — so it is asserted directly
+  in `test_iso_projection.cpp` and end-to-end by rendering a sphere in
+  `test_editor_mesh_capture.cpp`. Height is therefore foreshortened by the
+  camera's pitch; do not "fix" that back.
+- **Sprites and tile art are authored against one projection.** Switching a
+  project's projection rotates the world under its art, which is why the
+  switch writes itself into the project rather than into an editor
+  preference.
+- **The camera never rotates freely.** Two fixed yaws are not a rotating
+  camera; code may depend on the projection being constant for the frame
+  (design principle 4).
 - **Undo is one list plus a cursor**, not two stacks — `[0, applied)` are in
   effect, `[applied, size)` are undone and redoable, and a new edit after an
   undo truncates. See [editor-action-history.h](shell/include/editor/shell/editor-action-history.h).

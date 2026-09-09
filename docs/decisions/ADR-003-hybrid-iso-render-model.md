@@ -1,6 +1,6 @@
 # ADR-003: Hybrid 3D geometry and billboarded sprites under one depth buffer
 
-**Status:** Accepted (projection amended 2026-08-26)
+**Status:** Accepted (projection amended 2026-08-26, 2026-09-08, and 2026-09-09)
 **Date:** 2026-08-22
 **Scope:** Engine
 
@@ -16,7 +16,7 @@ Compounding it: at 2,000 enemies and 20,000 projectiles, any per-object CPU sort
 
 Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, with sprites participating in the depth buffer rather than being composited over it.
 
-- The camera is fixed orthographic at **zero yaw and 4:3 dimetric foreshortening**: world +X runs straight across the screen, world +Y is foreshortened to 3/4, and world +Z rises straight up the screen unforeshortened. Tiles are axis-aligned rectangles, not diamonds, and vertical surfaces are seen face-on. It translates and zooms; it never rotates, and the renderer is permitted to depend on that. (Amended 2026-08-26 — see [Amendment](#amendment-2026-08-26-straight-on-projection).)
+- The camera is fixed orthographic at **zero yaw and 4:3 dimetric foreshortening**: world +X runs straight across the screen, world +Y is foreshortened to 3/4, and world +Z rises straight up the screen unforeshortened. Tiles are axis-aligned rectangles, not diamonds, and vertical surfaces are seen face-on. It translates and zooms; it never rotates, and the renderer is permitted to depend on that. (Amended three times — see the [straight-on projection](#amendment-2026-08-26-straight-on-projection), [projection as a project setting](#amendment-2026-09-08-projection-as-a-project-setting), and [the projection is a rotation](#amendment-2026-09-09-the-projection-is-a-rotation-not-a-shear) amendments.)
 - Terrain, structures, and large props are 3D meshes, instanced, depth-tested and depth-written normally.
 - Characters, small props, and effects are camera-facing billboarded quads. Each writes per-pixel depth derived from its world footprint and a declared height ramp — the sprite's base sits at its world-space ground position, and depth increases up the sprite according to the ramp, so a tall sprite occludes correctly against geometry both in front of and behind it.
 - Alpha-test cutout gives hard sprite edges that depth-write correctly. Genuinely translucent effects draw in a later back-to-front pass with depth-test but no depth-write.
@@ -78,7 +78,7 @@ Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, 
 
 The original decision inherited the conventional 45°-yaw isometric camera, which closed [open question 1](../../REQUIREMENTS.md#8-open-questions) by default rather than on purpose. It is now closed deliberately, the other way.
 
-**What changed.** Yaw goes to zero and the height axis is drawn unforeshortened:
+**What changed.** Yaw goes to zero and the height axis is drawn unforeshortened (the height scale in the table below is superseded by the 2026-09-09 amendment; the yaw and the tile footprint are not):
 
 | Axis | Before (45° yaw, 2:1) | After (zero yaw, 4:3) |
 |---|---|---|
@@ -95,3 +95,61 @@ The original decision inherited the conventional 45°-yaw isometric camera, whic
 **What it costs.** Tiles no longer tessellate into the diamond lattice that makes 45° depth sorting a simple `x + y` ordering; depth along the view axis is now world Y alone, which is simpler still. The 3/4 ratio keeps clean pixel math at the 64 px tile size (64×48), but it is not the classic 2:1, so any tile art that assumed a 64×32 diamond must be re-authored. No such art exists yet, which is why this amendment lands now rather than later.
 
 **Where it lives.** `src/editor/shell/include/editor/shell/iso-projection.h` — `ISO_TILE_WIDTH`, `ISO_TILE_DEPTH`, and `ISO_TILE_RISE`. Everything else about this ADR — the single depth-buffered pass, billboards writing per-pixel depth, no CPU sort — is unaffected.
+
+> Superseded in part by the 2026-09-08 amendment below: these three constants are now the `ISO_AXES_DIMETRIC` half of a two-valued setting, and the numbers in the table above are what a project gets by default rather than what it is stuck with.
+
+---
+
+## Amendment (2026-09-08): projection as a project setting
+
+The 2026-08-26 amendment called the projection a one-way door and closed it on the dimetric side. That call is reversed: the door is a project's to open, and both projections are supported.
+
+**What changed.** The projection is a field in `project.json`, chosen per project and switched from **View › Dimetric View / Isometric View**:
+
+| | Dimetric (default) | Isometric |
+|---|---|---|
+| Yaw | zero | 45° |
+| World +X | straight right, scale 1.0 | right and down, 32 / 16 px |
+| World +Y | straight down, scale 0.75 | left and down, 32 / 16 px |
+| World +Z | straight up, scale 1.0 | straight up, scale 1.0 |
+| Tile footprint | 64×48 rectangle | 64×32 diamond |
+| Projection ray | 4 along Y per 3 up Z | 2 along each ground axis per 1 up Z |
+
+A project that names no projection reads as dimetric, which is every project that exists today and is the projection they were authored against.
+
+**Why.** The reference viewpoint is a per-project artistic choice, not an engine-wide one — a 16-bit JRPG project and a Diablo-style one want different lattices, and the renderer's dependence on the projection is on *a* fixed oblique projection, not on any particular one. Nothing in the depth model needed the specific numbers: the direction points collapse along is derived from the axes (`isoProjectionRay`), and the depth row of the view matrix is derived from that. Two projections cost one struct of five floats where the alternative was a second copy of every routine that draws, picks, or measures.
+
+**What it costs.**
+
+- **Tile art is still authored against one projection.** The setting is a project's, not a viewer's: switching it rotates the world under whatever art the project already has, which is why the switch writes itself into the project rather than into an editor preference. What was a one-way door for the engine is now a one-way door per project, taken knowingly at the point a project is started.
+- **Generated thumbnails are cached per projection**, since a card shows an asset at the angle the viewport will show it at. Switching retires the cache for the projection being left, and switching back finds it again.
+- **Free rotation is still out of scope.** Two fixed yaws are not a rotating camera: the renderer may still assume the projection is constant for the frame, and for the project.
+
+**Where it lives.** `src/editor/project/include/editor/project/project-projection.h` holds the setting and its names; `src/editor/shell/include/editor/shell/iso-axes.h` holds the five numbers each projection maps the world axes with. `ISO_TILE_WIDTH` is still shared: a tile is 64 px across in both, so a tileset's pixel budget does not depend on the choice.
+
+---
+
+## Amendment (2026-09-09): the projection is a rotation, not a shear
+
+Reported as a bug: a sphere dropped into the viewport drew as an oval, a quarter taller than it was wide.
+
+**What was wrong.** A projection is a 2×3 matrix — one row taking a world point to screen X, one to screen Y. It preserves shape exactly when those two rows are perpendicular and the *same length*. The 2026-08-26 amendment chose the height scale for a property it wanted (a wall's on-screen height equals its world height, so sprite sheets could be authored at true pixel size) rather than deriving it, which made the rows different lengths: 64 across against 80 down. That is a shear, not a view — an oblique projection in the technical-drawing sense, where spheres are ellipses by construction.
+
+Nothing looked broken, because everything the editor drew was built from the same axes: tiles, grid, cubes, and bounding boxes all agreed with each other. Only a round object could expose it, and the first one to be placed did.
+
+| | Was | Now | Cause |
+|---|---|---|---|
+| Dimetric height scale | 64 | 42.332 = √(64² − 48²) | 48.6° camera pitch |
+| Isometric height scale | 64 | 39.192 = √(2048 − 512) | 30° camera pitch, which is what a 2:1 diamond means |
+| Sphere silhouette, dimetric | 64 × 80 | 64 × 64 | |
+| Sphere silhouette, isometric | 46 × 68 | 46 × 45 | |
+
+**What changed.** The height scale is no longer a number anyone picks. `isoRiseFor` in `iso-axes.h` derives it from the ground axes, and the ground axes are what a project's tile art is drawn against. Both tile lattices are untouched — 64×48 rectangles and 64×32 diamonds — so no art dimension moves. What moves is height: a one-tile cube is now 42 px tall in the dimetric projection rather than 64.
+
+**What it costs.** The property the 2026-08-26 amendment was buying is gone: a sprite's on-screen height is its world height times cos(pitch), not times one. Sprite sheets need that factor, which is one constant in the sprite pipeline that does not exist yet. That is the whole cost, and it buys back every round or organic shape looking like itself.
+
+The alternative was to keep the height scale and widen the tile to 80 px to match, which also squares the rows. It was rejected because it moves the tile lattice — the one dimension art is actually authored against — to fix a defect in the height axis.
+
+**A note on the names.** Once the projection is a real rotation, the axis scales make "dimetric" the wrong word for the zero-yaw one: X, Y, and Z are foreshortened by 1, 0.75, and 0.661, all different, which is *trimetric*. The 2:1 one, where the two ground axes share a scale, is the one that is strictly dimetric. The names are kept as they are — they are the words games use for these two looks, they name the setting in `project.json` and the rows in the View menu, and renaming them would migrate a file format to win an argument about vocabulary.
+
+**Where it lives.** `isoRiseFor` and `isoSqrt` in `src/editor/shell/include/editor/shell/iso-axes.h`. `test_iso_projection.cpp` asserts the row-length invariant directly; `test_editor_mesh_capture.cpp` renders a sphere through the CPU rasterizer and measures its silhouette, which is the assertion that would have caught this in the first place.

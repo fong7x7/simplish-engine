@@ -49,6 +49,21 @@ my-project/
 
 `assets/` is source material the asset pipeline consumes ([Editor §8](REQUIREMENTS.md#8-asset-pipeline)). `content/` is authored data this document specifies. The split matters: assets are imported and cached, content is generated and compiled.
 
+**The manifest** is the one file that exists today, and it holds what is true of the project rather than of any one level:
+
+```json
+{
+  "name": "Transit Station",
+  "engine_version": "0.1.0",
+  "created_at": "2026-08-01T09:00:00Z",
+  "last_opened_at": "2026-08-22T10:30:00Z",
+  "default_workspace": "Level",
+  "projection": "dimetric"
+}
+```
+
+`projection` is `"dimetric"` or `"isometric"`, and the View menu writes it when a projection is chosen. It belongs to the project rather than to the editor because tile art is authored against one of them ([ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-08-projection-as-a-project-setting)). Absent or unrecognised, it reads as `"dimetric"`: every project written before the field existed was authored that way, and a project should open at a recoverable default rather than refuse to load.
+
 ---
 
 ## 3. Conventions Common to Every File

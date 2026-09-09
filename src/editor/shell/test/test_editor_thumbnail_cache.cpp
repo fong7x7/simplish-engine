@@ -261,7 +261,7 @@ TEST_CASE("a rendered thumbnail survives the round trip through the cache") {
   mesh.max = {1.0f, 0.0f, 2.0f};
 
   const eng::ImageData rendered =
-      renderAssetThumbnail(mesh, ASSET_THUMBNAIL_SIZE);
+      renderAssetThumbnail(mesh, ASSET_THUMBNAIL_SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(storeCachedThumbnail(entry, rendered));
 
   // PNG is lossless and both ends are RGBA8, so what comes back is what

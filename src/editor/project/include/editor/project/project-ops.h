@@ -36,6 +36,10 @@ namespace eng::editor {
 /// Returns false when the write fails; the in-memory context is still updated.
 bool touchProjectOpened(ProjectContext& context, std::string_view timestamp);
 
+/// Write the open project's manifest back to disk, for a setting the editor
+/// changed. False when no project is open or the write fails.
+[[nodiscard]] bool saveProjectMetadata(const ProjectContext& context);
+
 /// Load the recent-projects list from @p path. Returns an empty list when the
 /// file is absent or unreadable — a missing list is a normal first-run state,
 /// not an error.

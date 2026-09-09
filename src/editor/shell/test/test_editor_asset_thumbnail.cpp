@@ -84,7 +84,8 @@ f 2 3 7 6
 }  // namespace
 
 TEST_CASE("a thumbnail comes out at the size asked for") {
-  const eng::ImageData image = renderAssetThumbnail(makeQuad(1.0f), SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(makeQuad(1.0f), SIZE, ISO_AXES_DIMETRIC);
 
   REQUIRE(image.width == SIZE);
   REQUIRE(image.height == SIZE);
@@ -92,7 +93,8 @@ TEST_CASE("a thumbnail comes out at the size asked for") {
 }
 
 TEST_CASE("a thumbnail actually draws the model") {
-  const eng::ImageData image = renderAssetThumbnail(makeQuad(1.0f), SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(makeQuad(1.0f), SIZE, ISO_AXES_DIMETRIC);
 
   REQUIRE(paintedPixels(image) > 0);
 }
@@ -102,13 +104,15 @@ TEST_CASE("a mesh with no triangles yields an empty image") {
 
   // Empty, not blank: the caller has to tell "nothing to draw" from "drew
   // nothing", because one is a broken asset and the other is not.
-  const eng::ImageData image = renderAssetThumbnail(empty, SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(empty, SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(image.width == 0);
   REQUIRE(image.pixels.empty());
 }
 
 TEST_CASE("a zero size yields an empty image") {
-  const eng::ImageData image = renderAssetThumbnail(makeQuad(1.0f), 0);
+  const eng::ImageData image =
+      renderAssetThumbnail(makeQuad(1.0f), 0, ISO_AXES_DIMETRIC);
 
   REQUIRE(image.pixels.empty());
 }
@@ -116,8 +120,10 @@ TEST_CASE("a zero size yields an empty image") {
 TEST_CASE("the model is fitted to the frame, not to its own units") {
   // Two models of wildly different scale should fill the frame alike; that
   // is the whole point of fitting rather than placing.
-  const eng::ImageData small = renderAssetThumbnail(makeQuad(0.01f), SIZE);
-  const eng::ImageData large = renderAssetThumbnail(makeQuad(100.0f), SIZE);
+  const eng::ImageData small =
+      renderAssetThumbnail(makeQuad(0.01f), SIZE, ISO_AXES_DIMETRIC);
+  const eng::ImageData large =
+      renderAssetThumbnail(makeQuad(100.0f), SIZE, ISO_AXES_DIMETRIC);
 
   const size_t small_pixels = paintedPixels(small);
   const size_t large_pixels = paintedPixels(large);
@@ -129,7 +135,8 @@ TEST_CASE("the model is fitted to the frame, not to its own units") {
 }
 
 TEST_CASE("the model is centred in the frame") {
-  const eng::ImageData image = renderAssetThumbnail(makeQuad(1.0f), SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(makeQuad(1.0f), SIZE, ISO_AXES_DIMETRIC);
 
   size_t left = 0;
   size_t right = 0;
@@ -148,7 +155,8 @@ TEST_CASE("the model is centred in the frame") {
 }
 
 TEST_CASE("the model does not touch the frame's edge") {
-  const eng::ImageData image = renderAssetThumbnail(makeQuad(1.0f), SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(makeQuad(1.0f), SIZE, ISO_AXES_DIMETRIC);
 
   // The fill fraction leaves a margin, so a card never shows a model
   // running off its own picture.
@@ -167,7 +175,8 @@ TEST_CASE("a flat model still renders rather than dividing by zero") {
   flat.min = {0.0f, 0.0f, 0.0f};
   flat.max = {2.0f, 0.0f, 0.0f};
 
-  const eng::ImageData image = renderAssetThumbnail(flat, SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(flat, SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(image.width == SIZE);
 }
 
@@ -178,7 +187,8 @@ TEST_CASE("a single-point model still renders") {
   point.min = {1.0f, 1.0f, 1.0f};
   point.max = {1.0f, 1.0f, 1.0f};
 
-  const eng::ImageData image = renderAssetThumbnail(point, SIZE);
+  const eng::ImageData image =
+      renderAssetThumbnail(point, SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(image.width == SIZE);
 }
 
@@ -187,8 +197,10 @@ TEST_CASE("the same mesh renders the same picture every time") {
 
   // The cache in front of this keys on the file, not on the pixels, so a
   // second render has to agree with the one that was stored.
-  const eng::ImageData first = renderAssetThumbnail(mesh, SIZE);
-  const eng::ImageData second = renderAssetThumbnail(mesh, SIZE);
+  const eng::ImageData first =
+      renderAssetThumbnail(mesh, SIZE, ISO_AXES_DIMETRIC);
+  const eng::ImageData second =
+      renderAssetThumbnail(mesh, SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(first.pixels == second.pixels);
 }
 
@@ -200,7 +212,7 @@ TEST_CASE("a parsed OBJ renders through to a thumbnail") {
   eng::orientYUpToZUp(*mesh);
 
   const eng::ImageData image =
-      renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE);
+      renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE, ISO_AXES_DIMETRIC);
   REQUIRE(image.width == ASSET_THUMBNAIL_SIZE);
   REQUIRE(paintedPixels(image) > 0);
 

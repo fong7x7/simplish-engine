@@ -135,6 +135,19 @@ TEST_CASE("commands say which are built and which would work right now") {
   // Built, but there is no project to close.
   REQUIRE(find("close_project").at("enabled") == false);
   REQUIRE(find("toggle_grid").at("enabled") == true);
+  // The projection is written back to project.json, so with nothing open
+  // there is nowhere for the choice to go.
+  REQUIRE(find("set_view_isometric").at("implemented") == true);
+  REQUIRE(find("set_view_isometric").at("enabled") == false);
+}
+
+TEST_CASE("the camera reports which projection it is drawing with") {
+  EditorShellState state;
+  state.project.metadata.projection = ProjectProjection::ISOMETRIC;
+
+  const json camera = json::parse(agentStateJson(state)).at("camera");
+
+  REQUIRE(camera.at("projection") == "isometric");
 }
 
 TEST_CASE("folders list the browser's tree and its built-in section") {

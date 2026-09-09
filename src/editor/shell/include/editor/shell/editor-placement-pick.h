@@ -12,19 +12,13 @@
 
 namespace eng::editor {
 
-/// The direction the projection collapses points along, pointing toward the
-/// camera.
-///
-/// The projection is oblique, so this is not the screen normal: it is the
-/// ray derived in `iso-view-matrix.h`, four tiles along world Y for every
-/// three up world Z. Every world point on one of these rays lands on the
-/// same pixel, which is what makes it the ray to pick along.
-inline constexpr float PICK_RAY_Y = ISO_TILE_RISE;
-/// The ray's Z component. See `PICK_RAY_Y`.
-inline constexpr float PICK_RAY_Z = ISO_TILE_DEPTH;
-
 /// How far along the pick ray @p bounds is last met, or nothing when the
 /// ray misses it.
+///
+/// The ray is `isoProjectionRay(view.axes)`: every world point along it
+/// lands on the clicked pixel, which is what makes it the one to pick
+/// along, and which is why the view has to be the one that drew the
+/// markers rather than any view of the same scene.
 ///
 /// The value increases toward the camera, so comparing it between two boxes
 /// says which one is in front — the same ordering the depth buffer gives

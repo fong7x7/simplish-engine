@@ -82,6 +82,10 @@ private:
   /// Draw one item's label.
   void renderItemText(const GuiDrawContext& ctx, const RowParams& row) const;
 
+  /// Draw the mark that says a checked row's setting is the live one.
+  void renderCheckMark(const GuiDrawContext& ctx, const ResolvedStyle& rs,
+                       float iy) const;
+
   /// Draw one item's accelerator hint, right-aligned at baseline @p text_y.
   void renderShortcut(const GuiDrawContext& ctx, const RowParams& row,
                       float text_y) const;

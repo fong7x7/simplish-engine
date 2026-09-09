@@ -63,9 +63,14 @@ namespace {
   };
 
   constexpr EditorMenuCommand VIEW_ROWS[] = {
-      EditorMenuCommand::RESET_VIEW,  EditorMenuCommand::ZOOM_IN,
-      EditorMenuCommand::ZOOM_OUT,    EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::RESET_VIEW,
+      EditorMenuCommand::ZOOM_IN,
+      EditorMenuCommand::ZOOM_OUT,
+      EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::TOGGLE_GRID,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::SET_VIEW_DIMETRIC,
+      EditorMenuCommand::SET_VIEW_ISOMETRIC,
   };
 
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
@@ -211,7 +216,8 @@ void EditorMenuBarWidget::appendCommand(GuiDropdown& menu,
                               }
                             },
                         .enabled = commandEnabled(command),
-                        .shortcut = std::string(info.shortcut)});
+                        .shortcut = std::string(info.shortcut),
+                        .checked = commandChecked(command)});
 }
 
 void EditorMenuBarWidget::appendRecentItems(GuiDropdown& menu) {
@@ -263,7 +269,9 @@ void EditorMenuBarWidget::rebuildItems(GuiWidgetTree& tree) {
 bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   // The state-dependent rows first: each is built, and each would still do
   // nothing if it were live right now.
-  if (command == EditorMenuCommand::CLOSE_PROJECT) {
+  if (command == EditorMenuCommand::CLOSE_PROJECT ||
+      command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
+      command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
     return project_ == EditorProjectPresence::OPEN;
   }
   if (command == EditorMenuCommand::UNDO) {
@@ -273,6 +281,24 @@ bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
     return can_redo_;
   }
   return editorMenuCommandImplemented(command);
+}
+
+bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
+  if (command == EditorMenuCommand::SET_VIEW_DIMETRIC) {
+    return projection_ == ProjectProjection::DIMETRIC;
+  }
+  if (command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
+    return projection_ == ProjectProjection::ISOMETRIC;
+  }
+  return false;
+}
+
+void EditorMenuBarWidget::setProjection(ProjectProjection projection) {
+  if (projection_ == projection) {
+    return;
+  }
+  projection_ = projection;
+  items_dirty_ = true;
 }
 
 void EditorMenuBarWidget::placeDropdown(GuiWidgetTree& tree, size_t index) {

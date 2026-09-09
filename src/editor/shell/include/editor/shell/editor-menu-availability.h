@@ -17,11 +17,18 @@ namespace eng::editor {
 /// live, not sufficient: `editorMenuCommandEnabled` gates some of these
 /// further on what the editor has open.
 inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
-    EditorMenuCommand::NEW_PROJECT,   EditorMenuCommand::OPEN_PROJECT,
-    EditorMenuCommand::CLOSE_PROJECT, EditorMenuCommand::EXIT,
-    EditorMenuCommand::UNDO,          EditorMenuCommand::REDO,
-    EditorMenuCommand::RESET_VIEW,    EditorMenuCommand::ZOOM_IN,
-    EditorMenuCommand::ZOOM_OUT,      EditorMenuCommand::TOGGLE_GRID,
+    EditorMenuCommand::NEW_PROJECT,
+    EditorMenuCommand::OPEN_PROJECT,
+    EditorMenuCommand::CLOSE_PROJECT,
+    EditorMenuCommand::EXIT,
+    EditorMenuCommand::UNDO,
+    EditorMenuCommand::REDO,
+    EditorMenuCommand::RESET_VIEW,
+    EditorMenuCommand::ZOOM_IN,
+    EditorMenuCommand::ZOOM_OUT,
+    EditorMenuCommand::TOGGLE_GRID,
+    EditorMenuCommand::SET_VIEW_DIMETRIC,
+    EditorMenuCommand::SET_VIEW_ISOMETRIC,
     EditorMenuCommand::ABOUT,
 };
 

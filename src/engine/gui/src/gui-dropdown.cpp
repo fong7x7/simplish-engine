@@ -28,6 +28,11 @@ namespace {
   constexpr float SEPARATOR_THICKNESS = 1.0F;
   /// Gap between the right edge of the menu and a shortcut hint.
   constexpr int SHORTCUT_PAD = 12;
+  /// Side of the square drawn in a checked row's left gutter.
+  constexpr float CHECK_MARK_SIZE = 5.0F;
+  /// Left inset of that square, which keeps it clear of the label without
+  /// moving the label: rows must not shift as a setting is switched.
+  constexpr float CHECK_MARK_INSET = 3.5F;
 
 }  // namespace
 
@@ -90,7 +95,18 @@ void GuiDropdown::renderItemText(const GuiDrawContext& ctx,
       drawPosInset(line_rect, static_cast<float>(ITEM_TEXT_PAD),
                    static_cast<float>(ITEM_TEXT_VPAD));
   ctx.drawText(color, label_pos, row.item.label);
+  if (row.item.checked) {
+    renderCheckMark(ctx, row.rs, row.iy);
+  }
   renderShortcut(ctx, row, label_pos.y);
+}
+
+void GuiDropdown::renderCheckMark(const GuiDrawContext& ctx,
+                                  const ResolvedStyle& rs, float iy) const {
+  const auto ihf = static_cast<float>(rs.item_height);
+  Rect mark{rect.x + CHECK_MARK_INSET, iy + (ihf - CHECK_MARK_SIZE) * 0.5F,
+            CHECK_MARK_SIZE, CHECK_MARK_SIZE};
+  ctx.drawFilledRect(mark, rs.text);
 }
 
 void GuiDropdown::renderShortcut(const GuiDrawContext& ctx,

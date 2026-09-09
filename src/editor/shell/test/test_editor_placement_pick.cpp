@@ -13,6 +13,13 @@ IsoView viewOf(const eng::Rect& rect) {
   return makeIsoView(camera, rect);
 }
 
+/// The same viewport seen with a project's chosen projection.
+IsoView viewOf(const eng::Rect& rect, ProjectProjection projection) {
+  IsoCamera camera;
+  camera.axes = isoAxesFor(projection);
+  return makeIsoView(camera, rect);
+}
+
 /// A marker one tile square, standing @p height tall on the ground.
 EditorPlacementMarker tileMarker(float x, float y, float height = 1.0f) {
   return {{{x, y, 0.0f}, {x + 1.0f, y + 1.0f, height}}, false};
@@ -32,11 +39,21 @@ TEST_CASE("the pick ray is the direction the projection collapses along") {
   const IsoView view = viewOf(eng::makeRect(0.0f, 0.0f, 800.0f, 600.0f));
   // Two world points a step apart along the ray land on the same pixel,
   // which is the property that makes it the ray to pick along.
+  const WorldPoint ray = isoProjectionRay(view.axes);
   const IsoPoint low = worldToScreen(view, {2.0f, 3.0f, 0.0f});
   const IsoPoint high =
-      worldToScreen(view, {2.0f, 3.0f + PICK_RAY_Y, 0.0f + PICK_RAY_Z});
+      worldToScreen(view, {2.0f + ray.x, 3.0f + ray.y, 0.0f + ray.z});
   REQUIRE(low.x == Approx(high.x));
   REQUIRE(low.y == Approx(high.y));
+}
+
+TEST_CASE("picking follows the projection the project chose") {
+  // The isometric ray has an X component the dimetric one does not, so a
+  // pick that still used the old constants would miss by a whole tile.
+  const IsoView view = viewOf(eng::makeRect(0.0f, 0.0f, 800.0f, 600.0f),
+                              ProjectProjection::ISOMETRIC);
+  const std::vector<EditorPlacementMarker> markers{tileMarker(3.0f, -2.0f)};
+  REQUIRE(pickPlacementMarker(view, markers, centreOf(view, markers[0])) == 0);
 }
 
 TEST_CASE("a box the ray misses reports no hit at all") {
@@ -108,7 +125,7 @@ TEST_CASE("a placement raised off the ground is picked where it is drawn") {
 TEST_CASE("panning the camera moves what a screen point picks") {
   const eng::Rect rect = eng::makeRect(0.0f, 0.0f, 800.0f, 600.0f);
   IsoCamera camera;
-  camera.focus = worldToIso({8.0f, 8.0f});
+  camera.focus = worldToIso(camera.axes, {8.0f, 8.0f});
   const IsoView panned = makeIsoView(camera, rect);
   const std::vector<EditorPlacementMarker> markers{tileMarker(0.0f, 0.0f)};
 

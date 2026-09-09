@@ -11,6 +11,8 @@
 //   - Undo and Redo are enabled only while the action history has something
 //     for them to do, which the editor pushes in with setHistory()
 //   - The File menu lists recent projects, which raise on_open_recent
+//   - The View menu's two projection rows carry a mark on whichever one the
+//     open project is using, and are disabled until one is open
 //
 // Edge Cases:
 //   - init() without a valid parent: nothing is created; every other entry
@@ -33,6 +35,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <editor/project/project-projection.h>
 #include <editor/project/recent-projects-list.h>
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-menu-command.h>
@@ -110,6 +113,9 @@ public:
   /// Enable or disable the rows that need an open project.
   void setProjectPresence(EditorProjectPresence presence);
 
+  /// Mark whichever projection row @p projection names as the live one.
+  void setProjection(ProjectProjection projection);
+
   /// Gate the Undo and Redo rows on what @p history holds.
   ///
   /// Takes the history rather than two flags so the bar cannot be told a
@@ -164,6 +170,8 @@ private:
   void syncHover(GuiWidgetTree& tree);
   /// Whether @p command can do anything in the current editor state.
   [[nodiscard]] bool commandEnabled(EditorMenuCommand command) const;
+  /// Whether @p command names the setting the editor is currently in.
+  [[nodiscard]] bool commandChecked(EditorMenuCommand command) const;
 
   /// Menus in left-to-right order.
   std::vector<Menu> menus_{};
@@ -179,6 +187,8 @@ private:
   RecentProjectsList recent_{};
   /// Whether a project is open, which gates some rows.
   EditorProjectPresence project_ = EditorProjectPresence::NONE;
+  /// The open project's projection, mirrored so its row shows a mark.
+  ProjectProjection projection_ = ProjectProjection::DIMETRIC;
   /// Whether the history has an applied action for Undo to revert.
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.

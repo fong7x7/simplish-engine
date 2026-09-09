@@ -1,34 +1,13 @@
 #pragma once
 
 /// @file iso-projection.h
-/// @brief 4:3 dimetric world-to-screen projection for the editor viewport.
+/// @brief World-to-screen projection for the editor viewport.
 /// @par Threading Thread-safe (pure functions over value types).
 
+#include <editor/shell/iso-axes.h>
 #include <engine/gui/gui-rect.h>
 
 namespace eng::editor {
-
-/// Width of one tile's screen footprint at zoom 1.0, in logical pixels.
-///
-/// The camera has zero yaw, so world +X runs straight right across the
-/// screen and a tile occupies exactly `ISO_TILE_WIDTH` pixels horizontally.
-inline constexpr float ISO_TILE_WIDTH = 64.0f;
-
-/// Screen-space depth of one tile: how far +1 world Y moves down the screen.
-///
-/// Three quarters of the width — the 4:3 dimetric foreshortening fixed by
-/// docs/decisions/ADR-003-hybrid-iso-render-model.md. Changing this changes
-/// the projection every sprite is authored against, so it is a constant
-/// rather than a setting.
-inline constexpr float ISO_TILE_DEPTH = ISO_TILE_WIDTH * 0.75f;
-
-/// Screen-space rise of one world height unit: how far +1 world Z moves up.
-///
-/// Equal to `ISO_TILE_WIDTH`, i.e. unforeshortened. The height axis is drawn
-/// straight up the screen at the same scale as the horizontal axis, so
-/// vertical surfaces are seen face-on rather than skewed. That equal scaling
-/// of X and Z against a foreshortened Y is what makes the view dimetric.
-inline constexpr float ISO_TILE_RISE = ISO_TILE_WIDTH;
 
 /// A point on the isometric plane before camera and zoom are applied.
 /// @thread_safety Immutable value type.
@@ -51,9 +30,10 @@ struct WorldPoint {
 };
 
 /// Project world tile coordinates onto the isometric plane.
-[[nodiscard]] constexpr IsoPoint worldToIso(WorldPoint world) {
-  return {world.x * ISO_TILE_WIDTH,
-          world.y * ISO_TILE_DEPTH - world.z * ISO_TILE_RISE};
+[[nodiscard]] constexpr IsoPoint worldToIso(const IsoAxes& axes,
+                                            WorldPoint world) {
+  return {world.x * axes.x_across + world.y * axes.y_across,
+          world.x * axes.x_down + world.y * axes.y_down - world.z * axes.z_up};
 }
 
 /// Invert `worldToIso` onto the ground plane, returning `z == 0`.
@@ -61,8 +41,32 @@ struct WorldPoint {
 /// The inverse of a projection is only defined once a plane is chosen: a
 /// screen point is both a ground tile far away and a raised tile nearer the
 /// camera. Picking against a raised plane is the height tool's job.
-[[nodiscard]] constexpr WorldPoint isoToWorld(IsoPoint iso) {
-  return {iso.x / ISO_TILE_WIDTH, iso.y / ISO_TILE_DEPTH, 0.0f};
+[[nodiscard]] constexpr WorldPoint isoToWorld(const IsoAxes& axes,
+                                              IsoPoint iso) {
+  // Inverting the 2x2 the ground axes form. Its determinant is non-zero for
+  // any projection that shows the ground at all: a zero would mean both
+  // world axes landing on one screen line.
+  const float det = axes.x_across * axes.y_down - axes.y_across * axes.x_down;
+  return {(iso.x * axes.y_down - iso.y * axes.y_across) / det,
+          (iso.y * axes.x_across - iso.x * axes.x_down) / det, 0.0f};
+}
+
+/// The world direction the projection collapses points along, pointing
+/// toward the camera.
+///
+/// The projection is oblique, so this is not the screen normal. Solving
+/// `worldToIso(axes, v) == (0, 0)` for a non-zero `v` gives the null
+/// direction below: every world point on one of these rays lands on the
+/// same pixel. That makes it both the ray to pick along and the axis to
+/// measure depth on. For the dimetric axes it comes out as four tiles along
+/// Y for every three up Z; for the isometric ones, two along each ground
+/// axis for every one up.
+///
+/// The length is arbitrary — only the direction means anything — so
+/// callers that need a unit measure scale it themselves.
+[[nodiscard]] constexpr WorldPoint isoProjectionRay(const IsoAxes& axes) {
+  const float det = axes.x_across * axes.y_down - axes.y_across * axes.x_down;
+  return {-axes.y_across, axes.x_across, det / axes.z_up};
 }
 
 /// Camera-and-viewport transform applied on top of `worldToIso`.
@@ -74,6 +78,8 @@ struct IsoView {
   IsoPoint focus{};
   /// Scale factor; 1.0 draws a tile at `ISO_TILE_WIDTH` pixels wide.
   float zoom = 1.0f;
+  /// How the world axes land on the screen, from the project's projection.
+  IsoAxes axes{};
 };
 
 /// Map an isometric-plane point to screen coordinates.
@@ -97,13 +103,13 @@ struct IsoView {
 /// Map world tile coordinates straight to screen coordinates.
 [[nodiscard]] constexpr IsoPoint worldToScreen(const IsoView& view,
                                                WorldPoint world) {
-  return isoToScreen(view, worldToIso(world));
+  return isoToScreen(view, worldToIso(view.axes, world));
 }
 
 /// Map screen coordinates back to ground-plane world tile coordinates.
 [[nodiscard]] constexpr WorldPoint screenToWorld(const IsoView& view,
                                                  IsoPoint screen) {
-  return isoToWorld(screenToIso(view, screen));
+  return isoToWorld(view.axes, screenToIso(view, screen));
 }
 
 }  // namespace eng::editor

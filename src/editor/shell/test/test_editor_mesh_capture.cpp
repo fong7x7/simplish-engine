@@ -1,9 +1,11 @@
 
 #include <array>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/editor-shape.h>
 #include <editor/shell/iso-camera.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/mesh-rasterizer.h>
@@ -15,6 +17,7 @@
 #include <vector>
 
 using namespace eng;
+using Catch::Approx;
 using namespace eng::editor;
 using eng::editor::MeshRasterScene;
 
@@ -73,15 +76,23 @@ MeshLight overheadLight(float intensity) {
   return light;
 }
 
-/// The screen position of a world point in the capture.
-IsoPoint screenOf(WorldPoint world) {
+/// The camera these captures are taken with, under @p axes.
+IsoCamera cameraWith(const IsoAxes& axes) {
   IsoCamera camera;
-  camera.focus = worldToIso({1.5f, 1.5f});
-  return worldToScreen(makeIsoView(camera, captureRect()), world);
+  camera.axes = axes;
+  camera.focus = worldToIso(axes, {1.5f, 1.5f});
+  return camera;
+}
+
+/// The screen position of a world point in a capture taken under @p axes.
+IsoPoint screenOf(WorldPoint world, const IsoAxes& axes = ISO_AXES_DIMETRIC) {
+  return worldToScreen(makeIsoView(cameraWith(axes), captureRect()), world);
 }
 
 /// The scene the editor would build for these tiles.
 struct CubeScene {
+  /// The projection the capture is taken under.
+  IsoAxes axes = ISO_AXES_DIMETRIC;
   MeshData mesh = placedCube();
   EditorAsset asset = assetFor(mesh);
   std::vector<MeshRasterScene::Draw> draws;
@@ -101,11 +112,9 @@ struct CubeScene {
     for (const WorldPoint& tile : tiles) {
       draws.push_back({&mesh, makePlacementTransform(asset, onTile(tile))});
     }
-    IsoCamera camera;
-    camera.focus = worldToIso({1.5f, 1.5f});
     MeshRasterScene scene{};
     scene.view_projection =
-        makeIsoViewProjection(makeIsoView(camera, captureRect()),
+        makeIsoViewProjection(makeIsoView(cameraWith(axes), captureRect()),
                               {captureRect(), static_cast<float>(CAPTURE_W),
                                static_cast<float>(CAPTURE_H)});
     scene.draws = draws;
@@ -137,6 +146,24 @@ struct CubeScene {
                  static_cast<uint32_t>(point.y))[0];
   }
 
+  /// The pixel bounding box of everything drawn, as (width, height). Zero
+  /// for an empty render.
+  [[nodiscard]] std::array<uint32_t, 2> silhouette() const {
+    uint32_t min_x = image.width, max_x = 0, min_y = image.height, max_y = 0;
+    for (uint32_t y = 0; y < image.height; ++y) {
+      for (uint32_t x = 0; x < image.width; ++x) {
+        if (isBackground(x, y)) {
+          continue;
+        }
+        min_x = std::min(min_x, x);
+        max_x = std::max(max_x, x);
+        min_y = std::min(min_y, y);
+        max_y = std::max(max_y, y);
+      }
+    }
+    return {max_x - min_x + 1, max_y - min_y + 1};
+  }
+
   /// Count the pixels covered by geometry.
   [[nodiscard]] size_t litPixels() const {
     size_t count = 0;
@@ -160,6 +187,75 @@ TEST_CASE("a placed cube draws where its tile is") {
   const IsoPoint centre = screenOf({1.5f, 1.5f});
   REQUIRE_FALSE(scene.isBackground(static_cast<uint32_t>(centre.x),
                                    static_cast<uint32_t>(centre.y)));
+}
+
+TEST_CASE("a placed cube draws where its tile is, isometrically too") {
+  CubeScene scene;
+  scene.axes = ISO_AXES_ISOMETRIC;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  scene.render(tiles);
+
+  const IsoPoint centre = screenOf({1.5f, 1.5f}, ISO_AXES_ISOMETRIC);
+  REQUIRE_FALSE(scene.isBackground(static_cast<uint32_t>(centre.x),
+                                   static_cast<uint32_t>(centre.y)));
+}
+
+TEST_CASE("the isometric projection turns the tile a different way") {
+  // The same cube on the same tile, seen two ways. Under the isometric axes
+  // the tile is a diamond rotated 45 degrees off the dimetric rectangle, so
+  // one silhouette cannot be the other's.
+  CubeScene dimetric;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  dimetric.render(tiles);
+  const size_t dimetric_pixels = dimetric.litPixels();
+
+  CubeScene isometric;
+  isometric.axes = ISO_AXES_ISOMETRIC;
+  isometric.render(tiles);
+
+  REQUIRE(isometric.litPixels() > 0);
+  REQUIRE(isometric.litPixels() != dimetric_pixels);
+}
+
+TEST_CASE("depth sorts the same way under the isometric projection") {
+  // The depth row is derived from the axes, so a sign slip there would
+  // show up as the back cube drawing over the front one — visible only in
+  // whichever projection was not the one the constants were written for.
+  CubeScene scene;
+  scene.axes = ISO_AXES_ISOMETRIC;
+  const WorldPoint pair[] = {{1.0f, 1.0f}, {1.0f, 2.0f}};
+  scene.render(pair);
+  const size_t both = scene.litPixels();
+
+  const WorldPoint single[] = {{1.0f, 2.0f}};
+  scene.render(single);
+  const size_t front_only = scene.litPixels();
+
+  REQUIRE(both > front_only);
+  REQUIRE(both < front_only * 2);
+}
+
+TEST_CASE("a sphere draws round in both projections") {
+  // The projection has to keep shapes, not merely place them. It did not:
+  // the height axis was a chosen constant rather than one derived from the
+  // ground axes, which drew every sphere as an oval 1.25 (dimetric) or 1.5
+  // (isometric) times taller than it was wide.
+  for (const IsoAxes& axes : {ISO_AXES_DIMETRIC, ISO_AXES_ISOMETRIC}) {
+    CubeScene scene;
+    scene.mesh = makeEditorShapeMesh(EditorShapeKind::SPHERE);
+    scene.asset = assetFor(scene.mesh);
+    scene.axes = axes;
+    const WorldPoint tiles[] = {{1.0f, 1.0f}};
+    scene.render(tiles);
+
+    const auto size = scene.silhouette();
+    const float ratio =
+        static_cast<float>(size[1]) / static_cast<float>(size[0]);
+    INFO("silhouette " << size[0] << "x" << size[1]);
+    // A pixel either way: the silhouette is measured off a rasterized
+    // triangle mesh, not an analytic circle.
+    REQUIRE(ratio == Approx(1.0f).margin(0.03f));
+  }
 }
 
 TEST_CASE("an empty scene draws nothing") {

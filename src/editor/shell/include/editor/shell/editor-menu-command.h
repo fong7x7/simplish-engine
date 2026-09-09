@@ -51,6 +51,10 @@ enum class EditorMenuCommand : uint8_t {
   ZOOM_OUT,
   /// Show or hide the viewport tile grid.
   TOGGLE_GRID,
+  /// Draw the world with the zero-yaw 4:3 dimetric projection.
+  SET_VIEW_DIMETRIC,
+  /// Draw the world with the 2:1 isometric projection.
+  SET_VIEW_ISOMETRIC,
   /// Show build and version information.
   ABOUT,
 };
@@ -96,6 +100,8 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::ZOOM_IN, "Zoom In", "="},
     {EditorMenuCommand::ZOOM_OUT, "Zoom Out", "-"},
     {EditorMenuCommand::TOGGLE_GRID, "Toggle Grid", "G"},
+    {EditorMenuCommand::SET_VIEW_DIMETRIC, "Dimetric View", ""},
+    {EditorMenuCommand::SET_VIEW_ISOMETRIC, "Isometric View", ""},
     {EditorMenuCommand::ABOUT, "About Simplish", ""},
 };
 

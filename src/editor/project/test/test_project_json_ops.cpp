@@ -4,6 +4,7 @@
 using eng::editor::parseProjectMetadata;
 using eng::editor::parseRecentProjects;
 using eng::editor::ProjectMetadata;
+using eng::editor::ProjectProjection;
 using eng::editor::RecentProjectEntry;
 using eng::editor::RecentProjectsList;
 using eng::editor::serializeProjectMetadata;
@@ -51,6 +52,7 @@ TEST_CASE("project metadata survives a serialize/parse round trip") {
   original.created_at = "2026-08-02T12:00:00Z";
   original.last_opened_at = "2026-08-22T08:00:00Z";
   original.default_workspace = "Level";
+  original.projection = ProjectProjection::ISOMETRIC;
 
   auto restored = parseProjectMetadata(serializeProjectMetadata(original));
   REQUIRE(restored.has_value());
@@ -59,6 +61,33 @@ TEST_CASE("project metadata survives a serialize/parse round trip") {
   REQUIRE(restored->created_at == original.created_at);
   REQUIRE(restored->last_opened_at == original.last_opened_at);
   REQUIRE(restored->default_workspace == original.default_workspace);
+  REQUIRE(restored->projection == original.projection);
+}
+
+TEST_CASE("a project written before projections was dimetric") {
+  // Every project that exists today has no projection field, and every one
+  // of them was authored against the dimetric view. Reading them as
+  // anything else would move their level under them.
+  auto meta = parseProjectMetadata(R"({"name": "Untitled"})");
+  REQUIRE(meta.has_value());
+  REQUIRE(meta->projection == ProjectProjection::DIMETRIC);
+}
+
+TEST_CASE("an unrecognised projection name reads as dimetric") {
+  // A hand-edited or newer file should open at the default rather than
+  // refuse to load: the setting is recoverable from the View menu.
+  auto meta = parseProjectMetadata(R"({"projection": "trimetric"})");
+  REQUIRE(meta.has_value());
+  REQUIRE(meta->projection == ProjectProjection::DIMETRIC);
+}
+
+TEST_CASE("the projection is written by name") {
+  ProjectMetadata meta;
+  meta.projection = ProjectProjection::ISOMETRIC;
+  // A word, not an ordinal: the file is meant to be read and hand-edited,
+  // and an ordinal would silently change meaning if the enum ever grew.
+  REQUIRE(serializeProjectMetadata(meta).find("\"isometric\"") !=
+          std::string::npos);
 }
 
 TEST_CASE("parseRecentProjects returns an empty list when entries are absent") {

@@ -242,6 +242,17 @@ TEST_CASE("an enabled menu command is queued for the editor to run") {
   REQUIRE(result.host.command == EditorMenuCommand::TOGGLE_GRID);
 }
 
+TEST_CASE("switching projection is queued once a project is open") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const AgentResult result = runAgentTool(
+      state, "run_command", R"({"command": "set_view_isometric"})");
+
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.command == EditorMenuCommand::SET_VIEW_ISOMETRIC);
+}
+
 TEST_CASE("opening a project is queued with the path it was given") {
   EditorShellState state;
 

@@ -24,8 +24,9 @@ ImageData shapeStrip(uint32_t size) {
   strip.source_channels = 4;
   strip.pixels.assign(static_cast<size_t>(strip.width) * strip.height * 4, 0);
   for (size_t shape = 0; shape < EDITOR_SHAPE_COUNT; ++shape) {
-    const ImageData tile = renderAssetThumbnail(
-        makeEditorShapeMesh(EDITOR_SHAPE_KINDS[shape]), size);
+    const ImageData tile =
+        renderAssetThumbnail(makeEditorShapeMesh(EDITOR_SHAPE_KINDS[shape]),
+                             size, ISO_AXES_DIMETRIC);
     for (uint32_t y = 0; y < size; ++y) {
       const size_t from = static_cast<size_t>(y) * size * 4;
       const size_t to =
@@ -106,8 +107,8 @@ TEST_CASE("a shape placed on a tile fills it, as a model would") {
 
 TEST_CASE("every shape renders a thumbnail with something in it") {
   for (const EditorShapeKind kind : EDITOR_SHAPE_KINDS) {
-    const ImageData image =
-        renderAssetThumbnail(makeEditorShapeMesh(kind), ASSET_THUMBNAIL_SIZE);
+    const ImageData image = renderAssetThumbnail(
+        makeEditorShapeMesh(kind), ASSET_THUMBNAIL_SIZE, ISO_AXES_DIMETRIC);
     REQUIRE(image.width == ASSET_THUMBNAIL_SIZE);
     REQUIRE(paintedPixels(image) > 0);
   }

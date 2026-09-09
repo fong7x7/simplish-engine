@@ -14,7 +14,11 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
                               EditorMenuCommand command) {
   // The state-dependent rows first: each is built, and each would still do
   // nothing if it were live right now.
-  if (command == EditorMenuCommand::CLOSE_PROJECT) {
+  if (command == EditorMenuCommand::CLOSE_PROJECT ||
+      command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
+      command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
+    // Switching projection writes the choice back to the project file, so
+    // with no project open there is nowhere for the setting to live.
     return state.project.loaded;
   }
   if (command == EditorMenuCommand::UNDO) {

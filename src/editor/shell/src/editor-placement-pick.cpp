@@ -55,10 +55,11 @@ std::optional<float> placementRayHit(const IsoView& view,
   // Any world point that projects to the click will do as an origin, and
   // the ground plane is the one the viewport can already invert to.
   const WorldPoint origin = screenToWorld(view, screen);
+  const WorldPoint ray = isoProjectionRay(view.axes);
   RaySpan span{};
-  if (!clipSlab(span, {origin.x, 0.0f, bounds.min.x, bounds.max.x}) ||
-      !clipSlab(span, {origin.y, PICK_RAY_Y, bounds.min.y, bounds.max.y}) ||
-      !clipSlab(span, {origin.z, PICK_RAY_Z, bounds.min.z, bounds.max.z})) {
+  if (!clipSlab(span, {origin.x, ray.x, bounds.min.x, bounds.max.x}) ||
+      !clipSlab(span, {origin.y, ray.y, bounds.min.y, bounds.max.y}) ||
+      !clipSlab(span, {origin.z, ray.z, bounds.min.z, bounds.max.z})) {
     return std::nullopt;
   }
   // The near face is the one the viewer sees, and the far end of the span

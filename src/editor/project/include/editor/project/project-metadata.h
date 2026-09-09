@@ -4,6 +4,7 @@
 /// @brief Parsed contents of `.simplish/project.json`.
 /// @par Threading Main-thread-only.
 
+#include <editor/project/project-projection.h>
 #include <string>
 
 namespace eng::editor {
@@ -21,6 +22,8 @@ struct ProjectMetadata {
   std::string last_opened_at;
   /// Workspace to open on launch — see docs/editor/REQUIREMENTS.md §3.
   std::string default_workspace{"Level"};
+  /// The projection this project's world is drawn and authored with.
+  ProjectProjection projection = ProjectProjection::DIMETRIC;
 };
 
 }  // namespace eng::editor

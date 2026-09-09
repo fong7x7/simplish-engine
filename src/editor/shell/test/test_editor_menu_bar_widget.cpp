@@ -272,6 +272,60 @@ TEST_CASE("Close Project is disabled until a project is open") {
   REQUIRE(closeRow());
 }
 
+TEST_CASE("the View menu offers both projections") {
+  MenuFixture fx;
+  const eng::GuiDropdown& view = *fx.menu(VIEW_MENU);
+  REQUIRE(rowWithLabel(view, "Dimetric View") >= 0);
+  REQUIRE(rowWithLabel(view, "Isometric View") >= 0);
+}
+
+TEST_CASE("the projection rows need a project to record the choice in") {
+  MenuFixture fx;
+  auto isometricRow = [&fx]() {
+    const eng::GuiDropdown& view = *fx.menu(VIEW_MENU);
+    return view
+        .items[static_cast<size_t>(rowWithLabel(view, "Isometric View"))];
+  };
+  REQUIRE_FALSE(isometricRow().enabled);
+
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  REQUIRE(isometricRow().enabled);
+}
+
+TEST_CASE("exactly one projection row is marked, and it is the live one") {
+  MenuFixture fx;
+  auto marked = [&fx](std::string_view label) {
+    const eng::GuiDropdown& view = *fx.menu(VIEW_MENU);
+    return view.items[static_cast<size_t>(rowWithLabel(view, label))].checked;
+  };
+  // A project that has never been switched is dimetric, so that is the row
+  // that carries the mark before anything is chosen.
+  REQUIRE(marked("Dimetric View"));
+  REQUIRE_FALSE(marked("Isometric View"));
+
+  fx.bar()->setProjection(ProjectProjection::ISOMETRIC);
+  fx.bar()->tick(fx.tree);
+  REQUIRE(marked("Isometric View"));
+  REQUIRE_FALSE(marked("Dimetric View"));
+}
+
+TEST_CASE("choosing a projection raises its command") {
+  MenuFixture fx;
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  std::vector<EditorMenuCommand> raised;
+  fx.bar()->on_command = [&raised](EditorMenuCommand c) {
+    raised.push_back(c);
+  };
+
+  clickTitle(fx, VIEW_MENU);
+  clickRow(fx, VIEW_MENU, rowWithLabel(*fx.menu(VIEW_MENU), "Isometric View"));
+
+  REQUIRE(raised.size() == 1);
+  REQUIRE(raised[0] == EditorMenuCommand::SET_VIEW_ISOMETRIC);
+}
+
 TEST_CASE("Undo is disabled until an action has been taken") {
   MenuFixture fx;
   REQUIRE_FALSE(editRowEnabled(fx, "Undo"));

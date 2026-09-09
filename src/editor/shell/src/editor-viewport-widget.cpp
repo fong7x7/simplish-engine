@@ -39,8 +39,10 @@ namespace {
   }
 
   /// Draw the two families of tile-edge lines: constant world X and
-  /// constant world Y. The camera has zero yaw, so in screen space these are
-  /// axis-aligned — verticals and foreshortened horizontals.
+  /// constant world Y. Both go through `worldToScreen`, so the grid is
+  /// whatever the project's projection makes of it — axis-aligned
+  /// rectangles under the dimetric axes, diamonds under the isometric
+  /// ones.
   void renderGrid(GuiRendererContext& renderer, const IsoView& view) {
     const uint32_t minor = GRID_LINE.pack();
     const uint32_t major = GRID_MAJOR.pack();
@@ -68,7 +70,7 @@ namespace {
                 AXIS_Y.pack());
   }
 
-  /// Outline the rectangular footprint of a single tile.
+  /// Outline the footprint of a single tile.
   void renderTileOutline(GuiRendererContext& renderer, const IsoView& view,
                          WorldPoint tile, uint32_t color) {
     const IsoPoint corners[] = {

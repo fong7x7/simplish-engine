@@ -15,6 +15,7 @@
 #include <engine/gui/gui-widget-tree.h>
 #include <memory>
 #include <string>
+#include <string_view>
 
 using namespace eng::editor;
 
@@ -40,8 +41,14 @@ struct MenuCapture {
   eng::GuiWidgetId root = eng::GUI_WIDGET_ID_INVALID;
   eng::GuiWidgetId bar_id = eng::GUI_WIDGET_ID_INVALID;
   eng::ImageData image;
+  /// Menu opened for the capture.
+  size_t open_index = 0;
 
-  MenuCapture() {
+  /// Which menu is opened for the capture, and the projection the bar is
+  /// told the project is in.
+  MenuCapture(size_t menu_index = 0,
+              ProjectProjection projection = ProjectProjection::DIMETRIC)
+    : open_index(menu_index), projection_(projection) {
     buildTree();
     REQUIRE(renderer.init(nullptr));
     renderer.viewport_width = CAPTURE_W;
@@ -83,7 +90,7 @@ struct MenuCapture {
                                        root);
     bar()->init(tree);
     fillMenus();
-    bar()->openMenu(tree, 0);
+    bar()->openMenu(tree, static_cast<int>(open_index));
   }
 
   /// Put the bar in the state worth looking at: a project open, one recent
@@ -93,6 +100,7 @@ struct MenuCapture {
     RecentProjectsList recent;
     recent.entries.push_back({"/p/transit", "Transit Station", "2026-08-27"});
     bar()->setRecentProjects(recent);
+    bar()->setProjection(projection_);
     bar()->layout(tree,
                   eng::makeRect(0.0f, TITLE_H, static_cast<float>(CAPTURE_W),
                                 MENU_BAR_HEIGHT),
@@ -104,12 +112,22 @@ struct MenuCapture {
     return dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(bar_id));
   }
 
+  /// The open dropdown.
+  [[nodiscard]] const eng::GuiDropdown* menu() {
+    return dynamic_cast<eng::GuiDropdown*>(
+        tree.findWidget(bar()->dropdownId(open_index)));
+  }
+
   /// Read a pixel as (r, g, b).
   [[nodiscard]] std::array<uint8_t, 3> pixel(uint32_t x, uint32_t y) const {
     const size_t offset = (static_cast<size_t>(y) * image.width + x) * 4;
     return {image.pixels[offset], image.pixels[offset + 1],
             image.pixels[offset + 2]};
   }
+
+private:
+  /// Projection the bar is told the open project is in.
+  ProjectProjection projection_ = ProjectProjection::DIMETRIC;
 };
 
 /// True when a pixel is within `tolerance` of a theme colour on every
@@ -122,6 +140,37 @@ bool matches(const std::array<uint8_t, 3>& pixel, const eng::GuiColor& color,
   };
   return near(pixel[0], color.r) && near(pixel[1], color.g) &&
          near(pixel[2], color.b);
+}
+
+/// Index of the View menu, and the rows the projections sit on.
+constexpr size_t VIEW_MENU = 2;
+
+/// Row index of the item labelled @p label in the open menu.
+int rowOf(MenuCapture& capture, std::string_view label) {
+  const eng::GuiDropdown& menu = *capture.menu();
+  for (size_t i = 0; i < menu.items.size(); ++i) {
+    if (menu.items[i].label == label) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
+}
+
+/// Whether anything is painted in the left gutter of @p label's row, which
+/// is where a checked row draws its mark and an unchecked one draws nothing.
+bool gutterMarked(MenuCapture& capture, std::string_view label) {
+  const eng::GuiDropdown& menu = *capture.menu();
+  const auto height = static_cast<float>(menu.style.item_height);
+  const float y =
+      menu.rect.y + (static_cast<float>(rowOf(capture, label)) + 0.5f) * height;
+  for (float x = menu.rect.x + 2.0f; x < menu.rect.x + 10.0f; x += 1.0f) {
+    const auto p =
+        capture.pixel(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    if (!matches(p, eng::THEME_PANEL)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace
@@ -154,6 +203,28 @@ TEST_CASE("a closed menu paints nothing") {
   // The Edit menu overlaps the File menu's column, so sample below both.
   REQUIRE(menu->rect.h > 0.0f);
   REQUIRE_FALSE(matches(capture.pixel(x, y + 200), eng::THEME_PANEL));
+}
+
+TEST_CASE("the live projection is marked, and only that one") {
+  MenuCapture capture(VIEW_MENU, ProjectProjection::ISOMETRIC);
+  // The widget test asserts which item carries the flag; this asserts the
+  // mark reaches pixels, in the gutter, on the row the flag is on.
+  REQUIRE(gutterMarked(capture, "Isometric View"));
+  REQUIRE_FALSE(gutterMarked(capture, "Dimetric View"));
+}
+
+TEST_CASE("switching projection moves the mark") {
+  MenuCapture capture(VIEW_MENU, ProjectProjection::DIMETRIC);
+  REQUIRE(gutterMarked(capture, "Dimetric View"));
+  REQUIRE_FALSE(gutterMarked(capture, "Isometric View"));
+}
+
+TEST_CASE("the View menu capture can be written to PNG for inspection") {
+  MenuCapture capture(VIEW_MENU, ProjectProjection::ISOMETRIC);
+  const bool written = eng::GuiSoftwareRasterizer::writePng(
+      capture.image, "editor-view-menu-capture.png");
+  INFO("wrote editor-view-menu-capture.png: " << written);
+  SUCCEED();
 }
 
 TEST_CASE("the menu capture can be written to PNG for inspection") {

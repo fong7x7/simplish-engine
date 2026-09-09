@@ -33,6 +33,10 @@ std::optional<ProjectMetadata> parseProjectMetadata(std::string_view json) {
   meta.created_at = parsed->value("created_at", "");
   meta.last_opened_at = parsed->value("last_opened_at", "");
   meta.default_workspace = parsed->value("default_workspace", "Level");
+  // Absent in every project written before the setting existed, and those
+  // were all authored against the dimetric projection.
+  meta.projection = projectProjectionFromName(
+      parsed->value("projection", std::string("dimetric")));
   return meta;
 }
 
@@ -43,6 +47,7 @@ std::string serializeProjectMetadata(const ProjectMetadata& meta) {
   out["created_at"] = meta.created_at;
   out["last_opened_at"] = meta.last_opened_at;
   out["default_workspace"] = meta.default_workspace;
+  out["projection"] = projectProjectionName(meta.projection);
   return out.dump(2);
 }
 

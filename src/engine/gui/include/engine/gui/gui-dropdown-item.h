@@ -19,6 +19,11 @@ struct GuiDropdownItem {
   /// informational: the dropdown never binds keys, so a caller that shows
   /// one is responsible for making the key actually work.
   std::string shortcut{};
+  /// When true, the row draws a mark in its left gutter, for a setting the
+  /// menu both changes and reports. The mark is a dot rather than a tick:
+  /// these rows come in mutually exclusive groups, where a dot is what a
+  /// menu has always meant.
+  bool checked = false;
   /// When true, the row draws a divider line instead of a label and cannot
   /// be selected or hovered. Separators still occupy a full row, so item
   /// indices and hit testing stay a simple division by the row height.

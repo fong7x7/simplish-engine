@@ -381,6 +381,7 @@ void SimplishEditor::applyProjectToChrome() {
   setWindowTitle(title_text_);
 
   applyProjectToWidgets();
+  applyProjectionToWidgets();
 }
 
 void SimplishEditor::applyProjectToWidgets() {
@@ -483,15 +484,31 @@ void SimplishEditor::releaseAssetThumbnails() {
   }
 }
 
+std::filesystem::path SimplishEditor::thumbnailCacheDir() const {
+  // A subdirectory per projection, because a card is drawn at the angle the
+  // viewport uses: switching projection has to miss the cache rather than
+  // show pictures of the old angle, and switching back should still hit.
+  return projectThumbnailsPath(state_.project.root) /
+         projectProjectionName(state_.project.metadata.projection);
+}
+
 ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
   // A shape's geometry costs a few hundred triangles of trigonometry to
   // rebuild, and there is no file to key a cache entry on.
-  if (asset.shape.has_value()) {
-    return renderAssetThumbnail(makeEditorShapeMesh(*asset.shape),
-                                ASSET_THUMBNAIL_SIZE);
+  if (!asset.shape.has_value()) {
+    return buildCachedThumbnail(asset);
   }
-  const ThumbnailCacheEntry entry{projectThumbnailsPath(state_.project.root),
-                                  asset.path, asset.relative_path};
+  return renderAssetThumbnail(makeEditorShapeMesh(*asset.shape),
+                              ASSET_THUMBNAIL_SIZE, thumbnailAxes());
+}
+
+IsoAxes SimplishEditor::thumbnailAxes() const {
+  return isoAxesFor(state_.project.metadata.projection);
+}
+
+ImageData SimplishEditor::buildCachedThumbnail(const EditorAsset& asset) {
+  const ThumbnailCacheEntry entry{thumbnailCacheDir(), asset.path,
+                                  asset.relative_path};
   if (std::optional<ImageData> cached = loadCachedThumbnail(entry)) {
     return std::move(*cached);
   }
@@ -501,7 +518,8 @@ ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
   if (!mesh.has_value()) {
     return {};
   }
-  ImageData image = renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE);
+  ImageData image =
+      renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE, thumbnailAxes());
   storeCachedThumbnail(entry, image);
   return image;
 }
@@ -1113,19 +1131,63 @@ void SimplishEditor::executeCommand(EditorMenuCommand command) {
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
+  // The two projection rows change the project; everything else on the View
+  // menu only moves the camera over it.
+  if (command == EditorMenuCommand::SET_VIEW_DIMETRIC) {
+    applyProjection(ProjectProjection::DIMETRIC);
+  } else if (command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
+    applyProjection(ProjectProjection::ISOMETRIC);
+  } else {
+    applyCameraCommand(command);
+  }
+}
+
+void SimplishEditor::applyCameraCommand(EditorMenuCommand command) {
   auto* viewport = dynamic_cast<EditorViewportWidget*>(
       guiWidgetTree().findWidget(viewport_id_));
   if (viewport == nullptr) {
     return;
   }
   if (command == EditorMenuCommand::RESET_VIEW) {
-    viewport->camera = IsoCamera{};
+    // Everything but the projection: that is the project's setting, not
+    // part of where the camera happens to be looking right now.
+    viewport->camera = IsoCamera{.axes = viewport->camera.axes};
   } else if (command == EditorMenuCommand::ZOOM_IN) {
     zoomAtCentre(*viewport, 1.0f);
   } else if (command == EditorMenuCommand::ZOOM_OUT) {
     zoomAtCentre(*viewport, -1.0f);
   } else if (command == EditorMenuCommand::TOGGLE_GRID) {
     viewport->show_grid = !viewport->show_grid;
+  }
+}
+
+void SimplishEditor::applyProjection(ProjectProjection projection) {
+  if (!state_.project.loaded ||
+      state_.project.metadata.projection == projection) {
+    return;
+  }
+  state_.project.metadata.projection = projection;
+  applyProjectionToWidgets();
+  // Every card is drawn at the viewport's own angle, so they are all now
+  // pictures of the wrong one. They rebuild as their cards scroll into view.
+  releaseAssetThumbnails();
+  if (!saveProjectMetadata(state_.project)) {
+    // The editor is already showing the new projection, so this is a
+    // warning rather than a refusal: what is lost is only its persistence.
+    LOG_WARN("editor", "Could not write the projection to project.json");
+    showStatusMessage("Switched view, but could not save it to the project");
+  }
+}
+
+void SimplishEditor::applyProjectionToWidgets() {
+  const IsoAxes axes = isoAxesFor(state_.project.metadata.projection);
+  if (auto* viewport = viewportWidget()) {
+    viewport->camera.axes = axes;
+  }
+  state_.view.camera.axes = axes;
+  if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
+          guiWidgetTree().findWidget(menu_bar_id_))) {
+    menu->setProjection(state_.project.metadata.projection);
   }
 }
 

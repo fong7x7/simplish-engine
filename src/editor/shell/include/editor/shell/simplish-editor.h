@@ -271,7 +271,16 @@ private:
   bool ensureAssetThumbnail(size_t index);
   /// The picture for an asset: the project's cached one, or a fresh render
   /// which is then cached. Empty when the mesh could not be read.
+  /// Where the open project keeps thumbnails for its current projection.
+  [[nodiscard]] std::filesystem::path thumbnailCacheDir() const;
+
   [[nodiscard]] ImageData buildAssetThumbnail(const EditorAsset& asset);
+
+  /// Render or load the thumbnail for an asset that has a file behind it.
+  [[nodiscard]] ImageData buildCachedThumbnail(const EditorAsset& asset);
+
+  /// The axes thumbnails are drawn with: the open project's own.
+  [[nodiscard]] IsoAxes thumbnailAxes() const;
   /// Upload a picture and hand the browser the texture. False when the
   /// device would not make one.
   bool uploadAssetThumbnail(EditorAsset& asset, const ImageData& image);
@@ -299,6 +308,18 @@ private:
   [[nodiscard]] bool chromeNeedsLayout();
   /// The viewport widget, or nullptr before the chrome exists.
   [[nodiscard]] EditorViewportWidget* viewportWidget();
+
+  /// Apply one of the View menu's camera rows — reset, zoom, or the grid.
+  void applyCameraCommand(EditorMenuCommand command);
+
+  /// Switch the open project to @p projection and write the choice back to
+  /// its project.json. A no-op with no project open, since there would be
+  /// nowhere to record the choice.
+  void applyProjection(ProjectProjection projection);
+
+  /// Push the open project's projection into the viewport camera and the
+  /// menu's checked row.
+  void applyProjectionToWidgets();
   /// The asset browser, or nullptr before the chrome exists.
   [[nodiscard]] EditorAssetBrowserWidget* assetBrowserWidget();
   /// The properties panel, or nullptr before the chrome exists.
