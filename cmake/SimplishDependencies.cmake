@@ -64,6 +64,21 @@ if(ENGINE_PLATFORM_DESKTOP)
 endif()
 
 # ---------------------------------------------------------------------------
+# Windows-only dependencies
+# ---------------------------------------------------------------------------
+if(ENGINE_PLATFORM_WINDOWS)
+    # D3D12MemoryAllocator — GPU heap suballocation for the DX12 backend.
+    # The backend allocates every buffer and texture through it, so it is a
+    # hard requirement of that backend rather than an optimisation.
+    set(D3D12MA_BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(D3D12MemoryAllocator
+        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator.git
+        GIT_TAG        v2.1.0
+        GIT_SHALLOW    TRUE
+    )
+endif()
+
+# ---------------------------------------------------------------------------
 # Make all declared dependencies available
 # ---------------------------------------------------------------------------
 message(STATUS "Fetching dependencies...")
@@ -86,6 +101,10 @@ if(ENGINE_PLATFORM_DESKTOP)
 
     set(CMAKE_C_FLAGS   "${_saved_c_flags}")
     set(CMAKE_CXX_FLAGS "${_saved_cxx_flags}")
+endif()
+
+if(ENGINE_PLATFORM_WINDOWS)
+    FetchContent_MakeAvailable(D3D12MemoryAllocator)
 endif()
 
 # stb — header-only, no CMakeLists.txt. Populate and create INTERFACE target.

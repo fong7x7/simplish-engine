@@ -13,7 +13,9 @@ namespace eng::render {
 struct Dx12Pipeline {
   /// D3D12 pipeline state object.
   ID3D12PipelineState* pipeline_state = nullptr;
-  /// Root signature used by this pipeline.
+  /// Root signature this pipeline was created against. Borrowed from the
+  /// device, which creates one of each kind and shares them, so destroying
+  /// a pipeline must not release it.
   ID3D12RootSignature* root_signature = nullptr;
   /// Whether this is a graphics or compute pipeline.
   Dx12PipelineType bind_point = Dx12PipelineType::GRAPHICS;

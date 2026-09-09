@@ -93,12 +93,25 @@ struct Dx12Device::Impl {
   uint32_t swapchain_height = 0;
   /// Swapchain pixel format.
   DXGI_FORMAT swapchain_format = DXGI_FORMAT_UNKNOWN;
+  /// Format the swapchain's render target views are created with.
+  ///
+  /// The sRGB sibling of `swapchain_format`: the flip-model swapchain
+  /// itself cannot be an _SRGB format, but its RTV can, and that is what
+  /// makes the built-in shaders' linear output encode on the way out —
+  /// the same thing `MTLPixelFormatBGRA8Unorm_sRGB` does for Metal.
+  DXGI_FORMAT swapchain_rtv_format = DXGI_FORMAT_UNKNOWN;
+  /// Last state each swapchain back buffer was transitioned to.
+  std::array<D3D12_RESOURCE_STATES, DX12_FRAMES_IN_FLIGHT> swapchain_states{};
   /// Current frame index (0..DX12_FRAMES_IN_FLIGHT-1).
   uint32_t frame_index = 0;
   /// Current swapchain back buffer index.
   uint32_t image_index = 0;
   /// Per-frame synchronization and command data.
   std::array<Dx12PerFrameData, DX12_FRAMES_IN_FLIGHT> frames{};
+  /// Command allocator, list and fence for work that is not part of a
+  /// frame — texture uploads and screen capture. They have their own so
+  /// they never reset a list the caller is still recording into.
+  Dx12PerFrameData utility{};
   /// Cached device capabilities.
   RhiDeviceCapabilities caps{};
   /// Device name string (owned for lifetime stability).
@@ -119,6 +132,14 @@ struct Dx12Device::Impl {
   ID3D12CommandSignature* draw_indirect_sig = nullptr;
   /// Command signature for indexed indirect draws.
   ID3D12CommandSignature* draw_indexed_indirect_sig = nullptr;
+  /// Root signature shared by every graphics pipeline.
+  ID3D12RootSignature* graphics_root_signature = nullptr;
+  /// Root signature shared by every compute pipeline.
+  ID3D12RootSignature* compute_root_signature = nullptr;
+  /// SRV heap slot holding a null descriptor, bound when a draw names a
+  /// texture that has none. A descriptor table left uninitialised is a
+  /// debug-layer error even when the shader never samples from it.
+  uint32_t null_srv_index = DX12_DESCRIPTOR_INDEX_NONE;
   /// Whether a swapchain resize is pending.
   bool resize_pending = false;
   /// Pending resize width.
@@ -142,12 +163,24 @@ struct Dx12Device::Impl {
   bool initAllocator();
   /// Create descriptor heaps (RTV, DSV, CBV/SRV/UAV).
   bool initDescriptorHeaps();
+  /// Size the descriptor index allocators and reserve the swapchain's RTVs.
+  bool initDescriptorAllocators();
   /// Create the DXGI swap chain from the native window handle.
   bool initSwapchain();
+  /// Fetch the back buffers, view them as sRGB, and mark them PRESENT.
+  bool acquireSwapchainBuffers();
+  /// Note the format and pixel size the swapchain was just created at.
+  void recordSwapchainSize();
   /// Allocate per-frame command allocators, command lists, and fences.
   bool initPerFrameData();
   /// Create command signatures for indirect draw calls.
   bool initCommandSignatures();
+  /// Create the shared graphics and compute root signatures.
+  bool initRootSignatures();
+  /// Create the utility command allocator, list and fence.
+  bool initUtilityFrame();
+  /// Write the null SRV every unbound texture slot points at.
+  void initNullSrv();
   /// Query adapter properties and fill the capabilities struct.
   void populateCapabilities();
 
@@ -166,8 +199,16 @@ struct Dx12Device::Impl {
 
   /// Recreate the swapchain after a resize event.
   void recreateSwapchain();
+  /// Reset the utility command list ready for recording. False if it fails.
+  bool beginUtilityCommands();
+  /// Close, submit and block on the utility command list.
+  void submitUtilityCommands();
+  /// Release every resource still in the handle tables.
+  void destroyLiveResources();
   /// Wait for all GPU work on all frames to complete.
   void waitAllFrames();
+  /// Wait out the current frame, then reset its allocator, list and ring.
+  void beginFrameRecording();
   /// Get an RTV CPU handle at the given index.
   D3D12_CPU_DESCRIPTOR_HANDLE rtvCpuHandle(uint32_t index) const;
   /// Get a DSV CPU handle at the given index.

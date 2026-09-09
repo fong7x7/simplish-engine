@@ -2,6 +2,8 @@
 
 #ifdef ENGINE_RENDERER_DX12
 
+#include "dx12-upload-ring.h"
+
 #include <cstdint>
 #include <d3d12.h>
 
@@ -21,6 +23,9 @@ struct Dx12PerFrameData {
   ID3D12Fence* fence = nullptr;
   /// Monotonically increasing fence value for this frame.
   uint64_t fence_value = 0;
+  /// Constants pushed by `setVertexStageBytes` / `setFragmentStageBytes`
+  /// during this frame, reset once the frame's previous work has retired.
+  Dx12UploadRing stage_bytes{};
 #ifdef _WIN32
   /// Win32 event handle for CPU-side fence wait.
   HANDLE fence_event = nullptr;

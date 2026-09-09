@@ -50,7 +50,7 @@ The platform layer builds and its tests pass: 114 tests on macOS/Metal, 66 on th
 | `RhiDeviceFactory` | `src/platform/render/` | 2 | Complete — compile-time backend selection, returns an empty optional on failure |
 | Metal backend | `src/platform/render/backends/metal/` | 11 | Device, command list, format and resource maps, type converters; ARC-enabled `.mm` |
 | Vulkan backend | `src/platform/render/backends/vulkan/` | 14 | Device, device init, command list, handle table, format map |
-| DX12 backend | `src/platform/render/backends/dx12/` | 16 | Device, command list, handle table, descriptor heap allocator, frames-in-flight, resource wrappers |
+| DX12 backend | `src/platform/render/backends/dx12/` | 25 | Device, command list, handle table, descriptor heap allocator, frames-in-flight, resource wrappers, shared root signature, built-in GUI and mesh pipelines |
 | OpenGL backend | `src/platform/render/backends/opengl/` | 26 | Device, command list, types, full set of `gl-cmd-*` command records |
 | Stub backend | `src/platform/render/backends/stub/` | 2 | Headless `RhiDevice`; selectable via `ENGINE_RENDERER=STUB` — the CI determinism path |
 | Desktop client | `src/platform/client/` | 8 | `DesktopGameClient`: SDL3 window, event pump, RHI creation, run loop, keycode mapping |

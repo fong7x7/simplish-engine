@@ -5,6 +5,10 @@
 
 namespace eng::render {
 
+/// Returned by `allocate` when the heap is full, and stored by a resource
+/// that never asked for a descriptor of that kind. Never a valid index.
+inline constexpr uint32_t DX12_DESCRIPTOR_INDEX_NONE = UINT32_MAX;
+
 // ============================================================================
 // DESIGN SUMMARY
 // ============================================================================
@@ -27,7 +31,7 @@ public:
 
   Dx12DescriptorHeapAllocator() = default;
 
-  /// Allocates a descriptor index. Returns UINT32_MAX on exhaustion.
+  /// Allocates a descriptor index. `DX12_DESCRIPTOR_INDEX_NONE` if full.
   uint32_t allocate() {
     if (!free_list_.empty()) {
       uint32_t index = free_list_.back();
@@ -35,7 +39,7 @@ public:
       return index;
     }
     if (next_index_ >= capacity_) {
-      return UINT32_MAX;
+      return DX12_DESCRIPTOR_INDEX_NONE;
     }
     return next_index_++;
   }

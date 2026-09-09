@@ -4,10 +4,15 @@
 
 #include "dx12-device-impl.h"
 
+#include <array>
 #include <d3d12.h>
 #include <engine/render/rhi-command-list.h>
 
 namespace eng::render {
+
+/// Render target views of one pass, sized to D3D12's own attachment limit.
+using Dx12RtvArray = std::array<D3D12_CPU_DESCRIPTOR_HANDLE,
+                                D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT>;
 
 // ============================================================================
 // DESIGN SUMMARY
@@ -17,7 +22,7 @@ namespace eng::render {
 // Responsibilities:
 // - Wrap a borrowed ID3D12GraphicsCommandList for GPU command recording
 // - Translate RHI commands (bind, draw, dispatch, barrier) to D3D12 calls
-// - Manage render pass begin/end via render target barrier transitions
+// - Drive render target state transitions from the device's tracked states
 //
 // Key Invariants:
 // - Does NOT own the ID3D12GraphicsCommandList (lifetime managed by
@@ -25,6 +30,8 @@ namespace eng::render {
 // - Must be used between begin()/end() calls
 // - draw/drawIndexed must be inside a render pass
 // - dispatch must be outside a render pass
+// - end() leaves every swapchain back buffer back in PRESENT, which is the
+//   state IDXGISwapChain::Present requires
 // - All methods are main-thread-only
 //
 // Threading:
@@ -56,6 +63,11 @@ public:
                        RhiIndexType index_type = RhiIndexType::UINT16) override;
   void bindDescriptorSet(uint32_t set_index,
                          RhiDescriptorSetHandle set) override;
+  void setVertexStageBytes(const void* data, size_t size,
+                           uint32_t slot) override;
+  void setFragmentStageBytes(const void* data, size_t size,
+                             uint32_t slot) override;
+  void bindFragmentTexture(RhiTextureHandle texture, uint32_t slot) override;
 
   // --- Viewport and scissor ---
   void setViewport(const RhiViewport& viewport) override;
@@ -94,6 +106,19 @@ public:
   ID3D12GraphicsCommandList* nativeCommandList() const;
 
 private:
+  /// Fill `out_rtvs` with the pass's usable colour views, transitioning
+  /// each into RENDER_TARGET. Returns how many it wrote.
+  uint32_t collectRenderTargets(const RhiRenderPassBeginInfo& info,
+                                Dx12RtvArray& out_rtvs);
+  /// Transition every render target of a pass and bind them.
+  void bindRenderTargets(const RhiRenderPassBeginInfo& info);
+  /// Apply the pass's clear operations to the bound targets.
+  void applyLoadOps(const RhiRenderPassBeginInfo& info);
+  /// Copy `size` bytes into this frame's ring and point `root_param` at them.
+  void bindStageBytes(uint32_t root_param, const void* data, size_t size);
+  /// Put every swapchain back buffer back into the PRESENT state.
+  void restorePresentState();
+
   /// Borrowed D3D12 graphics command list (not owned).
   ID3D12GraphicsCommandList* cmd_list_ = nullptr;
   /// Device implementation for resolving RHI handles to D3D12 objects.
@@ -102,6 +127,12 @@ private:
   D3D_PRIMITIVE_TOPOLOGY current_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
   /// Currently bound pipeline's vertex stride (for vertex buffer binding).
   uint32_t current_vertex_stride_ = 0;
+  /// Whether a graphics root signature is set, which the root-argument
+  /// calls require and which only `bindPipeline` can establish.
+  bool graphics_root_bound_ = false;
+  /// Colour attachments the current pass actually bound, which is what the
+  /// clear loop iterates rather than the count the caller asked for.
+  uint32_t bound_rtv_count_ = 0;
 };
 
 }  // namespace eng::render

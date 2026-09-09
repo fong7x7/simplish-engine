@@ -15,12 +15,13 @@ namespace eng {
 /// with since meshes first drew, kept exactly so that a scene with no
 /// lights in it looks as it always did.
 ///
-/// Every constant in this file is spelled out a second time in the mesh
-/// shader (`MESH_MSL_SOURCE` in `metal-device-impl.mm`), which cannot
-/// include a C++ header. Changing one here means changing it there, and
-/// `MESH_MAX_LIGHTS` most of all: the shader's array is sized by its own
-/// copy, so a smaller value here would leave it reading past the bytes the
-/// draw actually sent.
+/// Every constant in this file is spelled out again in each backend's mesh
+/// shader — `MESH_MSL_SOURCE` in `metal-device-impl.mm` and
+/// `MESH_HLSL_SOURCE` in `dx12-builtin-pipelines.cpp` — neither of which
+/// can include a C++ header. Changing one here means changing it in both,
+/// and `MESH_MAX_LIGHTS` most of all: each shader's array is sized by its
+/// own copy, so a smaller value here would leave it reading past the bytes
+/// the draw actually sent.
 inline constexpr float MESH_LIGHT_AMBIENT = 0.38f;
 
 /// What one light of intensity 1, hitting a surface head on, adds to that

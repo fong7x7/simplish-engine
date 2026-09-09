@@ -2,9 +2,13 @@
 
 #ifdef ENGINE_RENDERER_DX12
 
+#include "dx12-copy-alignment.h"
 #include "dx12-device-impl.h"
 #include "dx12-format-map.h"
+#include "dx12-root-signature.h"
+#include "dx12-texture-lookup.h"
 
+#include <array>
 #include <cstdint>
 #include <d3d12.h>
 #include <engine/render/rhi-types.h>
@@ -12,51 +16,14 @@
 namespace eng::render {
 
 // ---------------------------------------------------------------------------
-// Anonymous-namespace helpers for handle resolution
+// Anonymous-namespace helpers
 // ---------------------------------------------------------------------------
 
 namespace {
 
-  ID3D12Resource* resolveSwapchainImage(Dx12Device::Impl& impl,
-                                        RhiTextureHandle handle) {
-    auto sc_count = static_cast<RhiTextureHandle>(DX12_FRAMES_IN_FLIGHT);
-    if (handle > 0 && handle <= sc_count) {
-      return impl.swapchain_images[handle - 1];
-    }
-    return nullptr;
-  }
-
-  ID3D12Resource* resolveResource(Dx12Device::Impl& impl,
-                                  RhiTextureHandle handle) {
-    auto* sc = resolveSwapchainImage(impl, handle);
-    if (sc != nullptr) {
-      return sc;
-    }
-    auto* tex = impl.textures.lookup(handle);
-    return tex != nullptr ? tex->resource : nullptr;
-  }
-
-  D3D12_CPU_DESCRIPTOR_HANDLE
-  resolveRtv(Dx12Device::Impl& impl, RhiTextureHandle handle) {
-    auto sc_count = static_cast<RhiTextureHandle>(DX12_FRAMES_IN_FLIGHT);
-    if (handle > 0 && handle <= sc_count) {
-      return impl.swapchain_rtvs[handle - 1];
-    }
-    auto* tex = impl.textures.lookup(handle);
-    if (tex != nullptr && tex->rtv_handle.has_value()) {
-      return tex->rtv_handle.value();
-    }
-    return {0};
-  }
-
-  D3D12_CPU_DESCRIPTOR_HANDLE
-  resolveDsv(Dx12Device::Impl& impl, RhiTextureHandle handle) {
-    auto* tex = impl.textures.lookup(handle);
-    if (tex != nullptr && tex->dsv_handle.has_value()) {
-      return tex->dsv_handle.value();
-    }
-    return {0};
-  }
+  /// Most colour attachments one pass can bind, matching D3D12's own limit.
+  constexpr uint32_t DX12_MAX_COLOR_TARGETS =
+      D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
 
   D3D12_TEXTURE_COPY_LOCATION
   buildSubresourceCopyLoc(ID3D12Resource* resource) {
@@ -69,16 +36,23 @@ namespace {
   D3D12_TEXTURE_COPY_LOCATION
   buildFootprintCopyLoc(ID3D12Resource* buf_resource,
                         const D3D12_RESOURCE_DESC& tex_desc) {
+    const auto width = static_cast<UINT>(tex_desc.Width);
     D3D12_TEXTURE_COPY_LOCATION loc{};
     loc.pResource = buf_resource;
     loc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     loc.PlacedFootprint.Footprint.Format = tex_desc.Format;
-    loc.PlacedFootprint.Footprint.Width = static_cast<UINT>(tex_desc.Width);
+    loc.PlacedFootprint.Footprint.Width = width;
     loc.PlacedFootprint.Footprint.Height = tex_desc.Height;
     loc.PlacedFootprint.Footprint.Depth = 1;
-    loc.PlacedFootprint.Footprint.RowPitch =
-        static_cast<UINT>(tex_desc.Width) * 4;
+    loc.PlacedFootprint.Footprint.RowPitch = dx12AlignRowPitch(width * 4);
     return loc;
+  }
+
+  D3D12_RESOURCE_BARRIER buildUavBarrier(ID3D12Resource* resource) {
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    barrier.UAV.pResource = resource;
+    return barrier;
   }
 
 }  // namespace
@@ -97,59 +71,88 @@ Dx12CommandList::Dx12CommandList(ID3D12GraphicsCommandList* cmd_list,
 
 void Dx12CommandList::begin() {
   // Command list is already reset in beginFrame; set descriptor heaps
-  ID3D12DescriptorHeap* heaps[] = {impl_.cbv_srv_uav_heap};
-  cmd_list_->SetDescriptorHeaps(1, heaps);
+  std::array<ID3D12DescriptorHeap*, 1> heaps{impl_.cbv_srv_uav_heap};
+  cmd_list_->SetDescriptorHeaps(1, heaps.data());
 }
 
 void Dx12CommandList::end() {
+  restorePresentState();
   cmd_list_->Close();
+}
+
+void Dx12CommandList::restorePresentState() {
+  for (uint32_t i = 0; i < DX12_FRAMES_IN_FLIGHT; ++i) {
+    dx12TransitionTexture(cmd_list_, impl_, i + 1,
+                          D3D12_RESOURCE_STATE_PRESENT);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Render pass
 // ---------------------------------------------------------------------------
 
-void Dx12CommandList::beginRenderPass(const RhiRenderPassBeginInfo& info) {
-  // Transition color target to render target state
-  if (info.color_target_count > 0 && info.color_targets != nullptr) {
-    auto* resource = resolveResource(impl_, info.color_targets[0]);
-    if (resource != nullptr) {
-      D3D12_RESOURCE_BARRIER barrier{};
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Transition.pResource = resource;
-      barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      cmd_list_->ResourceBarrier(1, &barrier);
+uint32_t
+Dx12CommandList::collectRenderTargets(const RhiRenderPassBeginInfo& info,
+                                      Dx12RtvArray& out_rtvs) {
+  const uint32_t requested = info.color_target_count < DX12_MAX_COLOR_TARGETS
+                                 ? info.color_target_count
+                                 : DX12_MAX_COLOR_TARGETS;
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < requested; ++i) {
+    auto rtv = dx12TextureRtv(impl_, info.color_targets[i]);
+    if (rtv.ptr == 0) {
+      break;  // A target with no view ends the run; D3D12 rejects a gap.
     }
+    dx12TransitionTexture(cmd_list_, impl_, info.color_targets[i],
+                          D3D12_RESOURCE_STATE_RENDER_TARGET);
+    out_rtvs[count] = rtv;
+    ++count;
   }
+  return count;
+}
 
-  // Set render targets
-  if (info.color_target_count > 0 && info.color_targets != nullptr) {
-    auto rtv = resolveRtv(impl_, info.color_targets[0]);
-    D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv{};
-    if (info.depth_target != RHI_TEXTURE_INVALID) {
-      dsv = resolveDsv(impl_, info.depth_target);
-      dsv_ptr = &dsv;
-    }
-    cmd_list_->OMSetRenderTargets(1, &rtv, FALSE, dsv_ptr);
+void Dx12CommandList::bindRenderTargets(const RhiRenderPassBeginInfo& info) {
+  Dx12RtvArray rtvs{};
+  const uint32_t count = collectRenderTargets(info, rtvs);
+  D3D12_CPU_DESCRIPTOR_HANDLE dsv{};
+  if (info.depth_target != RHI_TEXTURE_INVALID) {
+    dx12TransitionTexture(cmd_list_, impl_, info.depth_target,
+                          D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    dsv = dx12TextureDsv(impl_, info.depth_target);
+  }
+  bound_rtv_count_ = count;
+  cmd_list_->OMSetRenderTargets(count, rtvs.data(), FALSE,
+                                dsv.ptr != 0 ? &dsv : nullptr);
+}
 
-    // Clear
-    if (info.color_load_op == RhiLoadOp::CLEAR) {
+void Dx12CommandList::applyLoadOps(const RhiRenderPassBeginInfo& info) {
+  if (info.color_load_op == RhiLoadOp::CLEAR) {
+    for (uint32_t i = 0; i < bound_rtv_count_; ++i) {
+      auto rtv = dx12TextureRtv(impl_, info.color_targets[i]);
       cmd_list_->ClearRenderTargetView(rtv, info.clear_color, 0, nullptr);
     }
-    if (info.depth_target != RHI_TEXTURE_INVALID &&
-        info.depth_load_op == RhiLoadOp::CLEAR && dsv_ptr != nullptr) {
-      cmd_list_->ClearDepthStencilView(*dsv_ptr, D3D12_CLEAR_FLAG_DEPTH,
-                                       info.clear_depth, 0, 0, nullptr);
-    }
   }
+  const auto dsv = dx12TextureDsv(impl_, info.depth_target);
+  if (dsv.ptr == 0 || info.depth_load_op != RhiLoadOp::CLEAR) {
+    return;
+  }
+  cmd_list_->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH,
+                                   info.clear_depth, info.clear_stencil, 0,
+                                   nullptr);
+}
+
+void Dx12CommandList::beginRenderPass(const RhiRenderPassBeginInfo& info) {
+  if (info.color_target_count == 0 || info.color_targets == nullptr) {
+    return;
+  }
+  bindRenderTargets(info);
+  applyLoadOps(info);
 }
 
 void Dx12CommandList::endRenderPass() {
-  // DX12 has no explicit render pass end; transition back to present
-  // is done by the caller or in present()
+  // Nothing to close: D3D12 has no render pass object here, and the back
+  // buffer returns to PRESENT in end(). Leaving the target in
+  // RENDER_TARGET is what lets the next pass load rather than clear it.
 }
 
 // ---------------------------------------------------------------------------
@@ -162,13 +165,14 @@ void Dx12CommandList::bindPipeline(RhiPipelineHandle pipeline) {
     return;
   }
   cmd_list_->SetPipelineState(p->pipeline_state);
-  if (p->bind_point == Dx12PipelineType::GRAPHICS) {
-    cmd_list_->SetGraphicsRootSignature(p->root_signature);
-    current_topology_ = p->topology;
-    current_vertex_stride_ = p->vertex_stride;
-  } else {
+  if (p->bind_point != Dx12PipelineType::GRAPHICS) {
     cmd_list_->SetComputeRootSignature(p->root_signature);
+    return;
   }
+  cmd_list_->SetGraphicsRootSignature(p->root_signature);
+  graphics_root_bound_ = true;
+  current_topology_ = p->topology;
+  current_vertex_stride_ = p->vertex_stride;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +210,45 @@ void Dx12CommandList::bindDescriptorSet(uint32_t /*set_index*/,
   // Deferred to render-pipeline Phase 1 when descriptor management is designed.
 }
 
+void Dx12CommandList::bindStageBytes(uint32_t root_param, const void* data,
+                                     size_t size) {
+  if (root_param == DX12_ROOT_PARAM_NONE || !graphics_root_bound_) {
+    return;
+  }
+  auto& ring = impl_.frames[impl_.frame_index].stage_bytes;
+  const auto address = ring.push(data, size);
+  if (address == 0) {
+    return;
+  }
+  cmd_list_->SetGraphicsRootConstantBufferView(root_param, address);
+}
+
+void Dx12CommandList::setVertexStageBytes(const void* data, size_t size,
+                                          uint32_t slot) {
+  bindStageBytes(dx12VertexCbvRootParam(slot), data, size);
+}
+
+void Dx12CommandList::setFragmentStageBytes(const void* data, size_t size,
+                                            uint32_t slot) {
+  bindStageBytes(dx12PixelCbvRootParam(slot), data, size);
+}
+
+void Dx12CommandList::bindFragmentTexture(RhiTextureHandle texture,
+                                          uint32_t slot) {
+  auto* tex = impl_.textures.lookup(texture);
+  if (slot != 0 || !graphics_root_bound_) {
+    return;
+  }
+  uint32_t srv = impl_.null_srv_index;
+  if (tex != nullptr && tex->srv_index != DX12_DESCRIPTOR_INDEX_NONE) {
+    dx12TransitionTexture(cmd_list_, impl_, texture,
+                          D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    srv = tex->srv_index;
+  }
+  cmd_list_->SetGraphicsRootDescriptorTable(DX12_ROOT_PARAM_PIXEL_SRV_TABLE,
+                                            impl_.srvGpuHandle(srv));
+}
+
 // ---------------------------------------------------------------------------
 // Viewport and scissor
 // ---------------------------------------------------------------------------
@@ -235,12 +278,18 @@ void Dx12CommandList::setScissor(const RhiScissor& scissor) {
 // ---------------------------------------------------------------------------
 
 void Dx12CommandList::draw(const RhiDrawParams& params) {
+  if (current_topology_ == D3D_PRIMITIVE_TOPOLOGY_UNDEFINED) {
+    return;
+  }
   cmd_list_->IASetPrimitiveTopology(current_topology_);
   cmd_list_->DrawInstanced(params.vertex_count, params.instance_count,
                            params.first_vertex, params.first_instance);
 }
 
 void Dx12CommandList::drawIndexed(const RhiDrawIndexedParams& params) {
+  if (current_topology_ == D3D_PRIMITIVE_TOPOLOGY_UNDEFINED) {
+    return;
+  }
   cmd_list_->IASetPrimitiveTopology(current_topology_);
   cmd_list_->DrawIndexedInstanced(params.index_count, params.instance_count,
                                   params.first_index, params.vertex_offset,
@@ -313,11 +362,13 @@ void Dx12CommandList::copyBuffer(const RhiCopyBufferParams& params) {
 
 void Dx12CommandList::copyTextureToBuffer(RhiTextureHandle src,
                                           RhiBufferHandle dst) {
-  auto* resource = resolveResource(impl_, src);
+  auto* resource = dx12TextureResource(impl_, src);
   auto* buf = impl_.buffers.lookup(dst);
   if (resource == nullptr || buf == nullptr) {
     return;
   }
+  dx12TransitionTexture(cmd_list_, impl_, src,
+                        D3D12_RESOURCE_STATE_COPY_SOURCE);
   auto desc = resource->GetDesc();
   auto src_loc = buildSubresourceCopyLoc(resource);
   auto dst_loc = buildFootprintCopyLoc(buf->resource, desc);
@@ -347,9 +398,7 @@ void Dx12CommandList::bindComputeSampledTexture(RhiTextureHandle /*texture*/,
 // ---------------------------------------------------------------------------
 
 void Dx12CommandList::computeBarrier() {
-  D3D12_RESOURCE_BARRIER barrier{};
-  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-  barrier.UAV.pResource = nullptr;  // Global UAV barrier
+  auto barrier = buildUavBarrier(nullptr);
   cmd_list_->ResourceBarrier(1, &barrier);
 }
 
@@ -360,26 +409,18 @@ void Dx12CommandList::bufferBarrier(RhiBufferHandle buffer,
   if (buf == nullptr) {
     return;
   }
-  D3D12_RESOURCE_BARRIER barrier{};
-  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-  barrier.UAV.pResource = buf->resource;
+  auto barrier = buildUavBarrier(buf->resource);
   cmd_list_->ResourceBarrier(1, &barrier);
 }
 
 void Dx12CommandList::textureBarrier(RhiTextureHandle texture,
-                                     RhiTextureLayout old_layout,
+                                     RhiTextureLayout /*old_layout*/,
                                      RhiTextureLayout new_layout) {
-  auto* resource = resolveResource(impl_, texture);
-  if (resource == nullptr) {
-    return;
-  }
-  D3D12_RESOURCE_BARRIER barrier{};
-  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-  barrier.Transition.pResource = resource;
-  barrier.Transition.StateBefore = toDx12ResourceState(old_layout);
-  barrier.Transition.StateAfter = toDx12ResourceState(new_layout);
-  barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-  cmd_list_->ResourceBarrier(1, &barrier);
+  // The caller's `old_layout` is advisory: the backend already knows where
+  // it left the resource, and a barrier whose StateBefore disagrees with
+  // the driver's is a debug-layer error rather than a no-op.
+  dx12TransitionTexture(cmd_list_, impl_, texture,
+                        toDx12ResourceState(new_layout));
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,8 @@
 //
 // Behaviours:
 //   - Implement RhiDevice interface using DirectX 12 (feature level 12_0)
+//   - Ship built-in GUI and static-mesh pipelines, compiled from HLSL at
+//     device creation, since there is no shader build step yet
 //   - Manage GPU resources via generational handle table (opaque uint64_t
 //   handles)
 //   - All GPU memory allocated through D3D12MemoryAllocator (D3D12MA)
@@ -83,6 +85,12 @@ public:
   RhiPipelineHandle
   createComputePipeline(const RhiComputePipelineDesc& desc) override;
   void destroyPipeline(RhiPipelineHandle handle) override;
+
+  /// Create the built-in GUI quad pipeline. Its HLSL is compiled here at
+  /// call time, the way the Metal backend compiles its MSL.
+  bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
+  /// Create the built-in static-mesh pipeline.
+  bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;

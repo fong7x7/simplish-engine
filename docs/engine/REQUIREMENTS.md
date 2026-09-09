@@ -119,7 +119,7 @@ Because the camera is fixed and orthographic, the engine gets several things che
 
 A **static mesh path** exists as a first slice of that camera's use: `render-mesh` reads Wavefront OBJ, uploads vertex and index buffers, and draws instances depth-tested against a `D32_FLOAT` target. Two things about it are worth knowing before building on it:
 
-- **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal has one; the others return false and draw no meshes, which is a gap to close before any platform but macOS can show geometry.
+- **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal and DX12 each embed HLSL/MSL that shade alike; Vulkan and OpenGL return false and draw no meshes, which is a gap to close before those two can show geometry.
 - **Depth is measured along the projection ray, not along world Y.** The camera is oblique (§5.1), so points collapse to one pixel along `(0, RISE, DEPTH)` rather than along the screen normal. `makeIsoViewProjection` derives the clip matrix from that; a conventional look-at would order geometry wrongly wherever two things overlap on screen.
 
 ### 5.2 Hybrid Geometry and Sprites

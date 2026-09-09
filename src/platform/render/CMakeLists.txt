@@ -104,7 +104,10 @@ if(ENGINE_PLATFORM_WINDOWS AND ENGINE_RENDERER_RESOLVED STREQUAL "DX12")
         SOURCES     ${_dx12_sources}
         DEPENDENCIES simplish-engine-core simplish-engine-render simplish-engine-image SDL3::SDL3 stb::stb
     )
-    target_link_libraries(simplish-platform-render-backend-dx12 PUBLIC d3d12 dxgi dxguid)
+    # d3dcompiler backs the built-in GUI and mesh pipelines, which compile
+    # their HLSL at device creation the way the Metal backend compiles its MSL.
+    target_link_libraries(simplish-platform-render-backend-dx12 PUBLIC
+        d3d12 dxgi dxguid d3dcompiler D3D12MemoryAllocator)
 endif()
 
 # rhi-device-factory.cpp conditionally includes the active backend's header;
