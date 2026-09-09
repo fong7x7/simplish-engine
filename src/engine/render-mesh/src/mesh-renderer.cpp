@@ -13,6 +13,18 @@ namespace {
   /// Fragment-stage slot the mesh shader reads its lights from.
   constexpr uint32_t MESH_LIGHT_SLOT = 0;
 
+  /// Fragment-stage slot the mesh shader samples its diffuse map from.
+  constexpr uint32_t MESH_TEXTURE_SLOT = 0;
+
+  /// The colour an untextured mesh is shaded with, as one sRGB texel.
+  ///
+  /// This is the constant the shader used to carry, moved into a texture so
+  /// that textured and untextured meshes take the same path through it: an
+  /// instance naming no map samples this instead of branching. Sampling it
+  /// gives back what the old constant was to within a 255th, which is why
+  /// nothing already on screen changed when textures arrived.
+  constexpr uint8_t UNTEXTURED_TEXEL[4] = {189, 194, 204, 255};
+
   /// What the vertex stage reads.
   ///
   /// Both matrices rather than their product: the fragment stage shades in
@@ -106,12 +118,36 @@ namespace {
 
 }  // namespace
 
+bool MeshRenderer::createUntexturedStandIn(RhiDevice& device) {
+  RhiTextureDesc desc{};
+  desc.width = 1;
+  desc.height = 1;
+  // Unorm, not sRGB: the shader converts to linear itself, on the way out
+  // and after the lighting, exactly as it did when this colour was a
+  // constant in it. A texture the GPU decoded on sample would be converted
+  // twice.
+  desc.format = RhiFormat::RGB_A8_UNORM;
+  desc.usage = RhiTextureUsage::SAMPLED;
+  desc.debug_name = "mesh_untextured";
+  desc.initial_pixels = UNTEXTURED_TEXEL;
+  untextured_ = device.createTexture(desc);
+  return untextured_ != RHI_TEXTURE_INVALID;
+}
+
 bool MeshRenderer::init(RhiDevice& device) {
   RhiPipelineHandle pipeline = RHI_PIPELINE_INVALID;
   if (!device.tryCreateMeshPipeline(pipeline)) {
     return false;
   }
   pipeline_ = pipeline;
+  // A backend with a mesh pipeline but no textures would draw every mesh
+  // with whatever was bound last, so the stand-in failing is fatal to the
+  // renderer rather than something to carry on without.
+  if (!createUntexturedStandIn(device)) {
+    device.destroyPipeline(pipeline_);
+    pipeline_ = RHI_PIPELINE_INVALID;
+    return false;
+  }
   return true;
 }
 
@@ -123,6 +159,10 @@ void MeshRenderer::shutdown(RhiDevice& device) {
   }
   meshes_.clear();
   destroyDepthTarget(device);
+  if (untextured_ != RHI_TEXTURE_INVALID) {
+    device.destroyTexture(untextured_);
+    untextured_ = RHI_TEXTURE_INVALID;
+  }
   if (pipeline_ != RHI_PIPELINE_INVALID) {
     device.destroyPipeline(pipeline_);
     pipeline_ = RHI_PIPELINE_INVALID;
@@ -203,6 +243,11 @@ void MeshRenderer::drawInstance(RhiCommandList& cmd,
   }
   const VertexUniforms uniforms{view_projection, instance.model};
   cmd.setVertexStageBytes(&uniforms, sizeof(uniforms), MESH_UNIFORM_SLOT);
+  // An instance with no map of its own takes the stand-in, so the slot is
+  // never left holding the previous instance's texture.
+  cmd.bindFragmentTexture(
+      instance.texture != RHI_TEXTURE_INVALID ? instance.texture : untextured_,
+      MESH_TEXTURE_SLOT);
   cmd.bindVertexBuffer(it->second.vertices);
   cmd.bindIndexBuffer(it->second.indices, 0, RhiIndexType::UINT32);
   RhiDrawIndexedParams params{};

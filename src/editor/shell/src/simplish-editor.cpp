@@ -23,6 +23,7 @@
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <engine/gui/gui-widget-tree.h>
+#include <engine/gui/image-loader.h>
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
 #include <string>
@@ -113,6 +114,22 @@ namespace {
       orientYUpToZUp(*mesh);
     }
     return mesh;
+  }
+
+  /// How an image is described to the device as a mesh's diffuse map.
+  ///
+  /// Unorm rather than sRGB, because the mesh shader converts on the way
+  /// out — see `MeshRenderer`. A texture the GPU decoded on sample would be
+  /// converted twice and come out washed.
+  RhiTextureDesc meshTextureDesc(const ImageData& image) {
+    RhiTextureDesc desc{};
+    desc.width = image.width;
+    desc.height = image.height;
+    desc.format = RhiFormat::RGB_A8_UNORM;
+    desc.usage = RhiTextureUsage::SAMPLED;
+    desc.debug_name = "mesh-texture";
+    desc.initial_pixels = image.pixels.data();
+    return desc;
   }
 
   /// Card pictures made per frame.
@@ -449,6 +466,7 @@ void SimplishEditor::reloadAssets() {
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
   releaseAssetThumbnails();
+  releaseAssetTextures();
   adoptAssetScan(state_.project.loaded
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
@@ -562,6 +580,23 @@ void SimplishEditor::refreshAssetPanel() {
   }
 }
 
+RhiTextureHandle
+SimplishEditor::uploadMeshTexture(const std::filesystem::path& path) {
+  RhiDevice* device = rhiDevice();
+  if (device == nullptr || path.empty()) {
+    return RHI_TEXTURE_INVALID;
+  }
+  const std::optional<ImageData> image =
+      ImageLoader::loadFromFile(path.string());
+  if (!image.has_value() || image->pixels.empty()) {
+    // Not fatal: the model still draws, in the flat colour an untextured
+    // one takes. A missing map is a project problem, not an editor one.
+    LOG_WARN("editor", "Could not load texture: " + path.string());
+    return RHI_TEXTURE_INVALID;
+  }
+  return device->createTexture(meshTextureDesc(*image));
+}
+
 bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
   std::optional<MeshData> mesh = readAssetMesh(asset);
   if (!mesh.has_value()) {
@@ -575,7 +610,18 @@ bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
   asset.mesh = *uploaded;
   asset.min = mesh->min;
   asset.max = mesh->max;
+  asset.texture = uploadMeshTexture(mesh->texture_path);
   return true;
+}
+
+void SimplishEditor::releaseAssetTextures() {
+  RhiDevice* device = rhiDevice();
+  for (EditorAsset& asset : state_.assets) {
+    if (device != nullptr && asset.texture != RHI_TEXTURE_INVALID) {
+      device->destroyTexture(asset.texture);
+    }
+    asset.texture = RHI_TEXTURE_INVALID;
+  }
 }
 
 void SimplishEditor::releaseAssetThumbnails() {
@@ -1013,7 +1059,7 @@ void SimplishEditor::buildSceneInstances() {
       continue;
     }
     scene_instances_.push_back(
-        {asset.mesh, makePlacementTransform(asset, placement)});
+        {asset.mesh, makePlacementTransform(asset, placement), asset.texture});
   }
 }
 
@@ -1487,6 +1533,7 @@ void SimplishEditor::handleToolKey(uint32_t key) {
 
 void SimplishEditor::onShutdown() {
   releaseAssetThumbnails();
+  releaseAssetTextures();
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     mesh_renderer_.shutdown(*rhiDevice());

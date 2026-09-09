@@ -5,6 +5,8 @@
 // Behaviours:
 //   - Owns the backend's static-mesh pipeline and the depth target it needs
 //   - Uploads MeshData to GPU vertex and index buffers, keyed by MeshGpuId
+//   - Shades each instance with the diffuse map it names, or with a
+//     built-in untextured stand-in when it names none
 //   - Draws a list of instances inside a render pass the caller opened,
 //     shaded by the lights the caller hands it
 //
@@ -14,6 +16,9 @@
 //   - Empty mesh, or a mesh whose buffers failed to allocate: not uploaded,
 //     and upload() reports nullopt rather than handing back a broken id
 //   - Instance naming an unknown mesh: skipped
+//   - Instance naming no texture: drawn with the stand-in, which is one
+//     texel of the flat colour meshes had before textures existed. That is
+//     what keeps the shader to a single path with no untextured branch
 //   - No lights: the draw is lit by one built-in key light, so a scene
 //     nobody has lit is readable rather than black
 //   - More lights than the shader's loop holds: the ones past
@@ -65,7 +70,8 @@ public:
   /// leaves the renderer inert rather than broken.
   bool init(RhiDevice& device);
 
-  /// Release the pipeline, the depth target, and every uploaded mesh.
+  /// Release the pipeline, the depth target, the stand-in texture, and
+  /// every uploaded mesh.
   void shutdown(RhiDevice& device);
 
   /// Whether a pipeline exists and draws will do anything.
@@ -87,6 +93,11 @@ public:
   /// Number of meshes currently uploaded.
   [[nodiscard]] size_t meshCount() const { return meshes_.size(); }
 
+  /// The one-texel texture an instance naming none is drawn with.
+  [[nodiscard]] RhiTextureHandle untexturedStandIn() const {
+    return untextured_;
+  }
+
   /// GPU buffers for one uploaded mesh.
   struct GpuMeshBuffers {
     /// Vertex buffer holding `MeshVertex` records.
@@ -101,6 +112,9 @@ private:
   /// Record one instance's draw. Separated so `draw` stays a loop.
   void drawInstance(RhiCommandList& cmd, const MeshInstance& instance,
                     const Mat4& view_projection) const;
+
+  /// Create the one-texel stand-in an untextured instance samples.
+  bool createUntexturedStandIn(RhiDevice& device);
 
   /// Hand the fragment stage the lights every instance of this draw is
   /// shaded by, which is one bind rather than one per instance.
@@ -121,6 +135,9 @@ private:
   uint32_t depth_width_ = 0;
   /// Surface height `depth_target_` was created for.
   uint32_t depth_height_ = 0;
+  /// One texel of the colour meshes were flat-shaded with before textures,
+  /// sampled by every instance that names no map of its own.
+  RhiTextureHandle untextured_ = RHI_TEXTURE_INVALID;
 };
 
 }  // namespace eng

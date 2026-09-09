@@ -69,6 +69,14 @@ struct EditorAsset {
   std::string id{};
   /// Uploaded mesh, or `MESH_GPU_INVALID` until first placed.
   MeshGpuId mesh = MESH_GPU_INVALID;
+  /// Diffuse map this model's material names, uploaded alongside the mesh,
+  /// or `RHI_TEXTURE_INVALID` when it names none or the image would not
+  /// load. Owned by the editor, which destroys it on rescan.
+  ///
+  /// Loaded with the mesh rather than lazily on its own: the material is
+  /// read out of the same file, and a model that has reached the GPU
+  /// without its map would draw the wrong thing for a frame or forever.
+  RhiTextureHandle texture = RHI_TEXTURE_INVALID;
   /// Minimum bounds corner, in world orientation. Valid once uploaded.
   Vec3 min{};
   /// Maximum bounds corner, in world orientation. Valid once uploaded.

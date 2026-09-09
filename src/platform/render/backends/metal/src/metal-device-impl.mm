@@ -429,7 +429,10 @@ fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
   }
 
   /// Byte stride for `MeshVertex`: two tightly packed float3s.
-  constexpr NSUInteger MESH_VERTEX_STRIDE = 24;
+  constexpr NSUInteger MESH_VERTEX_STRIDE = 32;
+  /// Byte offset of each mesh vertex attribute, matching `mesh-vertex.h`.
+  constexpr NSUInteger MESH_NORMAL_OFFSET = 12;
+  constexpr NSUInteger MESH_UV_OFFSET = 24;
 
   /// MSL source for static meshes (matches `eng::MeshVertex`).
   ///
@@ -478,12 +481,14 @@ struct MeshLights {
 struct MeshVertexIn {
   float3 position [[attribute(0)]];
   float3 normal [[attribute(1)]];
+  float2 uv [[attribute(2)]];
 };
 
 struct MeshVsOut {
   float4 position [[position]];
   float3 world_position;
   float3 normal;
+  float2 uv;
 };
 
 /// Linear value for an sRGB colour component, for output to an sRGB target.
@@ -535,17 +540,24 @@ vertex MeshVsOut mesh_vs_main(MeshVertexIn in [[stage_in]],
   // matrix carries the normal; the length the scale adds comes back out in
   // the normalize below.
   out.normal = (u.model * float4(in.normal, 0.0f)).xyz;
+  out.uv = in.uv;
   return out;
 }
 
 fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
-                             constant MeshLights& lights [[buffer(0)]]) {
+                             constant MeshLights& lights [[buffer(0)]],
+                             texture2d<float> diffuse [[texture(0)]]) {
+  constexpr sampler smp(filter::linear, address::repeat);
   float3 n = normalize(in.normal);
   float3 lit = float3(MESH_LIGHT_AMBIENT);
   for (uint i = 0; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
     lit += mesh_light_contribution(lights.lights[i], in.world_position, n);
   }
-  float3 base = saturate(float3(0.74f, 0.76f, 0.80f) * lit);
+  // The map is unorm, so this is the sRGB value the artist authored, shaded
+  // and then converted on the way out — which is what the flat colour this
+  // replaced did. An instance with no map samples one texel of that same
+  // flat colour, so there is no untextured branch here.
+  float3 base = saturate(diffuse.sample(smp, in.uv).rgb * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
 }
@@ -559,8 +571,11 @@ fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
     vd.attributes[0].offset = 0;
     vd.attributes[0].bufferIndex = 0;
     vd.attributes[1].format = MTLVertexFormatFloat3;
-    vd.attributes[1].offset = 12;
+    vd.attributes[1].offset = MESH_NORMAL_OFFSET;
     vd.attributes[1].bufferIndex = 0;
+    vd.attributes[2].format = MTLVertexFormatFloat2;
+    vd.attributes[2].offset = MESH_UV_OFFSET;
+    vd.attributes[2].bufferIndex = 0;
     return vd;
   }
 

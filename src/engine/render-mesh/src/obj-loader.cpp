@@ -1,5 +1,6 @@
 #include <charconv>
 #include <cstddef>
+#include <engine/render-mesh/mtl-loader.h>
 #include <engine/render-mesh/obj-loader.h>
 #include <fstream>
 #include <sstream>
@@ -11,23 +12,52 @@ namespace eng {
 
 namespace {
 
-  /// One face corner: indices into the position and normal arrays, already
-  /// resolved to zero-based. `normal` is -1 when the corner declared none.
+  /// One face corner: indices into the position, texture-coordinate, and
+  /// normal arrays, already resolved to zero-based. `uv` and `normal` are
+  /// -1 when the corner declared none.
   struct ObjCorner {
     /// Zero-based index into the position array.
     int32_t position = -1;
+    /// Zero-based index into the texture-coordinate array, or -1.
+    int32_t uv = -1;
     /// Zero-based index into the normal array, or -1.
     int32_t normal = -1;
+  };
+
+  /// Whether two corners name exactly the same vertex.
+  bool operator==(const ObjCorner& a, const ObjCorner& b) {
+    return a.position == b.position && a.uv == b.uv && a.normal == b.normal;
+  }
+
+  /// Hash for sharing a vertex between faces that agree on all three
+  /// indices. A hash rather than a packed key, because three 32-bit indices
+  /// do not fit in one 64-bit number and a lossy key would silently weld
+  /// distinct vertices together.
+  struct ObjCornerHash {
+    size_t operator()(const ObjCorner& corner) const {
+      const auto mix = [](size_t seed, int32_t value) {
+        return seed ^ (static_cast<size_t>(static_cast<uint32_t>(value)) +
+                       0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
+      };
+      return mix(mix(mix(0, corner.position), corner.uv), corner.normal);
+    }
   };
 
   /// Everything read from the file, before it becomes a MeshData.
   struct ObjSource {
     /// Positions in `v` order.
     std::vector<Vec3> positions;
+    /// Texture coordinates in `vt` order.
+    std::vector<Vec2> uvs;
     /// Normals in `vn` order.
     std::vector<Vec3> normals;
     /// Corners of each face, in file order.
     std::vector<std::vector<ObjCorner>> faces;
+    /// Material library the file named, or empty.
+    std::string material_library;
+    /// First material the file used, or empty. The first rather than each:
+    /// the mesh is drawn with one texture — see `mesh-data.h`.
+    std::string material;
   };
 
   /// Parse a float, returning 0 for anything unparseable. OBJ files in the
@@ -57,20 +87,34 @@ namespace {
     return -1;
   }
 
-  /// Split a face corner on '/' into its position and normal slots.
+  /// Split a face corner on '/' into its position, uv, and normal slots.
   ObjCorner parseCorner(std::string_view token, const ObjSource& src) {
     const size_t first_slash = token.find('/');
     if (first_slash == std::string_view::npos) {
-      return {resolveIndex(token, src.positions.size()), -1};
+      return {resolveIndex(token, src.positions.size()), -1, -1};
     }
     const std::string_view position = token.substr(0, first_slash);
     const std::string_view rest = token.substr(first_slash + 1);
     const size_t second_slash = rest.find('/');
+    const std::string_view uv = rest.substr(0, second_slash);
     const std::string_view normal = (second_slash == std::string_view::npos)
                                         ? std::string_view{}
                                         : rest.substr(second_slash + 1);
     return {resolveIndex(position, src.positions.size()),
+            resolveIndex(uv, src.uvs.size()),
             resolveIndex(normal, src.normals.size())};
+  }
+
+  /// Read a `vt` line's two components.
+  ///
+  /// OBJ counts V up from the bottom of the image and every graphics API
+  /// this targets counts it down from the top, so it is flipped here —
+  /// once, on the way in, rather than in each shader that samples.
+  Vec2 parseUv(const std::vector<std::string_view>& tokens) {
+    Vec2 out;
+    out.x = tokens.size() > 1 ? parseFloat(tokens[1]) : 0.0f;
+    out.y = 1.0f - (tokens.size() > 2 ? parseFloat(tokens[2]) : 0.0f);
+    return out;
   }
 
   /// Read a `v` or `vn` line's three components.
@@ -113,6 +157,20 @@ namespace {
     }
   }
 
+  /// Record a `mtllib` or `usemtl` line. The first of each wins: the mesh
+  /// is drawn with one texture — see `mesh-data.h`.
+  void readMaterialLine(const std::vector<std::string_view>& tokens,
+                        ObjSource& src) {
+    if (tokens.size() < 2) {
+      return;
+    }
+    if (tokens[0] == "mtllib" && src.material_library.empty()) {
+      src.material_library = tokens[1];
+    } else if (tokens[0] == "usemtl" && src.material.empty()) {
+      src.material = tokens[1];
+    }
+  }
+
   /// Dispatch one line by its leading keyword.
   void readLine(std::string_view line, ObjSource& src) {
     const auto tokens = splitTokens(line);
@@ -121,10 +179,14 @@ namespace {
     }
     if (tokens[0] == "v") {
       src.positions.push_back(parseVec3(tokens));
+    } else if (tokens[0] == "vt") {
+      src.uvs.push_back(parseUv(tokens));
     } else if (tokens[0] == "vn") {
       src.normals.push_back(parseVec3(tokens));
     } else if (tokens[0] == "f") {
       readFace(tokens, src);
+    } else {
+      readMaterialLine(tokens, src);
     }
   }
 
@@ -147,14 +209,6 @@ namespace {
     return src;
   }
 
-  /// Key for sharing a vertex between faces that agree on position and
-  /// normal. Faces without a normal never share, so they are not keyed.
-  uint64_t vertexKey(const ObjCorner& corner) {
-    return (static_cast<uint64_t>(static_cast<uint32_t>(corner.position))
-            << 32U) |
-           static_cast<uint32_t>(corner.normal);
-  }
-
   /// Geometric normal of a triangle, used when the face declared none.
   Vec3 faceNormal(const Vec3& a, const Vec3& b, const Vec3& c) {
     const Vec3 edge0 = b - a;
@@ -168,8 +222,8 @@ namespace {
   struct MeshBuilder {
     /// The mesh being filled in.
     MeshData mesh;
-    /// Shared vertices, keyed by position-and-normal.
-    std::unordered_map<uint64_t, uint32_t> shared;
+    /// Shared vertices, keyed by the corner's three indices.
+    std::unordered_map<ObjCorner, uint32_t, ObjCornerHash> shared;
     /// Whether any vertex has been added yet (bounds seeding).
     bool has_bounds = false;
   };
@@ -196,7 +250,7 @@ namespace {
                      const ObjCorner& corner) {
     const bool shareable = corner.normal >= 0;
     if (shareable) {
-      auto it = builder.shared.find(vertexKey(corner));
+      auto it = builder.shared.find(corner);
       if (it != builder.shared.end()) {
         return it->second;
       }
@@ -205,7 +259,7 @@ namespace {
     builder.mesh.vertices.push_back(vertex);
     growBounds(builder, vertex.position);
     if (shareable) {
-      builder.shared.emplace(vertexKey(corner), index);
+      builder.shared.emplace(corner, index);
     }
     return index;
   }
@@ -216,6 +270,14 @@ namespace {
         corner.position >= 0 &&
         static_cast<size_t>(corner.position) < src.positions.size();
     return valid ? src.positions[static_cast<size_t>(corner.position)] : Vec3{};
+  }
+
+  /// Texture coordinate for a corner, or zero when its index is out of
+  /// range — which is every corner of a model carrying no `vt` data.
+  Vec2 cornerUv(const ObjSource& src, const ObjCorner& corner) {
+    const bool valid =
+        corner.uv >= 0 && static_cast<size_t>(corner.uv) < src.uvs.size();
+    return valid ? src.uvs[static_cast<size_t>(corner.uv)] : Vec2{};
   }
 
   /// Normal for a corner, falling back to @p fallback when it declared none.
@@ -243,12 +305,15 @@ namespace {
     const Vec3 pb = cornerPosition(src, tri.b);
     const Vec3 pc = cornerPosition(src, tri.c);
     const Vec3 flat = faceNormal(pa, pb, pc);
-    builder.mesh.indices.push_back(
-        addVertex(builder, {pa, cornerNormal(src, tri.a, flat)}, tri.a));
-    builder.mesh.indices.push_back(
-        addVertex(builder, {pb, cornerNormal(src, tri.b, flat)}, tri.b));
-    builder.mesh.indices.push_back(
-        addVertex(builder, {pc, cornerNormal(src, tri.c, flat)}, tri.c));
+    builder.mesh.indices.push_back(addVertex(
+        builder, {pa, cornerNormal(src, tri.a, flat), cornerUv(src, tri.a)},
+        tri.a));
+    builder.mesh.indices.push_back(addVertex(
+        builder, {pb, cornerNormal(src, tri.b, flat), cornerUv(src, tri.b)},
+        tri.b));
+    builder.mesh.indices.push_back(addVertex(
+        builder, {pc, cornerNormal(src, tri.c, flat), cornerUv(src, tri.c)},
+        tri.c));
   }
 
   /// Triangulate every face into the builder.
@@ -269,17 +334,70 @@ std::optional<MeshData> parseObjMesh(std::string_view text) {
   if (builder.mesh.indices.empty()) {
     return std::nullopt;
   }
+  builder.mesh.material_library = src.material_library;
+  builder.mesh.material = src.material;
   return std::move(builder.mesh);
 }
 
+namespace {
+
+  /// Read a whole file, or nullopt when it cannot be opened.
+  std::optional<std::string> readFileText(const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+      return std::nullopt;
+    }
+    std::ostringstream contents;
+    contents << file.rdbuf();
+    return contents.str();
+  }
+
+  /// Resolve the mesh's diffuse map against the directory @p path sits in.
+  ///
+  /// Both hops are relative to that directory: the library is named
+  /// relative to the OBJ, and the map relative to the library, which for
+  /// every exporter in practice is the same folder. A map that is not
+  /// actually there resolves to nothing rather than to a path that will
+  /// fail to load later, so the caller has one thing to check.
+  /// The map the mesh's material library names, as the library wrote it.
+  std::optional<std::string> readDiffuseMap(const MeshData& mesh,
+                                            const std::filesystem::path& dir) {
+    if (mesh.material_library.empty()) {
+      return std::nullopt;
+    }
+    const std::optional<std::string> mtl =
+        readFileText(dir / mesh.material_library);
+    if (!mtl.has_value()) {
+      return std::nullopt;
+    }
+    return parseMtlDiffuseMap(*mtl, mesh.material);
+  }
+
+  void resolveTexturePath(MeshData& mesh, const std::filesystem::path& path) {
+    const std::filesystem::path directory = path.parent_path();
+    const std::optional<std::string> map = readDiffuseMap(mesh, directory);
+    if (!map.has_value()) {
+      return;
+    }
+    std::error_code ec;
+    std::filesystem::path resolved = directory / *map;
+    if (std::filesystem::exists(resolved, ec)) {
+      mesh.texture_path = std::move(resolved);
+    }
+  }
+
+}  // namespace
+
 std::optional<MeshData> loadObjMesh(const std::filesystem::path& path) {
-  std::ifstream file(path, std::ios::binary);
-  if (!file) {
+  const std::optional<std::string> text = readFileText(path);
+  if (!text.has_value()) {
     return std::nullopt;
   }
-  std::ostringstream contents;
-  contents << file.rdbuf();
-  return parseObjMesh(contents.str());
+  std::optional<MeshData> mesh = parseObjMesh(*text);
+  if (mesh.has_value()) {
+    resolveTexturePath(*mesh, path);
+  }
+  return mesh;
 }
 
 }  // namespace eng

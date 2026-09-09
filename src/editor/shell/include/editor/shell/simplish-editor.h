@@ -297,8 +297,16 @@ private:
   /// Load and upload an asset's mesh if it is not on the GPU yet. False
   /// when it cannot be loaded, which is remembered rather than retried.
   bool ensureAssetMesh(size_t index);
-  /// Read, orient, and upload one asset's mesh.
+  /// Read, orient, and upload one asset's mesh, and its diffuse map with
+  /// it.
   bool loadAssetMesh(EditorAsset& asset);
+  /// Decode and upload one image as a mesh texture. Invalid when there is
+  /// no path, no device, or the file will not decode.
+  [[nodiscard]] RhiTextureHandle
+  uploadMeshTexture(const std::filesystem::path& path);
+  /// Destroy every uploaded mesh texture. Called before the asset list is
+  /// replaced, and again on shutdown.
+  void releaseAssetTextures();
   /// Make pictures for a few of the cards on screen, and no more than a
   /// few: this runs every frame and must not stall one.
   void pumpThumbnails();

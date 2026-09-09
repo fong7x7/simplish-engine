@@ -37,18 +37,30 @@ namespace {
     return range;
   }
 
-  /// Linear, clamped sampler — the one the built-in GUI shader declares
-  /// inline in MSL and cannot declare inline in HLSL.
-  D3D12_STATIC_SAMPLER_DESC makeLinearClampSampler() {
+  /// A linear sampler with the given addressing, at the given register —
+  /// what the Metal shaders declare inline in MSL and HLSL cannot.
+  D3D12_STATIC_SAMPLER_DESC
+  makeLinearSampler(D3D12_TEXTURE_ADDRESS_MODE address, UINT shader_register) {
     D3D12_STATIC_SAMPLER_DESC sampler{};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressU = address;
+    sampler.AddressV = address;
+    sampler.AddressW = address;
     sampler.MaxLOD = D3D12_FLOAT32_MAX;
-    sampler.ShaderRegister = 0;
+    sampler.ShaderRegister = shader_register;
     sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     return sampler;
+  }
+
+  /// Both samplers the built-in pipelines use: `s0` clamps, which is what
+  /// the GUI wants for a quad sampled once across its own rect, and `s1`
+  /// wraps, which is what a mesh wants so a tiling map tiles. They differ
+  /// only in addressing, and the mesh shader picks by register — see
+  /// `MESH_HLSL_SOURCE`, whose Metal counterpart declares the same two
+  /// modes inline.
+  std::array<D3D12_STATIC_SAMPLER_DESC, 2> makeStaticSamplers() {
+    return {makeLinearSampler(D3D12_TEXTURE_ADDRESS_MODE_CLAMP, 0),
+            makeLinearSampler(D3D12_TEXTURE_ADDRESS_MODE_WRAP, 1)};
   }
 
   void fillGraphicsParams(
@@ -91,13 +103,14 @@ ID3D12RootSignature* createDx12GraphicsRootSignature(ID3D12Device5* device) {
   const D3D12_DESCRIPTOR_RANGE srv_range = makeSingleSrvRange();
   std::array<D3D12_ROOT_PARAMETER, DX12_GRAPHICS_ROOT_PARAM_COUNT> params{};
   fillGraphicsParams(params, srv_range);
-  const D3D12_STATIC_SAMPLER_DESC sampler = makeLinearClampSampler();
+  const std::array<D3D12_STATIC_SAMPLER_DESC, 2> samplers =
+      makeStaticSamplers();
 
   D3D12_ROOT_SIGNATURE_DESC desc{};
   desc.NumParameters = DX12_GRAPHICS_ROOT_PARAM_COUNT;
   desc.pParameters = params.data();
-  desc.NumStaticSamplers = 1;
-  desc.pStaticSamplers = &sampler;
+  desc.NumStaticSamplers = static_cast<UINT>(samplers.size());
+  desc.pStaticSamplers = samplers.data();
   desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
   return serializeAndCreate(device, desc);
 }

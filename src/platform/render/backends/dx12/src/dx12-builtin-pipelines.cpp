@@ -21,7 +21,7 @@ namespace {
   constexpr uint32_t GUI_VERTEX_STRIDE = 40;
 
   /// Byte stride of `eng::MeshVertex`: two tightly packed float3s.
-  constexpr uint32_t MESH_VERTEX_STRIDE = 24;
+  constexpr uint32_t MESH_VERTEX_STRIDE = 32;
 
   /// HLSL for screen-space GUI quads. Mirrors `GUI_MSL_SOURCE`.
   constexpr const char GUI_HLSL_SOURCE[] = R"hlsl(
@@ -151,15 +151,21 @@ cbuffer MeshLights : register(b0) {
   MeshLight mesh_lights[8];
 };
 
+Texture2D<float4> mesh_texture : register(t0);
+// s1 wraps, so a tiling map tiles; s0 is the GUI's clamped one.
+SamplerState mesh_sampler : register(s1);
+
 struct MeshVertexIn {
   float3 position : ATTR0;
   float3 normal : ATTR1;
+  float2 uv : ATTR2;
 };
 
 struct MeshVsOut {
   float4 position : SV_Position;
   float3 world_position : TEXCOORD0;
   float3 normal : TEXCOORD1;
+  float2 uv : TEXCOORD2;
 };
 
 /// Linear value for an sRGB colour component, for output to an sRGB target.
@@ -210,6 +216,7 @@ MeshVsOut mesh_vs_main(MeshVertexIn v) {
   // matrix carries the normal; the length the scale adds comes back out in
   // the normalize below.
   o.normal = mul(mesh_model, float4(v.normal, 0.0f)).xyz;
+  o.uv = v.uv;
   return o;
 }
 
@@ -221,7 +228,11 @@ float4 mesh_ps_main(MeshVsOut i) : SV_Target {
   for (uint k = 0; k < count; ++k) {
     lit += mesh_light_contribution(mesh_lights[k], i.world_position, n);
   }
-  float3 base = saturate(float3(0.74f, 0.76f, 0.80f) * lit);
+  // The map is unorm, so this is the sRGB value the artist authored, shaded
+  // and then converted on the way out. An instance with no map of its own
+  // samples one texel of the flat colour this replaced, so there is no
+  // untextured branch here.
+  float3 base = saturate(mesh_texture.Sample(mesh_sampler, i.uv).rgb * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
 }
@@ -247,10 +258,12 @@ float4 mesh_ps_main(MeshVsOut i) : SV_Target {
   }};
 
   /// Vertex input elements for `eng::MeshVertex`.
-  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 2> MESH_INPUT_ELEMENTS{{
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 3> MESH_INPUT_ELEMENTS{{
       {"ATTR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 2, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
   }};
 

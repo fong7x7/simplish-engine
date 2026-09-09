@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <engine/math/mat4.h>
+#include <engine/render/rhi-core-types.h>
 
 namespace eng {
 
@@ -21,6 +22,13 @@ struct MeshInstance {
   MeshGpuId mesh = MESH_GPU_INVALID;
   /// Object-to-world transform, applied before the view projection.
   Mat4 model{};
+  /// Diffuse map to shade with, or invalid to take the renderer's own
+  /// untextured stand-in — see `MeshRenderer`.
+  ///
+  /// Held per instance rather than per mesh so the same geometry can be
+  /// drawn with two different maps, and because the renderer does not own
+  /// the texture: whoever loaded the image owns it and outlives the draw.
+  RhiTextureHandle texture = RHI_TEXTURE_INVALID;
 };
 
 }  // namespace eng

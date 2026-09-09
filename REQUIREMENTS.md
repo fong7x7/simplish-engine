@@ -91,7 +91,7 @@ simplish/
 │   │   ├── spatial/            # Uniform grid, spatial hash, tile grid, flow fields
 │   │   ├── render-iso/         # Isometric camera, projection, depth policy
 │   │   ├── render-sprite/      # Sprite atlas, billboard batcher, animation clips
-│   │   ├── render-mesh/        # OBJ loading, mesh upload, depth-tested draw ✔ built
+│   │   ├── render-mesh/        # OBJ+MTL loading, mesh upload, textured draw ✔ built
 │   │   ├── render-fx/          # GPU particles, decals, projectile trails
 │   │   ├── physics/            # Projectile integration, swept queries, collision
 │   │   ├── audio/  input/  content/  net/  debug/
