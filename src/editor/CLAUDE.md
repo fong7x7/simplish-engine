@@ -1,9 +1,10 @@
 # editor
 
-The desktop authoring application. Two packages: `project/` (project format,
-open and create, recent list) and `shell/` (title bar, menus, toolbar,
-viewport, asset browser, properties panel). Links `platform` and `engine`;
-namespace `eng::editor` throughout.
+The desktop authoring application. Three packages: `project/` (project
+format, open and create, recent list), `shell/` (title bar, menus, toolbar,
+viewport, asset browser, properties panel), and `agent/` (the tool surface
+agents drive the editor through). Links `platform` and `engine`; namespace
+`eng::editor` throughout.
 
 ## Read first
 
@@ -12,6 +13,12 @@ namespace `eng::editor` throughout.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
   on-disk format. Only `.simplish/project.json` exists today; levels,
   encounters, scenarios, and data tables are specified but unwritten.
+- [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,
+  and §6's checklist. **Read it before adding a tool, a panel, or a menu
+  command**, because exposing it is part of the same change.
+- [docs/editor/capabilities.md](../../docs/editor/capabilities.md) — what the
+  editor can do today and whether an agent can do it too. Update the row in
+  the change that moves it.
 
 ## Fixed decisions — do not re-derive these
 
@@ -26,6 +33,14 @@ namespace `eng::editor` throughout.
 - **Undo is one list plus a cursor**, not two stacks — `[0, applied)` are in
   effect, `[applied, size)` are undone and redoable, and a new edit after an
   undo truncates. See [editor-action-history.h](shell/include/editor/shell/editor-action-history.h).
+- **The agent API is a pure function of `EditorShellState`.** `agent/` may
+  read and edit that state, and hands back an `AgentHostRequest` for the
+  three things only the running editor can do. The shell knows nothing about
+  it: `SimplishEditor::setStateHook` is a generic per-tick callback, and
+  `agent/` depends on `shell/`, never the other way round.
+- **A tool is described in exactly one place** — `AGENT_TOOL_INFO`. The HTTP
+  manifest is generated from it and the MCP bridge reads that manifest at run
+  time, so never write a second list of tools anywhere.
 - **The recent-projects list is written outside the checkout** when the
   platform offers a user data directory. `data/editor/recent-projects.json` is
   gitignored on purpose — it belongs to whoever runs the editor.
@@ -50,6 +65,9 @@ namespace `eng::editor` throughout.
 ```bash
 ./scripts/editor.sh [PROJECT_DIR]
 ```
+
+`SIMPLISH_AGENT_PORT=default` opens the agent API on 127.0.0.1:8787 — see
+[agent-api.md](../../docs/editor/agent-api.md).
 
 `SIMPLISH_LLDB=1` runs it under LLDB and prints a backtrace on a crash;
 `SIMPLISH_LLDB=i` drops into interactive LLDB. macOS also writes crash reports

@@ -7,11 +7,13 @@
 
 add_subdirectory(project)
 add_subdirectory(shell)
+add_subdirectory(agent)
 
 simplish_add_library(simplish-editor
     TYPE    STATIC
     MODULES simplish-editor-project
             simplish-editor-shell
+            simplish-editor-agent
 )
 
 target_link_libraries(simplish-editor PUBLIC simplish-platform)

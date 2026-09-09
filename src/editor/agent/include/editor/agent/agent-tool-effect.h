@@ -5,6 +5,7 @@
 /// @par Threading Thread-safe (immutable value type).
 
 #include <cstdint>
+#include <string_view>
 
 namespace eng::editor {
 
@@ -26,5 +27,19 @@ enum class AgentToolEffect : uint8_t {
   /// `AgentHostRequest` behind for the editor to run on its next tick.
   HOST,
 };
+
+/// The word this effect is published as.
+[[nodiscard]] constexpr std::string_view
+agentToolEffectName(AgentToolEffect effect) {
+  switch (effect) {
+    case AgentToolEffect::READ:
+      return "read";
+    case AgentToolEffect::EDIT:
+      return "edit";
+    case AgentToolEffect::HOST:
+      return "host";
+  }
+  return "read";
+}
 
 }  // namespace eng::editor

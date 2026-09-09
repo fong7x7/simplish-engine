@@ -12,6 +12,7 @@
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
+#include <editor/shell/editor-view-state.h>
 #include <filesystem>
 #include <vector>
 
@@ -43,6 +44,9 @@ struct EditorShellState {
   /// Every edit made to `document` this session, and the undo cursor into
   /// them. Cleared with the document, since it describes it by index.
   EditorActionHistory history;
+  /// Where the viewport camera sits and what it is over, refreshed from
+  /// the widget once a tick. Read-only — see `editor-view-state.h`.
+  EditorViewState view;
 };
 
 }  // namespace eng::editor

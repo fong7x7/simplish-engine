@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <engine/gui/gui-button.h>
 #include <engine/gui/gui-color.h>
@@ -77,29 +78,6 @@ namespace {
       {"View", VIEW_ROWS, std::size(VIEW_ROWS), NO_RECENT_BLOCK},
       {"Help", HELP_ROWS, std::size(HELP_ROWS), NO_RECENT_BLOCK},
   };
-
-  /// Commands the editor can actually carry out today. Everything else is
-  /// listed but disabled — see `editor-menu-command.h`. Some of these are
-  /// gated further by `commandEnabled`: being built is necessary for a row
-  /// to be live, not sufficient.
-  constexpr EditorMenuCommand IMPLEMENTED_COMMANDS[] = {
-      EditorMenuCommand::NEW_PROJECT,   EditorMenuCommand::OPEN_PROJECT,
-      EditorMenuCommand::CLOSE_PROJECT, EditorMenuCommand::EXIT,
-      EditorMenuCommand::UNDO,          EditorMenuCommand::REDO,
-      EditorMenuCommand::RESET_VIEW,    EditorMenuCommand::ZOOM_IN,
-      EditorMenuCommand::ZOOM_OUT,      EditorMenuCommand::TOGGLE_GRID,
-      EditorMenuCommand::ABOUT,
-  };
-
-  /// Whether @p command names work that exists at all.
-  bool isImplemented(EditorMenuCommand command) {
-    for (EditorMenuCommand implemented : IMPLEMENTED_COMMANDS) {
-      if (implemented == command) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   GuiButtonStyle titleStyle() {
     return {THEME_BG, THEME_TEXT, THEME_HOVER, 0.0f};
@@ -294,7 +272,7 @@ bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::REDO) {
     return can_redo_;
   }
-  return isImplemented(command);
+  return editorMenuCommandImplemented(command);
 }
 
 void EditorMenuBarWidget::placeDropdown(GuiWidgetTree& tree, size_t index) {

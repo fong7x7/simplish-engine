@@ -969,7 +969,49 @@ bool SimplishEditor::chromeNeedsLayout() {
          propertiesPanelWidth() != laid_out_properties_width_;
 }
 
+void SimplishEditor::setStateHook(std::function<bool(EditorShellState&)> hook) {
+  state_hook_ = std::move(hook);
+}
+
+void SimplishEditor::runMenuCommand(EditorMenuCommand command) {
+  executeCommand(command);
+}
+
+void SimplishEditor::rescanAssets() {
+  refreshAssets();
+}
+
+void SimplishEditor::syncViewState() {
+  const EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  state_.view = {viewport->camera, viewport->hoveredTile(),
+                 viewport->hasHover(), viewport->show_grid};
+}
+
+void SimplishEditor::ensurePlacedMeshes() {
+  for (const EditorPlacement& placement : state_.document.placements) {
+    if (placement.asset < state_.assets.size()) {
+      (void)ensureAssetMesh(placement.asset);
+    }
+  }
+}
+
+void SimplishEditor::runStateHook() {
+  if (!state_hook_ || !state_hook_(state_)) {
+    return;
+  }
+  // Only on a change: applyEditToChrome rewrites the properties panel from
+  // the document, which would tear a property drag in progress out from
+  // under the pointer if it ran on every tick.
+  ensurePlacedMeshes();
+  applyEditToChrome();
+}
+
 bool SimplishEditor::onTick(float dt) {
+  syncViewState();
+  runStateHook();
   if (chromeNeedsLayout()) {
     layoutChrome();
   }

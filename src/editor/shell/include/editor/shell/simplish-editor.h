@@ -28,6 +28,12 @@
 //   - File > New Project asks the OS for a location and name, then creates
 //     and opens a project there; File > Open Project asks for a folder and
 //     opens the project in it
+//   - Runs an installed state hook once a tick with mutable shell state,
+//     and rebuilds the chrome from it when the hook says it changed
+//     something. This is how the agent API drives the editor without the
+//     shell knowing an agent exists
+//   - Mirrors the viewport's camera, hover and grid flag into shell state
+//     each tick, so everything the editor knows is readable from one record
 //   - Per frame: lays the chrome out for the current window size and pushes
 //     hovered-tile and zoom into the toolbar status text
 //
@@ -44,6 +50,10 @@
 //     light, so a project nobody has lit looks as it always did
 //   - Undo and redo renumber one of the document's lists, so the selection
 //     is moved with it rather than left pointing at whatever took the slot
+//   - The state hook's chrome rebuild is gated on its answer: running it
+//     every tick would rewrite the properties panel out from under a drag
+//   - A placement made through the hook never went through a browser drag,
+//     so the meshes of what has been placed are uploaded after it runs
 //   - A drag on a property scrubs a value continuously but records one
 //     history entry, taken against the entry as it was when the drag began
 //   - A drag ended by something other than the mouse — Escape, a click on
@@ -65,6 +75,8 @@
 //
 // Integration Points:
 //   - src/bin/editor/src/main.cpp: constructs, initialises, and runs this
+//   - src/editor/agent/: installs the state hook and calls runMenuCommand,
+//     openProjectAt and rescanAssets on behalf of an agent
 
 #include <cstdint>
 #include <editor/project/project-open-error.h>
@@ -84,6 +96,7 @@
 #include <engine/gui/image-data.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -105,6 +118,33 @@ public:
 
   /// Read-only view of shell state, for tests and the entry point.
   [[nodiscard]] const EditorShellState& state() const { return state_; }
+
+  /// Run @p hook once a tick, holding the shell state it may edit, before
+  /// the chrome is rebuilt from that state.
+  ///
+  /// The one way in for a driver that is not a person at the window — the
+  /// agent API in `src/editor/agent/` is what this exists for. It is
+  /// deliberately blind to who is calling: the shell knows nothing about
+  /// agents, sockets, or tools, and the hook is installed from outside.
+  ///
+  /// The hook returns whether it changed anything. That answer matters:
+  /// rebuilding the chrome unconditionally every tick would reset the
+  /// properties panel out from under a drag in progress.
+  void setStateHook(std::function<bool(EditorShellState&)> hook);
+
+  /// Carry out @p command exactly as choosing it from the menu bar would.
+  ///
+  /// Public because the camera and the project dialogs live behind it, and
+  /// a caller outside the window has no other way to reach them. It does
+  /// not check whether the command is enabled — `editorMenuCommandEnabled`
+  /// is that question, and the menu bar asks it before it draws the row.
+  void runMenuCommand(EditorMenuCommand command);
+
+  /// Rescan the open project's assets from disk.
+  ///
+  /// Drops the document and the history with them, for the reason
+  /// `refreshAssets` gives: a rescan renumbers the list they name.
+  void rescanAssets();
 
 protected:
   bool onInit() override;
@@ -312,6 +352,15 @@ private:
   /// Run the Edit accelerators — undo, and redo with Shift. Returns true
   /// when @p key with @p modifiers was one of them.
   bool handleEditKey(uint32_t key, ClientKeyModifiers modifiers);
+  /// Copy the viewport's camera, hover, and grid flag into the shell
+  /// state, so everything the editor knows is readable from one record.
+  void syncViewState();
+  /// Run the state hook, and rebuild the chrome when it changed something.
+  void runStateHook();
+  /// Upload the mesh of every asset something has placed and not yet
+  /// loaded. A placement made through the agent API skips the browser's
+  /// drag, which is where a drop would otherwise have uploaded it.
+  void ensurePlacedMeshes();
   /// Let the chrome widgets release what they own, then destroy them.
   void shutdownChrome();
   /// Destroy the chrome nodes and forget their ids.
@@ -319,6 +368,8 @@ private:
 
   /// Persistent shell state.
   EditorShellState state_{};
+  /// Run once a tick with that state, or empty when nothing installed one.
+  std::function<bool(EditorShellState&)> state_hook_{};
   /// Window-sized tree root; hit testing is bounded by its rect.
   GuiWidgetId root_panel_ = GUI_WIDGET_ID_INVALID;
   /// Title bar strip above the toolbar.

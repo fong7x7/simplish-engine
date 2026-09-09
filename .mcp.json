@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "simplish-editor": {
+      "command": "python3",
+      "args": ["scripts/simplish-editor-mcp.py"],
+      "env": {
+        "SIMPLISH_AGENT_PORT": "default"
+      }
+    }
+  }
+}

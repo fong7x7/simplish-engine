@@ -72,16 +72,16 @@ enum class AgentTool : uint8_t {
 /// reading the manifest wants them in: what can be asked, then what can be
 /// changed.
 inline constexpr AgentTool AGENT_TOOLS[] = {
-    AgentTool::DESCRIBE,       AgentTool::GET_STATE,
-    AgentTool::LIST_ASSETS,    AgentTool::GET_ASSET,
-    AgentTool::LIST_FOLDERS,   AgentTool::LIST_PLACEMENTS,
-    AgentTool::LIST_LIGHTS,    AgentTool::GET_SELECTION,
-    AgentTool::GET_HISTORY,    AgentTool::LIST_COMMANDS,
-    AgentTool::PLACE_ASSET,    AgentTool::ADD_LIGHT,
-    AgentTool::SET_PROPERTY,   AgentTool::TRANSLATE,
-    AgentTool::SELECT,         AgentTool::SET_TOOL,
-    AgentTool::RUN_COMMAND,    AgentTool::UNDO,
-    AgentTool::REDO,           AgentTool::OPEN_PROJECT,
+    AgentTool::DESCRIBE,      AgentTool::GET_STATE,
+    AgentTool::LIST_ASSETS,   AgentTool::GET_ASSET,
+    AgentTool::LIST_FOLDERS,  AgentTool::LIST_PLACEMENTS,
+    AgentTool::LIST_LIGHTS,   AgentTool::GET_SELECTION,
+    AgentTool::GET_HISTORY,   AgentTool::LIST_COMMANDS,
+    AgentTool::PLACE_ASSET,   AgentTool::ADD_LIGHT,
+    AgentTool::SET_PROPERTY,  AgentTool::TRANSLATE,
+    AgentTool::SELECT,        AgentTool::SET_TOOL,
+    AgentTool::RUN_COMMAND,   AgentTool::UNDO,
+    AgentTool::REDO,          AgentTool::OPEN_PROJECT,
     AgentTool::RESCAN_ASSETS,
 };
 

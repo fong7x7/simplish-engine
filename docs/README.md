@@ -13,6 +13,8 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [Platform](platform/REQUIREMENTS.md) | Working on RHI backends, windowing, or distributor services |
 | [GUI](engine/gui/README.md) | Working on UI: widgets, layout, text, theming, docking, markdown |
 | [Development](development/REQUIREMENTS.md) | Setting up a build, adding tests, touching CI, or hitting a lint gate |
+| [Editor agent API](editor/agent-api.md) | Driving the editor from an agent, over MCP or HTTP — and the rule for adding a tool to it |
+| [Editor capabilities](editor/capabilities.md) | What the editor can do today, and whether an agent can do it too |
 
 ## Cross-cutting
 

@@ -13,6 +13,7 @@ add_subdirectory(render)
 
 if(ENGINE_PLATFORM_DESKTOP)
     add_subdirectory(client)
+    add_subdirectory(agent)
 endif()
 
 set(_platform_modules simplish-platform-render)
@@ -32,6 +33,7 @@ endif()
 
 if(ENGINE_PLATFORM_DESKTOP)
     list(APPEND _platform_modules simplish-platform-client)
+    list(APPEND _platform_modules simplish-platform-agent)
 endif()
 
 simplish_add_library(simplish-platform

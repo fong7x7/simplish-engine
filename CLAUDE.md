@@ -19,6 +19,8 @@ these rules.
 | Engine, rendering, sim, netcode | [docs/engine/REQUIREMENTS.md](docs/engine/REQUIREMENTS.md) |
 | GUI: widgets, layout, text, docking, theming, markdown | [docs/engine/gui/README.md](docs/engine/gui/README.md) — one technical doc per subsystem, each naming its source files |
 | Editor: authoring, viewport, assets, project format | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md), [project-format.md](docs/editor/project-format.md) |
+| Adding **any** editor tool, panel, or command | [docs/editor/agent-api.md](docs/editor/agent-api.md) §6 — the same change exposes it to agents, and [capabilities.md](docs/editor/capabilities.md) records it |
+| Driving the editor from an agent (MCP or HTTP) | [docs/editor/agent-api.md](docs/editor/agent-api.md) |
 | RHI backends, windowing, distributors | [docs/platform/REQUIREMENTS.md](docs/platform/REQUIREMENTS.md) |
 | Debugging something that smells familiar | [docs/solutions/](docs/solutions/) — problem/root-cause/fix write-ups, searchable by topic |
 | Planning and review workflow | [docs/development/compound-engineering.md](docs/development/compound-engineering.md) |
@@ -82,6 +84,7 @@ before saying you are done.
 | Every struct/class field carries a `///` comment | |
 | Leading return types | `int foo()`, not `auto foo() -> int` (lambdas and deduction guides excepted) |
 | No commented-out code | |
+| An editor capability is reachable by an agent | A tool added to the editor is added to `src/editor/agent/` in the same change. `static_assert`s and `test_agent_tool_info.cpp` catch most of it; [agent-api.md §6](docs/editor/agent-api.md#6-adding-a-tool--the-rule) is the checklist |
 
 Existing violations live almost entirely in the copied `src/platform/` code
 (distributor stubs, RHI backends). Leave that backlog alone unless the task is
@@ -123,8 +126,8 @@ above. A bare `NOLINT` is a review rejection.
 ## State of the tree
 
 Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
-`render-mesh`; platform `render` (five backends), `client` (SDL3); editor
-`project` and `shell`; `bin/editor`.
+`render-mesh`; platform `render` (five backends), `client` (SDL3), `agent`
+(loopback HTTP); editor `project`, `shell` and `agent`; `bin/editor`.
 
 Not written yet: `engine/sim`, `spatial`, `render-iso`, `render-sprite`,
 `render-fx`, `physics`, `audio`, `input`, `content`, `net`, `debug`, and the

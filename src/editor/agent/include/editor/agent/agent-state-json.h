@@ -1,0 +1,51 @@
+#pragma once
+
+/// @file agent-state-json.h
+/// @brief The editor's state, as the JSON an agent reads.
+/// @par Threading Main-thread-only (reads shell state).
+
+#include <cstddef>
+#include <editor/shell/editor-shell-state.h>
+#include <string>
+
+namespace eng::editor {
+
+/// The editor at a glance: project, active tool, camera, selection, what
+/// the document holds, and whether undo and redo have anything to do.
+[[nodiscard]] std::string agentStateJson(const EditorShellState& state);
+
+/// Every scanned asset, with its index and its load and thumbnail state.
+[[nodiscard]] std::string agentAssetsJson(const EditorShellState& state);
+
+/// One asset by index. The caller has already checked the index is one the
+/// list has.
+[[nodiscard]] std::string agentAssetJson(const EditorShellState& state,
+                                         size_t index);
+
+/// The asset browser's folder tree, the built-in general section included.
+[[nodiscard]] std::string agentFoldersJson(const EditorShellState& state);
+
+/// Every placement in the level.
+[[nodiscard]] std::string agentPlacementsJson(const EditorShellState& state);
+
+/// Every light in the level.
+[[nodiscard]] std::string agentLightsJson(const EditorShellState& state);
+
+/// What the properties panel is editing, and the fields it lists for it.
+[[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
+
+/// The session's edits, oldest first, and how many are applied.
+[[nodiscard]] std::string agentHistoryJson(const EditorShellState& state);
+
+/// Every menu command, and whether it would do anything right now.
+[[nodiscard]] std::string agentCommandsJson(const EditorShellState& state);
+
+/// Every tool this editor offers and what each takes: the manifest the MCP
+/// bridge turns into its own tool list.
+[[nodiscard]] std::string agentManifestJson();
+
+/// The manifest plus what the editor currently has open — what `describe`
+/// answers, and what a caller with no other documentation starts from.
+[[nodiscard]] std::string agentDescribeJson(const EditorShellState& state);
+
+}  // namespace eng::editor

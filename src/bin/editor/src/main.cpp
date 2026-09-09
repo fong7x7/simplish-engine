@@ -1,4 +1,6 @@
+#include <cstdint>
 #include <cstdlib>
+#include <editor/agent/editor-agent-service.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/client/desktop-user-data-path.h>
@@ -82,7 +84,17 @@ int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
     (void)editor.openProjectAt(std::filesystem::path(argv[1]));
   }
 
+  // Opened only when asked for. The agent API edits the user's project from
+  // a local port, so it is something they turn on rather than something
+  // every launch of the editor turns on for them.
+  eng::editor::EditorAgentService agent;
+  if (const uint16_t port = eng::editor::editorAgentPortFromEnvironment()) {
+    // A port that will not bind is logged and left; the editor still runs.
+    (void)agent.attach(editor, port);
+  }
+
   editor.run();
+  agent.detach();
   editor.shutdown();
   return 0;
 }

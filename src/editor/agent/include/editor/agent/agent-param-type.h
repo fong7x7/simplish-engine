@@ -5,6 +5,7 @@
 /// @par Threading Thread-safe (immutable value type).
 
 #include <cstdint>
+#include <string_view>
 
 namespace eng::editor {
 
@@ -28,5 +29,22 @@ enum class AgentParamType : uint8_t {
   /// working from what a person said has the name.
   ASSET_REF,
 };
+
+/// The word this type is published as, which the MCP bridge maps to a JSON
+/// Schema type.
+[[nodiscard]] constexpr std::string_view
+agentParamTypeName(AgentParamType type) {
+  switch (type) {
+    case AgentParamType::NUMBER:
+      return "number";
+    case AgentParamType::INTEGER:
+      return "integer";
+    case AgentParamType::STRING:
+      return "string";
+    case AgentParamType::ASSET_REF:
+      return "asset_ref";
+  }
+  return "string";
+}
 
 }  // namespace eng::editor

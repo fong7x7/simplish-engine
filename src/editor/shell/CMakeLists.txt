@@ -14,6 +14,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-tree.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-light-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-thumbnail-cache.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-pick.cpp"
