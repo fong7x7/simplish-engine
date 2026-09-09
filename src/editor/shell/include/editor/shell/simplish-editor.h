@@ -173,9 +173,19 @@ private:
   void initAssetPanel(GuiWidgetTree& tree);
   /// Create the properties panel and wire its edits back to this editor.
   void initPropertiesPanel(GuiWidgetTree& tree);
-  /// Rescan the open project's assets, rebuild the folder tree, and
-  /// refresh the panel.
+  /// Drop the document and load the newly-opened project's assets.
   void refreshAssets();
+  /// Rescan the assets directory and refresh the panel, leaving the
+  /// document alone.
+  void reloadAssets();
+  /// Every asset's id, by the index it currently sits at.
+  [[nodiscard]] std::vector<std::string> assetIds() const;
+  /// Point every placement at its asset's new index, dropping the ones
+  /// whose asset the rescan did not find again.
+  void rebindPlacements(const std::vector<std::string>& previous_ids);
+  /// Keep or drop the selection after a rebind, given how many placements
+  /// the rebind took out from under it.
+  void reselectAfterRescan(size_t dropped);
   /// Forget the level and the history describing it, which a rescan
   /// invalidates by renumbering the assets they name.
   void clearDocument();

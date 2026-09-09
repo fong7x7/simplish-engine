@@ -8,6 +8,7 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
 #include <engine/render-mesh/mesh-light.h>
+#include <string>
 
 namespace eng::editor {
 
@@ -34,6 +35,10 @@ enum class EditorLightKind : uint8_t {
 /// do — see `editor-placement.h`.
 /// @thread_safety Main-thread-only.
 struct EditorLight {
+  /// Stable identifier for this one light: `point_01`. Assigned when it is
+  /// added and never reused, so a logic file can switch this light by name
+  /// — see `editor-entity-id.h`.
+  std::string id{};
   /// Which shape this light throws.
   EditorLightKind kind = EditorLightKind::DIRECTIONAL;
   /// Where the light stands, and where its marker is drawn.

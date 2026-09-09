@@ -28,6 +28,16 @@ inline constexpr float EDITOR_LIGHT_MARKER_RADIUS = 0.25f;
 /// What a light of this kind is called, in the browser and the panel.
 [[nodiscard]] std::string_view editorLightKindName(EditorLightKind kind);
 
+/// The word a light of @p kind is identified by: `point`, `directional`.
+///
+/// Spelled out beside the display name rather than derived from it. A
+/// reference already carries the `light:` prefix, so slugifying "Point
+/// Light" would give `light:point_light_01` and say it twice; and a rule
+/// that stripped the redundant word would be one more thing to know about
+/// ids than "they are these words". The agent API keeps its wire names
+/// apart from its display names for the same reason.
+[[nodiscard]] std::string_view editorLightKindId(EditorLightKind kind);
+
 /// A new light of @p kind at @p position, with the defaults a dropped one
 /// gets: the key light's direction and strength, white, and a range that
 /// covers the tiles around it.

@@ -4,7 +4,8 @@
 //
 // Behaviours:
 //   - Column down the right of the viewport listing what the editor has
-//     selected: its name, and one row per editable number
+//     selected: its name, its `kind:id` reference, and one row per
+//     editable number
 //   - A placed asset lists position X, Y, Z and rotation X, Y, Z; a light
 //     lists the direction, colour, intensity and range its own kind uses
 //   - Each row is a label, a step-down button, a value box, and a step-up
@@ -68,7 +69,7 @@ public:
   /// Polymorphic deep-copy.
   [[nodiscard]] std::unique_ptr<GuiWidget> clone() const override;
 
-  /// Draw the header, the name line, and every property row.
+  /// Draw the header, the name and id lines, and every property row.
   void render(const GuiDrawContext& ctx) const override;
 
   /// Step a value, or begin a scrub. Returns true to capture.
@@ -92,6 +93,12 @@ public:
 
   /// Whether anything is being shown.
   [[nodiscard]] bool hasSelection() const { return has_selection_; }
+
+  /// The reference the id line shows — `prop:crate_01` — or empty when
+  /// nothing is selected. This is what a level or logic file writes to
+  /// name what is selected, which is why the panel shows it qualified
+  /// rather than showing the bare id.
+  [[nodiscard]] const std::string& reference() const { return reference_; }
 
   /// The rows the panel is listing, in order.
   [[nodiscard]] const std::vector<EditorPropertyField>& fields() const {
@@ -126,6 +133,8 @@ private:
   void renderHeader(const GuiDrawContext& ctx) const;
   /// Draw the line naming what is selected.
   void renderNameLine(const GuiDrawContext& ctx) const;
+  /// Draw the line showing its `kind:id` reference.
+  void renderIdLine(const GuiDrawContext& ctx) const;
   /// Draw every property row.
   void renderRows(const GuiDrawContext& ctx) const;
   /// Draw one row's label, buttons, and value.
@@ -133,9 +142,9 @@ private:
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;
-  /// Take @p fields as the rows to show, under @p name, with every value
-  /// zero until the caller fills them in.
-  void beginSelection(std::string name,
+  /// Take @p fields as the rows to show, under @p name and @p reference,
+  /// with every value zero until the caller fills them in.
+  void beginSelection(std::string name, std::string reference,
                       std::span<const EditorPropertyField> fields);
   /// Row @p field sits on, or the row count when it has none.
   [[nodiscard]] size_t rowOf(EditorPropertyField field) const;
@@ -161,6 +170,8 @@ private:
   std::vector<float> values_{};
   /// Backing store for the name line's text.
   std::string name_{};
+  /// Backing store for the id line's text: the qualified reference.
+  std::string reference_{};
   /// Whether a value is being scrubbed.
   bool dragging_ = false;
   /// Field the scrub is changing.

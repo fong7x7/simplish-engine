@@ -20,6 +20,11 @@ inline constexpr float PROPERTIES_PANEL_WIDTH = 236.0f;
 inline constexpr float PROPERTIES_HEADER_HEIGHT = 22.0f;
 /// Height of the line naming the selected asset.
 inline constexpr float PROPERTIES_ASSET_HEIGHT = 22.0f;
+/// Height of the line showing the selection's id.
+///
+/// Shorter than the name above it: it is a reference to copy into a level
+/// or logic file, not a heading, and it reads as one at a smaller weight.
+inline constexpr float PROPERTIES_ID_HEIGHT = 18.0f;
 /// Height of one property row.
 inline constexpr float PROPERTIES_ROW_HEIGHT = 22.0f;
 /// Gap between property rows.
@@ -38,11 +43,13 @@ struct EditorPropertiesLayout {
   Rect header{};
   /// Line naming the selected asset.
   Rect asset{};
+  /// Line showing the selection's `kind:id` reference.
+  Rect id{};
   /// Area the property rows are laid out down.
   Rect body{};
 };
 
-/// Divide a panel into its header, asset line, and rows.
+/// Divide a panel into its header, name line, id line, and rows.
 ///
 /// A panel too short for all of it gives what there is to the regions in
 /// order and hands the rest zero height, rather than laying rows out past

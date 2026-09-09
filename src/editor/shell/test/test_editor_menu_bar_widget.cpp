@@ -90,10 +90,9 @@ bool editRowEnabled(MenuFixture& fx, std::string_view label) {
 /// A history holding one applied placement, over @p document.
 EditorActionHistory historyWithOnePlacement(EditorDocument& document) {
   EditorActionHistory history;
-  performEditorAction(history, document,
-                      {.kind = EditorActionKind::PLACE_ASSET,
-                       .index = 0,
-                       .placement = {0, {0.0f, 0.0f}}});
+  performEditorAction(
+      history, document,
+      {.kind = EditorActionKind::PLACE_ASSET, .index = 0, .placement = {}});
   return history;
 }
 

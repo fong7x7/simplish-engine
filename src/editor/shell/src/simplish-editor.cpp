@@ -6,6 +6,7 @@
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
@@ -23,7 +24,9 @@
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace eng::editor {
 
@@ -420,16 +423,12 @@ void SimplishEditor::adoptAssetScan(EditorAssetScan scan) {
   const size_t first_shape = appendEditorShapeAssets(state_.assets);
   appendEditorGeneralSection(state_.asset_tree, first_shape,
                              state_.assets.size());
+  // Once, here, with the list complete: an id has to be unique across
+  // every asset, and the built-in shapes are assets like any other.
+  assignEditorAssetIds(state_.assets);
 }
 
-void SimplishEditor::refreshAssets() {
-  // Placements index into the asset list, and a rescan renumbers it, so
-  // they go with it — and the history with them, since every action names an
-  // entry by an index that is about to mean something else. The lights go
-  // too: they name no asset, but they belong to the level being closed, and
-  // leaving them behind would light the next project with them. Nothing is
-  // persisted yet either way.
-  clearDocument();
+void SimplishEditor::reloadAssets() {
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
   releaseAssetThumbnails();
@@ -437,6 +436,15 @@ void SimplishEditor::refreshAssets() {
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
   refreshAssetPanel();
+}
+
+void SimplishEditor::refreshAssets() {
+  // A different project, so the document goes with the old one: the lights
+  // name no asset, but they belong to the level being closed, and leaving
+  // them behind would light the next project with them. Nothing is
+  // persisted yet either way.
+  clearDocument();
+  reloadAssets();
   applyEditToChrome();
 }
 
@@ -631,9 +639,13 @@ void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
   // Appended, so undo takes the newest placement off the end and redo puts
   // it back at the same index.
   const size_t placed = state_.document.placements.size();
+  EditorPlacement placement{};
+  placement.id = mintEditorPlacementId(state_.document, state_.assets[index]);
+  placement.asset = index;
+  placement.position = position;
   recordAction({.kind = EditorActionKind::PLACE_ASSET,
                 .index = placed,
-                .placement = {index, position, {}}});
+                .placement = placement});
   // Selecting what was just dropped opens the panel on it, which is what
   // somebody who wants it a quarter-tile to the left is about to reach for.
   select({EditorSelectionKind::PLACEMENT, placed});
@@ -646,10 +658,11 @@ void SimplishEditor::placeLight(EditorGeneralItem item, WorldPoint tile) {
   const WorldPoint position{tile.x + 0.5f, tile.y + 0.5f,
                             EDITOR_LIGHT_DROP_HEIGHT};
   const size_t added = state_.document.lights.size();
+  const EditorLightKind kind = editorGeneralItemLightKind(item);
+  EditorLight light = makeEditorLight(kind, position);
+  light.id = mintEditorLightId(state_.document, kind);
   recordAction(
-      {.kind = EditorActionKind::ADD_LIGHT,
-       .index = added,
-       .light = makeEditorLight(editorGeneralItemLightKind(item), position)});
+      {.kind = EditorActionKind::ADD_LIGHT, .index = added, .light = light});
   select({EditorSelectionKind::LIGHT, added});
 }
 
@@ -995,8 +1008,47 @@ void SimplishEditor::runMenuCommand(EditorMenuCommand command) {
   executeCommand(command);
 }
 
+std::vector<std::string> SimplishEditor::assetIds() const {
+  std::vector<std::string> ids;
+  ids.reserve(state_.assets.size());
+  for (const EditorAsset& asset : state_.assets) {
+    ids.push_back(asset.id);
+  }
+  return ids;
+}
+
+void SimplishEditor::rebindPlacements(
+    const std::vector<std::string>& previous_ids) {
+  reselectAfterRescan(
+      rebindPlacementAssets(state_.document, previous_ids, state_.assets));
+}
+
+void SimplishEditor::reselectAfterRescan(size_t dropped) {
+  // Nothing was dropped, so every index still names what it named and the
+  // selection with it. Otherwise the list has shifted under it, and the
+  // honest answer is to select nothing rather than something else.
+  if (dropped == 0 ||
+      !selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  LOG_INFO("editor", "Rescan dropped " + std::to_string(dropped) +
+                         " placement(s) whose asset is gone");
+  state_.selection = EditorSelection{};
+}
+
 void SimplishEditor::rescanAssets() {
-  refreshAssets();
+  // The same project, so the document stays: a placement names its asset by
+  // an id, and an id is what the new list can be searched for. Adding a
+  // file to the project no longer costs the level everything in it.
+  const std::vector<std::string> previous_ids = assetIds();
+  reloadAssets();
+  rebindPlacements(previous_ids);
+  // The history describes the document by index into a list the rebind may
+  // have shortened, so it cannot be replayed against what is there now.
+  clearEditorActions(state_.history);
+  placement_prior_.reset();
+  light_prior_.reset();
+  applyEditToChrome();
 }
 
 void SimplishEditor::syncViewState() {

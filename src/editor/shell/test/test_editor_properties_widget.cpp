@@ -330,3 +330,32 @@ TEST_CASE("a light's intensity never goes below nothing") {
   fixture.moveTo(midX(value) - 600.0f, midY(value));
   REQUIRE(fixture.changes.back().value == Approx(0.0f));
 }
+
+TEST_CASE("the panel shows the reference for a selected placement") {
+  PanelFixture fixture;
+  EditorPlacement placement;
+  placement.id = "crate_01";
+  fixture.panel.setSelection("crate", placement);
+
+  // What a level or logic file writes to name this crate, shown qualified
+  // so it can be copied verbatim rather than assembled by hand.
+  REQUIRE(fixture.panel.reference() == "prop:crate_01");
+}
+
+TEST_CASE("the panel shows the reference for a selected light") {
+  PanelFixture fixture;
+  EditorLight light = makeEditorLight(EditorLightKind::POINT, {});
+  light.id = "point_02";
+  fixture.panel.setSelection("Point Light", light);
+
+  REQUIRE(fixture.panel.reference() == "light:point_02");
+}
+
+TEST_CASE("clearing the selection clears the reference with it") {
+  PanelFixture fixture;
+  EditorPlacement placement;
+  placement.id = "crate_01";
+  fixture.panel.setSelection("crate", placement);
+  fixture.panel.clearSelection();
+  REQUIRE(fixture.panel.reference().empty());
+}

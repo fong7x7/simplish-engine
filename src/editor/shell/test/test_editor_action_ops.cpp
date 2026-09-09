@@ -24,7 +24,7 @@ struct HistoryFixture {
     performEditorAction(history, document,
                         {.kind = EditorActionKind::PLACE_ASSET,
                          .index = document.placements.size(),
-                         .placement = {asset, {0.0f, 0.0f}, {}}});
+                         .placement = {.asset = asset}});
   }
 
   /// Move the placement at @p index, as a finished property edit does.
@@ -120,7 +120,7 @@ TEST_CASE("a redone placement comes back where it was") {
   performEditorAction(fx.history, fx.document,
                       {.kind = EditorActionKind::PLACE_ASSET,
                        .index = 0,
-                       .placement = {3, {2.0f, -5.0f}}});
+                       .placement = {.asset = 3, .position = {2.0f, -5.0f}}});
   REQUIRE(fx.undo());
   REQUIRE(fx.redo());
 

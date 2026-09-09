@@ -1,3 +1,4 @@
+#include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
@@ -67,8 +68,10 @@ Rect EditorPropertiesWidget::fieldRowRect(EditorPropertyField field) const {
 }
 
 void EditorPropertiesWidget::beginSelection(
-    std::string name, std::span<const EditorPropertyField> fields) {
+    std::string name, std::string reference,
+    std::span<const EditorPropertyField> fields) {
   name_ = std::move(name);
+  reference_ = std::move(reference);
   fields_.assign(fields.begin(), fields.end());
   values_.assign(fields_.size(), 0.0f);
   has_selection_ = true;
@@ -77,7 +80,8 @@ void EditorPropertiesWidget::beginSelection(
 
 void EditorPropertiesWidget::setSelection(std::string name,
                                           const EditorPlacement& placement) {
-  beginSelection(std::move(name), EDITOR_PLACEMENT_FIELDS);
+  beginSelection(std::move(name), editorPlacementRef(placement),
+                 EDITOR_PLACEMENT_FIELDS);
   for (size_t row = 0; row < fields_.size(); ++row) {
     values_[row] = editorPropertyValue(placement, fields_[row]);
   }
@@ -85,7 +89,8 @@ void EditorPropertiesWidget::setSelection(std::string name,
 
 void EditorPropertiesWidget::setSelection(std::string name,
                                           const EditorLight& light) {
-  beginSelection(std::move(name), editorLightFields(light.kind));
+  beginSelection(std::move(name), editorLightRef(light),
+                 editorLightFields(light.kind));
   for (size_t row = 0; row < fields_.size(); ++row) {
     values_[row] = editorLightValue(light, fields_[row]);
   }
@@ -97,6 +102,7 @@ void EditorPropertiesWidget::clearSelection() {
   // A drag whose subject has gone has nothing left to commit.
   dragging_ = false;
   name_.clear();
+  reference_.clear();
   fields_.clear();
   values_.clear();
 }
@@ -112,6 +118,14 @@ void EditorPropertiesWidget::renderNameLine(const GuiDrawContext& ctx) const {
   const Rect line = layout().asset;
   ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
                textPos(line, TEXT_INSET), name_);
+}
+
+void EditorPropertiesWidget::renderIdLine(const GuiDrawContext& ctx) const {
+  const Rect line = layout().id;
+  // Dimmer than the name above it, and the panel's one piece of text that
+  // is not prose: this is a reference to be copied verbatim.
+  ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
+               textPos(line, TEXT_INSET), reference_);
 }
 
 void EditorPropertiesWidget::renderStep(const GuiDrawContext& ctx,
@@ -154,6 +168,7 @@ void EditorPropertiesWidget::render(const GuiDrawContext& ctx) const {
   renderPanel({ctx, GuiColor::applyOpacity(fill_color, opacity)});
   renderHeader(ctx);
   renderNameLine(ctx);
+  renderIdLine(ctx);
   renderRows(ctx);
 }
 

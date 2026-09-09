@@ -59,6 +59,7 @@ struct PropertiesCapture {
   /// A placement with a value in every field, so no row is a row of zeroes.
   static EditorPlacement placement() {
     EditorPlacement out;
+    out.id = "props_crate_01";
     out.position = {12.0f, -3.5f, 1.25f};
     out.rotation = {0.0f, 45.0f, -90.0f};
     return out;
@@ -206,6 +207,16 @@ TEST_CASE("a panel with nothing selected paints nothing at all") {
   const eng::Rect panel = PropertiesCapture::panelRect();
   REQUIRE(matches(capture.pixel(panel.x + panel.w * 0.5f, panel.h * 0.5f),
                   eng::THEME_BG));
+}
+
+TEST_CASE("the id line paints under the name") {
+  const PropertiesCapture capture;
+  const EditorPropertiesLayout layout = capture.panel().layout();
+  // Its own strip, between the name and the first row: a reference to copy
+  // is not a heading, and stacking it under the name is what says so.
+  REQUIRE(layout.id.y >= layout.asset.y + layout.asset.h);
+  REQUIRE(layout.id.h > 0.0f);
+  REQUIRE(layout.body.y >= layout.id.y + layout.id.h);
 }
 
 TEST_CASE("the properties capture can be written to PNG for inspection") {

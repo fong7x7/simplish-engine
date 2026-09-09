@@ -69,6 +69,10 @@ std::string_view editorLightKindName(EditorLightKind kind) {
                                               : "Point Light";
 }
 
+std::string_view editorLightKindId(EditorLightKind kind) {
+  return kind == EditorLightKind::DIRECTIONAL ? "directional" : "point";
+}
+
 EditorLight makeEditorLight(EditorLightKind kind, WorldPoint position) {
   EditorLight light;
   light.kind = kind;

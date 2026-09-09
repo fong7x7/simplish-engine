@@ -96,7 +96,7 @@ TEST_CASE("a shape placed on a tile fills it, as a model would") {
     asset.min = mesh.min;
     asset.max = mesh.max;
     const PlacementBounds bounds =
-        placementWorldBounds(asset, {0, {2.0f, 3.0f}, {}});
+        placementWorldBounds(asset, {.position = {2.0f, 3.0f}});
     // Its own tile, corner to corner: the shapes are built in a unit box,
     // and the placement transform scales a footprint to exactly one tile.
     REQUIRE(bounds.min.x == Approx(2.0f).margin(1e-4f));

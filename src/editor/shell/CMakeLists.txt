@@ -12,6 +12,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-scan.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-thumbnail.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-tree.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-light-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"

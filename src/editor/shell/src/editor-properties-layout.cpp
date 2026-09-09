@@ -26,8 +26,9 @@ EditorPropertiesLayout layoutEditorProperties(const Rect& panel) {
   Rect remaining = panel;
   out.header = takeTop(remaining, PROPERTIES_HEADER_HEIGHT);
   out.asset = takeTop(remaining, PROPERTIES_ASSET_HEIGHT);
-  // The body is inset on three sides; the header and asset line span the
-  // panel so their backgrounds meet its edges.
+  out.id = takeTop(remaining, PROPERTIES_ID_HEIGHT);
+  // The body is inset on three sides; the header and the two lines under
+  // it span the panel so their backgrounds meet its edges.
   const float inset = std::min(PROPERTIES_PADDING, remaining.w * 0.5f);
   out.body = makeRect(remaining.x + inset, remaining.y + PROPERTIES_ROW_GAP,
                       std::max(0.0f, remaining.w - inset * 2.0f),

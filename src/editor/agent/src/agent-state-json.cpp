@@ -5,6 +5,7 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/agent/agent-tool-info.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
@@ -74,6 +75,8 @@ namespace {
   json assetValue(const EditorShellState& state, size_t index) {
     const EditorAsset& asset = state.assets[index];
     return {{"index", index},
+            {"id", asset.id},
+            {"ref", editorAssetRef(asset)},
             {"name", asset.name},
             {"path", asset.path.generic_string()},
             {"relative_path", asset.relative_path.generic_string()},
@@ -92,6 +95,7 @@ namespace {
     if (entry < state.assets.size()) {
       return {{"entry", entry},
               {"kind", "asset"},
+              {"id", state.assets[entry].id},
               {"name", state.assets[entry].name}};
     }
     const size_t item = entry - state.assets.size();

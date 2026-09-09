@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
+#include <string>
 
 namespace eng::editor {
 
@@ -18,7 +19,14 @@ namespace eng::editor {
 /// authoring one.
 /// @thread_safety Main-thread-only.
 struct EditorPlacement {
-  /// Index into the shell's asset list.
+  /// Stable identifier for this one placed thing: `crate_01`. Assigned
+  /// when it is placed and never reused, so a logic file can say
+  /// `prop:crate_01` and mean this crate rather than whatever currently
+  /// sits at some position in a list — see `editor-entity-id.h`.
+  std::string id{};
+  /// Index into the shell's asset list. A handle for this session only:
+  /// what survives a rescan is the asset's own id, which is what the
+  /// index is rebound through.
   size_t asset = 0;
   /// World position of the placement's base.
   WorldPoint position{};

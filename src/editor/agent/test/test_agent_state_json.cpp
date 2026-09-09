@@ -65,8 +65,8 @@ TEST_CASE("an asset reports how far its mesh and its picture got") {
 TEST_CASE("an asset counts the placements that instance it") {
   EditorShellState state;
   state.assets.push_back({.name = "crate"});
-  state.document.placements.push_back({0, {0.0f, 0.0f, 0.0f}, {}});
-  state.document.placements.push_back({0, {1.0f, 0.0f, 0.0f}, {}});
+  state.document.placements.push_back({.position = {0.0f, 0.0f, 0.0f}});
+  state.document.placements.push_back({.position = {1.0f, 0.0f, 0.0f}});
 
   REQUIRE(json::parse(agentAssetsJson(state))
               .at("assets")
@@ -77,7 +77,8 @@ TEST_CASE("an asset counts the placements that instance it") {
 TEST_CASE("a placement names the asset it instances") {
   EditorShellState state;
   state.assets.push_back({.name = "crate"});
-  state.document.placements.push_back({0, {1.0f, 2.0f, 0.0f}, {0, 0, 90}});
+  state.document.placements.push_back(
+      {.position = {1.0f, 2.0f, 0.0f}, .rotation = {0, 0, 90}});
 
   const json placed =
       json::parse(agentPlacementsJson(state)).at("placements").at(0);

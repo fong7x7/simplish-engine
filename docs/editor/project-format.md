@@ -83,6 +83,8 @@ my-project/
 
 **Ids are stable, lowercase, and snake_case.** They are the name generated C++ uses, so they must be valid identifiers. An id is assigned once and never changes: renaming the display `name` is free, renaming an `id` is a refactor across every file that references it. The editor treats ids as immutable after creation and offers an explicit rename that rewrites references.
 
+The editor already mints ids to this rule, ahead of the format that consumes them: assets are identified by path (`props/crate.obj` → `props_crate`), built-in shapes by name (`cube`), and each placed thing by what it instances and a number (`props_crate_01`). See `editor-entity-id.h`, and the properties panel, which shows the selected thing's qualified reference so it can be copied into a file by hand today.
+
 **References are `kind:id` strings**, never file paths:
 
 ```json

@@ -7,6 +7,7 @@
 #include <editor/agent/agent-names.h>
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-property-ops.h>
@@ -99,7 +100,11 @@ namespace {
   /// its path relative to the assets root, either of which is something a
   /// person or a previous `list_assets` might have handed the agent.
   bool assetMatches(const EditorAsset& asset, const std::string& name) {
-    return asset.name == name || asset.relative_path.generic_string() == name ||
+    // The id first, and the qualified reference with it: those are what a
+    // level file names an asset by, so they are what an agent reading one
+    // will have to hand.
+    return asset.id == name || editorAssetRef(asset) == name ||
+           asset.name == name || asset.relative_path.generic_string() == name ||
            asset.path.generic_string() == name;
   }
 
@@ -294,10 +299,17 @@ namespace {
                            const EditorPlacement& placement) {
     // Appended, so undo takes it off the end and redo puts it back here.
     const size_t index = state.document.placements.size();
+    EditorPlacement identified = placement;
+    // Minted here rather than by the caller, so no route into the document
+    // can leave a placement nothing is able to name.
+    if (identified.id.empty() && identified.asset < state.assets.size()) {
+      identified.id =
+          mintEditorPlacementId(state.document, state.assets[identified.asset]);
+    }
     performEditorAction(state.history, state.document,
                         {.kind = EditorActionKind::PLACE_ASSET,
                          .index = index,
-                         .placement = placement});
+                         .placement = identified});
     selectEntry(state, {EditorSelectionKind::PLACEMENT, index});
     return agentEdited(placementPayload(state, index));
   }
@@ -305,9 +317,14 @@ namespace {
   /// Add @p light to the document as one undoable edit, and select it.
   AgentResult addLight(EditorShellState& state, const EditorLight& light) {
     const size_t index = state.document.lights.size();
-    performEditorAction(
-        state.history, state.document,
-        {.kind = EditorActionKind::ADD_LIGHT, .index = index, .light = light});
+    EditorLight identified = light;
+    if (identified.id.empty()) {
+      identified.id = mintEditorLightId(state.document, identified.kind);
+    }
+    performEditorAction(state.history, state.document,
+                        {.kind = EditorActionKind::ADD_LIGHT,
+                         .index = index,
+                         .light = identified});
     selectEntry(state, {EditorSelectionKind::LIGHT, index});
     return agentEdited(lightPayload(state, index));
   }
@@ -343,7 +360,10 @@ AgentResult runAgentPlaceAsset(EditorShellState& state, const json& params) {
   if (placeable.status != AgentStatus::OK) {
     return placeable;
   }
-  return addPlacement(state, {*asset, droppedAt(params, *x, *y, 0.0f), {}});
+  EditorPlacement placement{};
+  placement.asset = *asset;
+  placement.position = droppedAt(params, *x, *y, 0.0f);
+  return addPlacement(state, placement);
 }
 
 AgentResult runAgentAddLight(EditorShellState& state, const json& params) {

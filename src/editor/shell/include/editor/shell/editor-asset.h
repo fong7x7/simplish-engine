@@ -59,6 +59,14 @@ struct EditorAsset {
   /// scan fills in stay the first three: the scan and its tests build these
   /// positionally.
   std::optional<EditorShapeKind> shape{};
+  /// Stable identifier, as a level file references this asset by:
+  /// `props_crate` for a model on disk, `cube` for a built-in shape. Never
+  /// the asset's position in any list — see `editor-entity-id.h` for why
+  /// that number cannot be an identity, and `assignEditorAssetIds` for
+  /// where this is filled in.
+  ///
+  /// After `shape` so the positional construction above keeps working.
+  std::string id{};
   /// Uploaded mesh, or `MESH_GPU_INVALID` until first placed.
   MeshGpuId mesh = MESH_GPU_INVALID;
   /// Minimum bounds corner, in world orientation. Valid once uploaded.
