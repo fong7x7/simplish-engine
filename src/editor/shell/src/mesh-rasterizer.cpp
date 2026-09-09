@@ -189,10 +189,30 @@ namespace {
                       static_cast<int32_t>(std::ceil(max_y)));
   }
 
-  /// The world position a pixel covers, from its barycentric weights.
-  Vec3 blendWorld(const RasterVertex tri[3], const float weights[3]) {
-    return tri[0].world * weights[0] + tri[1].world * weights[1] +
-           tri[2].world * weights[2];
+  /// Interpolate three corner values across a pixel's weights.
+  Vec3 blend(const Vec3 corners[3], const float weights[3]) {
+    return corners[0] * weights[0] + corners[1] * weights[1] +
+           corners[2] * weights[2];
+  }
+
+  /// What a pixel covers: how deep, where in the world, and which way the
+  /// surface faces there.
+  ///
+  /// All three are interpolated, as the GPU's own interpolation does it: a
+  /// point light's distance varies across a face, and so does the normal of
+  /// a face that belongs to something round. Taking the first corner's
+  /// normal for the whole triangle would face every sphere in the editor
+  /// one way per triangle and band it.
+  RasterFragment makeFragment(const RasterVertex tri[3],
+                              const float weights[3]) {
+    const Vec3 positions[3] = {tri[0].world, tri[1].world, tri[2].world};
+    const Vec3 normals[3] = {tri[0].normal, tri[1].normal, tri[2].normal};
+    RasterFragment out;
+    out.depth = weights[0] * tri[0].depth + weights[1] * tri[1].depth +
+                weights[2] * tri[2].depth;
+    out.world = blend(positions, weights);
+    out.normal = blend(normals, weights);
+    return out;
   }
 
   /// Shade one pixel of a triangle, if it is covered by it.
@@ -204,15 +224,9 @@ namespace {
     if (!coverage(tri, px, py, weights)) {
       return;
     }
-    RasterFragment fragment;
+    RasterFragment fragment = makeFragment(tri, weights);
     fragment.index =
         static_cast<size_t>(y) * target.image->width + static_cast<size_t>(x);
-    fragment.depth = weights[0] * tri[0].depth + weights[1] * tri[1].depth +
-                     weights[2] * tri[2].depth;
-    // The position is interpolated because a point light's distance varies
-    // across a face; the normal is the face's own, as it always was.
-    fragment.world = blendWorld(tri, weights);
-    fragment.normal = tri[0].normal;
     writePixel(target, fragment);
   }
 

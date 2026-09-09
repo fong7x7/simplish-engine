@@ -5,8 +5,9 @@
 // Behaviours:
 //   - Strip along the bottom of the window, split into a folder pane on the
 //     left and a card grid on the right
-//   - The pane lists the project's asset folders as an indented tree; the
-//     chevron opens and closes one, and the row selects it
+//   - The pane lists every section the tree names as an indented tree, one
+//     after another; the chevron opens and closes a folder, and the row
+//     selects it. Sections start open, the folders inside them closed
 //   - The grid shows the selected folder's assets as named cards, wrapped
 //     into rows and scrolled when there are more than fit
 //   - Pressing a card starts a drag; the card follows the cursor as a ghost
@@ -209,6 +210,9 @@ private:
   void rebuildHeaderText();
   /// Name to draw for a folder; the root is named for the directory itself.
   [[nodiscard]] std::string_view folderLabel(size_t folder) const;
+  /// Whether a folder stands for no directory on disk: a built-in section,
+  /// or one of the folders inside it.
+  [[nodiscard]] bool folderIsBuiltIn(size_t folder) const;
   /// Pull both scroll offsets back inside what there is to scroll.
   void clampScroll();
 

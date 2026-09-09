@@ -10,6 +10,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-shape.h>
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
@@ -95,6 +96,19 @@ namespace {
   /// rebuilt on every frame of a property drag, and an EditorAsset carries
   /// two paths and a name.
   const EditorAsset UNKNOWN_ASSET{};
+
+  /// The geometry an asset stands for: a built-in shape, generated, or the
+  /// file it names, read and turned into the world's axes.
+  std::optional<MeshData> readAssetMesh(const EditorAsset& asset) {
+    if (asset.shape.has_value()) {
+      return makeEditorShapeMesh(*asset.shape);
+    }
+    std::optional<MeshData> mesh = loadObjMesh(asset.path);
+    if (mesh.has_value()) {
+      orientYUpToZUp(*mesh);
+    }
+    return mesh;
+  }
 
   /// Card pictures made per frame.
   ///
@@ -388,6 +402,25 @@ void SimplishEditor::applyProjectToWidgets() {
   refreshAssets();
 }
 
+void SimplishEditor::clearDocument() {
+  state_.document = EditorDocument{};
+  state_.selection = EditorSelection{};
+  placement_prior_.reset();
+  light_prior_.reset();
+  clearEditorActions(state_.history);
+}
+
+void SimplishEditor::adoptAssetScan(EditorAssetScan scan) {
+  state_.asset_tree = buildEditorAssetTree(scan);
+  state_.assets = std::move(scan.assets);
+  // The built-in shapes go on the end of the asset list, so a placement
+  // names one exactly as it names a scanned model; the lights are numbered
+  // past every asset. That numbering is what the browser reports a drop in.
+  const size_t first_shape = appendEditorShapeAssets(state_.assets);
+  appendEditorGeneralSection(state_.asset_tree, first_shape,
+                             state_.assets.size());
+}
+
 void SimplishEditor::refreshAssets() {
   // Placements index into the asset list, and a rescan renumbers it, so
   // they go with it — and the history with them, since every action names an
@@ -395,23 +428,13 @@ void SimplishEditor::refreshAssets() {
   // too: they name no asset, but they belong to the level being closed, and
   // leaving them behind would light the next project with them. Nothing is
   // persisted yet either way.
-  state_.document = EditorDocument{};
-  state_.selection = EditorSelection{};
-  placement_prior_.reset();
-  light_prior_.reset();
-  clearEditorActions(state_.history);
+  clearDocument();
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
   releaseAssetThumbnails();
-  EditorAssetScan scan =
-      state_.project.loaded
-          ? scanEditorAssets(projectAssetsPath(state_.project.root))
-          : EditorAssetScan{};
-  state_.asset_tree = buildEditorAssetTree(scan);
-  state_.assets = std::move(scan.assets);
-  // The built-in items are numbered after the scanned assets, which is the
-  // numbering the browser reports a drop in and the tree holds.
-  appendEditorGeneralSection(state_.asset_tree, state_.assets.size());
+  adoptAssetScan(state_.project.loaded
+                     ? scanEditorAssets(projectAssetsPath(state_.project.root))
+                     : EditorAssetScan{});
   refreshAssetPanel();
   applyEditToChrome();
 }
@@ -434,12 +457,11 @@ void SimplishEditor::refreshAssetPanel() {
 }
 
 bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
-  auto mesh = loadObjMesh(asset.path);
+  std::optional<MeshData> mesh = readAssetMesh(asset);
   if (!mesh.has_value()) {
     LOG_WARN("editor", "Could not load mesh: " + asset.path.string());
     return false;
   }
-  orientYUpToZUp(*mesh);
   auto uploaded = mesh_renderer_.upload(*rhiDevice(), *mesh);
   if (!uploaded.has_value()) {
     return false;
@@ -462,6 +484,12 @@ void SimplishEditor::releaseAssetThumbnails() {
 }
 
 ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
+  // A shape's geometry costs a few hundred triangles of trigonometry to
+  // rebuild, and there is no file to key a cache entry on.
+  if (asset.shape.has_value()) {
+    return renderAssetThumbnail(makeEditorShapeMesh(*asset.shape),
+                                ASSET_THUMBNAIL_SIZE);
+  }
   const ThumbnailCacheEntry entry{projectThumbnailsPath(state_.project.root),
                                   asset.path, asset.relative_path};
   if (std::optional<ImageData> cached = loadCachedThumbnail(entry)) {
@@ -469,11 +497,10 @@ ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
   }
   // The expensive half, and the reason the cache exists: parsing a mesh the
   // editor may never otherwise need to read.
-  std::optional<MeshData> mesh = loadObjMesh(asset.path);
+  const std::optional<MeshData> mesh = readAssetMesh(asset);
   if (!mesh.has_value()) {
     return {};
   }
-  orientYUpToZUp(*mesh);
   ImageData image = renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE);
   storeCachedThumbnail(entry, image);
   return image;

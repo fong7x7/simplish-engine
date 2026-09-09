@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-general-item.h>
+#include <editor/shell/editor-shape-kind.h>
 #include <string_view>
 
 namespace eng::editor {
@@ -15,8 +16,15 @@ namespace eng::editor {
 /// root is: the two are the pane's two sections and should read alike.
 inline constexpr std::string_view EDITOR_GENERAL_FOLDER_NAME = "general";
 
+/// The subsection holding the light sources.
+inline constexpr std::string_view EDITOR_LIGHTING_FOLDER_NAME = "lighting";
+
+/// The subsection holding the built-in shapes.
+inline constexpr std::string_view EDITOR_SHAPES_FOLDER_NAME = "shapes";
+
 /// Add the general section to @p tree as a top-level folder above the
-/// assets root, holding every built-in item, and return its index.
+/// assets root, holding a folder of lights and a folder of shapes, and
+/// return the section's index.
 ///
 /// A sibling of the assets root rather than a folder inside it: nothing in
 /// it comes from the project's assets directory, and listing it under that
@@ -25,11 +33,17 @@ inline constexpr std::string_view EDITOR_GENERAL_FOLDER_NAME = "general";
 /// root is a tree that grows — a fixed row is easier to reach at the top
 /// than after however many folders a project has.
 ///
-/// @p first_entry is the number the section's first item takes in the
-/// browser's entry numbering — the count of scanned assets, since the
-/// built-in items are numbered after them. That numbering is what a folder
-/// holds and what a drop reports, so the caller has to name the assets and
-/// the items in the same order it passes here.
-size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_entry);
+/// The section holds nothing itself. Two kinds of built-in thing is one
+/// too many for a single grid of cards to read as anything but a pile, and
+/// the subsections are what a designer reaching for a light rather than a
+/// box actually navigates by.
+///
+/// Both numbers are entry numbers in the browser's own numbering, which is
+/// what a folder holds and what a drop reports: @p first_shape is where the
+/// built-in shapes sit in the editor's asset list, and @p first_light is
+/// the first number past every asset, where the lights are counted. The
+/// caller has to name its entries in the same order it passes these.
+size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_shape,
+                                  size_t first_light);
 
 }  // namespace eng::editor

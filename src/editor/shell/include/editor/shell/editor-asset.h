@@ -5,10 +5,12 @@
 /// @par Threading Main-thread-only.
 
 #include <cstdint>
+#include <editor/shell/editor-shape-kind.h>
 #include <engine/math/vec3.h>
 #include <engine/render-mesh/mesh-instance.h>
 #include <engine/render/rhi-core-types.h>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace eng::editor {
@@ -27,14 +29,20 @@ enum class EditorAssetThumbnailState : uint8_t {
   FAILED,
 };
 
-/// A model on disk, and its GPU mesh once something has placed it.
+/// A model the browser can place, and its GPU mesh once something has.
+///
+/// Usually a file the scan turned up. The built-in shapes are the other
+/// sort: they carry a `shape` rather than a path, and their geometry is
+/// generated where a file's would be read. Everything past that point
+/// treats the two alike, which is why a placement can name either by one
+/// index.
 ///
 /// The mesh is uploaded lazily: scanning a directory should cost a
 /// `directory_iterator` pass, not a parse and a GPU allocation per file,
 /// and most assets in a project are never placed in any one session.
 /// @thread_safety Main-thread-only.
 struct EditorAsset {
-  /// Display name, taken from the file stem.
+  /// Display name, taken from the file stem, or the shape's own name.
   std::string name;
   /// Absolute path to the source file.
   std::filesystem::path path;
@@ -43,6 +51,14 @@ struct EditorAsset {
   /// under a folder, and it is stable across machines in a way `path` is
   /// not.
   std::filesystem::path relative_path;
+  /// Which built-in shape this is, or nothing for a model on disk. It is
+  /// what decides whether the mesh is generated or read, so the two paths
+  /// above are empty exactly when this is set.
+  ///
+  /// Last of the fields that say what the asset is, so that the three a
+  /// scan fills in stay the first three: the scan and its tests build these
+  /// positionally.
+  std::optional<EditorShapeKind> shape{};
   /// Uploaded mesh, or `MESH_GPU_INVALID` until first placed.
   MeshGpuId mesh = MESH_GPU_INVALID;
   /// Minimum bounds corner, in world orientation. Valid once uploaded.

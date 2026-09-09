@@ -37,6 +37,10 @@ namespace {
   /// Name shown for the root, which has none of its own.
   constexpr std::string_view ROOT_LABEL = "assets";
 
+  /// Shown in the grid for a built-in folder holding nothing itself, which
+  /// is what the general section is: its items are in the folders under it.
+  constexpr std::string_view EMPTY_BUILT_IN_LABEL = "Nothing here";
+
   /// Give a tree the parts every lookup here assumes it has: a root to
   /// index, and a section naming it, without which the pane would list
   /// nothing at all and read as a browser that lost the project.
@@ -104,6 +108,11 @@ std::string_view EditorAssetBrowserWidget::folderLabel(size_t folder) const {
   return node.name.empty() ? ROOT_LABEL : std::string_view(node.name);
 }
 
+bool EditorAssetBrowserWidget::folderIsBuiltIn(size_t folder) const {
+  const EditorAssetFolder& node = tree_.folders[folder];
+  return node.relative_path.empty() && !node.name.empty();
+}
+
 void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
                                          std::vector<std::string> names) {
   tree_ = std::move(tree);
@@ -118,8 +127,12 @@ void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
   // indices, and the same index in a new tree is a different folder. Keeping
   // the set across a rescan would open folders nobody opened, and opening
   // another project would open them from the shape of the one before it.
+  //
+  // Every section starts open, so what the browser holds is visible without
+  // a chevron to find first; the folders inside them start closed, because
+  // a project's own tree can be any depth.
   expanded_.clear();
-  expanded_.insert(EDITOR_ASSET_FOLDER_ROOT);
+  expanded_.insert(tree_.sections.begin(), tree_.sections.end());
   rebuildRows();
   rebuildHeaderText();
 }
@@ -148,10 +161,10 @@ void EditorAssetBrowserWidget::rebuildRows() {
 
 void EditorAssetBrowserWidget::rebuildHeaderText() {
   const EditorAssetFolder& folder = tree_.folders[selected_folder_];
-  // A folder standing for no directory is a section of its own — the
-  // built-in general one — and the header names it rather than filing it
-  // under a directory it does not come from.
-  if (folder.relative_path.empty() && !folder.name.empty()) {
+  // A folder standing for no directory is one of the built-in ones, and the
+  // header names it rather than filing it under a directory it does not
+  // come from.
+  if (folderIsBuiltIn(selected_folder_)) {
     header_text_ = folder.name;
     return;
   }
@@ -449,9 +462,16 @@ void EditorAssetBrowserWidget::renderCard(const GuiDrawContext& ctx,
 
 void EditorAssetBrowserWidget::renderEmptyGrid(
     const GuiDrawContext& ctx) const {
+  // Only a folder that stands for a directory can be filled by dropping
+  // files into one. A built-in section holding nothing but subsections
+  // would otherwise send someone off to an assets directory that has
+  // nothing to do with what they clicked.
+  const std::string_view line =
+      folderIsBuiltIn(selected_folder_)
+          ? EMPTY_BUILT_IN_LABEL
+          : "Drop .obj files into the project's assets/ folder";
   ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
-               drawPosInset(layout().grid, SIDE_PADDING, TEXT_DROP),
-               "Drop .obj files into the project's assets/ folder");
+               drawPosInset(layout().grid, SIDE_PADDING, TEXT_DROP), line);
 }
 
 void EditorAssetBrowserWidget::renderCards(const GuiDrawContext& ctx) const {

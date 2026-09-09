@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-shape.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-renderer.h>
@@ -107,18 +108,26 @@ struct BrowserCapture {
     return out;
   }
 
+  /// That project's assets with the built-in shapes after them, which is
+  /// the list the editor numbers its browser entries by.
+  static std::vector<EditorAsset> assets() {
+    std::vector<EditorAsset> out = scan().assets;
+    appendEditorShapeAssets(out);
+    return out;
+  }
+
   /// That project's folders, with the built-in general section above
   /// them, which is the tree the editor hands the browser.
   static EditorAssetTree treeWithGeneral() {
     const EditorAssetScan found = scan();
     EditorAssetTree tree = buildEditorAssetTree(found);
-    appendEditorGeneralSection(tree, found.assets.size());
+    appendEditorGeneralSection(tree, found.assets.size(), assets().size());
     return tree;
   }
 
   static std::vector<std::string> names() {
     std::vector<std::string> out;
-    for (const EditorAsset& asset : scan().assets) {
+    for (const EditorAsset& asset : assets()) {
       out.push_back(asset.name);
     }
     for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
@@ -144,6 +153,24 @@ struct BrowserCapture {
   BrowserCapture& operator=(const BrowserCapture&) = delete;
   BrowserCapture(BrowserCapture&&) = delete;
   BrowserCapture& operator=(BrowserCapture&&) = delete;
+
+  /// The row the browser opened on, as an index into the pane's rows.
+  [[nodiscard]] size_t selectedRow() const {
+    const auto& rows = browser().folderRows();
+    for (size_t i = 0; i < rows.size(); ++i) {
+      if (rows[i].folder == browser().selectedFolder()) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  /// A pixel from the far end of a folder row, clear of its label, where
+  /// only the row's own fill decides the colour.
+  [[nodiscard]] std::array<uint8_t, 3> rowPixel(const eng::Rect& row) const {
+    return pixel(static_cast<uint32_t>(row.x + row.w - 6.0f),
+                 static_cast<uint32_t>(row.y + row.h * 0.5f));
+  }
 
   /// Read a pixel as (r, g, b).
   [[nodiscard]] std::array<uint8_t, 3> pixel(uint32_t x, uint32_t y) const {
@@ -254,15 +281,13 @@ TEST_CASE("a card paints inside the grid, clear of the folder pane") {
 
 TEST_CASE("the selected folder's row is highlighted") {
   const BrowserCapture capture;
-  const eng::Rect row = capture.browser().folderRowRect(0);
-  const auto sample =
-      capture.pixel(static_cast<uint32_t>(row.x + row.w - 6.0f),
-                    static_cast<uint32_t>(row.y + row.h * 0.5f));
-  const eng::Rect unselected = capture.browser().folderRowRect(1);
-  const auto plain =
-      capture.pixel(static_cast<uint32_t>(unselected.x + unselected.w - 6.0f),
-                    static_cast<uint32_t>(unselected.y + unselected.h * 0.5f));
-  REQUIRE_FALSE(similar(sample, plain));
+  const size_t selected = capture.selectedRow();
+  // Whichever row the browser opened on, against one that is not it.
+  const eng::Rect row = capture.browser().folderRowRect(selected);
+  const auto sample = capture.rowPixel(row);
+  const eng::Rect unselected =
+      capture.browser().folderRowRect(selected == 0 ? 1 : 0);
+  REQUIRE_FALSE(similar(sample, capture.rowPixel(unselected)));
 }
 
 TEST_CASE("the browser capture can be written to PNG for inspection") {

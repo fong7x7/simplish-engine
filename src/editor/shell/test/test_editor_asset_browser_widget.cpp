@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-shape.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-renderer.h>
 #include <filesystem>
@@ -46,11 +47,11 @@ EditorAssetBrowserWidget makeBrowser(const std::vector<std::string>& paths) {
   return browser;
 }
 
-/// The names the editor hands the browser for these assets: theirs, and
-/// the built-in items numbered after them.
-std::vector<std::string> namesWithGeneral(const EditorAssetScan& scan) {
+/// The names the editor hands the browser for a list of assets — the
+/// shapes among them — with the light items numbered after every one.
+std::vector<std::string> namesWithGeneral(const std::vector<EditorAsset>& all) {
   std::vector<std::string> names;
-  for (const EditorAsset& asset : scan.assets) {
+  for (const EditorAsset& asset : all) {
     names.push_back(asset.name);
   }
   for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
@@ -60,7 +61,7 @@ std::vector<std::string> namesWithGeneral(const EditorAssetScan& scan) {
 }
 
 /// A browser listing those assets and the built-in general section above
-/// them, which is what the editor actually hands it.
+/// them, built exactly as the editor builds it.
 EditorAssetBrowserWidget
 makeBrowserWithGeneral(const std::vector<std::string>& paths) {
   EditorAssetScan scan;
@@ -68,10 +69,12 @@ makeBrowserWithGeneral(const std::vector<std::string>& paths) {
     scan.assets.push_back(makeAsset(path));
   }
   EditorAssetTree tree = buildEditorAssetTree(scan);
-  appendEditorGeneralSection(tree, scan.assets.size());
+  std::vector<EditorAsset> all = scan.assets;
+  const size_t first_shape = appendEditorShapeAssets(all);
+  appendEditorGeneralSection(tree, first_shape, all.size());
   EditorAssetBrowserWidget browser;
   browser.rect = PANEL_RECT;
-  browser.setAssets(std::move(tree), namesWithGeneral(scan));
+  browser.setAssets(std::move(tree), namesWithGeneral(all));
   return browser;
 }
 
@@ -740,9 +743,14 @@ TEST_CASE("the general section is the first row, above the assets") {
       makeBrowserWithGeneral({"crate.obj"});
   const auto& rows = browser.folderRows();
 
-  REQUIRE(rows.size() == 2);
+  // The section opens on its own, so its two subsections are listed under
+  // it and the assets root follows them.
+  REQUIRE(rows.size() == 4);
   REQUIRE(rows[0].depth == 0);
-  REQUIRE(rows[1].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[1].depth == 1);
+  REQUIRE(rows[2].depth == 1);
+  REQUIRE(rows[3].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[3].depth == 0);
 }
 
 TEST_CASE("the browser opens on the assets, not on the built-in section") {
@@ -754,28 +762,62 @@ TEST_CASE("the browser opens on the assets, not on the built-in section") {
   REQUIRE(browser.visibleAssets() == std::vector<size_t>{0});
 }
 
-TEST_CASE("selecting the general section shows its items as cards") {
+TEST_CASE("selecting the lighting subsection shows the lights as cards") {
   EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
-  browser.handleMouseDown(centreOf(browser.folderRowRect(0)));
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
 
   REQUIRE(browser.visibleAssets().size() == EDITOR_GENERAL_ITEM_COUNT);
-  // Numbered after the one asset, which is how the editor tells a light
-  // from a model when the card is dropped.
+  // Past the one asset and the shapes among them, which is how the editor
+  // tells a light from a model when the card is dropped.
+  REQUIRE(browser.visibleAssets().front() == 1 + EDITOR_SHAPE_COUNT);
+}
+
+TEST_CASE("selecting the shapes subsection shows the shapes as cards") {
+  EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(2)));
+
+  REQUIRE(browser.visibleAssets().size() == EDITOR_SHAPE_COUNT);
+  // A shape is an asset, numbered straight after the scanned one.
   REQUIRE(browser.visibleAssets().front() == 1);
 }
 
-TEST_CASE("dragging a built-in item out reports its own entry number") {
+TEST_CASE("the general section itself holds no cards") {
+  EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(0)));
+
+  REQUIRE(browser.visibleAssets().empty());
+}
+
+TEST_CASE("dragging a light out reports its own entry number") {
   EditorAssetBrowserWidget browser =
       makeBrowserWithGeneral({"crate.obj", "keg.obj"});
   size_t dropped = 0;
   browser.on_asset_dropped = [&](size_t entry, float, float) {
     dropped = entry;
   };
-  browser.handleMouseDown(centreOf(browser.folderRowRect(0)));
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
 
   browser.handleMouseDown(centreOf(browser.cardRect(1)));
   browser.handleMouseUp(mouseAt(600.0f, 300.0f));
 
-  // Two assets, so the second built-in item is entry three.
-  REQUIRE(dropped == 3);
+  // Two assets and the shapes after them, so the second light is the entry
+  // one past the first.
+  REQUIRE(dropped == 2 + EDITOR_SHAPE_COUNT + 1);
+}
+
+TEST_CASE("dragging a shape out reports the asset number it took") {
+  EditorAssetBrowserWidget browser =
+      makeBrowserWithGeneral({"crate.obj", "keg.obj"});
+  size_t dropped = 0;
+  browser.on_asset_dropped = [&](size_t entry, float, float) {
+    dropped = entry;
+  };
+  browser.handleMouseDown(centreOf(browser.folderRowRect(2)));
+
+  browser.handleMouseDown(centreOf(browser.cardRect(0)));
+  browser.handleMouseUp(mouseAt(600.0f, 300.0f));
+
+  // The first shape sits straight after the two scanned assets, and the
+  // editor places it exactly as it places one of them.
+  REQUIRE(dropped == 2);
 }

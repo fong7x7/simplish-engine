@@ -9,8 +9,10 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
-//   - Lists the built-in general section above them, whose light sources
-//     drop into the world the same way and light every mesh in the scene
+//   - Lists the built-in general section above them, divided into lighting
+//     and shapes: its light sources drop into the world the same way and
+//     light every mesh in the scene, and its shapes are assets whose
+//     geometry is generated rather than read from a file
 //   - Clicking a placed asset or a light selects it, outlines it in the
 //     viewport, and opens a properties panel down the right; the panel
 //     moves and turns a placement, and aims, dims and tints a light, and
@@ -67,6 +69,7 @@
 #include <cstdint>
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
+#include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
@@ -133,6 +136,13 @@ private:
   /// Rescan the open project's assets, rebuild the folder tree, and
   /// refresh the panel.
   void refreshAssets();
+  /// Forget the level and the history describing it, which a rescan
+  /// invalidates by renumbering the assets they name.
+  void clearDocument();
+  /// Take a scan as the asset list and the folder tree, with the built-in
+  /// shapes on the end of the list and the general section above the
+  /// scanned folders.
+  void adoptAssetScan(EditorAssetScan scan);
   /// Push the scanned assets and their folders into the browser.
   void refreshAssetPanel();
   /// Put what the browser dropped into the world, if it landed over the
