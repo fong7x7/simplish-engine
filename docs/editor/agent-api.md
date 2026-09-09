@@ -2,8 +2,8 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 22 tools, HTTP transport, MCP bridge
-**Last Updated:** 2026-09-08
+**Status:** Built — 23 tools, HTTP transport, MCP bridge
+**Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
 one enumerated set of tools over the state the panels already show. This
@@ -147,8 +147,8 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Twenty-one, in three groups. `GET /tools` is authoritative and carries each
-one's parameters; this table is the map.
+Twenty-three, in three groups. `GET /tools` is authoritative and carries
+each one's parameters; this table is the map.
 
 ### Reading
 
@@ -174,6 +174,7 @@ one's parameters; this table is the map.
 | `add_light` | Adds a directional or point light and selects it |
 | `set_property` | Writes one property to an absolute value |
 | `translate` | Moves a placement or a light by a delta in tiles |
+| `delete` | Removes a placement or a light, as the Delete key does |
 | `select` | Selects a placement or a light, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
@@ -195,7 +196,11 @@ one's parameters; this table is the map.
   `"placement"`, `"light"`, or `"selection"`, and an `index` for the first
   two. `"selection"` means whatever the properties panel is on.
 - **Editing selects.** A tool that changes an entry selects it, so the
-  viewport outlines what just moved.
+  viewport outlines what just moved. `delete` is the exception that proves
+  it: what it removed cannot be outlined, so the selection is cleared.
+- **Removing renumbers.** Deleting an entry moves everything after it in
+  that list down one, and the other list is untouched. Remove several by
+  index back to front, or re-read `list_placements` between calls.
 - **A write that changes nothing records nothing.** `changed` comes back
   false and the history does not grow — the same rule a property drag that
   ends where it began follows.

@@ -294,3 +294,84 @@ TEST_CASE("the active tool can be chosen and read back") {
   REQUIRE(state.active_tool == EditorTool::PROP);
   REQUIRE(json::parse(agentStateJson(state)).at("active_tool") == "prop");
 }
+
+TEST_CASE("delete takes a placement out and undo puts it back") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 1, "y": 1})");
+  (void)call(state, "place_asset", R"({"asset": 1, "x": 2, "y": 2})");
+
+  const json removed =
+      call(state, "delete", R"({"target": "placement", "index": 0})");
+
+  REQUIRE(removed.at("removed") == true);
+  REQUIRE(removed.at("index") == 0);
+  REQUIRE(removed.at("asset") == 0);
+  REQUIRE(state.document.placements.size() == 1);
+  REQUIRE(state.document.placements[0].asset == 1);
+
+  (void)call(state, "undo", "{}");
+  REQUIRE(state.document.placements.size() == 2);
+  REQUIRE(state.document.placements[0].asset == 0);
+}
+
+TEST_CASE("delete clears a selection that was on what it removed") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+  REQUIRE(state.selection.kind == EditorSelectionKind::PLACEMENT);
+
+  (void)call(state, "delete", R"({"target": "selection"})");
+
+  REQUIRE(state.selection.kind == EditorSelectionKind::NONE);
+  REQUIRE(state.document.placements.empty());
+}
+
+TEST_CASE("delete moves a selection that sat after what it removed") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+  (void)call(state, "place_asset", R"({"asset": 1, "x": 1, "y": 1})");
+  // Selected the second, then remove the first out from under it.
+  (void)call(state, "select", R"({"target": "placement", "index": 1})");
+
+  (void)call(state, "delete", R"({"target": "placement", "index": 0})");
+
+  REQUIRE(state.selection.kind == EditorSelectionKind::PLACEMENT);
+  REQUIRE(state.selection.index == 0);
+}
+
+TEST_CASE("delete removes a light and reports what it was") {
+  EditorShellState state;
+  (void)call(state, "add_light", R"({"kind": "point", "x": 2, "y": 2})");
+
+  const json removed =
+      call(state, "delete", R"({"target": "light", "index": 0})");
+
+  REQUIRE(removed.at("kind") == "point");
+  REQUIRE(removed.at("removed") == true);
+  REQUIRE(state.document.lights.empty());
+  REQUIRE(state.history.actions.size() == 2);
+}
+
+TEST_CASE("delete refuses an index the list does not have") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+
+  REQUIRE(runAgentTool(state, "delete", R"({"target": "placement",
+                                           "index": 3})")
+              .status == AgentStatus::NOT_FOUND);
+  // Nothing selected is a state to change first, not a bad parameter.
+  (void)call(state, "select", R"({"target": "none"})");
+  REQUIRE(runAgentTool(state, "delete", R"({"target": "selection"})").status ==
+          AgentStatus::UNAVAILABLE);
+  REQUIRE(state.document.placements.size() == 1);
+}
+
+TEST_CASE("a removal is reported in the history under its own name") {
+  EditorShellState state;
+  (void)call(state, "add_light", R"({"kind": "directional", "x": 0, "y": 0})");
+  (void)call(state, "delete", R"({"target": "light", "index": 0})");
+
+  const json history = json::parse(agentHistoryJson(state));
+
+  REQUIRE(history.at("actions").size() == 2);
+  REQUIRE(history.at("actions")[1].at("kind") == "remove_light");
+}

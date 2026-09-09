@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-light-ops.h>
+#include <optional>
 #include <vector>
 
 using namespace eng::editor;
@@ -55,6 +56,16 @@ struct HistoryFixture {
                          .index = index,
                          .light = dimmed,
                          .light_prior = document.lights[index]});
+  }
+
+  /// Remove whatever @p selection names, as the Delete key does. Returns
+  /// the action recorded, so a test can ask where the selection lands.
+  EditorAction remove(EditorSelection selection) {
+    const std::optional<EditorAction> action =
+        editorDeleteAction(document, selection);
+    REQUIRE(action.has_value());
+    performEditorAction(history, document, *action);
+    return *action;
   }
 
   bool undo() { return undoEditorAction(history, document); }
@@ -473,4 +484,112 @@ TEST_CASE("a change that is not an action still needs saving") {
 
   markEditorChangesUnsaved(fx.history);
   REQUIRE(hasUnsavedEditorChanges(fx.history));
+}
+
+TEST_CASE("editorDeleteAction names the entry the selection is on") {
+  HistoryFixture fx;
+  fx.place(4);
+  fx.place(5);
+
+  const std::optional<EditorAction> action =
+      editorDeleteAction(fx.document, placementAt(1));
+
+  REQUIRE(action.has_value());
+  REQUIRE(action->kind == EditorActionKind::REMOVE_PLACEMENT);
+  REQUIRE(action->index == 1);
+  // The entry travels in the action, which is what lets undo put back the
+  // one that was there rather than a fresh one at its index.
+  REQUIRE(action->placement.asset == 5);
+}
+
+TEST_CASE("editorDeleteAction has nothing to remove for an empty selection") {
+  HistoryFixture fx;
+  fx.place(0);
+
+  REQUIRE_FALSE(editorDeleteAction(fx.document, {}).has_value());
+  REQUIRE_FALSE(editorDeleteAction(fx.document, placementAt(1)).has_value());
+  REQUIRE_FALSE(editorDeleteAction(fx.document, lightAt(0)).has_value());
+}
+
+TEST_CASE("removing a placement takes it out and undo puts it back") {
+  HistoryFixture fx;
+  fx.place(1);
+  fx.place(2);
+  fx.place(3);
+
+  (void)fx.remove(placementAt(1));
+  REQUIRE(fx.assets() == std::vector<size_t>{1, 3});
+
+  REQUIRE(fx.undo());
+  REQUIRE(fx.assets() == std::vector<size_t>{1, 2, 3});
+
+  REQUIRE(fx.redo());
+  REQUIRE(fx.assets() == std::vector<size_t>{1, 3});
+}
+
+TEST_CASE("an undone removal restores the entry as it was, not a fresh one") {
+  HistoryFixture fx;
+  performEditorAction(fx.history, fx.document,
+                      {.kind = EditorActionKind::PLACE_ASSET,
+                       .index = 0,
+                       .placement = {.asset = 9, .position = {4.0f, 6.0f}}});
+
+  (void)fx.remove(placementAt(0));
+  REQUIRE(fx.undo());
+
+  REQUIRE(fx.placements().size() == 1);
+  REQUIRE(fx.placements()[0].asset == 9);
+  REQUIRE(fx.placements()[0].position.x == 4.0f);
+  REQUIRE(fx.placements()[0].position.y == 6.0f);
+}
+
+TEST_CASE("removing a light takes it out of the other list") {
+  HistoryFixture fx;
+  fx.place(0);
+  fx.addLight(EditorLightKind::POINT);
+  fx.addLight(EditorLightKind::DIRECTIONAL);
+
+  (void)fx.remove(lightAt(0));
+
+  REQUIRE(fx.document.lights.size() == 1);
+  REQUIRE(fx.document.lights[0].kind == EditorLightKind::DIRECTIONAL);
+  // The other list is numbered separately, so it is untouched.
+  REQUIRE(fx.placements().size() == 1);
+
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.lights.size() == 2);
+  REQUIRE(fx.document.lights[0].kind == EditorLightKind::POINT);
+}
+
+TEST_CASE("a removal drops a selection on what it removed") {
+  HistoryFixture fx;
+  fx.place(1);
+  fx.place(2);
+  const EditorAction action = fx.remove(placementAt(1));
+
+  REQUIRE(sameSelection(editorSelectionAfterRedo(action, placementAt(1)), {}));
+}
+
+TEST_CASE("a removal renumbers a selection that sat after it") {
+  HistoryFixture fx;
+  fx.place(1);
+  fx.place(2);
+  fx.place(3);
+  const EditorAction action = fx.remove(placementAt(0));
+
+  REQUIRE(sameSelection(editorSelectionAfterRedo(action, placementAt(2)),
+                        placementAt(1)));
+  // A selection in the lights is numbered by its own list, so it stays.
+  REQUIRE(
+      sameSelection(editorSelectionAfterRedo(action, lightAt(0)), lightAt(0)));
+}
+
+TEST_CASE("undoing a removal selects what came back") {
+  HistoryFixture fx;
+  fx.place(1);
+  fx.place(2);
+  const EditorAction action = fx.remove(placementAt(0));
+
+  // Shown rather than left to be looked for, the same as an undone move.
+  REQUIRE(sameSelection(editorSelectionAfterUndo(action, {}), placementAt(0)));
 }

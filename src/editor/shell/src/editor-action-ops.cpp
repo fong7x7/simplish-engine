@@ -1,6 +1,8 @@
 #include <cstddef>
+#include <cstdint>
 #include <editor/shell/editor-action-ops.h>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 namespace eng::editor {
@@ -36,41 +38,102 @@ namespace {
     list[index] = value;
   }
 
-  /// Do what @p action describes.
-  void applyOne(const EditorAction& action, EditorDocument& document) {
-    switch (action.kind) {
+  /// What an action does to the one list its kind names.
+  ///
+  /// Every kind is one of these three edits to one of the two lists, and
+  /// saying that once is what keeps `applyOne` and `revertOne` short as
+  /// kinds are added: a new kind answers two questions rather than growing
+  /// four switches.
+  enum class ListEdit : uint8_t { INSERT, WRITE, ERASE };
+
+  /// Which of the document's lists @p kind names.
+  EditorSelectionKind actionList(EditorActionKind kind) {
+    switch (kind) {
       case EditorActionKind::PLACE_ASSET:
-        insertAt(document.placements, action.index, action.placement);
-        break;
       case EditorActionKind::TRANSFORM_PLACEMENT:
-        writeAt(document.placements, action.index, action.placement);
-        break;
+      case EditorActionKind::REMOVE_PLACEMENT:
+        return EditorSelectionKind::PLACEMENT;
       case EditorActionKind::ADD_LIGHT:
-        insertAt(document.lights, action.index, action.light);
-        break;
       case EditorActionKind::TRANSFORM_LIGHT:
-        writeAt(document.lights, action.index, action.light);
+      case EditorActionKind::REMOVE_LIGHT:
+        return EditorSelectionKind::LIGHT;
+    }
+    return EditorSelectionKind::PLACEMENT;
+  }
+
+  /// The edit @p kind makes to that list when it is applied.
+  ListEdit appliedEdit(EditorActionKind kind) {
+    switch (kind) {
+      case EditorActionKind::PLACE_ASSET:
+      case EditorActionKind::ADD_LIGHT:
+        return ListEdit::INSERT;
+      case EditorActionKind::TRANSFORM_PLACEMENT:
+      case EditorActionKind::TRANSFORM_LIGHT:
+        return ListEdit::WRITE;
+      case EditorActionKind::REMOVE_PLACEMENT:
+      case EditorActionKind::REMOVE_LIGHT:
+        return ListEdit::ERASE;
+    }
+    return ListEdit::WRITE;
+  }
+
+  /// The edit that undoes @p edit. This is the whole contract of an
+  /// action: adding and removing are each other's inverse, and replacing
+  /// is its own once the value it replaced is put back.
+  ListEdit invertedEdit(ListEdit edit) {
+    switch (edit) {
+      case ListEdit::INSERT:
+        return ListEdit::ERASE;
+      case ListEdit::ERASE:
+        return ListEdit::INSERT;
+      case ListEdit::WRITE:
+        return ListEdit::WRITE;
+    }
+    return ListEdit::WRITE;
+  }
+
+  /// Do @p edit to @p list at @p index, with @p value for the two edits
+  /// that write one.
+  template <typename T>
+  void editList(std::vector<T>& list, ListEdit edit, size_t index,
+                const T& value) {
+    switch (edit) {
+      case ListEdit::INSERT:
+        insertAt(list, index, value);
+        break;
+      case ListEdit::WRITE:
+        writeAt(list, index, value);
+        break;
+      case ListEdit::ERASE:
+        eraseAt(list, index);
         break;
     }
   }
 
-  /// Undo what @p action describes. Every case here is the inverse of its
-  /// counterpart in `applyOne`, which is the whole contract of an action.
-  void revertOne(const EditorAction& action, EditorDocument& document) {
-    switch (action.kind) {
-      case EditorActionKind::PLACE_ASSET:
-        eraseAt(document.placements, action.index);
-        break;
-      case EditorActionKind::TRANSFORM_PLACEMENT:
-        writeAt(document.placements, action.index, action.prior);
-        break;
-      case EditorActionKind::ADD_LIGHT:
-        eraseAt(document.lights, action.index);
-        break;
-      case EditorActionKind::TRANSFORM_LIGHT:
-        writeAt(document.lights, action.index, action.light_prior);
-        break;
+  /// Do what @p action describes.
+  void applyOne(const EditorAction& action, EditorDocument& document) {
+    const ListEdit edit = appliedEdit(action.kind);
+    if (actionList(action.kind) == EditorSelectionKind::PLACEMENT) {
+      editList(document.placements, edit, action.index, action.placement);
+      return;
     }
+    editList(document.lights, edit, action.index, action.light);
+  }
+
+  /// Undo what @p action describes: the inverse edit, and — for the one
+  /// that replaces a value — the value the action found there. Undoing a
+  /// removal inserts what the action carried away, so the entry comes back
+  /// as it was rather than as a default one wearing its index.
+  void revertOne(const EditorAction& action, EditorDocument& document) {
+    const ListEdit edit = invertedEdit(appliedEdit(action.kind));
+    const bool replaced = edit == ListEdit::WRITE;
+    if (actionList(action.kind) == EditorSelectionKind::PLACEMENT) {
+      editList(document.placements, edit, action.index,
+               replaced ? action.prior : action.placement);
+      return;
+    }
+    editList(document.lights, edit, action.index,
+             replaced ? action.light_prior : action.light);
   }
 
   /// Where a selection lands once the entry at @p index of @p list is
@@ -154,39 +217,49 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   return true;
 }
 
+std::optional<EditorAction> editorDeleteAction(const EditorDocument& document,
+                                               EditorSelection selection) {
+  if (selectionIs(selection, EditorSelectionKind::PLACEMENT) &&
+      selection.index < document.placements.size()) {
+    return EditorAction{.kind = EditorActionKind::REMOVE_PLACEMENT,
+                        .index = selection.index,
+                        .placement = document.placements[selection.index]};
+  }
+  if (selectionIs(selection, EditorSelectionKind::LIGHT) &&
+      selection.index < document.lights.size()) {
+    return EditorAction{.kind = EditorActionKind::REMOVE_LIGHT,
+                        .index = selection.index,
+                        .light = document.lights[selection.index]};
+  }
+  return std::nullopt;
+}
+
 EditorSelection editorSelectionAfterUndo(const EditorAction& action,
                                          EditorSelection selection) {
-  switch (action.kind) {
-    case EditorActionKind::PLACE_ASSET:
-      // The placement is gone; anything numbered after it moved down one.
-      return selectionAfterErase(EditorSelectionKind::PLACEMENT, action.index,
-                                 selection);
-    case EditorActionKind::ADD_LIGHT:
-      return selectionAfterErase(EditorSelectionKind::LIGHT, action.index,
-                                 selection);
-    case EditorActionKind::TRANSFORM_PLACEMENT:
-      // Show what just moved back, so a reverted edit is visible rather
-      // than something the viewer has to go looking for.
-      return {EditorSelectionKind::PLACEMENT, action.index};
-    case EditorActionKind::TRANSFORM_LIGHT:
-      return {EditorSelectionKind::LIGHT, action.index};
+  const EditorSelectionKind list = actionList(action.kind);
+  switch (invertedEdit(appliedEdit(action.kind))) {
+    case ListEdit::ERASE:
+      // The entry is gone; anything numbered after it moved down one.
+      return selectionAfterErase(list, action.index, selection);
+    case ListEdit::INSERT:
+    case ListEdit::WRITE:
+      // Show what just came back, or what just moved back, so a reverted
+      // edit is visible rather than something to go looking for.
+      return {list, action.index};
   }
   return selection;
 }
 
 EditorSelection editorSelectionAfterRedo(const EditorAction& action,
                                          EditorSelection selection) {
-  switch (action.kind) {
-    case EditorActionKind::PLACE_ASSET:
-      return selectionAfterInsert(EditorSelectionKind::PLACEMENT, action.index,
-                                  selection);
-    case EditorActionKind::ADD_LIGHT:
-      return selectionAfterInsert(EditorSelectionKind::LIGHT, action.index,
-                                  selection);
-    case EditorActionKind::TRANSFORM_PLACEMENT:
-      return {EditorSelectionKind::PLACEMENT, action.index};
-    case EditorActionKind::TRANSFORM_LIGHT:
-      return {EditorSelectionKind::LIGHT, action.index};
+  const EditorSelectionKind list = actionList(action.kind);
+  switch (appliedEdit(action.kind)) {
+    case ListEdit::INSERT:
+      return selectionAfterInsert(list, action.index, selection);
+    case ListEdit::ERASE:
+      return selectionAfterErase(list, action.index, selection);
+    case ListEdit::WRITE:
+      return {list, action.index};
   }
   return selection;
 }

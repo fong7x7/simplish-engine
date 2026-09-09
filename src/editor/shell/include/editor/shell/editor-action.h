@@ -26,15 +26,17 @@ struct EditorAction {
   /// Which entry of the list its kind names — placements or lights — the
   /// operation added, removed, or changed.
   size_t index = 0;
-  /// The placement as the operation left it: what was added, or what a
-  /// transform changed it to. Kept so redo restores it exactly.
+  /// The placement the operation names: what was added, what a transform
+  /// changed it to, or what a removal took out. Kept so redo restores it
+  /// exactly — and so undoing a removal can put the entry back rather than
+  /// an empty one wearing its index.
   EditorPlacement placement{};
   /// The placement as it was before a transform, and unused by every other
   /// kind. An edit that replaces a value cannot be inverted from the value
   /// alone, so the record carries both halves rather than making undo
   /// reconstruct one.
   EditorPlacement prior{};
-  /// The light as the operation left it, for the two kinds that name one.
+  /// The light the operation names, for the three kinds that name one.
   /// Carried in the same record as the placement rather than in a variant:
   /// a light is six numbers, and a record that is always the same shape
   /// stays copyable, comparable, and free of a heap node per edit.

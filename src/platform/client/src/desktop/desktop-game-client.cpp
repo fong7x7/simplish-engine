@@ -34,6 +34,10 @@ static_assert(static_cast<uint32_t>(SDLK_ESCAPE) ==
               DesktopPlatformKeycode::ESCAPE);
 static_assert(static_cast<uint32_t>(SDLK_RETURN) ==
               DesktopPlatformKeycode::KEY_RETURN);
+static_assert(static_cast<uint32_t>(SDLK_BACKSPACE) ==
+              DesktopPlatformKeycode::BACKSPACE);
+static_assert(static_cast<uint32_t>(SDLK_DELETE) ==
+              DesktopPlatformKeycode::DELETE_FORWARD);
 
 namespace {
 

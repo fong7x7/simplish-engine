@@ -146,6 +146,26 @@ TEST_CASE("commands say which are built and which would work right now") {
   REQUIRE(find("set_view_isometric").at("enabled") == false);
 }
 
+TEST_CASE("delete_selection is live only while something is selected") {
+  EditorShellState state;
+  const auto delete_row = [](EditorShellState& s) {
+    for (const json& row : json::parse(agentCommandsJson(s)).at("commands")) {
+      if (row.at("name") == "delete_selection") {
+        return row;
+      }
+    }
+    return json::object();
+  };
+
+  REQUIRE(delete_row(state).at("implemented") == true);
+  // Built, but there is nothing selected for it to remove.
+  REQUIRE(delete_row(state).at("enabled") == false);
+
+  state.document.placements.push_back({});
+  state.selection = {EditorSelectionKind::PLACEMENT, 0};
+  REQUIRE(delete_row(state).at("enabled") == true);
+}
+
 TEST_CASE("the camera reports which projection it is drawing with") {
   EditorShellState state;
   state.project.metadata.projection = ProjectProjection::ISOMETRIC;

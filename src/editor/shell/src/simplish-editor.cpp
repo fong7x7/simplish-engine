@@ -26,6 +26,7 @@
 #include <engine/gui/image-loader.h>
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -1310,6 +1311,22 @@ void SimplishEditor::runRedo() {
   }
 }
 
+void SimplishEditor::runDelete() {
+  // A drag still in flight has already moved the entry that is about to
+  // go, so it is recorded first: undo then walks back the removal and the
+  // move it interrupted, in that order, rather than losing the move.
+  commitPendingEdit();
+  const std::optional<EditorAction> action =
+      editorDeleteAction(state_.document, state_.selection);
+  if (!action) {
+    return;
+  }
+  // Moved off the entry before it stops existing: the panel is rebuilt
+  // from what is selected, and the row this names is about to be gone.
+  state_.selection = editorSelectionAfterRedo(*action, state_.selection);
+  recordAction(*action);
+}
+
 bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
   if (command == EditorMenuCommand::UNDO) {
     runUndo();
@@ -1317,6 +1334,10 @@ bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
   }
   if (command == EditorMenuCommand::REDO) {
     runRedo();
+    return true;
+  }
+  if (command == EditorMenuCommand::DELETE_SELECTION) {
+    runDelete();
     return true;
   }
   return false;
@@ -1490,10 +1511,19 @@ bool SimplishEditor::handleFileKey(uint32_t key, ClientKeyModifiers modifiers) {
 bool SimplishEditor::handleSelectionKey(uint32_t key) {
   // Escape drops the selection, which is also what puts the properties
   // panel away and gives the viewport its width back.
-  if (key != eng::client::DesktopPlatformKeycode::ESCAPE) {
+  if (key == eng::client::DesktopPlatformKeycode::ESCAPE) {
+    select({});
+    return true;
+  }
+  // Backspace and Delete are one gesture on a keyboard that has both, and
+  // on the Mac layouts that label Backspace "delete" they are the only one
+  // — so both remove what is selected rather than one of them doing
+  // nothing on half the machines this runs on.
+  if (key != eng::client::DesktopPlatformKeycode::BACKSPACE &&
+      key != eng::client::DesktopPlatformKeycode::DELETE_FORWARD) {
     return false;
   }
-  select({});
+  runDelete();
   return true;
 }
 

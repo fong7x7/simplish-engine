@@ -94,6 +94,17 @@ inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
      "Tiles to move along world Z; positive is up. Defaults to 0."},
 };
 
+/// `delete` takes an entry back out of the level.
+inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"placement\", \"light\", or \"selection\" for whatever the "
+     "properties panel is currently editing."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in that list. Ignored, and not needed, when target is "
+     "\"selection\". Everything after it moves down one, so delete from "
+     "the back when removing several by index."},
+};
+
 /// `select` names an entry, or clears the selection.
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -235,6 +246,12 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "for when asked to shift something in a direction rather than to a "
      "coordinate. Recorded as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_TRANSLATE},
+    {AgentTool::DELETE_ENTRY, "delete",
+     "Remove a placement or a light from the level, as the Delete key does "
+     "to what is selected. Recorded as one undoable edit, so undo puts the "
+     "entry back where it was; the selection is cleared, and everything "
+     "after it in that list is renumbered down one.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_DELETE},
     {AgentTool::SELECT, "select",
      "Select a placement or a light, which opens the properties panel on "
      "it, or clear the selection.",

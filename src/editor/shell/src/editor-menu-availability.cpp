@@ -28,6 +28,12 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
   if (command == EditorMenuCommand::REDO) {
     return canRedoEditorAction(state.history);
   }
+  if (command == EditorMenuCommand::DELETE_SELECTION) {
+    // Live only when something is selected that a removal would actually
+    // reach — the same question the key and the agent's tool both ask, so
+    // the greyed row and the refused call never disagree.
+    return editorDeleteAction(state.document, state.selection).has_value();
+  }
   return editorMenuCommandImplemented(command);
 }
 

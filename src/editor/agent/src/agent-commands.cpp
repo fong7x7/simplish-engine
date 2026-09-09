@@ -329,6 +329,27 @@ namespace {
     return agentEdited(lightPayload(state, index));
   }
 
+  /// The entry an action is about to remove, as this API reports it.
+  /// Built before the removal, because afterwards there is no entry at
+  /// that index to report.
+  std::string removedPayload(const EditorAction& action) {
+    json out = action.kind == EditorActionKind::REMOVE_PLACEMENT
+                   ? agentPlacementValue(action.placement)
+                   : agentLightValue(action.light);
+    out["index"] = action.index;
+    out["removed"] = true;
+    return out.dump(2);
+  }
+
+  /// Take @p action's entry out of the document as one undoable edit, and
+  /// move the selection off it.
+  AgentResult removeEntry(EditorShellState& state, const EditorAction& action) {
+    const std::string payload = removedPayload(action);
+    performEditorAction(state.history, state.document, action);
+    selectEntry(state, editorSelectionAfterRedo(action, state.selection));
+    return agentEdited(payload);
+  }
+
   /// A tool that has left work for the editor: what was queued, and the
   /// request the editor drains on the tick that ran this.
   AgentResult queued(AgentHostRequest request, std::string_view what) {
@@ -410,6 +431,24 @@ AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
     return translatePlacement(state, entry.index, params);
   }
   return translateLight(state, entry.index, params);
+}
+
+AgentResult runAgentDelete(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  // Built from the document rather than from the target, so the editor's
+  // Delete key and this tool remove an entry by the same description of
+  // what a removal is — and undo puts back the same one either way.
+  const std::optional<EditorAction> action =
+      editorDeleteAction(state.document, entry);
+  if (!action) {
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        "no entry at that index in that list");
+  }
+  return removeEntry(state, *action);
 }
 
 AgentResult runAgentSelect(EditorShellState& state, const json& params) {

@@ -72,8 +72,8 @@ puzzled over.
 | Move or turn an entry | ✅ | `set_property`, `translate` | Absolute or by a delta |
 | Aim, dim, tint, and set a light's reach | ✅ | `set_property` | |
 | Select, and clear the selection | ✅ | `select`, `get_selection` | |
-| **Delete a placement or a light** | ❌ | ❌ | **The largest gap.** There is no `EditorActionKind` for a removal, so neither the interface nor the API can undo one. Adding it means a new action kind and its inverse, and then a `delete` tool |
-| Duplicate an entry | ❌ | ❌ | Follows delete: both want the same new action kinds |
+| Delete a placement or a light | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
+| Duplicate an entry | ❌ | ❌ | The action kinds a removal needed are built now; a duplicate is an insert of a copy at the end |
 | Multi-select | ❌ | ❌ | `EditorSelection` holds one entry by design |
 | Copy and paste | ❌ | ❌ | Listed in the menu, disabled |
 

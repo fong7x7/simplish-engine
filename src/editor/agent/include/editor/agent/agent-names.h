@@ -52,6 +52,7 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "cut",
     "copy",
     "paste",
+    "delete_selection",
     "settings",
     "reset_view",
     "zoom_in",
@@ -119,10 +120,14 @@ agentActionKindName(EditorActionKind kind) {
       return "place_asset";
     case EditorActionKind::TRANSFORM_PLACEMENT:
       return "transform_placement";
+    case EditorActionKind::REMOVE_PLACEMENT:
+      return "remove_placement";
     case EditorActionKind::ADD_LIGHT:
       return "add_light";
     case EditorActionKind::TRANSFORM_LIGHT:
       return "transform_light";
+    case EditorActionKind::REMOVE_LIGHT:
+      return "remove_light";
   }
   return "place_asset";
 }

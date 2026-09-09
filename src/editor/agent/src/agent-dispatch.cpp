@@ -18,7 +18,7 @@ namespace {
 
   /// Every tool has this shape, whether or not it reads its parameters or
   /// edits the state it is given. One signature is what lets the table
-  /// below be a table rather than twenty-two branches.
+  /// below be a table rather than a branch per tool.
   using AgentToolFn = AgentResult (*)(EditorShellState&, const json&);
 
   AgentResult toolDescribe(EditorShellState& state, const json&) {
@@ -84,7 +84,7 @@ namespace {
   /// What answers each tool, in `AgentTool` order.
   ///
   /// A table rather than a switch, for the reason `EDITOR_PROPERTY_TRAITS`
-  /// is one: twenty-two two-line arms say no more than twenty-two rows, and
+  /// is one: a two-line arm per tool says no more than a row per tool, and
   /// the assertion below catches the tool added to the enum without an
   /// answer here.
   constexpr AgentToolFn AGENT_TOOL_FNS[] = {
@@ -95,10 +95,11 @@ namespace {
       toolGetHistory,    toolGetLevel,
       toolListCommands,  runAgentPlaceAsset,
       runAgentAddLight,  runAgentSetProperty,
-      runAgentTranslate, runAgentSelect,
-      runAgentSetTool,   toolRunCommand,
-      toolUndo,          toolRedo,
-      toolOpenProject,   toolRescanAssets,
+      runAgentTranslate, runAgentDelete,
+      runAgentSelect,    runAgentSetTool,
+      toolRunCommand,    toolUndo,
+      toolRedo,          toolOpenProject,
+      toolRescanAssets,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

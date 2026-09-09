@@ -24,6 +24,7 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::EXIT,
     EditorMenuCommand::UNDO,
     EditorMenuCommand::REDO,
+    EditorMenuCommand::DELETE_SELECTION,
     EditorMenuCommand::RESET_VIEW,
     EditorMenuCommand::ZOOM_IN,
     EditorMenuCommand::ZOOM_OUT,

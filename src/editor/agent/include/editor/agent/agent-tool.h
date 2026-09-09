@@ -53,6 +53,12 @@ enum class AgentTool : uint8_t {
   SET_PROPERTY,
   /// Move a placement or a light by a delta, in tiles.
   TRANSLATE,
+  /// Take a placement or a light back out of the level.
+  ///
+  /// Not `DELETE`: `<windows.h>` defines that as an access mask, and a
+  /// macro cannot be scoped away by an enum class. The wire name is
+  /// `delete`, which is what an agent actually calls it.
+  DELETE_ENTRY,
   /// Select a placement or a light, or clear the selection.
   SELECT,
   /// Choose the active toolbar tool.
@@ -82,10 +88,11 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::GET_HISTORY,   AgentTool::GET_LEVEL,
     AgentTool::LIST_COMMANDS, AgentTool::PLACE_ASSET,
     AgentTool::ADD_LIGHT,     AgentTool::SET_PROPERTY,
-    AgentTool::TRANSLATE,     AgentTool::SELECT,
-    AgentTool::SET_TOOL,      AgentTool::RUN_COMMAND,
-    AgentTool::UNDO,          AgentTool::REDO,
-    AgentTool::OPEN_PROJECT,  AgentTool::RESCAN_ASSETS,
+    AgentTool::TRANSLATE,     AgentTool::DELETE_ENTRY,
+    AgentTool::SELECT,        AgentTool::SET_TOOL,
+    AgentTool::RUN_COMMAND,   AgentTool::UNDO,
+    AgentTool::REDO,          AgentTool::OPEN_PROJECT,
+    AgentTool::RESCAN_ASSETS,
 };
 
 }  // namespace eng::editor

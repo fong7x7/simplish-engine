@@ -56,10 +56,15 @@ namespace {
   };
 
   constexpr EditorMenuCommand EDIT_ROWS[] = {
-      EditorMenuCommand::UNDO,      EditorMenuCommand::REDO,
-      EditorMenuCommand::SEPARATOR, EditorMenuCommand::CUT,
-      EditorMenuCommand::COPY,      EditorMenuCommand::PASTE,
-      EditorMenuCommand::SEPARATOR, EditorMenuCommand::SETTINGS,
+      EditorMenuCommand::UNDO,
+      EditorMenuCommand::REDO,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::CUT,
+      EditorMenuCommand::COPY,
+      EditorMenuCommand::PASTE,
+      EditorMenuCommand::DELETE_SELECTION,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::SETTINGS,
   };
 
   constexpr EditorMenuCommand VIEW_ROWS[] = {

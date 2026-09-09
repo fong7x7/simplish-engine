@@ -7,6 +7,7 @@
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-selection.h>
+#include <optional>
 
 namespace eng::editor {
 
@@ -30,6 +31,18 @@ bool undoEditorAction(EditorActionHistory& history, EditorDocument& document);
 
 /// Reapply the oldest reverted action. False when there is none.
 bool redoEditorAction(EditorActionHistory& history, EditorDocument& document);
+
+/// The action that removes whatever @p selection names, or nothing when
+/// it names nothing that is there.
+///
+/// The action rather than the removal: every route into the document —
+/// the Delete key, the Edit menu, the agent's `delete` tool — records the
+/// same one, so there is a single description of what a removal is and a
+/// single inverse of it. The entry is copied into the action on the way
+/// out, which is what lets undo put back the one that was there rather
+/// than a fresh one at its index.
+[[nodiscard]] std::optional<EditorAction>
+editorDeleteAction(const EditorDocument& document, EditorSelection selection);
 
 /// Where the selection lands after @p action is undone.
 ///

@@ -237,14 +237,18 @@ private:
   /// Add the light a built-in item stands for, over the tile at @p tile, as
   /// an action the user can undo.
   void placeLight(EditorGeneralItem item, WorldPoint tile);
-  /// Carry out the Edit menu's undo and redo. Returns false when the
-  /// command belongs to another menu.
+  /// Carry out the Edit menu's undo, redo and delete. Returns false when
+  /// the command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
   /// Revert the newest action, carrying the selection with it.
   void runUndo();
   /// Reapply the oldest reverted action, carrying the selection with it.
   void runRedo();
-  /// Run the selection accelerators. Returns true when @p key was one.
+  /// Remove what is selected, as an action the user can undo. Does nothing
+  /// when the selection names nothing that is there.
+  void runDelete();
+  /// Run the selection accelerators — Escape to deselect, Backspace or
+  /// Delete to remove. Returns true when @p key was one of them.
   bool handleSelectionKey(uint32_t key);
   /// Select a tool from a number key, if @p key is one of them.
   void handleToolKey(uint32_t key);

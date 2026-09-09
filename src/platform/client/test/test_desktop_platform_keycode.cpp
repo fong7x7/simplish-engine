@@ -19,3 +19,17 @@ TEST_CASE("DesktopPlatformKeycode::KEY_RETURN matches SDL3 SDLK_RETURN",
   REQUIRE(DesktopPlatformKeycode::KEY_RETURN == 13U);
   STATIC_REQUIRE(DesktopPlatformKeycode::KEY_RETURN == 13U);
 }
+
+TEST_CASE("DesktopPlatformKeycode::BACKSPACE matches SDL3 SDLK_BACKSPACE",
+          "[platform][client][keycode]") {
+  // Req: docs/platform/REQUIREMENTS.md §2.3 — Keycode constants
+  REQUIRE(DesktopPlatformKeycode::BACKSPACE == 8U);
+  STATIC_REQUIRE(DesktopPlatformKeycode::BACKSPACE == 8U);
+}
+
+TEST_CASE("DesktopPlatformKeycode::DELETE_FORWARD matches SDL3 SDLK_DELETE",
+          "[platform][client][keycode]") {
+  // Req: docs/platform/REQUIREMENTS.md §2.3 — Keycode constants
+  REQUIRE(DesktopPlatformKeycode::DELETE_FORWARD == 127U);
+  STATIC_REQUIRE(DesktopPlatformKeycode::DELETE_FORWARD == 127U);
+}

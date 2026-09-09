@@ -30,6 +30,10 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentTranslate(EditorShellState& state,
                                             const nlohmann::json& params);
 
+/// Take one entry back out of the level.
+[[nodiscard]] AgentResult runAgentDelete(EditorShellState& state,
+                                         const nlohmann::json& params);
+
 /// Select an entry, or clear the selection.
 [[nodiscard]] AgentResult runAgentSelect(EditorShellState& state,
                                          const nlohmann::json& params);
