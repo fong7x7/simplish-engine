@@ -9,7 +9,7 @@
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
-#include <editor/shell/editor-placement.h>
+#include <editor/shell/editor-document.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
 #include <filesystem>
@@ -31,15 +31,17 @@ struct EditorShellState {
   /// Assets found under the open project, in scan order. Placements
   /// index into this list, so it is the numbering that must stay put.
   std::vector<EditorAsset> assets;
-  /// The folders those assets sit in, holding indices into `assets`.
+  /// What the browser lists: the folders those assets sit in, and the
+  /// built-in General section beside them. Both hold entry numbers, of
+  /// which the assets are the first `assets.size()`.
   EditorAssetTree asset_tree;
-  /// Assets placed in the world. In memory only — see `editor-placement.h`.
-  std::vector<EditorPlacement> placements;
-  /// Index into `placements` of the selected one, or `EDITOR_PLACEMENT_NONE`.
-  /// The properties panel edits this placement and nothing else.
-  int selection = EDITOR_PLACEMENT_NONE;
-  /// Every edit made to `placements` this session, and the undo cursor into
-  /// them. Cleared with the placements, since it describes them by index.
+  /// What has been placed and what lights it. In memory only — see
+  /// `editor-document.h`.
+  EditorDocument document;
+  /// The one entry of that document the properties panel edits, or nothing.
+  EditorSelection selection;
+  /// Every edit made to `document` this session, and the undo cursor into
+  /// them. Cleared with the document, since it describes it by index.
   EditorActionHistory history;
 };
 

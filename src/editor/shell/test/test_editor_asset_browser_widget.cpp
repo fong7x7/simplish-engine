@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <editor/shell/editor-asset-browser-widget.h>
+#include <editor/shell/editor-general-section.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-renderer.h>
 #include <filesystem>
@@ -42,6 +43,35 @@ EditorAssetBrowserWidget makeBrowser(const std::vector<std::string>& paths) {
   EditorAssetBrowserWidget browser;
   browser.rect = PANEL_RECT;
   loadInto(browser, paths);
+  return browser;
+}
+
+/// The names the editor hands the browser for these assets: theirs, and
+/// the built-in items numbered after them.
+std::vector<std::string> namesWithGeneral(const EditorAssetScan& scan) {
+  std::vector<std::string> names;
+  for (const EditorAsset& asset : scan.assets) {
+    names.push_back(asset.name);
+  }
+  for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
+    names.emplace_back(editorGeneralItemName(item));
+  }
+  return names;
+}
+
+/// A browser listing those assets and the built-in General section beside
+/// them, which is what the editor actually hands it.
+EditorAssetBrowserWidget
+makeBrowserWithGeneral(const std::vector<std::string>& paths) {
+  EditorAssetScan scan;
+  for (const std::string& path : paths) {
+    scan.assets.push_back(makeAsset(path));
+  }
+  EditorAssetTree tree = buildEditorAssetTree(scan);
+  appendEditorGeneralSection(tree, scan.assets.size());
+  EditorAssetBrowserWidget browser;
+  browser.rect = PANEL_RECT;
+  browser.setAssets(std::move(tree), namesWithGeneral(scan));
   return browser;
 }
 
@@ -703,4 +733,40 @@ TEST_CASE("a folder with nothing in it names no visible cards") {
 
   REQUIRE(browser.visibleAssets().empty());
   REQUIRE(browser.visibleSlotCount() == 0);
+}
+
+TEST_CASE("the general section is a row of its own beside the assets") {
+  const EditorAssetBrowserWidget browser =
+      makeBrowserWithGeneral({"crate.obj"});
+  const auto& rows = browser.folderRows();
+
+  REQUIRE(rows.size() == 2);
+  REQUIRE(rows[0].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[1].depth == 0);
+}
+
+TEST_CASE("selecting the general section shows its items as cards") {
+  EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+
+  REQUIRE(browser.visibleAssets().size() == EDITOR_GENERAL_ITEM_COUNT);
+  // Numbered after the one asset, which is how the editor tells a light
+  // from a model when the card is dropped.
+  REQUIRE(browser.visibleAssets().front() == 1);
+}
+
+TEST_CASE("dragging a built-in item out reports its own entry number") {
+  EditorAssetBrowserWidget browser =
+      makeBrowserWithGeneral({"crate.obj", "keg.obj"});
+  size_t dropped = 0;
+  browser.on_asset_dropped = [&](size_t entry, float, float) {
+    dropped = entry;
+  };
+  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+
+  browser.handleMouseDown(centreOf(browser.cardRect(1)));
+  browser.handleMouseUp(mouseAt(600.0f, 300.0f));
+
+  // Two assets, so the second built-in item is entry three.
+  REQUIRE(dropped == 3);
 }

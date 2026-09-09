@@ -87,11 +87,10 @@ bool editRowEnabled(MenuFixture& fx, std::string_view label) {
   return edit.items[static_cast<size_t>(rowWithLabel(edit, label))].enabled;
 }
 
-/// A history holding one applied placement, over @p placements.
-EditorActionHistory
-historyWithOnePlacement(std::vector<EditorPlacement>& placements) {
+/// A history holding one applied placement, over @p document.
+EditorActionHistory historyWithOnePlacement(EditorDocument& document) {
   EditorActionHistory history;
-  performEditorAction(history, placements,
+  performEditorAction(history, document,
                       {.kind = EditorActionKind::PLACE_ASSET,
                        .index = 0,
                        .placement = {0, {0.0f, 0.0f}}});
@@ -277,8 +276,8 @@ TEST_CASE("Undo is disabled until an action has been taken") {
   MenuFixture fx;
   REQUIRE_FALSE(editRowEnabled(fx, "Undo"));
 
-  std::vector<EditorPlacement> placements;
-  const EditorActionHistory history = historyWithOnePlacement(placements);
+  EditorDocument document;
+  const EditorActionHistory history = historyWithOnePlacement(document);
   fx.bar()->setHistory(history);
   fx.bar()->tick(fx.tree);
 
@@ -287,13 +286,13 @@ TEST_CASE("Undo is disabled until an action has been taken") {
 
 TEST_CASE("Redo is disabled until an action has been undone") {
   MenuFixture fx;
-  std::vector<EditorPlacement> placements;
-  EditorActionHistory history = historyWithOnePlacement(placements);
+  EditorDocument document;
+  EditorActionHistory history = historyWithOnePlacement(document);
   fx.bar()->setHistory(history);
   fx.bar()->tick(fx.tree);
   REQUIRE_FALSE(editRowEnabled(fx, "Redo"));
 
-  REQUIRE(undoEditorAction(history, placements));
+  REQUIRE(undoEditorAction(history, document));
   fx.bar()->setHistory(history);
   fx.bar()->tick(fx.tree);
 

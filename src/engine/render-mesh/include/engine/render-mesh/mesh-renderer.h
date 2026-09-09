@@ -5,7 +5,8 @@
 // Behaviours:
 //   - Owns the backend's static-mesh pipeline and the depth target it needs
 //   - Uploads MeshData to GPU vertex and index buffers, keyed by MeshGpuId
-//   - Draws a list of instances inside a render pass the caller opened
+//   - Draws a list of instances inside a render pass the caller opened,
+//     shaded by the lights the caller hands it
 //
 // Edge Cases:
 //   - Backend without a mesh pipeline: init() returns false, ready() stays
@@ -13,6 +14,10 @@
 //   - Empty mesh, or a mesh whose buffers failed to allocate: not uploaded,
 //     and upload() reports nullopt rather than handing back a broken id
 //   - Instance naming an unknown mesh: skipped
+//   - No lights: the draw is lit by one built-in key light, so a scene
+//     nobody has lit is readable rather than black
+//   - More lights than the shader's loop holds: the ones past
+//     MESH_MAX_LIGHTS are dropped, since a shader loop cannot grow
 //
 // Invariants:
 //   - draw() only ever records into a pass the caller began; it never
@@ -28,6 +33,7 @@
 #include <engine/math/mat4.h>
 #include <engine/render-mesh/mesh-data.h>
 #include <engine/render-mesh/mesh-instance.h>
+#include <engine/render-mesh/mesh-light.h>
 #include <engine/render/rhi-command-list.h>
 #include <engine/render/rhi-device.h>
 #include <optional>
@@ -46,6 +52,9 @@ public:
     Mat4 view_projection{};
     /// Instances to draw, in any order — the depth buffer resolves them.
     std::span<const MeshInstance> instances{};
+    /// Lights every instance is shaded by. Empty means the built-in key
+    /// light, which is what the editor drew with before lights existed.
+    std::span<const MeshLight> lights{};
     /// Pixel viewport to draw into.
     RhiViewport viewport{};
     /// Pixel scissor, which keeps meshes inside the editor's viewport rect.
@@ -92,6 +101,10 @@ private:
   /// Record one instance's draw. Separated so `draw` stays a loop.
   void drawInstance(RhiCommandList& cmd, const MeshInstance& instance,
                     const Mat4& view_projection) const;
+
+  /// Hand the fragment stage the lights every instance of this draw is
+  /// shaded by, which is one bind rather than one per instance.
+  void bindLights(RhiCommandList& cmd, std::span<const MeshLight> lights) const;
 
   /// Release the depth target if one exists.
   void destroyDepthTarget(RhiDevice& device);

@@ -22,6 +22,9 @@ namespace {
 
 constexpr uint32_t CAPTURE_W = 520;
 constexpr uint32_t CAPTURE_H = 340;
+/// Height of a placed cube's top face: one tile, since the placement
+/// transform scales a model's footprint to fill one.
+constexpr float CUBE_TOP = 1.0f;
 
 /// A unit cube, Y-up, as an exporter writes one.
 constexpr std::string_view CUBE_OBJ = R"obj(
@@ -62,11 +65,27 @@ Rect captureRect() {
                   static_cast<float>(CAPTURE_H));
 }
 
+/// A light shining straight down, which is square on to a cube's top face.
+MeshLight overheadLight(float intensity) {
+  MeshLight light;
+  light.direction = {0.0f, 0.0f, 1.0f};
+  light.intensity = intensity;
+  return light;
+}
+
+/// The screen position of a world point in the capture.
+IsoPoint screenOf(WorldPoint world) {
+  IsoCamera camera;
+  camera.focus = worldToIso({1.5f, 1.5f});
+  return worldToScreen(makeIsoView(camera, captureRect()), world);
+}
+
 /// The scene the editor would build for these tiles.
 struct CubeScene {
   MeshData mesh = placedCube();
   EditorAsset asset = assetFor(mesh);
   std::vector<MeshRasterScene::Draw> draws;
+  std::vector<MeshLight> lights;
   ImageData image;
 
   /// A placement of the asset on one tile.
@@ -90,6 +109,7 @@ struct CubeScene {
                               {captureRect(), static_cast<float>(CAPTURE_W),
                                static_cast<float>(CAPTURE_H)});
     scene.draws = draws;
+    scene.lights = lights;
     scene.width = CAPTURE_W;
     scene.height = CAPTURE_H;
     image = eng::editor::rasterizeMeshScene(scene);
@@ -108,6 +128,15 @@ struct CubeScene {
     return p[0] == 22 && p[1] == 22 && p[2] == 26;
   }
 
+  /// How bright the top face of the cube on @p tile came out, as its red
+  /// channel. The top face is the one every light in these tests is aimed
+  /// at, and one channel is enough to compare two renders of it.
+  [[nodiscard]] uint8_t topFaceRed(const WorldPoint& tile) const {
+    const IsoPoint point = screenOf({tile.x + 0.5f, tile.y + 0.5f, CUBE_TOP});
+    return pixel(static_cast<uint32_t>(point.x),
+                 static_cast<uint32_t>(point.y))[0];
+  }
+
   /// Count the pixels covered by geometry.
   [[nodiscard]] size_t litPixels() const {
     size_t count = 0;
@@ -119,13 +148,6 @@ struct CubeScene {
     return count;
   }
 };
-
-/// The screen position of a world point in the capture.
-IsoPoint screenOf(WorldPoint world) {
-  IsoCamera camera;
-  camera.focus = worldToIso({1.5f, 1.5f});
-  return worldToScreen(makeIsoView(camera, captureRect()), world);
-}
 
 }  // namespace
 
@@ -190,4 +212,88 @@ TEST_CASE("the mesh capture can be written to PNG for inspection") {
   const bool written = GuiSoftwareRasterizer::writePng(scene.image, path);
   INFO("wrote " << path << ": " << written);
   SUCCEED();
+}
+
+TEST_CASE("a scene with no lights of its own is lit by the key light") {
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  scene.render(tiles);
+  const uint8_t unlit = scene.topFaceRed({1.0f, 1.0f});
+
+  // The key light comes over the viewer's shoulder, so a top face is well
+  // lit but not fully: brighter than ambient, short of white.
+  REQUIRE(unlit > 100);
+  REQUIRE(unlit < 255);
+}
+
+TEST_CASE("a light brightens the face it points at") {
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  scene.render(tiles);
+  const uint8_t before = scene.topFaceRed({1.0f, 1.0f});
+
+  scene.lights = {overheadLight(2.0f)};
+  scene.render(tiles);
+
+  REQUIRE(scene.topFaceRed({1.0f, 1.0f}) > before);
+}
+
+TEST_CASE("a light aimed away leaves a face with the ambient alone") {
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  MeshLight from_below = overheadLight(1.0f);
+  from_below.direction = {0.0f, 0.0f, -1.0f};
+  scene.lights = {from_below};
+  scene.render(tiles);
+
+  // Nothing reaches the top face from underneath, so what is left is the
+  // ambient floor: 0.38 of the surface colour's red.
+  const auto ambient = static_cast<uint8_t>(0.74f * 0.38f * 255.0f);
+  const uint8_t lit = scene.topFaceRed({1.0f, 1.0f});
+  REQUIRE(lit >= ambient - 1);
+  REQUIRE(lit <= ambient + 1);
+}
+
+TEST_CASE("a point light falls off before it reaches a distant tile") {
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}, {4.0f, 1.0f}};
+  MeshLight lamp;
+  lamp.kind = MESH_LIGHT_POINT;
+  // Over the first tile, and reaching about two tiles from there.
+  lamp.position = {1.5f, 1.5f, 2.0f};
+  lamp.range = 2.5f;
+  lamp.intensity = 2.0f;
+  scene.lights = {lamp};
+  scene.render(tiles);
+
+  REQUIRE(scene.topFaceRed({1.0f, 1.0f}) > scene.topFaceRed({4.0f, 1.0f}));
+}
+
+TEST_CASE("a coloured light tints what it lights") {
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  MeshLight red = overheadLight(2.0f);
+  red.color = {1.0f, 0.0f, 0.0f};
+  scene.lights = {red};
+  scene.render(tiles);
+
+  const IsoPoint centre = screenOf({1.5f, 1.5f, CUBE_TOP});
+  const auto rgb = scene.pixel(static_cast<uint32_t>(centre.x),
+                               static_cast<uint32_t>(centre.y));
+  // Only the red channel takes the light; the others keep the ambient they
+  // would have had anyway.
+  REQUIRE(rgb[0] > rgb[1]);
+  REQUIRE(rgb[1] > 0);
+}
+
+TEST_CASE("a light past the shader's list is not the renderer's to drop") {
+  // The editor truncates to MESH_MAX_LIGHTS before the renderer sees them,
+  // so the rasterizer shades however many it is handed — this is the CPU
+  // path standing in for a GPU one that cannot loop past its array.
+  CubeScene scene;
+  const WorldPoint tiles[] = {{1.0f, 1.0f}};
+  scene.lights.assign(MESH_MAX_LIGHTS + 2, overheadLight(0.1f));
+  scene.render(tiles);
+
+  REQUIRE(scene.litPixels() > 0);
 }

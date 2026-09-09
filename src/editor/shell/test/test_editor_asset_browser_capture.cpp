@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <editor/shell/editor-asset-browser-widget.h>
+#include <editor/shell/editor-general-section.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-renderer.h>
@@ -79,7 +80,7 @@ struct BrowserCapture {
     auto* browser =
         dynamic_cast<EditorAssetBrowserWidget*>(tree.findWidget(browser_id));
     browser->rect = panelRect();
-    browser->setAssets(buildEditorAssetTree(scan()), names());
+    browser->setAssets(treeWithGeneral(), names());
     expandAll(*browser);
   }
 
@@ -106,10 +107,22 @@ struct BrowserCapture {
     return out;
   }
 
+  /// That project's folders, with the built-in General section beside
+  /// them, which is the tree the editor hands the browser.
+  static EditorAssetTree treeWithGeneral() {
+    const EditorAssetScan found = scan();
+    EditorAssetTree tree = buildEditorAssetTree(found);
+    appendEditorGeneralSection(tree, found.assets.size());
+    return tree;
+  }
+
   static std::vector<std::string> names() {
     std::vector<std::string> out;
     for (const EditorAsset& asset : scan().assets) {
       out.push_back(asset.name);
+    }
+    for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
+      out.emplace_back(editorGeneralItemName(item));
     }
     return out;
   }

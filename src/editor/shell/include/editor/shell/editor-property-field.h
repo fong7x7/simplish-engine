@@ -1,26 +1,31 @@
 #pragma once
 
 /// @file editor-property-field.h
-/// @brief The placement properties the panel lists, one row each.
+/// @brief The properties the panel lists, one row each.
 /// @par Threading Thread-safe (immutable value types).
 
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
 
 namespace eng::editor {
 
-/// One editable number on a placement.
+/// One editable number on whatever the editor has selected.
 ///
-/// The panel is a list of these rather than a hand-written form: the rows,
-/// the hit testing, and the edits all run off this enum, so a property the
-/// level format grows later is a new entry here and a case in
-/// `editor-property-ops.cpp`, not another block of layout code.
+/// The panel is a list of these rather than a hand-written form per kind of
+/// selection: the rows, the hit testing, and the edits all run off this
+/// enum, so a light's intensity is another entry here and another arm in
+/// `editor-property-ops.cpp` rather than a second panel.
+///
+/// One enum covers placements and lights together, so a field two of them
+/// share — a position — is one row definition and one edit path. The three
+/// members of every triple are declared in component order, which is what
+/// lets `editor-property-ops.cpp` take a component index by subtraction
+/// rather than a case per axis.
 /// @thread_safety Immutable value type.
 enum class EditorPropertyField : uint8_t {
-  /// World X of the placement, in tiles.
+  /// World X, in tiles.
   POSITION_X,
-  /// World Y of the placement, in tiles.
+  /// World Y, in tiles.
   POSITION_Y,
   /// Height above the ground plane, in tiles.
   POSITION_Z,
@@ -30,56 +35,69 @@ enum class EditorPropertyField : uint8_t {
   ROTATION_Y,
   /// Rotation about world Z, in degrees.
   ROTATION_Z,
+  /// X of the direction a light arrives from.
+  DIRECTION_X,
+  /// Y of the direction a light arrives from.
+  DIRECTION_Y,
+  /// Z of the direction a light arrives from.
+  DIRECTION_Z,
+  /// Red channel of a light's tint.
+  COLOR_R,
+  /// Green channel of a light's tint.
+  COLOR_G,
+  /// Blue channel of a light's tint.
+  COLOR_B,
+  /// Brightness multiplier of a light.
+  INTENSITY,
+  /// How far a point light reaches, in tiles.
+  RANGE,
 };
 
-/// Every property, in the order the panel lists them.
-inline constexpr EditorPropertyField EDITOR_PROPERTY_FIELDS[] = {
+/// Every field there is, in the enum's own order.
+///
+/// The traits table beside it is indexed by this order and asserts against
+/// this length, so a field added to the enum and forgotten here fails the
+/// build rather than reading another field's label.
+inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
+    EditorPropertyField::POSITION_X,  EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z,  EditorPropertyField::ROTATION_X,
+    EditorPropertyField::ROTATION_Y,  EditorPropertyField::ROTATION_Z,
+    EditorPropertyField::DIRECTION_X, EditorPropertyField::DIRECTION_Y,
+    EditorPropertyField::DIRECTION_Z, EditorPropertyField::COLOR_R,
+    EditorPropertyField::COLOR_G,     EditorPropertyField::COLOR_B,
+    EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
+};
+
+/// What the panel lists for a placed asset, in the order it lists them.
+inline constexpr EditorPropertyField EDITOR_PLACEMENT_FIELDS[] = {
     EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
     EditorPropertyField::POSITION_Z, EditorPropertyField::ROTATION_X,
     EditorPropertyField::ROTATION_Y, EditorPropertyField::ROTATION_Z,
 };
 
-/// How many rows the panel has.
-inline constexpr size_t EDITOR_PROPERTY_FIELD_COUNT =
-    sizeof(EDITOR_PROPERTY_FIELDS) / sizeof(EDITOR_PROPERTY_FIELDS[0]);
+/// What the panel lists for a directional light.
+///
+/// No position: a light with parallel rays shades a scene the same wherever
+/// it stands, and a row that changes nothing but a marker is a row that
+/// lies about what it does.
+inline constexpr EditorPropertyField EDITOR_DIRECTIONAL_LIGHT_FIELDS[] = {
+    EditorPropertyField::DIRECTION_X, EditorPropertyField::DIRECTION_Y,
+    EditorPropertyField::DIRECTION_Z, EditorPropertyField::INTENSITY,
+    EditorPropertyField::COLOR_R,     EditorPropertyField::COLOR_G,
+    EditorPropertyField::COLOR_B,
+};
 
-/// Row label. Spelled out per row rather than grouped under two headings:
-/// six unambiguous labels read the same and cost the panel no rows a
-/// pointer cannot hit.
-[[nodiscard]] constexpr std::string_view
-editorPropertyFieldLabel(EditorPropertyField field) {
-  switch (field) {
-    case EditorPropertyField::POSITION_X:
-      return "Position X";
-    case EditorPropertyField::POSITION_Y:
-      return "Position Y";
-    case EditorPropertyField::POSITION_Z:
-      return "Position Z";
-    case EditorPropertyField::ROTATION_X:
-      return "Rotation X";
-    case EditorPropertyField::ROTATION_Y:
-      return "Rotation Y";
-    case EditorPropertyField::ROTATION_Z:
-      return "Rotation Z";
-  }
-  return {};
-}
+/// What the panel lists for a point light: where it is and how far it
+/// carries, in place of the direction it has none of.
+inline constexpr EditorPropertyField EDITOR_POINT_LIGHT_FIELDS[] = {
+    EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z, EditorPropertyField::RANGE,
+    EditorPropertyField::INTENSITY,  EditorPropertyField::COLOR_R,
+    EditorPropertyField::COLOR_G,    EditorPropertyField::COLOR_B,
+};
 
-/// Whether a field is an angle, which decides how it steps, how it is
-/// written out, and whether it wraps.
-[[nodiscard]] constexpr bool
-editorPropertyFieldIsAngle(EditorPropertyField field) {
-  switch (field) {
-    case EditorPropertyField::POSITION_X:
-    case EditorPropertyField::POSITION_Y:
-    case EditorPropertyField::POSITION_Z:
-      return false;
-    case EditorPropertyField::ROTATION_X:
-    case EditorPropertyField::ROTATION_Y:
-    case EditorPropertyField::ROTATION_Z:
-      return true;
-  }
-  return false;
-}
+/// How many rows a placement's properties fill.
+inline constexpr size_t EDITOR_PLACEMENT_FIELD_COUNT =
+    sizeof(EDITOR_PLACEMENT_FIELDS) / sizeof(EDITOR_PLACEMENT_FIELDS[0]);
 
 }  // namespace eng::editor

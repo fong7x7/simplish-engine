@@ -1,95 +1,107 @@
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
-#include <editor/shell/editor-selection.h>
 #include <iterator>
+#include <vector>
 
 namespace eng::editor {
 
 namespace {
 
-  /// `placements.begin() + index`, as the iterator arithmetic wants it.
-  std::vector<EditorPlacement>::iterator
-  at(std::vector<EditorPlacement>& placements, size_t index) {
-    return std::next(placements.begin(), static_cast<ptrdiff_t>(index));
-  }
-
-  /// Put an action's placement back where it was.
-  void insertPlacement(const EditorAction& action,
-                       std::vector<EditorPlacement>& placements) {
-    if (action.index > placements.size()) {
+  /// Put a value back at the slot it was taken from. An index past the end
+  /// means the history and the document have diverged, which is a bug
+  /// elsewhere — the insert is dropped rather than moving the entry.
+  template <typename T>
+  void insertAt(std::vector<T>& list, size_t index, const T& value) {
+    if (index > list.size()) {
       return;
     }
-    placements.insert(at(placements, action.index), action.placement);
+    list.insert(std::next(list.begin(), static_cast<ptrdiff_t>(index)), value);
   }
 
-  /// Take an action's placement back out.
-  void erasePlacement(const EditorAction& action,
-                      std::vector<EditorPlacement>& placements) {
-    if (action.index >= placements.size()) {
+  /// Take the entry at @p index back out, if it is still there.
+  template <typename T> void eraseAt(std::vector<T>& list, size_t index) {
+    if (index >= list.size()) {
       return;
     }
-    placements.erase(at(placements, action.index));
+    list.erase(std::next(list.begin(), static_cast<ptrdiff_t>(index)));
   }
 
-  /// Write a placement an action names, if it is still there. A missing
-  /// index means the history and the document have diverged, which is a
-  /// bug elsewhere — the write is dropped rather than growing the list.
-  void writePlacement(size_t index, const EditorPlacement& placement,
-                      std::vector<EditorPlacement>& placements) {
-    if (index >= placements.size()) {
+  /// Write the entry an action names, if it is still there. A missing index
+  /// drops the write rather than growing the list.
+  template <typename T>
+  void writeAt(std::vector<T>& list, size_t index, const T& value) {
+    if (index >= list.size()) {
       return;
     }
-    placements[index] = placement;
+    list[index] = value;
   }
 
   /// Do what @p action describes.
-  void applyOne(const EditorAction& action,
-                std::vector<EditorPlacement>& placements) {
+  void applyOne(const EditorAction& action, EditorDocument& document) {
     switch (action.kind) {
       case EditorActionKind::PLACE_ASSET:
-        insertPlacement(action, placements);
+        insertAt(document.placements, action.index, action.placement);
         break;
       case EditorActionKind::TRANSFORM_PLACEMENT:
-        writePlacement(action.index, action.placement, placements);
+        writeAt(document.placements, action.index, action.placement);
+        break;
+      case EditorActionKind::ADD_LIGHT:
+        insertAt(document.lights, action.index, action.light);
+        break;
+      case EditorActionKind::TRANSFORM_LIGHT:
+        writeAt(document.lights, action.index, action.light);
         break;
     }
   }
 
   /// Undo what @p action describes. Every case here is the inverse of its
   /// counterpart in `applyOne`, which is the whole contract of an action.
-  void revertOne(const EditorAction& action,
-                 std::vector<EditorPlacement>& placements) {
+  void revertOne(const EditorAction& action, EditorDocument& document) {
     switch (action.kind) {
       case EditorActionKind::PLACE_ASSET:
-        erasePlacement(action, placements);
+        eraseAt(document.placements, action.index);
         break;
       case EditorActionKind::TRANSFORM_PLACEMENT:
-        writePlacement(action.index, action.prior, placements);
+        writeAt(document.placements, action.index, action.prior);
+        break;
+      case EditorActionKind::ADD_LIGHT:
+        eraseAt(document.lights, action.index);
+        break;
+      case EditorActionKind::TRANSFORM_LIGHT:
+        writeAt(document.lights, action.index, action.light_prior);
         break;
     }
   }
 
-  /// Where a selection lands once the entry at @p index is removed.
-  int selectionAfterErase(size_t index, int selection) {
-    const auto erased = static_cast<int>(index);
-    if (selection == erased) {
-      return EDITOR_PLACEMENT_NONE;
+  /// Where a selection lands once the entry at @p index of @p list is
+  /// removed. A selection in another list is not numbered by this one.
+  EditorSelection selectionAfterErase(EditorSelectionKind list, size_t index,
+                                      EditorSelection selection) {
+    if (!selectionIs(selection, list)) {
+      return selection;
     }
-    return selection > erased ? selection - 1 : selection;
+    if (selection.index == index) {
+      return {};
+    }
+    return {list,
+            selection.index > index ? selection.index - 1 : selection.index};
   }
 
   /// Where a selection lands once an entry is inserted at @p index.
-  int selectionAfterInsert(size_t index, int selection) {
-    const auto inserted = static_cast<int>(index);
-    return selection >= inserted ? selection + 1 : selection;
+  EditorSelection selectionAfterInsert(EditorSelectionKind list, size_t index,
+                                       EditorSelection selection) {
+    if (!selectionIs(selection, list)) {
+      return selection;
+    }
+    return {list,
+            selection.index >= index ? selection.index + 1 : selection.index};
   }
 
 }  // namespace
 
-void performEditorAction(EditorActionHistory& history,
-                         std::vector<EditorPlacement>& placements,
+void performEditorAction(EditorActionHistory& history, EditorDocument& document,
                          const EditorAction& action) {
-  applyOne(action, placements);
+  applyOne(action, document);
   history.actions.resize(history.applied);
   history.actions.push_back(action);
   history.applied = history.actions.size();
@@ -103,45 +115,57 @@ bool canRedoEditorAction(const EditorActionHistory& history) {
   return history.applied < history.actions.size();
 }
 
-bool undoEditorAction(EditorActionHistory& history,
-                      std::vector<EditorPlacement>& placements) {
+bool undoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   if (!canUndoEditorAction(history)) {
     return false;
   }
   --history.applied;
-  revertOne(history.actions[history.applied], placements);
+  revertOne(history.actions[history.applied], document);
   return true;
 }
 
-bool redoEditorAction(EditorActionHistory& history,
-                      std::vector<EditorPlacement>& placements) {
+bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   if (!canRedoEditorAction(history)) {
     return false;
   }
-  applyOne(history.actions[history.applied], placements);
+  applyOne(history.actions[history.applied], document);
   ++history.applied;
   return true;
 }
 
-int editorSelectionAfterUndo(const EditorAction& action, int selection) {
+EditorSelection editorSelectionAfterUndo(const EditorAction& action,
+                                         EditorSelection selection) {
   switch (action.kind) {
     case EditorActionKind::PLACE_ASSET:
       // The placement is gone; anything numbered after it moved down one.
-      return selectionAfterErase(action.index, selection);
+      return selectionAfterErase(EditorSelectionKind::PLACEMENT, action.index,
+                                 selection);
+    case EditorActionKind::ADD_LIGHT:
+      return selectionAfterErase(EditorSelectionKind::LIGHT, action.index,
+                                 selection);
     case EditorActionKind::TRANSFORM_PLACEMENT:
       // Show what just moved back, so a reverted edit is visible rather
       // than something the viewer has to go looking for.
-      return static_cast<int>(action.index);
+      return {EditorSelectionKind::PLACEMENT, action.index};
+    case EditorActionKind::TRANSFORM_LIGHT:
+      return {EditorSelectionKind::LIGHT, action.index};
   }
   return selection;
 }
 
-int editorSelectionAfterRedo(const EditorAction& action, int selection) {
+EditorSelection editorSelectionAfterRedo(const EditorAction& action,
+                                         EditorSelection selection) {
   switch (action.kind) {
     case EditorActionKind::PLACE_ASSET:
-      return selectionAfterInsert(action.index, selection);
+      return selectionAfterInsert(EditorSelectionKind::PLACEMENT, action.index,
+                                  selection);
+    case EditorActionKind::ADD_LIGHT:
+      return selectionAfterInsert(EditorSelectionKind::LIGHT, action.index,
+                                  selection);
     case EditorActionKind::TRANSFORM_PLACEMENT:
-      return static_cast<int>(action.index);
+      return {EditorSelectionKind::PLACEMENT, action.index};
+    case EditorActionKind::TRANSFORM_LIGHT:
+      return {EditorSelectionKind::LIGHT, action.index};
   }
   return selection;
 }

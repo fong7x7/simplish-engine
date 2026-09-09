@@ -35,10 +35,14 @@ std::vector<EditorAssetFolderRow>
 flattenAssetFolderRows(const EditorAssetTree& tree,
                        const std::unordered_set<size_t>& expanded) {
   std::vector<EditorAssetFolderRow> rows;
-  if (tree.folders.empty()) {
-    return rows;
+  // Every folder with no parent is a section of its own, listed at depth
+  // zero in the order the tree holds them: the assets root first, and the
+  // built-in General section after it.
+  for (size_t folder = 0; folder < tree.folders.size(); ++folder) {
+    if (tree.folders[folder].parent == EDITOR_ASSET_FOLDER_NONE) {
+      appendRows({tree, expanded, rows}, folder, 0);
+    }
   }
-  appendRows({tree, expanded, rows}, EDITOR_ASSET_FOLDER_ROOT, 0);
   return rows;
 }
 

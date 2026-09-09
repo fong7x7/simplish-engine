@@ -3,9 +3,10 @@
 // Design Summary -- EditorPropertiesWidget
 //
 // Behaviours:
-//   - Column down the right of the viewport listing the selected
-//     placement's asset name and its six editable numbers: position X, Y,
-//     Z and rotation X, Y, Z
+//   - Column down the right of the viewport listing what the editor has
+//     selected: its name, and one row per editable number
+//   - A placed asset lists position X, Y, Z and rotation X, Y, Z; a light
+//     lists the direction, colour, intensity and range its own kind uses
 //   - Each row is a label, a step-down button, a value box, and a step-up
 //     button; a click on a button steps the value, a drag across the value
 //     box scrubs it
@@ -21,25 +22,30 @@
 //     capture for the whole gesture, and abandoning an edit halfway would
 //     leave the document in the state the pointer happened to be over
 //   - A selection cleared mid-drag ends the drag without committing, since
-//     there is no longer a placement the value belongs to
+//     there is no longer anything the value belongs to
 //   - Panel too short for every row: the rows past the bottom are drawn and
 //     hit tested as usual and clipped by the panel, which is what a
 //     scrollable panel would do before it had a scrollbar
+//   - A field the current selection does not list has no row, and asking
+//     for its rect gives an empty one rather than another field's
 //
 // Invariants:
 //   - Hit testing and drawing derive from the same layout functions, so
 //     what is drawn is what is pressed
-//   - The widget never owns the selection or the placement: it is handed a
-//     copy to show and reports edits back. The editor's placement list
-//     stays the one truth about the document
+//   - The widget never owns the selection: it is handed a name and a list
+//     of values to show and reports edits back. The editor's own document
+//     stays the one truth
 //   - Every reported value is absolute, not a delta, so a dropped or
 //     coalesced event cannot make the value drift from what is on screen
+//   - A reported value is already normalised — an angle wrapped, a colour
+//     clamped — so what the panel shows is what the document will hold
 //
 // Integration Points:
 //   - SimplishEditor: owns this widget, feeds it the selection, and applies
-//     on_property_changed to the selected placement
+//     on_property_changed to whatever is selected
 
 #include <cstddef>
+#include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-property-edit.h>
@@ -47,11 +53,13 @@
 #include <engine/gui/gui-panel.h>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string>
+#include <vector>
 
 namespace eng::editor {
 
-/// The right-hand properties panel for the selected placement.
+/// The right-hand properties panel for whatever is selected.
 /// @thread_safety Main-thread only.
 class EditorPropertiesWidget : public GuiPanel {
 public:
@@ -60,7 +68,7 @@ public:
   /// Polymorphic deep-copy.
   [[nodiscard]] std::unique_ptr<GuiWidget> clone() const override;
 
-  /// Draw the header, the asset name, and every property row.
+  /// Draw the header, the name line, and every property row.
   void render(const GuiDrawContext& ctx) const override;
 
   /// Step a value, or begin a scrub. Returns true to capture.
@@ -74,16 +82,25 @@ public:
 
   /// Show a placement's properties. The name is the asset's, for the line
   /// under the header.
-  void setSelection(std::string asset_name, const EditorPlacement& placement);
+  void setSelection(std::string name, const EditorPlacement& placement);
+
+  /// Show a light's properties, which are the ones its kind uses.
+  void setSelection(std::string name, const EditorLight& light);
 
   /// Show nothing, and hide the panel.
   void clearSelection();
 
-  /// Whether a placement is being shown.
+  /// Whether anything is being shown.
   [[nodiscard]] bool hasSelection() const { return has_selection_; }
 
-  /// The placement being shown, as the panel last had it.
-  [[nodiscard]] const EditorPlacement& placement() const { return placement_; }
+  /// The rows the panel is listing, in order.
+  [[nodiscard]] const std::vector<EditorPropertyField>& fields() const {
+    return fields_;
+  }
+
+  /// The value the panel shows for @p field, or zero when it has no such
+  /// row.
+  [[nodiscard]] float value(EditorPropertyField field) const;
 
   /// Width the panel wants from the editor's layout: its own width while
   /// something is selected, and nothing at all otherwise.
@@ -92,10 +109,11 @@ public:
   /// The panel's regions for its current rect.
   [[nodiscard]] EditorPropertiesLayout layout() const;
 
-  /// Rect of the row for @p field, in layout pixels.
+  /// Rect of the row for @p field, in layout pixels. Empty when the
+  /// selection does not list that field.
   [[nodiscard]] Rect fieldRowRect(EditorPropertyField field) const;
 
-  /// Field currently being scrubbed, or nothing when no drag is running.
+  /// Whether a value is being scrubbed.
   [[nodiscard]] bool dragging() const { return dragging_; }
 
   /// Raised when the user changes a value: the field, the value it now has,
@@ -106,8 +124,8 @@ public:
 private:
   /// Draw the title strip.
   void renderHeader(const GuiDrawContext& ctx) const;
-  /// Draw the line naming the selected asset.
-  void renderAssetLine(const GuiDrawContext& ctx) const;
+  /// Draw the line naming what is selected.
+  void renderNameLine(const GuiDrawContext& ctx) const;
   /// Draw every property row.
   void renderRows(const GuiDrawContext& ctx) const;
   /// Draw one row's label, buttons, and value.
@@ -115,6 +133,12 @@ private:
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;
+  /// Take @p fields as the rows to show, under @p name, with every value
+  /// zero until the caller fills them in.
+  void beginSelection(std::string name,
+                      std::span<const EditorPropertyField> fields);
+  /// Row @p field sits on, or the row count when it has none.
+  [[nodiscard]] size_t rowOf(EditorPropertyField field) const;
   /// Act on a press on one of a row's step buttons. Returns true when one
   /// of them took it.
   bool pressStep(EditorPropertyField field, const Rect& row,
@@ -129,12 +153,14 @@ private:
   void applyValue(EditorPropertyField field, float value,
                   EditorPropertyEdit edit);
 
-  /// Whether a placement is being shown.
+  /// Whether anything is being shown.
   bool has_selection_ = false;
-  /// The placement being shown.
-  EditorPlacement placement_{};
-  /// Backing store for the asset line's text.
-  std::string asset_name_{};
+  /// The rows being listed, in order.
+  std::vector<EditorPropertyField> fields_{};
+  /// What each of those rows shows, indexed alongside `fields_`.
+  std::vector<float> values_{};
+  /// Backing store for the name line's text.
+  std::string name_{};
   /// Whether a value is being scrubbed.
   bool dragging_ = false;
   /// Field the scrub is changing.

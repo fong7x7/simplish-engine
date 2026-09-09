@@ -37,7 +37,7 @@ TEST_CASE("a panel too short for its regions hands out no negative space") {
 
 TEST_CASE("rows stack down the body without overlapping") {
   const eng::Rect body = layoutEditorProperties(panelRect()).body;
-  for (size_t i = 1; i < EDITOR_PROPERTY_FIELD_COUNT; ++i) {
+  for (size_t i = 1; i < EDITOR_PLACEMENT_FIELD_COUNT; ++i) {
     const eng::Rect above = propertyRowRect(body, i - 1);
     const eng::Rect row = propertyRowRect(body, i);
     REQUIRE(row.y >= above.y + above.h);
@@ -64,10 +64,10 @@ TEST_CASE("a row is a label, two step buttons, and the value between them") {
 
 TEST_CASE("a point in a row finds that row") {
   const eng::Rect body = layoutEditorProperties(panelRect()).body;
-  for (size_t i = 0; i < EDITOR_PROPERTY_FIELD_COUNT; ++i) {
+  for (size_t i = 0; i < EDITOR_PLACEMENT_FIELD_COUNT; ++i) {
     const eng::Rect row = propertyRowRect(body, i);
-    REQUIRE(hitTestPropertyRow(body, row.x + 1.0f, row.y + 1.0f) ==
-            static_cast<int>(i));
+    REQUIRE(hitTestPropertyRow(body, EDITOR_PLACEMENT_FIELD_COUNT, row.x + 1.0f,
+                               row.y + 1.0f) == static_cast<int>(i));
   }
 }
 
@@ -76,14 +76,15 @@ TEST_CASE("a point in the gap between rows finds nothing") {
   // would step a value the pointer was not over.
   const eng::Rect body = layoutEditorProperties(panelRect()).body;
   const eng::Rect first = propertyRowRect(body, 0);
-  REQUIRE(hitTestPropertyRow(body, first.x + 1.0f,
+  REQUIRE(hitTestPropertyRow(body, EDITOR_PLACEMENT_FIELD_COUNT, first.x + 1.0f,
                              first.y + first.h + PROPERTIES_ROW_GAP * 0.5f) ==
           -1);
 }
 
 TEST_CASE("a point past the last row finds nothing") {
   const eng::Rect body = layoutEditorProperties(panelRect()).body;
-  const eng::Rect last = propertyRowRect(body, EDITOR_PROPERTY_FIELD_COUNT - 1);
-  REQUIRE(hitTestPropertyRow(body, last.x + 1.0f, last.y + last.h + 20.0f) ==
-          -1);
+  const eng::Rect last =
+      propertyRowRect(body, EDITOR_PLACEMENT_FIELD_COUNT - 1);
+  REQUIRE(hitTestPropertyRow(body, EDITOR_PLACEMENT_FIELD_COUNT, last.x + 1.0f,
+                             last.y + last.h + 20.0f) == -1);
 }

@@ -1,7 +1,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
+#include <iterator>
 #include <vector>
 
 using Catch::Approx;
@@ -140,7 +142,7 @@ TEST_CASE("a rotation steps in degrees, not tiles") {
 
 TEST_CASE("every property has a row that reaches its own field") {
   PanelFixture fixture;
-  for (EditorPropertyField field : EDITOR_PROPERTY_FIELDS) {
+  for (EditorPropertyField field : EDITOR_PLACEMENT_FIELDS) {
     fixture.changes.clear();
     const eng::Rect increment = propertyIncrementRect(fixture.rowOf(field));
     fixture.press(midX(increment), midY(increment));
@@ -282,6 +284,49 @@ TEST_CASE("the panel shows the values it is given") {
   placement.rotation = {0.0f, 0.0f, 45.0f};
   fixture.panel.setSelection("lamp", placement);
 
-  REQUIRE(fixture.panel.placement().position.y == Approx(3.0f));
-  REQUIRE(fixture.panel.placement().rotation.z == Approx(45.0f));
+  REQUIRE(fixture.panel.value(EditorPropertyField::POSITION_Y) == Approx(3.0f));
+  REQUIRE(fixture.panel.value(EditorPropertyField::ROTATION_Z) ==
+          Approx(45.0f));
+}
+
+TEST_CASE("selecting a light lists the properties its kind uses") {
+  PanelFixture fixture;
+  fixture.panel.setSelection(
+      "Point Light",
+      makeEditorLight(EditorLightKind::POINT, {1.0f, 2.0f, 3.0f}));
+
+  REQUIRE(fixture.panel.fields().size() ==
+          std::size(EDITOR_POINT_LIGHT_FIELDS));
+  REQUIRE(fixture.panel.value(EditorPropertyField::POSITION_Z) == Approx(3.0f));
+  // A directional light's rows are not this light's rows, and a placement's
+  // are nobody's but a placement's.
+  REQUIRE(fixture.rowOf(EditorPropertyField::ROTATION_X).w == 0.0f);
+}
+
+TEST_CASE("a directional light has a direction where a point light has a "
+          "position") {
+  PanelFixture fixture;
+  fixture.panel.setSelection(
+      "Directional Light",
+      makeEditorLight(EditorLightKind::DIRECTIONAL, {1.0f, 2.0f, 3.0f}));
+
+  REQUIRE(fixture.rowOf(EditorPropertyField::POSITION_X).w == 0.0f);
+  const eng::Rect increment =
+      propertyIncrementRect(fixture.rowOf(EditorPropertyField::DIRECTION_X));
+  fixture.press(midX(increment), midY(increment));
+  REQUIRE(fixture.changes.size() == 1);
+  REQUIRE(fixture.changes[0].field == EditorPropertyField::DIRECTION_X);
+}
+
+TEST_CASE("a light's intensity never goes below nothing") {
+  PanelFixture fixture;
+  fixture.panel.setSelection(
+      "Point Light", makeEditorLight(EditorLightKind::POINT, {0.0f, 0.0f}));
+  const eng::Rect value =
+      propertyValueRect(fixture.rowOf(EditorPropertyField::INTENSITY));
+
+  fixture.press(midX(value), midY(value));
+  // Far enough left to take it past zero, which is not a brightness.
+  fixture.moveTo(midX(value) - 600.0f, midY(value));
+  REQUIRE(fixture.changes.back().value == Approx(0.0f));
 }

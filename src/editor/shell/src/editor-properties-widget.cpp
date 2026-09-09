@@ -1,3 +1,4 @@
+#include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <engine/gui/gui-draw-context.h>
@@ -42,25 +43,62 @@ EditorPropertiesLayout EditorPropertiesWidget::layout() const {
   return layoutEditorProperties(rect);
 }
 
-Rect EditorPropertiesWidget::fieldRowRect(EditorPropertyField field) const {
-  return propertyRowRect(layout().body, static_cast<size_t>(field));
+size_t EditorPropertiesWidget::rowOf(EditorPropertyField field) const {
+  size_t row = 0;
+  while (row < fields_.size() && fields_[row] != field) {
+    ++row;
+  }
+  return row;
 }
 
-void EditorPropertiesWidget::setSelection(std::string asset_name,
-                                          const EditorPlacement& placement) {
-  asset_name_ = std::move(asset_name);
-  placement_ = placement;
+float EditorPropertiesWidget::value(EditorPropertyField field) const {
+  const size_t row = rowOf(field);
+  return row < values_.size() ? values_[row] : 0.0f;
+}
+
+Rect EditorPropertiesWidget::fieldRowRect(EditorPropertyField field) const {
+  const size_t row = rowOf(field);
+  // A field this selection does not list has no row to point at, and an
+  // out-of-range one would be another field's.
+  if (row >= fields_.size()) {
+    return {};
+  }
+  return propertyRowRect(layout().body, row);
+}
+
+void EditorPropertiesWidget::beginSelection(
+    std::string name, std::span<const EditorPropertyField> fields) {
+  name_ = std::move(name);
+  fields_.assign(fields.begin(), fields.end());
+  values_.assign(fields_.size(), 0.0f);
   has_selection_ = true;
   visible = true;
+}
+
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorPlacement& placement) {
+  beginSelection(std::move(name), EDITOR_PLACEMENT_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorPropertyValue(placement, fields_[row]);
+  }
+}
+
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorLight& light) {
+  beginSelection(std::move(name), editorLightFields(light.kind));
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorLightValue(light, fields_[row]);
+  }
 }
 
 void EditorPropertiesWidget::clearSelection() {
   has_selection_ = false;
   visible = false;
-  // A drag whose placement has gone has nothing left to commit.
+  // A drag whose subject has gone has nothing left to commit.
   dragging_ = false;
-  asset_name_.clear();
-  placement_ = EditorPlacement{};
+  name_.clear();
+  fields_.clear();
+  values_.clear();
 }
 
 void EditorPropertiesWidget::renderHeader(const GuiDrawContext& ctx) const {
@@ -70,10 +108,10 @@ void EditorPropertiesWidget::renderHeader(const GuiDrawContext& ctx) const {
                textPos(header, TEXT_INSET), "Properties");
 }
 
-void EditorPropertiesWidget::renderAssetLine(const GuiDrawContext& ctx) const {
+void EditorPropertiesWidget::renderNameLine(const GuiDrawContext& ctx) const {
   const Rect line = layout().asset;
   ctx.drawText(GuiColor::applyOpacity(THEME_DIM, opacity),
-               textPos(line, TEXT_INSET), asset_name_);
+               textPos(line, TEXT_INSET), name_);
 }
 
 void EditorPropertiesWidget::renderStep(const GuiDrawContext& ctx,
@@ -86,7 +124,7 @@ void EditorPropertiesWidget::renderStep(const GuiDrawContext& ctx,
 
 void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
                                        size_t index) const {
-  const EditorPropertyField field = EDITOR_PROPERTY_FIELDS[index];
+  const EditorPropertyField field = fields_[index];
   const Rect row = propertyRowRect(layout().body, index);
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
                textPos(propertyLabelRect(row), 0.0f),
@@ -99,14 +137,13 @@ void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
   ctx.drawRoundedRect(
       value, GuiColor::applyOpacity(active ? THEME_ACCENT : VALUE_BG, opacity),
       THEME_BTN_RADIUS);
-  ctx.drawCenteredText(
-      value, GuiColor::applyOpacity(THEME_TEXT, opacity),
-      formatEditorPropertyValue(editorPropertyValue(placement_, field), field));
+  ctx.drawCenteredText(value, GuiColor::applyOpacity(THEME_TEXT, opacity),
+                       formatEditorPropertyValue(values_[index], field));
 }
 
 void EditorPropertiesWidget::renderRows(const GuiDrawContext& ctx) const {
-  for (size_t i = 0; i < EDITOR_PROPERTY_FIELD_COUNT; ++i) {
-    renderRow(ctx, i);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    renderRow(ctx, row);
   }
 }
 
@@ -116,25 +153,27 @@ void EditorPropertiesWidget::render(const GuiDrawContext& ctx) const {
   }
   renderPanel({ctx, GuiColor::applyOpacity(fill_color, opacity)});
   renderHeader(ctx);
-  renderAssetLine(ctx);
+  renderNameLine(ctx);
   renderRows(ctx);
 }
 
 void EditorPropertiesWidget::applyValue(EditorPropertyField field, float value,
                                         EditorPropertyEdit edit) {
-  // The panel writes the value into its own copy through the same setter
-  // the editor uses, so what it draws next frame is what the placement will
-  // hold — a wrapped angle included.
-  setEditorPropertyValue(placement_, field, value);
+  const size_t row = rowOf(field);
+  if (row >= values_.size()) {
+    return;
+  }
+  // Normalised here, through the same rule the document applies, so what
+  // the panel draws next frame is what the document will hold — a wrapped
+  // angle and a clamped colour included.
+  values_[row] = normalizeEditorPropertyValue(field, value);
   if (on_property_changed) {
-    on_property_changed(field, editorPropertyValue(placement_, field), edit);
+    on_property_changed(field, values_[row], edit);
   }
 }
 
 void EditorPropertiesWidget::stepField(EditorPropertyField field, float steps) {
-  applyValue(field,
-             editorPropertyValue(placement_, field) +
-                 steps * editorPropertyStep(field),
+  applyValue(field, value(field) + steps * editorPropertyStep(field),
              EditorPropertyEdit::COMMIT);
 }
 
@@ -156,13 +195,13 @@ void EditorPropertiesWidget::beginDrag(EditorPropertyField field,
                                        const GuiMouseEvent& event) {
   dragging_ = true;
   drag_field_ = field;
-  drag_start_value_ = editorPropertyValue(placement_, field);
+  drag_start_value_ = value(field);
   drag_start_x_ = event.x;
 }
 
 bool EditorPropertiesWidget::pressRow(size_t index,
                                       const GuiMouseEvent& event) {
-  const EditorPropertyField field = EDITOR_PROPERTY_FIELDS[index];
+  const EditorPropertyField field = fields_[index];
   const Rect row = propertyRowRect(layout().body, index);
   // A step is done the moment it is pressed, so it never takes capture.
   if (pressStep(field, row, event) ||
@@ -177,7 +216,8 @@ bool EditorPropertiesWidget::handleMouseDown(const GuiMouseEvent& event) {
   if (!has_selection_ || event.button != GuiMouseButton::LEFT) {
     return false;
   }
-  const int row = hitTestPropertyRow(layout().body, event.x, event.y);
+  const int row =
+      hitTestPropertyRow(layout().body, fields_.size(), event.x, event.y);
   if (row < 0) {
     return false;
   }
@@ -201,8 +241,7 @@ void EditorPropertiesWidget::handleMouseUp(const GuiMouseEvent& /*event*/) {
   dragging_ = false;
   // The value is already where the last move put it; this says the gesture
   // is over, which is what turns the run of previews into one undo entry.
-  applyValue(drag_field_, editorPropertyValue(placement_, drag_field_),
-             EditorPropertyEdit::COMMIT);
+  applyValue(drag_field_, value(drag_field_), EditorPropertyEdit::COMMIT);
 }
 
 }  // namespace eng::editor

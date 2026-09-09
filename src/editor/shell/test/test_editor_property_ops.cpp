@@ -8,7 +8,7 @@ using namespace eng::editor;
 TEST_CASE("every property reads back what was written to it") {
   EditorPlacement placement;
   float written = 1.0f;
-  for (EditorPropertyField field : EDITOR_PROPERTY_FIELDS) {
+  for (EditorPropertyField field : EDITOR_PLACEMENT_FIELDS) {
     setEditorPropertyValue(placement, field, written);
     REQUIRE(editorPropertyValue(placement, field) == Approx(written));
     written += 1.0f;
@@ -69,4 +69,25 @@ TEST_CASE("a value of zero is never written as negative zero") {
   // as a bug rather than a number.
   REQUIRE(formatEditorPropertyValue(-0.0f, EditorPropertyField::POSITION_Y) ==
           "0.00");
+}
+
+TEST_CASE("each field's traits are the ones its own name promises") {
+  // The labels and kinds are a table indexed by the enum's order, so a field
+  // inserted without an entry beside it silently reads the next one's. The
+  // table's length is asserted where it is declared; this is its order.
+  REQUIRE(editorPropertyFieldLabel(EditorPropertyField::POSITION_X) ==
+          "Position X");
+  REQUIRE(editorPropertyFieldLabel(EditorPropertyField::RANGE) == "Range");
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::POSITION_Z) ==
+          EditorPropertyKind::DISTANCE);
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::ROTATION_Z) ==
+          EditorPropertyKind::ANGLE);
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::DIRECTION_Y) ==
+          EditorPropertyKind::AXIS);
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::COLOR_B) ==
+          EditorPropertyKind::UNIT);
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::INTENSITY) ==
+          EditorPropertyKind::FACTOR);
+  REQUIRE(editorPropertyFieldKind(EditorPropertyField::RANGE) ==
+          EditorPropertyKind::EXTENT);
 }

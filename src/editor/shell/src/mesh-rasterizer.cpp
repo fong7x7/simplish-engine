@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <editor/shell/mesh-rasterizer.h>
+#include <utility>
 
 namespace eng::editor {
 
@@ -11,8 +12,14 @@ namespace {
   constexpr uint8_t BG_R = 22;
   constexpr uint8_t BG_G = 22;
   constexpr uint8_t BG_B = 26;
+  /// The surface colour every mesh is drawn in, as the mesh shader has it.
+  constexpr Vec3 BASE_COLOR{0.74f, 0.76f, 0.80f};
+  /// Below this a direction is no direction at all, and the light aimed
+  /// along it contributes nothing rather than dividing by zero.
+  constexpr float MIN_AIM = 1e-4f;
 
-  /// A vertex after projection: pixel position, depth, and world normal.
+  /// A vertex after projection: pixel position, depth, and the world-space
+  /// position and normal shading needs.
   struct RasterVertex {
     /// Pixel X.
     float x = 0.0f;
@@ -20,22 +27,48 @@ namespace {
     float y = 0.0f;
     /// Clip-space depth, smaller being nearer.
     float depth = 0.0f;
+    /// World-space position, for the distance a point light falls off over.
+    Vec3 world{};
     /// World-space normal, for shading.
     Vec3 normal{};
   };
 
-  /// The target being written, with its depth buffer.
+  /// One pixel about to be written, with everything shading it needs.
+  struct RasterFragment {
+    /// Index of the pixel in the image.
+    size_t index = 0;
+    /// Clip-space depth to test against.
+    float depth = 0.0f;
+    /// World position the pixel covers.
+    Vec3 world{};
+    /// World normal there.
+    Vec3 normal{};
+  };
+
+  /// The target being written, with its depth buffer and its lights.
   struct RasterTarget {
     /// Pixels, RGBA8.
     ImageData* image = nullptr;
     /// Depth per pixel, parallel to `image`.
     std::vector<float>* depth = nullptr;
+    /// Lights to shade by, never empty: the caller substitutes the built-in
+    /// key light for a scene that has none.
+    std::span<const MeshLight> lights{};
   };
 
   Vec3 transformPoint(const Mat4& m, const Vec3& p) {
     return {m(0, 0) * p.x + m(0, 1) * p.y + m(0, 2) * p.z + m(0, 3),
             m(1, 0) * p.x + m(1, 1) * p.y + m(1, 2) * p.z + m(1, 3),
             m(2, 0) * p.x + m(2, 1) * p.y + m(2, 2) * p.z + m(2, 3)};
+  }
+
+  /// A direction through the same transform, which leaves the translation
+  /// out. The placement transform is a rotation and a uniform scale, so
+  /// this needs no normal matrix — only the normalize that follows it.
+  Vec3 transformDirection(const Mat4& m, const Vec3& d) {
+    return {m(0, 0) * d.x + m(0, 1) * d.y + m(0, 2) * d.z,
+            m(1, 0) * d.x + m(1, 1) * d.y + m(1, 2) * d.z,
+            m(2, 0) * d.x + m(2, 1) * d.y + m(2, 2) * d.z};
   }
 
   /// Project a world position and normal into raster space.
@@ -46,16 +79,56 @@ namespace {
     out.x = (clip.x + 1.0f) * 0.5f * static_cast<float>(scene.width);
     out.y = (1.0f - clip.y) * 0.5f * static_cast<float>(scene.height);
     out.depth = clip.z;
+    out.world = world;
     out.normal = normal;
     return out;
   }
 
-  /// The mesh shader's shading term, so the picture reads the same way.
-  float shade(const Vec3& normal) {
-    const Vec3 light = Vec3::normalize({-0.35f, -0.45f, 0.82f});
-    const Vec3 unit = Vec3::normalize(normal);
-    const float lambert = std::max(0.0f, Vec3::dot(unit, light));
-    return 0.38f + 0.62f * lambert;
+  /// How much of a point light reaches a surface this far from it: full at
+  /// the light, nothing at its range, and squared in between.
+  float falloff(float distance, float range) {
+    if (range <= 0.0f) {
+      return 0.0f;
+    }
+    const float reach = std::clamp(1.0f - distance / range, 0.0f, 1.0f);
+    return reach * reach;
+  }
+
+  /// Which way a light arrives from at @p world, and how much of it is left
+  /// by the time it gets there. The vector is not normalized.
+  std::pair<Vec3, float> lightAt(const MeshLight& light, const Vec3& world) {
+    if (light.kind != MESH_LIGHT_POINT) {
+      return {light.direction, 1.0f};
+    }
+    const Vec3 offset{light.position.x - world.x, light.position.y - world.y,
+                      light.position.z - world.z};
+    return {offset, falloff(Vec3::length(offset), light.range)};
+  }
+
+  /// What one light adds to a surface, per colour channel.
+  Vec3 contribution(const MeshLight& light, const Vec3& world,
+                    const Vec3& unit_normal) {
+    const auto [to_light, attenuation] = lightAt(light, world);
+    const float aim = Vec3::length(to_light);
+    if (aim < MIN_AIM || attenuation <= 0.0f) {
+      return {};
+    }
+    const float lambert =
+        std::max(0.0f, Vec3::dot(unit_normal, to_light / aim));
+    const float scale =
+        light.intensity * lambert * attenuation * MESH_LIGHT_DIFFUSE;
+    return light.color * scale;
+  }
+
+  /// The mesh shader's shading term, so the picture reads the same way:
+  /// ambient everywhere, plus what each light adds where it reaches.
+  Vec3 shade(const RasterTarget& target, const RasterFragment& fragment) {
+    const Vec3 unit = Vec3::normalize(fragment.normal);
+    Vec3 lit{MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT};
+    for (const MeshLight& light : target.lights) {
+      lit = lit + contribution(light, fragment.world, unit);
+    }
+    return lit;
   }
 
   /// Signed area of a triangle in raster space, doubled.
@@ -76,20 +149,22 @@ namespace {
   }
 
   /// Write one shaded pixel if it passes the depth test.
-  void writePixel(const RasterTarget& target, size_t index, float depth,
-                  const Vec3& normal) {
-    if (depth < 0.0f || depth > 1.0f || depth >= (*target.depth)[index]) {
+  void writePixel(const RasterTarget& target, const RasterFragment& fragment) {
+    const size_t index = fragment.index;
+    if (fragment.depth < 0.0f || fragment.depth > 1.0f ||
+        fragment.depth >= (*target.depth)[index]) {
       return;
     }
-    (*target.depth)[index] = depth;
-    const float lit = shade(normal);
-    const auto channel = [lit](float base) {
-      return static_cast<uint8_t>(std::clamp(base * lit, 0.0f, 1.0f) * 255.0f);
+    (*target.depth)[index] = fragment.depth;
+    const Vec3 lit = shade(target, fragment);
+    const auto channel = [](float base, float scale) {
+      return static_cast<uint8_t>(std::clamp(base * scale, 0.0f, 1.0f) *
+                                  255.0f);
     };
     auto& pixels = target.image->pixels;
-    pixels[index * RGBA_BYTES + 0] = channel(0.74f);
-    pixels[index * RGBA_BYTES + 1] = channel(0.76f);
-    pixels[index * RGBA_BYTES + 2] = channel(0.80f);
+    pixels[index * RGBA_BYTES + 0] = channel(BASE_COLOR.x, lit.x);
+    pixels[index * RGBA_BYTES + 1] = channel(BASE_COLOR.y, lit.y);
+    pixels[index * RGBA_BYTES + 2] = channel(BASE_COLOR.z, lit.z);
     pixels[index * RGBA_BYTES + 3] = 255;
   }
 
@@ -114,6 +189,12 @@ namespace {
                       static_cast<int32_t>(std::ceil(max_y)));
   }
 
+  /// The world position a pixel covers, from its barycentric weights.
+  Vec3 blendWorld(const RasterVertex tri[3], const float weights[3]) {
+    return tri[0].world * weights[0] + tri[1].world * weights[1] +
+           tri[2].world * weights[2];
+  }
+
   /// Shade one pixel of a triangle, if it is covered by it.
   void shadePixel(const RasterTarget& target, const RasterVertex tri[3],
                   int32_t x, int32_t y) {
@@ -123,11 +204,16 @@ namespace {
     if (!coverage(tri, px, py, weights)) {
       return;
     }
-    const float depth = weights[0] * tri[0].depth + weights[1] * tri[1].depth +
-                        weights[2] * tri[2].depth;
-    const auto index =
+    RasterFragment fragment;
+    fragment.index =
         static_cast<size_t>(y) * target.image->width + static_cast<size_t>(x);
-    writePixel(target, index, depth, tri[0].normal);
+    fragment.depth = weights[0] * tri[0].depth + weights[1] * tri[1].depth +
+                     weights[2] * tri[2].depth;
+    // The position is interpolated because a point light's distance varies
+    // across a face; the normal is the face's own, as it always was.
+    fragment.world = blendWorld(tri, weights);
+    fragment.normal = tri[0].normal;
+    writePixel(target, fragment);
   }
 
   /// Rasterize one triangle into the target.
@@ -149,8 +235,8 @@ namespace {
       RasterVertex tri[3];
       for (size_t corner = 0; corner < 3; ++corner) {
         const MeshVertex& v = mesh.vertices[mesh.indices[i + corner]];
-        tri[corner] =
-            project(scene, transformPoint(draw.model, v.position), v.normal);
+        tri[corner] = project(scene, transformPoint(draw.model, v.position),
+                              transformDirection(draw.model, v.normal));
       }
       fillTriangle(target, tri);
     }
@@ -166,19 +252,31 @@ namespace {
     }
   }
 
+  /// The image a scene renders into, cleared to the background.
+  ImageData makeTargetImage(const MeshRasterScene& scene) {
+    ImageData image;
+    image.width = scene.width;
+    image.height = scene.height;
+    image.source_channels = RGBA_BYTES;
+    image.pixels.assign(
+        static_cast<size_t>(scene.width) * scene.height * RGBA_BYTES, 0);
+    fillBackground(image);
+    return image;
+  }
+
 }  // namespace
 
 ImageData rasterizeMeshScene(const MeshRasterScene& scene) {
-  ImageData image;
-  image.width = scene.width;
-  image.height = scene.height;
-  image.source_channels = RGBA_BYTES;
-  image.pixels.assign(
-      static_cast<size_t>(scene.width) * scene.height * RGBA_BYTES, 0);
-  fillBackground(image);
+  ImageData image = makeTargetImage(scene);
   std::vector<float> depth(static_cast<size_t>(scene.width) * scene.height,
                            1.0f);
-  const RasterTarget target{&image, &depth};
+  // A default-constructed light is the built-in key light, which is what a
+  // scene with none of its own is lit by — see `mesh-light.h`.
+  const MeshLight key_light{};
+  const RasterTarget target{&image, &depth,
+                            scene.lights.empty()
+                                ? std::span<const MeshLight>{&key_light, 1}
+                                : scene.lights};
   for (const auto& draw : scene.draws) {
     if (draw.mesh != nullptr) {
       drawMesh(target, scene, draw);

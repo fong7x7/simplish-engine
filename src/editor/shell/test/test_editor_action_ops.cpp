@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-light-ops.h>
 #include <vector>
 
 using namespace eng::editor;
@@ -11,39 +12,78 @@ namespace {
 /// editor edits them.
 struct HistoryFixture {
   EditorActionHistory history;
-  std::vector<EditorPlacement> placements;
+  EditorDocument document;
 
-  /// Place asset @p asset at the end of the list, as `dropAsset` does.
+  /// The placements, which most of these tests are about.
+  [[nodiscard]] std::vector<EditorPlacement>& placements() {
+    return document.placements;
+  }
+
+  /// Place asset @p asset at the end of the list, as a drop does.
   void place(size_t asset) {
-    performEditorAction(history, placements,
+    performEditorAction(history, document,
                         {.kind = EditorActionKind::PLACE_ASSET,
-                         .index = placements.size(),
+                         .index = document.placements.size(),
                          .placement = {asset, {0.0f, 0.0f}, {}}});
   }
 
   /// Move the placement at @p index, as a finished property edit does.
   void move(size_t index, float x) {
-    EditorPlacement moved = placements[index];
+    EditorPlacement moved = document.placements[index];
     moved.position.x = x;
-    performEditorAction(history, placements,
+    performEditorAction(history, document,
                         {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
                          .index = index,
                          .placement = moved,
-                         .prior = placements[index]});
+                         .prior = document.placements[index]});
   }
 
-  bool undo() { return undoEditorAction(history, placements); }
-  bool redo() { return redoEditorAction(history, placements); }
+  /// Add a light at the end of the list, as dropping one does.
+  void addLight(EditorLightKind kind) {
+    performEditorAction(history, document,
+                        {.kind = EditorActionKind::ADD_LIGHT,
+                         .index = document.lights.size(),
+                         .light = makeEditorLight(kind, {0.0f, 0.0f, 3.0f})});
+  }
+
+  /// Dim the light at @p index, as a finished property edit does.
+  void dim(size_t index, float intensity) {
+    EditorLight dimmed = document.lights[index];
+    dimmed.intensity = intensity;
+    performEditorAction(history, document,
+                        {.kind = EditorActionKind::TRANSFORM_LIGHT,
+                         .index = index,
+                         .light = dimmed,
+                         .light_prior = document.lights[index]});
+  }
+
+  bool undo() { return undoEditorAction(history, document); }
+  bool redo() { return redoEditorAction(history, document); }
 
   /// The asset indices currently placed, in order.
   [[nodiscard]] std::vector<size_t> assets() const {
     std::vector<size_t> out;
-    for (const EditorPlacement& placement : placements) {
+    for (const EditorPlacement& placement : document.placements) {
       out.push_back(placement.asset);
     }
     return out;
   }
 };
+
+/// A selection of the placement at @p index.
+EditorSelection placementAt(size_t index) {
+  return {EditorSelectionKind::PLACEMENT, index};
+}
+
+/// A selection of the light at @p index.
+EditorSelection lightAt(size_t index) {
+  return {EditorSelectionKind::LIGHT, index};
+}
+
+/// Whether two selections name the same entry of the same list.
+bool sameSelection(EditorSelection a, EditorSelection b) {
+  return a.kind == b.kind && a.index == b.index;
+}
 
 }  // namespace
 
@@ -67,7 +107,7 @@ TEST_CASE("undo reverts the newest action and redo reapplies it") {
   fx.place(1);
 
   REQUIRE(fx.undo());
-  REQUIRE(fx.placements.empty());
+  REQUIRE(fx.placements().empty());
   REQUIRE_FALSE(canUndoEditorAction(fx.history));
   REQUIRE(canRedoEditorAction(fx.history));
 
@@ -77,17 +117,17 @@ TEST_CASE("undo reverts the newest action and redo reapplies it") {
 
 TEST_CASE("a redone placement comes back where it was") {
   HistoryFixture fx;
-  performEditorAction(fx.history, fx.placements,
+  performEditorAction(fx.history, fx.document,
                       {.kind = EditorActionKind::PLACE_ASSET,
                        .index = 0,
                        .placement = {3, {2.0f, -5.0f}}});
   REQUIRE(fx.undo());
   REQUIRE(fx.redo());
 
-  REQUIRE(fx.placements.size() == 1);
-  REQUIRE(fx.placements[0].asset == 3);
-  REQUIRE(fx.placements[0].position.x == 2.0f);
-  REQUIRE(fx.placements[0].position.y == -5.0f);
+  REQUIRE(fx.placements().size() == 1);
+  REQUIRE(fx.placements()[0].asset == 3);
+  REQUIRE(fx.placements()[0].position.x == 2.0f);
+  REQUIRE(fx.placements()[0].position.y == -5.0f);
 }
 
 TEST_CASE("actions undo newest-first and redo oldest-first") {
@@ -112,7 +152,7 @@ TEST_CASE("undo past the oldest action does nothing") {
   REQUIRE(fx.undo());
 
   REQUIRE_FALSE(fx.undo());
-  REQUIRE(fx.placements.empty());
+  REQUIRE(fx.placements().empty());
   REQUIRE(canRedoEditorAction(fx.history));
 }
 
@@ -149,7 +189,7 @@ TEST_CASE("the history is unbounded within a session") {
   for (size_t i = 0; i < COUNT; ++i) {
     REQUIRE(fx.undo());
   }
-  REQUIRE(fx.placements.empty());
+  REQUIRE(fx.placements().empty());
 }
 
 TEST_CASE("clearing forgets applied and reverted actions alike") {
@@ -169,7 +209,7 @@ TEST_CASE("a transform is applied when it is recorded") {
   HistoryFixture fixture;
   fixture.place(0);
   fixture.move(0, 4.5f);
-  REQUIRE(fixture.placements[0].position.x == 4.5f);
+  REQUIRE(fixture.placements()[0].position.x == 4.5f);
 }
 
 TEST_CASE("undoing a transform puts the placement back where it was") {
@@ -178,10 +218,10 @@ TEST_CASE("undoing a transform puts the placement back where it was") {
   fixture.move(0, 4.5f);
 
   REQUIRE(fixture.undo());
-  REQUIRE(fixture.placements[0].position.x == 0.0f);
+  REQUIRE(fixture.placements()[0].position.x == 0.0f);
   // The placement itself is still there: a transform moves one, it does not
   // add or remove one.
-  REQUIRE(fixture.placements.size() == 1);
+  REQUIRE(fixture.placements().size() == 1);
 }
 
 TEST_CASE("redoing a transform moves the placement again") {
@@ -191,7 +231,7 @@ TEST_CASE("redoing a transform moves the placement again") {
   REQUIRE(fixture.undo());
 
   REQUIRE(fixture.redo());
-  REQUIRE(fixture.placements[0].position.x == 4.5f);
+  REQUIRE(fixture.placements()[0].position.x == 4.5f);
 }
 
 TEST_CASE("a run of transforms undoes one gesture at a time") {
@@ -202,30 +242,31 @@ TEST_CASE("a run of transforms undoes one gesture at a time") {
   fixture.move(0, 3.0f);
 
   REQUIRE(fixture.undo());
-  REQUIRE(fixture.placements[0].position.x == 2.0f);
+  REQUIRE(fixture.placements()[0].position.x == 2.0f);
   REQUIRE(fixture.undo());
-  REQUIRE(fixture.placements[0].position.x == 1.0f);
+  REQUIRE(fixture.placements()[0].position.x == 1.0f);
   REQUIRE(fixture.undo());
-  REQUIRE(fixture.placements[0].position.x == 0.0f);
+  REQUIRE(fixture.placements()[0].position.x == 0.0f);
 }
 
 TEST_CASE("a transform names a placement that is no longer there") {
   // The history and the document have diverged, which is a bug elsewhere.
   // Writing past the end would be a worse answer than doing nothing.
-  std::vector<EditorPlacement> placements;
+  EditorDocument document;
   EditorActionHistory history;
-  performEditorAction(history, placements,
+  performEditorAction(history, document,
                       {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
                        .index = 3,
                        .placement = {},
                        .prior = {}});
-  REQUIRE(placements.empty());
+  REQUIRE(document.placements.empty());
 }
 
 TEST_CASE("undoing a placement drops a selection of it") {
   const EditorAction placed{
       .kind = EditorActionKind::PLACE_ASSET, .index = 2, .placement = {}};
-  REQUIRE(editorSelectionAfterUndo(placed, 2) == EDITOR_PLACEMENT_NONE);
+  REQUIRE(editorSelectionAfterUndo(placed, placementAt(2)).kind ==
+          EditorSelectionKind::NONE);
 }
 
 TEST_CASE("undoing a placement renumbers a selection after it") {
@@ -233,17 +274,30 @@ TEST_CASE("undoing a placement renumbers a selection after it") {
       .kind = EditorActionKind::PLACE_ASSET, .index = 1, .placement = {}};
   // Everything past the removed entry slid down one, and the selection has
   // to slide with it or it names a different placement.
-  REQUIRE(editorSelectionAfterUndo(placed, 3) == 2);
-  REQUIRE(editorSelectionAfterUndo(placed, 0) == 0);
-  REQUIRE(editorSelectionAfterUndo(placed, EDITOR_PLACEMENT_NONE) ==
-          EDITOR_PLACEMENT_NONE);
+  REQUIRE(sameSelection(editorSelectionAfterUndo(placed, placementAt(3)),
+                        placementAt(2)));
+  REQUIRE(sameSelection(editorSelectionAfterUndo(placed, placementAt(0)),
+                        placementAt(0)));
+  REQUIRE(editorSelectionAfterUndo(placed, EditorSelection{}).kind ==
+          EditorSelectionKind::NONE);
+}
+
+TEST_CASE("undoing a placement leaves a selected light alone") {
+  const EditorAction placed{
+      .kind = EditorActionKind::PLACE_ASSET, .index = 0, .placement = {}};
+  // The two lists are numbered separately, so an edit to one says nothing
+  // about a selection in the other.
+  REQUIRE(
+      sameSelection(editorSelectionAfterUndo(placed, lightAt(2)), lightAt(2)));
 }
 
 TEST_CASE("redoing a placement renumbers a selection at or after it") {
   const EditorAction placed{
       .kind = EditorActionKind::PLACE_ASSET, .index = 1, .placement = {}};
-  REQUIRE(editorSelectionAfterRedo(placed, 1) == 2);
-  REQUIRE(editorSelectionAfterRedo(placed, 0) == 0);
+  REQUIRE(sameSelection(editorSelectionAfterRedo(placed, placementAt(1)),
+                        placementAt(2)));
+  REQUIRE(sameSelection(editorSelectionAfterRedo(placed, placementAt(0)),
+                        placementAt(0)));
 }
 
 TEST_CASE("undoing or redoing a transform selects what it moved") {
@@ -252,6 +306,53 @@ TEST_CASE("undoing or redoing a transform selects what it moved") {
                            .placement = {},
                            .prior = {}};
   // A reverted move nobody can see is a reverted move nobody trusts.
-  REQUIRE(editorSelectionAfterUndo(moved, EDITOR_PLACEMENT_NONE) == 4);
-  REQUIRE(editorSelectionAfterRedo(moved, 1) == 4);
+  REQUIRE(sameSelection(editorSelectionAfterUndo(moved, EditorSelection{}),
+                        placementAt(4)));
+  REQUIRE(sameSelection(editorSelectionAfterRedo(moved, placementAt(1)),
+                        placementAt(4)));
+}
+
+TEST_CASE("adding a light is undone and redone like a placement") {
+  HistoryFixture fx;
+  fx.addLight(EditorLightKind::POINT);
+  REQUIRE(fx.document.lights.size() == 1);
+  REQUIRE(fx.document.lights[0].kind == EditorLightKind::POINT);
+
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.lights.empty());
+  REQUIRE(fx.redo());
+  REQUIRE(fx.document.lights.size() == 1);
+}
+
+TEST_CASE("a light edit is undone without touching the placements") {
+  HistoryFixture fx;
+  fx.place(3);
+  fx.addLight(EditorLightKind::DIRECTIONAL);
+  fx.dim(0, 0.25f);
+  REQUIRE(fx.document.lights[0].intensity == 0.25f);
+
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.lights[0].intensity == 1.0f);
+  // The placement was never part of any of that.
+  REQUIRE(fx.assets() == std::vector<size_t>{3});
+}
+
+TEST_CASE("undoing a light drops a selection of it") {
+  const EditorAction added{.kind = EditorActionKind::ADD_LIGHT, .index = 1};
+  REQUIRE(editorSelectionAfterUndo(added, lightAt(1)).kind ==
+          EditorSelectionKind::NONE);
+  REQUIRE(
+      sameSelection(editorSelectionAfterUndo(added, lightAt(2)), lightAt(1)));
+  // A placement selected while a light is undone stays where it was.
+  REQUIRE(sameSelection(editorSelectionAfterUndo(added, placementAt(2)),
+                        placementAt(2)));
+}
+
+TEST_CASE("undoing or redoing a light edit selects the light") {
+  const EditorAction dimmed{.kind = EditorActionKind::TRANSFORM_LIGHT,
+                            .index = 2};
+  REQUIRE(sameSelection(editorSelectionAfterUndo(dimmed, EditorSelection{}),
+                        lightAt(2)));
+  REQUIRE(sameSelection(editorSelectionAfterRedo(dimmed, placementAt(0)),
+                        lightAt(2)));
 }

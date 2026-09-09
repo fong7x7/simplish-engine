@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <cstdlib>
+#include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-panel.h>
@@ -182,7 +183,7 @@ TEST_CASE("a value box paints against the panel behind it") {
 
 TEST_CASE("both step buttons paint on every row") {
   const PropertiesCapture capture;
-  for (EditorPropertyField field : EDITOR_PROPERTY_FIELDS) {
+  for (EditorPropertyField field : EDITOR_PLACEMENT_FIELDS) {
     const eng::Rect row = capture.panel().fieldRowRect(field);
     const eng::Rect decrement = propertyDecrementRect(row);
     const eng::Rect increment = propertyIncrementRect(row);
@@ -212,6 +213,40 @@ TEST_CASE("the properties capture can be written to PNG for inspection") {
   // Honour CTest's working directory; the file is an artifact, not an
   // assertion, so a write failure is reported rather than asserted on.
   const std::string path = "editor-properties-capture.png";
+  const bool written =
+      eng::GuiSoftwareRasterizer::writePng(capture.image, path);
+  INFO("wrote " << path << ": " << written);
+  SUCCEED();
+}
+
+TEST_CASE("a light's panel lists its own rows, not a placement's") {
+  PropertiesCapture capture;
+  EditorLight light =
+      makeEditorLight(EditorLightKind::POINT, {12.0f, -3.5f, 3.0f});
+  light.color = {1.0f, 0.85f, 0.6f};
+  capture.panelMutable().setSelection("Point Light", light);
+  capture.recapture();
+
+  // The range row is where a placement's fourth row — a rotation — would
+  // be, so a panel showing one is unmistakably showing a light.
+  const eng::Rect range =
+      capture.panel().fieldRowRect(EditorPropertyField::RANGE);
+  REQUIRE(range.w > 0.0f);
+  REQUIRE(capture.panel().fieldRowRect(EditorPropertyField::ROTATION_X).w ==
+          0.0f);
+  REQUIRE_FALSE(
+      matches(capture.pixel(range.x + range.w * 0.5f, range.y + range.h * 0.5f),
+              eng::THEME_PANEL));
+}
+
+TEST_CASE("the light properties capture can be written for inspection") {
+  PropertiesCapture capture;
+  capture.panelMutable().setSelection(
+      "Point Light",
+      makeEditorLight(EditorLightKind::POINT, {12.0f, -3.5f, 3.0f}));
+  capture.recapture();
+
+  const std::string path = "editor-properties-light-capture.png";
   const bool written =
       eng::GuiSoftwareRasterizer::writePng(capture.image, path);
   INFO("wrote " << path << ": " << written);

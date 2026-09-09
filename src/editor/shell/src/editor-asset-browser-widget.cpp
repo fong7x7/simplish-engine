@@ -139,13 +139,19 @@ void EditorAssetBrowserWidget::rebuildRows() {
 }
 
 void EditorAssetBrowserWidget::rebuildHeaderText() {
-  const std::filesystem::path& relative =
-      tree_.folders[selected_folder_].relative_path;
+  const EditorAssetFolder& folder = tree_.folders[selected_folder_];
+  // A folder standing for no directory is a section of its own — the
+  // built-in General one — and the header names it rather than filing it
+  // under a directory it does not come from.
+  if (folder.relative_path.empty() && !folder.name.empty()) {
+    header_text_ = folder.name;
+    return;
+  }
   // The pane already names the root; the header names the panel, and then
   // says how far into it the grid is showing.
   header_text_ = "Assets";
-  if (!relative.empty()) {
-    header_text_ += " — " + relative.generic_string();
+  if (!folder.relative_path.empty()) {
+    header_text_ += " — " + folder.relative_path.generic_string();
   }
 }
 

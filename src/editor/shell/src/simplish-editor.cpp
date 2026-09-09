@@ -6,6 +6,8 @@
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-thumbnail-cache.h>
@@ -74,6 +76,17 @@ namespace {
     return a.position.x == b.position.x && a.position.y == b.position.y &&
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z;
+  }
+
+  /// Whether two lights shine exactly alike, for the same reason
+  /// `sameTransform` compares placements exactly.
+  bool sameLight(const EditorLight& a, const EditorLight& b) {
+    return a.kind == b.kind && a.position.x == b.position.x &&
+           a.position.y == b.position.y && a.position.z == b.position.z &&
+           a.direction.x == b.direction.x && a.direction.y == b.direction.y &&
+           a.direction.z == b.direction.z && a.color.x == b.color.x &&
+           a.color.y == b.color.y && a.color.z == b.color.z &&
+           a.intensity == b.intensity && a.range == b.range;
   }
 
   /// Stands in for an asset a placement names but the list no longer has.
@@ -216,8 +229,8 @@ void SimplishEditor::initMenuBar(GuiWidgetTree& tree) {
 
 void SimplishEditor::initAssetPanel(GuiWidgetTree& tree) {
   auto panel = std::make_unique<EditorAssetBrowserWidget>();
-  panel->on_asset_dropped = [this](size_t index, float x, float y) {
-    dropAsset(index, x, y);
+  panel->on_asset_dropped = [this](size_t entry, float x, float y) {
+    dropBrowserEntry(entry, x, y);
   };
   asset_panel_id_ = tree.insertExternalWidget(std::move(panel), root_panel_);
 }
@@ -243,8 +256,8 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
     bar->init(tree);
   }
   auto viewport = std::make_unique<EditorViewportWidget>();
-  viewport->on_placement_picked = [this](int index) {
-    selectPlacement(index);
+  viewport->on_placement_picked = [this](int marker) {
+    selectMarker(marker);
   };
   viewport_id_ = tree.insertExternalWidget(std::move(viewport), root_panel_);
   initPropertiesPanel(tree);
@@ -377,12 +390,15 @@ void SimplishEditor::applyProjectToWidgets() {
 
 void SimplishEditor::refreshAssets() {
   // Placements index into the asset list, and a rescan renumbers it, so
-  // they go with it — and the history with them, since every action names a
-  // placement by an index that is about to mean something else. Nothing is
+  // they go with it — and the history with them, since every action names an
+  // entry by an index that is about to mean something else. The lights go
+  // too: they name no asset, but they belong to the level being closed, and
+  // leaving them behind would light the next project with them. Nothing is
   // persisted yet either way.
-  state_.placements.clear();
-  state_.selection = EDITOR_PLACEMENT_NONE;
-  edit_prior_.reset();
+  state_.document = EditorDocument{};
+  state_.selection = EditorSelection{};
+  placement_prior_.reset();
+  light_prior_.reset();
   clearEditorActions(state_.history);
   // The textures belong to the list about to be replaced, and nothing else
   // will ever hold their handles again.
@@ -393,15 +409,23 @@ void SimplishEditor::refreshAssets() {
           : EditorAssetScan{};
   state_.asset_tree = buildEditorAssetTree(scan);
   state_.assets = std::move(scan.assets);
+  // The built-in items are numbered after the scanned assets, which is the
+  // numbering the browser reports a drop in and the tree holds.
+  appendEditorGeneralSection(state_.asset_tree, state_.assets.size());
   refreshAssetPanel();
   applyEditToChrome();
 }
 
 void SimplishEditor::refreshAssetPanel() {
   std::vector<std::string> names;
-  names.reserve(state_.assets.size());
+  names.reserve(state_.assets.size() + EDITOR_GENERAL_ITEM_COUNT);
   for (const EditorAsset& asset : state_.assets) {
     names.push_back(asset.name);
+  }
+  // Named after the assets, in the order the General section numbers them,
+  // because that is the numbering its folder holds.
+  for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
+    names.emplace_back(editorGeneralItemName(item));
   }
   if (auto* panel = dynamic_cast<EditorAssetBrowserWidget*>(
           guiWidgetTree().findWidget(asset_panel_id_))) {
@@ -493,6 +517,11 @@ size_t SimplishEditor::pumpThumbnailRange(EditorAssetBrowserWidget& browser,
   for (size_t slot = first; slot < last && made < THUMBNAILS_PER_FRAME;
        ++slot) {
     const size_t asset = shown[slot];
+    // A built-in item's card stands for no file, so there is no mesh to
+    // make a picture of; its card shows the empty well instead.
+    if (asset >= state_.assets.size()) {
+      continue;
+    }
     if (ensureAssetThumbnail(asset)) {
       browser.setAssetThumbnail(asset, state_.assets[asset].thumbnail);
       ++made;
@@ -526,46 +555,119 @@ bool SimplishEditor::ensureAssetMesh(size_t index) {
   return !asset.load_failed;
 }
 
-void SimplishEditor::dropAsset(size_t index, float x, float y) {
+void SimplishEditor::dropBrowserEntry(size_t entry, float x, float y) {
   EditorViewportWidget* viewport = viewportWidget();
-  if (viewport == nullptr || index >= state_.assets.size()) {
-    return;
-  }
   // A drop anywhere but the viewport is not a placement.
-  if (!containsPoint(viewport->rect, x, y)) {
-    return;
-  }
-  if (!ensureAssetMesh(index)) {
+  if (viewport == nullptr || !containsPoint(viewport->rect, x, y)) {
     return;
   }
   const IsoView view = makeIsoView(viewport->camera, viewport->rect);
   const WorldPoint world = screenToWorld(view, {x, y});
-  placeAsset(index, {std::floor(world.x), std::floor(world.y)});
+  placeBrowserEntry(entry, {std::floor(world.x), std::floor(world.y)});
+}
+
+void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
+  if (entry < state_.assets.size()) {
+    if (ensureAssetMesh(entry)) {
+      placeAsset(entry, tile);
+    }
+    return;
+  }
+  // Past the assets are the built-in items, in the order the General
+  // section lists them. An entry past those is a drop the browser should
+  // never have reported.
+  const size_t item = entry - state_.assets.size();
+  if (item < EDITOR_GENERAL_ITEM_COUNT) {
+    placeLight(EDITOR_GENERAL_ITEMS[item], tile);
+  }
 }
 
 void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
   // Appended, so undo takes the newest placement off the end and redo puts
   // it back at the same index.
-  const auto placed = static_cast<int>(state_.placements.size());
-  performEditorAction(state_.history, state_.placements,
-                      {.kind = EditorActionKind::PLACE_ASSET,
-                       .index = state_.placements.size(),
-                       .placement = {index, position, {}}});
+  const size_t placed = state_.document.placements.size();
+  recordAction({.kind = EditorActionKind::PLACE_ASSET,
+                .index = placed,
+                .placement = {index, position, {}}});
   // Selecting what was just dropped opens the panel on it, which is what
   // somebody who wants it a quarter-tile to the left is about to reach for.
-  state_.selection = placed;
-  edit_prior_.reset();
-  applyEditToChrome();
+  select({EditorSelectionKind::PLACEMENT, placed});
 }
 
-void SimplishEditor::selectPlacement(int index) {
-  const auto count = static_cast<int>(state_.placements.size());
-  state_.selection =
-      (index >= 0 && index < count) ? index : EDITOR_PLACEMENT_NONE;
-  // A selection change ends any edit the panel had in flight; the next one
-  // starts from whatever is selected now.
-  edit_prior_.reset();
+void SimplishEditor::placeLight(EditorGeneralItem item, WorldPoint tile) {
+  // Over the middle of the tile it was dropped on, and above head height,
+  // so a point light lights what is around it rather than sitting inside a
+  // prop standing there.
+  const WorldPoint position{tile.x + 0.5f, tile.y + 0.5f,
+                            EDITOR_LIGHT_DROP_HEIGHT};
+  const size_t added = state_.document.lights.size();
+  recordAction(
+      {.kind = EditorActionKind::ADD_LIGHT,
+       .index = added,
+       .light = makeEditorLight(editorGeneralItemLightKind(item), position)});
+  select({EditorSelectionKind::LIGHT, added});
+}
+
+size_t SimplishEditor::selectionCount() const {
+  switch (state_.selection.kind) {
+    case EditorSelectionKind::PLACEMENT:
+      return state_.document.placements.size();
+    case EditorSelectionKind::LIGHT:
+      return state_.document.lights.size();
+    case EditorSelectionKind::NONE:
+      // Nothing selected has no list, so no index is ever in range — which
+      // is what every caller here asks this in order to find out.
+      return 0;
+  }
+  return 0;
+}
+
+bool SimplishEditor::isSelected(EditorSelectionKind kind, size_t index) const {
+  return selectionIs(state_.selection, kind) && state_.selection.index == index;
+}
+
+void SimplishEditor::select(EditorSelection selection) {
+  // A selection change ends any edit the panel had in flight, and that edit
+  // belongs to what is selected now rather than to what is about to be — so
+  // it is recorded before the selection moves off it. Dropping it instead
+  // would leave the value the drag reached in the document with no action
+  // describing it, and nothing able to undo it.
+  commitPendingEdit();
+  state_.selection = selection;
+  if (state_.selection.index >= selectionCount()) {
+    state_.selection = EditorSelection{};
+  }
   applySelectionToChrome();
+}
+
+void SimplishEditor::selectMarker(int marker) {
+  if (marker < 0) {
+    select({});
+    return;
+  }
+  // Markers are the placements and then the lights, so which list a marker
+  // names is which half of that run it falls in.
+  const auto index = static_cast<size_t>(marker);
+  const size_t placements = state_.document.placements.size();
+  select(index < placements
+             ? EditorSelection{EditorSelectionKind::PLACEMENT, index}
+             : EditorSelection{EditorSelectionKind::LIGHT, index - placements});
+}
+
+void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
+  const EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  // An asset the list no longer has leaves the line blank rather than
+  // naming whatever took its number.
+  const std::string name = placement.asset < state_.assets.size()
+                               ? state_.assets[placement.asset].name
+                               : std::string{};
+  panel.setSelection(name, placement);
+}
+
+void SimplishEditor::showLightSelection(EditorPropertiesWidget& panel) {
+  const EditorLight& light = state_.document.lights[state_.selection.index];
+  panel.setSelection(std::string(editorLightKindName(light.kind)), light);
 }
 
 void SimplishEditor::applySelectionToChrome() {
@@ -573,59 +675,113 @@ void SimplishEditor::applySelectionToChrome() {
   if (panel == nullptr) {
     return;
   }
-  const auto count = static_cast<int>(state_.placements.size());
-  if (state_.selection < 0 || state_.selection >= count) {
+  if (state_.selection.index >= selectionCount()) {
     panel->clearSelection();
+  } else if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
+    showPlacementSelection(*panel);
   } else {
-    const EditorPlacement& placement =
-        state_.placements[static_cast<size_t>(state_.selection)];
-    const std::string name = placement.asset < state_.assets.size()
-                                 ? state_.assets[placement.asset].name
-                                 : std::string{};
-    panel->setSelection(name, placement);
+    showLightSelection(*panel);
   }
   refreshPlacementMarkers();
 }
 
 void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
                                        EditorPropertyEdit edit) {
-  const auto count = static_cast<int>(state_.placements.size());
-  if (state_.selection < 0 || state_.selection >= count) {
+  if (state_.selection.index >= selectionCount()) {
     return;
   }
-  EditorPlacement& placement =
-      state_.placements[static_cast<size_t>(state_.selection)];
-  // The first change of a gesture is what the eventual undo restores, so
-  // the placement is copied before it is written to.
-  if (!edit_prior_.has_value()) {
-    edit_prior_ = placement;
-  }
-  setEditorPropertyValue(placement, field, value);
-  if (edit == EditorPropertyEdit::COMMIT) {
-    commitPropertyEdit();
+  if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
+    applyPlacementEdit(field, value, edit);
+  } else {
+    applyLightEdit(field, value, edit);
   }
   refreshPlacementMarkers();
 }
 
-void SimplishEditor::commitPropertyEdit() {
-  if (!edit_prior_.has_value()) {
+void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
+                                        EditorPropertyEdit edit) {
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  // The first change of a gesture is what the eventual undo restores, so
+  // the placement is copied before it is written to.
+  if (!placement_prior_.has_value()) {
+    placement_prior_ = placement;
+  }
+  setEditorPropertyValue(placement, field, value);
+  if (edit == EditorPropertyEdit::COMMIT) {
+    commitPlacementEdit();
+  }
+}
+
+void SimplishEditor::applyLightEdit(EditorPropertyField field, float value,
+                                    EditorPropertyEdit edit) {
+  EditorLight& light = state_.document.lights[state_.selection.index];
+  if (!light_prior_.has_value()) {
+    light_prior_ = light;
+  }
+  setEditorLightValue(light, field, value);
+  if (edit == EditorPropertyEdit::COMMIT) {
+    commitLightEdit();
+  }
+}
+
+void SimplishEditor::commitPendingEdit() {
+  // One or the other, never both: a gesture edits what is selected, and one
+  // thing is selected. Each is offered the chance and the one holding a
+  // prior takes it.
+  commitPlacementEdit();
+  commitLightEdit();
+}
+
+bool SimplishEditor::editSubjectSelected(EditorSelectionKind kind) const {
+  return selectionIs(state_.selection, kind) &&
+         state_.selection.index < selectionCount();
+}
+
+void SimplishEditor::recordAction(const EditorAction& action) {
+  performEditorAction(state_.history, state_.document, action);
+  applyEditToChrome();
+}
+
+void SimplishEditor::commitPlacementEdit() {
+  if (!placement_prior_.has_value()) {
     return;
   }
-  const EditorPlacement prior = *edit_prior_;
-  edit_prior_.reset();
+  // Taken rather than read: the next gesture starts clean whether or not
+  // this one turns out to be worth recording.
+  const EditorPlacement prior = *std::exchange(placement_prior_, std::nullopt);
+  if (!editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
   const EditorPlacement& placement =
-      state_.placements[static_cast<size_t>(state_.selection)];
+      state_.document.placements[state_.selection.index];
   if (sameTransform(prior, placement)) {
     return;
   }
   // The placement already holds the new value, so the action is recorded
   // against it rather than applied over it.
-  performEditorAction(state_.history, state_.placements,
-                      {.kind = EditorActionKind::TRANSFORM_PLACEMENT,
-                       .index = static_cast<size_t>(state_.selection),
-                       .placement = placement,
-                       .prior = prior});
-  applyEditToChrome();
+  recordAction({.kind = EditorActionKind::TRANSFORM_PLACEMENT,
+                .index = state_.selection.index,
+                .placement = placement,
+                .prior = prior});
+}
+
+void SimplishEditor::commitLightEdit() {
+  if (!light_prior_.has_value()) {
+    return;
+  }
+  const EditorLight prior = *std::exchange(light_prior_, std::nullopt);
+  if (!editSubjectSelected(EditorSelectionKind::LIGHT)) {
+    return;
+  }
+  const EditorLight& light = state_.document.lights[state_.selection.index];
+  if (sameLight(prior, light)) {
+    return;
+  }
+  recordAction({.kind = EditorActionKind::TRANSFORM_LIGHT,
+                .index = state_.selection.index,
+                .light = light,
+                .light_prior = prior});
 }
 
 void SimplishEditor::applyEditToChrome() {
@@ -637,14 +793,25 @@ void SimplishEditor::applyEditToChrome() {
 }
 
 EditorPlacementMarker SimplishEditor::placementMarker(size_t index) {
-  const EditorPlacement& placement = state_.placements[index];
+  const EditorPlacement& placement = state_.document.placements[index];
   // An asset the list no longer has is measured as an empty one, which
   // reports the unit box on its tile rather than nothing at all.
   const EditorAsset& asset = placement.asset < state_.assets.size()
                                  ? state_.assets[placement.asset]
                                  : UNKNOWN_ASSET;
   return {placementWorldBounds(asset, placement),
-          static_cast<int>(index) == state_.selection};
+          isSelected(EditorSelectionKind::PLACEMENT, index)};
+}
+
+EditorPlacementMarker SimplishEditor::lightMarker(size_t index) {
+  const EditorLight& light = state_.document.lights[index];
+  // A light has no geometry, so its marker is a small box about where it
+  // stands: something to see it by, and something to click.
+  const Vec3 centre{light.position.x, light.position.y, light.position.z};
+  const float reach = EDITOR_LIGHT_MARKER_RADIUS;
+  return {{{centre.x - reach, centre.y - reach, centre.z - reach},
+           {centre.x + reach, centre.y + reach, centre.z + reach}},
+          isSelected(EditorSelectionKind::LIGHT, index)};
 }
 
 void SimplishEditor::refreshPlacementMarkers() {
@@ -652,16 +819,36 @@ void SimplishEditor::refreshPlacementMarkers() {
   if (viewport == nullptr) {
     return;
   }
+  const EditorDocument& document = state_.document;
   viewport->placement_markers.clear();
-  viewport->placement_markers.reserve(state_.placements.size());
-  for (size_t i = 0; i < state_.placements.size(); ++i) {
+  viewport->placement_markers.reserve(document.placements.size() +
+                                      document.lights.size());
+  // Placements first and lights after, which is the order `selectMarker`
+  // reads a pick back in.
+  for (size_t i = 0; i < document.placements.size(); ++i) {
     viewport->placement_markers.push_back(placementMarker(i));
+  }
+  for (size_t i = 0; i < document.lights.size(); ++i) {
+    viewport->placement_markers.push_back(lightMarker(i));
+  }
+}
+
+void SimplishEditor::buildSceneLights() {
+  scene_lights_.clear();
+  for (const EditorLight& light : state_.document.lights) {
+    // Past the shader's fixed loop the extra lights simply do not reach it;
+    // dropping them here says so in one place rather than leaving the
+    // renderer to truncate silently.
+    if (scene_lights_.size() >= MESH_MAX_LIGHTS) {
+      break;
+    }
+    scene_lights_.push_back(makeMeshLight(light));
   }
 }
 
 void SimplishEditor::buildSceneInstances() {
   scene_instances_.clear();
-  for (const auto& placement : state_.placements) {
+  for (const auto& placement : state_.document.placements) {
     if (placement.asset >= state_.assets.size()) {
       continue;
     }
@@ -684,7 +871,7 @@ RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   eng::RhiDevice* device = rhiDevice();
   // No placements means no scene pass at all, which leaves the frame
   // exactly as it was before any of this existed.
-  if (device == nullptr || state_.placements.empty()) {
+  if (device == nullptr || state_.document.placements.empty()) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -712,6 +899,7 @@ SimplishEditor::sceneDrawParams(const EditorViewportWidget& viewport) {
       makeIsoViewProjection(makeIsoView(viewport.camera, viewport.rect),
                             {viewport.rect, width, height});
   params.instances = scene_instances_;
+  params.lights = scene_lights_;
   params.viewport = surfaceViewport();
   params.scissor = toSurfaceScissor(
       viewport.rect,
@@ -725,6 +913,7 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
     return;
   }
   buildSceneInstances();
+  buildSceneLights();
   mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
 }
 
@@ -799,6 +988,10 @@ bool SimplishEditor::runProjectCommand(EditorMenuCommand command) {
 }
 
 void SimplishEditor::runUndo() {
+  // A drag still in flight has already changed the document, so it is
+  // recorded before the history is walked back — which makes it the thing
+  // this undo reverts, rather than a change undo cannot reach.
+  commitPendingEdit();
   if (!canUndoEditorAction(state_.history)) {
     return;
   }
@@ -806,19 +999,20 @@ void SimplishEditor::runUndo() {
   // and it is what says where the selection lands.
   const EditorAction action =
       state_.history.actions[state_.history.applied - 1];
-  if (undoEditorAction(state_.history, state_.placements)) {
-    selectPlacement(editorSelectionAfterUndo(action, state_.selection));
+  if (undoEditorAction(state_.history, state_.document)) {
+    select(editorSelectionAfterUndo(action, state_.selection));
     applyEditToChrome();
   }
 }
 
 void SimplishEditor::runRedo() {
+  commitPendingEdit();
   if (!canRedoEditorAction(state_.history)) {
     return;
   }
   const EditorAction action = state_.history.actions[state_.history.applied];
-  if (redoEditorAction(state_.history, state_.placements)) {
-    selectPlacement(editorSelectionAfterRedo(action, state_.selection));
+  if (redoEditorAction(state_.history, state_.document)) {
+    select(editorSelectionAfterRedo(action, state_.selection));
     applyEditToChrome();
   }
 }
@@ -953,7 +1147,7 @@ bool SimplishEditor::handleSelectionKey(uint32_t key) {
   if (key != eng::client::DesktopPlatformKeycode::ESCAPE) {
     return false;
   }
-  selectPlacement(EDITOR_PLACEMENT_NONE);
+  select({});
   return true;
 }
 

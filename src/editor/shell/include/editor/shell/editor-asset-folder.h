@@ -25,12 +25,15 @@ struct EditorAssetFolder {
   std::string name;
   /// Path relative to the assets root. Empty for the root.
   std::filesystem::path relative_path;
-  /// Enclosing folder, or `EDITOR_ASSET_FOLDER_NONE` for the root.
+  /// Enclosing folder, or `EDITOR_ASSET_FOLDER_NONE` for a folder the pane
+  /// lists as a section of its own: the assets root, and the built-in
+  /// General section beside it.
   size_t parent = EDITOR_ASSET_FOLDER_NONE;
   /// Child folders, as indices into `EditorAssetTree::folders`, name-sorted.
   std::vector<size_t> child_folders{};
-  /// Assets held directly here, as indices into the scanned asset list,
-  /// name-sorted.
+  /// Entries held directly here, name-sorted. An entry is an index into
+  /// the browser's numbering: the scanned assets first, and the built-in
+  /// items numbered after them.
   std::vector<size_t> assets{};
 };
 

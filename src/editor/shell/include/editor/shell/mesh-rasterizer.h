@@ -11,16 +11,18 @@
 ///
 /// What it covers is everything fed *to* the GPU path: the view-projection
 /// matrix, the depth ordering that oblique projection demands, the
-/// placement transform, and the mesh data itself. If a model lands on the
-/// wrong tile, sits through the floor, or fails to occlude its neighbour,
-/// this sees it. The shaders themselves remain the user's to verify by
-/// running the editor.
+/// placement transform, the lights, and the mesh data itself. If a model
+/// lands on the wrong tile, sits through the floor, fails to occlude its
+/// neighbour, or is lit from the wrong side, this sees it. The shaders
+/// themselves remain the user's to verify by running the editor — this
+/// shading is written to match them, not derived from them.
 /// @par Threading Thread-safe (pure function over the scene it is given).
 
 #include <cstdint>
 #include <engine/gui/image-data.h>
 #include <engine/math/mat4.h>
 #include <engine/render-mesh/mesh-data.h>
+#include <engine/render-mesh/mesh-light.h>
 #include <span>
 #include <vector>
 
@@ -41,6 +43,10 @@ struct MeshRasterScene {
   Mat4 view_projection{};
   /// Draws, in any order — the depth buffer resolves them.
   std::span<const Draw> draws{};
+  /// Lights to shade by. Empty means the built-in key light, which is what
+  /// a thumbnail is rendered with and what a scene with no lights of its
+  /// own gets.
+  std::span<const MeshLight> lights{};
   /// Output width in pixels.
   uint32_t width = 1;
   /// Output height in pixels.

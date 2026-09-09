@@ -35,8 +35,8 @@ namespace eng {
 // (beginRenderPass..endRenderPass)
 // - dispatch must be outside a render pass
 // - Pipeline must be bound before draw/dispatch
-// - Optional: setVertexStageBytes / bindFragmentTexture before draw (backend-
-//   specific; defaults are no-ops)
+// - Optional: setVertexStageBytes / setFragmentStageBytes /
+//   bindFragmentTexture before draw (backend-specific; defaults are no-ops)
 // ============================================================================
 
 class RhiCommandList {
@@ -66,6 +66,11 @@ public:
   /// Push small vertex-stage constants (Metal: setVertexBytes). Default no-op.
   virtual void setVertexStageBytes(const void* data, size_t size,
                                    uint32_t slot);
+
+  /// Push small fragment-stage constants (Metal: setFragmentBytes). Default
+  /// no-op.
+  virtual void setFragmentStageBytes(const void* data, size_t size,
+                                     uint32_t slot);
 
   /// Bind a sampled texture for the fragment stage at `slot`. Default no-op.
   virtual void bindFragmentTexture(RhiTextureHandle texture, uint32_t slot);
@@ -136,6 +141,10 @@ protected:
 inline void RhiCommandList::setVertexStageBytes(const void* /*data*/,
                                                 size_t /*size*/,
                                                 uint32_t /*slot*/) {}
+
+inline void RhiCommandList::setFragmentStageBytes(const void* /*data*/,
+                                                  size_t /*size*/,
+                                                  uint32_t /*slot*/) {}
 
 inline void RhiCommandList::bindFragmentTexture(RhiTextureHandle /*texture*/,
                                                 uint32_t /*slot*/) {}

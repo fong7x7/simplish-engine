@@ -21,6 +21,10 @@ enum class EditorActionKind : uint8_t {
   PLACE_ASSET,
   /// A placement's transform was changed — moved, turned, or both.
   TRANSFORM_PLACEMENT,
+  /// A light was added to the world.
+  ADD_LIGHT,
+  /// A light's properties were changed — moved, aimed, dimmed, or tinted.
+  TRANSFORM_LIGHT,
 };
 
 }  // namespace eng::editor

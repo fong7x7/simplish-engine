@@ -6,13 +6,13 @@
 //   - Draws the dimetric level grid: tile lines, world origin axes, and a
 //     hover highlight on the tile under the cursor
 //   - The grid can be hidden without affecting axes, hover, or picking
-//   - Outlines the footprint of every placement, so placed assets are
+//   - Outlines the footprint of every marker it is given — the placements,
+//     and the boxes that stand in for lights — so what is in the level is
 //     visible even on a backend with no mesh pipeline
-//   - Draws the selected placement's box in the accent colour, so what the
+//   - Draws the selected marker's box in the accent colour, so what the
 //     properties panel is editing is unmistakable in the viewport
-//   - A left click that did not drag picks the placement under the cursor
-//     and reports it, or reports nothing when the click landed on bare
-//     ground
+//   - A left click that did not drag picks the marker under the cursor and
+//     reports it, or reports nothing when the click landed on bare ground
 //   - Marks where the 3D scene composites: grid, axes and placements paint
 //     under it, the hover highlight over it
 //   - Left-drag or middle-drag pans the camera; the world tracks the
@@ -27,8 +27,9 @@
 //   - A left press that moved more than a few pixels before release was a
 //     pan, not a click, and picks nothing — so panning never changes the
 //     selection out from under the panel
-//   - A pick reports an index into the marker list, which is the placement
-//     list: the editor decides what selecting one means
+//   - A pick reports an index into the marker list, and nothing about what
+//     that entry is: the editor lays the list out and decides what
+//     selecting one means
 //
 // Invariants:
 //   - The camera never rotates (ADR-003); only focus and zoom change
@@ -103,12 +104,14 @@ public:
   /// the grid is a drawing, not the source of tile coordinates.
   bool show_grid = true;
 
-  /// The placed assets, as boxes to outline and to pick against.
+  /// What the level holds, as boxes to outline and to pick against: the
+  /// placed assets, and then the lights, in the order the editor built them.
   ///
   /// The 3D meshes themselves are drawn in the scene pass, which the
   /// viewport widget has no part in — these outlines are the overlay that
   /// says where things are, and the only thing visible at all on a backend
-  /// without a mesh pipeline.
+  /// without a mesh pipeline. A light has no geometry to draw at all, so its
+  /// box is the whole of what shows it.
   std::vector<EditorPlacementMarker> placement_markers{};
 
   /// Raised on a left click that did not pan, with the index of the marker

@@ -9,14 +9,18 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
-//   - Clicking a placed asset selects it, outlines it in the viewport, and
-//     opens a properties panel down the right; the panel moves it along
-//     world X, Y and Z and turns it about all three, and clicking bare
-//     ground or pressing Escape puts the panel away again
-//   - Records every placement as an action, which Edit > Undo reverts and
-//     Edit > Redo reapplies; both rows are live only when they would do
-//     something, and both answer to Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z
-//   - Draws placed meshes in a depth-tested scene pass under the interface
+//   - Lists the built-in General section beside them, whose light sources
+//     drop into the world the same way and light every mesh in the scene
+//   - Clicking a placed asset or a light selects it, outlines it in the
+//     viewport, and opens a properties panel down the right; the panel
+//     moves and turns a placement, and aims, dims and tints a light, and
+//     clicking bare ground or pressing Escape puts the panel away again
+//   - Records every placement and every light as an action, which Edit >
+//     Undo reverts and Edit > Redo reapplies; both rows are live only when
+//     they would do something, and both answer to Ctrl/Cmd+Z and
+//     Ctrl/Cmd+Shift+Z
+//   - Draws placed meshes in a depth-tested scene pass under the interface,
+//     shaded by the lights the level holds
 //   - Opens a project from a path, updates the recent list, and reflects the
 //     project name in the window title and toolbar
 //   - File > New Project asks the OS for a location and name, then creates
@@ -31,14 +35,19 @@
 //     project-gated command, and it is disabled until one is open
 //   - Menu commands whose subsystem does not exist yet (save, cut, copy,
 //     paste, settings) are listed but disabled; see editor-menu-command.h
-//   - A rescan renumbers the asset list, so it drops the placements and the
+//   - A rescan renumbers the asset list, so it drops the document and the
 //     history together: an action holding an old index would otherwise undo
 //     into the new list, and the selection goes with them
-//   - Undo and redo renumber the placements, so the selection is moved with
-//     them rather than left pointing at whatever took the slot
+//   - A scene with no lights in it is lit by the renderer's built-in key
+//     light, so a project nobody has lit looks as it always did
+//   - Undo and redo renumber one of the document's lists, so the selection
+//     is moved with it rather than left pointing at whatever took the slot
 //   - A drag on a property scrubs a value continuously but records one
-//     history entry, taken against the placement as it was when the drag
-//     began
+//     history entry, taken against the entry as it was when the drag began
+//   - A drag ended by something other than the mouse — Escape, a click on
+//     another prop, an undo — is recorded rather than dropped: the value it
+//     reached is already in the document, and an unrecorded change is one
+//     nothing can undo
 //   - openProject failure: the reason is logged and the previous project (if
 //     any) stays open
 //   - Undo and redo are the one pair of keys that act on OS key-repeat, so
@@ -58,6 +67,7 @@
 #include <cstdint>
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
+#include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-properties-widget.h>
@@ -125,12 +135,18 @@ private:
   void refreshAssets();
   /// Push the scanned assets and their folders into the browser.
   void refreshAssetPanel();
-  /// Place the asset at @p index at a layout position, if that position is
-  /// over the viewport.
-  void dropAsset(size_t index, float x, float y);
+  /// Put what the browser dropped into the world, if it landed over the
+  /// viewport. The entry is the browser's numbering: an asset, or one of
+  /// the built-in items numbered after them.
+  void dropBrowserEntry(size_t entry, float x, float y);
+  /// Put the browser entry on @p tile, whichever list it belongs in.
+  void placeBrowserEntry(size_t entry, WorldPoint tile);
   /// Put the asset at @p index on the tile at @p position, as an action the
   /// user can undo.
   void placeAsset(size_t index, WorldPoint position);
+  /// Add the light a built-in item stands for, over the tile at @p tile, as
+  /// an action the user can undo.
+  void placeLight(EditorGeneralItem item, WorldPoint tile);
   /// Carry out the Edit menu's undo and redo. Returns false when the
   /// command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
@@ -142,17 +158,49 @@ private:
   bool handleSelectionKey(uint32_t key);
   /// Select a tool from a number key, if @p key is one of them.
   void handleToolKey(uint32_t key);
-  /// Select the placement at @p index, or nothing for
-  /// `EDITOR_PLACEMENT_NONE`. An index past the end selects nothing.
-  void selectPlacement(int index);
+  /// Select @p selection, or nothing when it names an entry the document
+  /// does not have.
+  void select(EditorSelection selection);
+  /// Select what a viewport pick reported: markers are the placements and
+  /// then the lights, so which list a marker belongs to is which half of
+  /// that run it falls in.
+  void selectMarker(int marker);
+  /// How many entries the list the selection names holds, and zero when
+  /// nothing is selected — so `index >= selectionCount()` is the one test
+  /// for "the selection names nothing that is there".
+  [[nodiscard]] size_t selectionCount() const;
+  /// Whether the entry at @p index of @p kind's list is the selected one.
+  [[nodiscard]] bool isSelected(EditorSelectionKind kind, size_t index) const;
   /// Push the selection into the properties panel and the viewport.
   void applySelectionToChrome();
-  /// Apply one property change to the selected placement, recording history
+  /// Show the selected placement's asset name and transform in @p panel.
+  void showPlacementSelection(EditorPropertiesWidget& panel);
+  /// Show the selected light's kind and properties in @p panel.
+  void showLightSelection(EditorPropertiesWidget& panel);
+  /// Apply one property change to whatever is selected, recording history
   /// when the gesture that produced it has finished.
   void applyPropertyEdit(EditorPropertyField field, float value,
                          EditorPropertyEdit edit);
-  /// Record the finished property edit as one undoable action.
-  void commitPropertyEdit();
+  /// Apply one property change to the selected placement.
+  void applyPlacementEdit(EditorPropertyField field, float value,
+                          EditorPropertyEdit edit);
+  /// Apply one property change to the selected light.
+  void applyLightEdit(EditorPropertyField field, float value,
+                      EditorPropertyEdit edit);
+  /// Finish whatever edit the panel had in flight, before anything other
+  /// than that panel changes the document or the selection.
+  void commitPendingEdit();
+  /// Whether the entry a finished gesture belongs to is still selected and
+  /// still there. An undo or a rescan between the last preview and the
+  /// commit takes the subject away, and there is then nothing to record
+  /// the gesture against.
+  [[nodiscard]] bool editSubjectSelected(EditorSelectionKind kind) const;
+  /// Carry out one action, record it, and show the result.
+  void recordAction(const EditorAction& action);
+  /// Record the finished placement edit as one undoable action.
+  void commitPlacementEdit();
+  /// Record the finished light edit as one undoable action.
+  void commitLightEdit();
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -187,10 +235,16 @@ private:
   sceneDrawParams(const EditorViewportWidget& viewport);
   /// Rebuild `scene_instances_` from the current placements.
   void buildSceneInstances();
-  /// Push placement boxes into the viewport for its overlay and picking.
+  /// Rebuild `scene_lights_` from the document's lights.
+  void buildSceneLights();
+  /// Push placement and light boxes into the viewport for its overlay and
+  /// picking, placements first.
   void refreshPlacementMarkers();
   /// The viewport's marker for the placement at @p index.
   [[nodiscard]] EditorPlacementMarker placementMarker(size_t index);
+  /// The viewport's marker for the light at @p index: the small box that
+  /// stands in for geometry a light does not have.
+  [[nodiscard]] EditorPlacementMarker lightMarker(size_t index);
   /// Whether anything the chrome's layout depends on has changed.
   [[nodiscard]] bool chromeNeedsLayout();
   /// The viewport widget, or nullptr before the chrome exists.
@@ -276,6 +330,9 @@ private:
   /// Instances rebuilt each frame from the placements. Kept as a member so
   /// a frame does not allocate.
   std::vector<MeshInstance> scene_instances_{};
+  /// Lights rebuilt each frame from the document, in the renderer's own
+  /// layout. A member for the same reason the instances are.
+  std::vector<MeshLight> scene_lights_{};
   /// Backing store for the title label's string_view.
   std::string title_text_{"Simplish Editor"};
   /// Message shown in place of the toolbar status while it lasts.
@@ -298,7 +355,10 @@ private:
   /// The selected placement as it was before the running property gesture,
   /// or nothing when no edit is in flight. This is the half of a transform
   /// action that undo restores.
-  std::optional<EditorPlacement> edit_prior_{};
+  std::optional<EditorPlacement> placement_prior_{};
+  /// The same for a light, since a gesture edits one or the other and the
+  /// two are restored into different lists.
+  std::optional<EditorLight> light_prior_{};
 };
 
 }  // namespace eng::editor

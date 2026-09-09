@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <engine/render-mesh/mesh-renderer.h>
 
@@ -5,8 +7,59 @@ namespace eng {
 
 namespace {
 
-  /// Vertex-stage slot the mesh shader reads its matrix from.
+  /// Vertex-stage slot the mesh shader reads its matrices from.
   constexpr uint32_t MESH_UNIFORM_SLOT = 1;
+
+  /// Fragment-stage slot the mesh shader reads its lights from.
+  constexpr uint32_t MESH_LIGHT_SLOT = 0;
+
+  /// What the vertex stage reads.
+  ///
+  /// Both matrices rather than their product: the fragment stage shades in
+  /// world space, so it needs the world position and the world normal, and
+  /// the vertex stage cannot recover either from a combined matrix.
+  struct VertexUniforms {
+    /// World-to-clip, shared by every instance of the draw.
+    Mat4 view_projection{};
+    /// Object-to-world for this instance.
+    Mat4 model{};
+  };
+
+  /// What the fragment stage reads: the light count, then the lights.
+  ///
+  /// A fixed array always sent whole, so a draw with no lights needs no
+  /// second code path in the shader and no second binding here.
+  struct alignas(16) FragmentLights {
+    /// How many entries of `lights` are live.
+    uint32_t count = 0;
+    /// The rest of the register the count sits in. The array after it is
+    /// read as `float4`s, which have to start on a register boundary.
+    uint32_t padding[3]{};
+    /// The lights, of which the first `count` are live.
+    MeshLight lights[MESH_MAX_LIGHTS]{};
+  };
+
+  // The shader's own struct puts the array one register in; padding that
+  // drifts here shifts every light the shader reads.
+  static_assert(offsetof(FragmentLights, lights) == 16,
+                "the lights follow the count's whole register");
+
+  /// The lights of a draw, in the layout the shader reads.
+  ///
+  /// An empty list becomes the one default light, which is the built-in key
+  /// light — see `mesh-light.h`. Lights past the array's length are
+  /// dropped: the shader's loop is a fixed length and cannot grow.
+  FragmentLights toFragmentLights(std::span<const MeshLight> lights) {
+    FragmentLights block;
+    if (lights.empty()) {
+      block.count = 1;
+      return block;
+    }
+    block.count =
+        static_cast<uint32_t>(std::min(lights.size(), MESH_MAX_LIGHTS));
+    std::memcpy(block.lights, lights.data(), block.count * sizeof(MeshLight));
+    return block;
+  }
 
   /// Copy CPU memory into an already-created buffer.
   bool fillBuffer(RhiDevice& device, RhiBufferHandle handle, const void* data,
@@ -135,6 +188,12 @@ RhiTextureHandle MeshRenderer::depthTarget(RhiDevice& device, uint32_t width,
   return depth_target_;
 }
 
+void MeshRenderer::bindLights(RhiCommandList& cmd,
+                              std::span<const MeshLight> lights) const {
+  const FragmentLights block = toFragmentLights(lights);
+  cmd.setFragmentStageBytes(&block, sizeof(block), MESH_LIGHT_SLOT);
+}
+
 void MeshRenderer::drawInstance(RhiCommandList& cmd,
                                 const MeshInstance& instance,
                                 const Mat4& view_projection) const {
@@ -142,8 +201,8 @@ void MeshRenderer::drawInstance(RhiCommandList& cmd,
   if (it == meshes_.end()) {
     return;
   }
-  const Mat4 mvp = view_projection * instance.model;
-  cmd.setVertexStageBytes(mvp.m, sizeof(mvp.m), MESH_UNIFORM_SLOT);
+  const VertexUniforms uniforms{view_projection, instance.model};
+  cmd.setVertexStageBytes(&uniforms, sizeof(uniforms), MESH_UNIFORM_SLOT);
   cmd.bindVertexBuffer(it->second.vertices);
   cmd.bindIndexBuffer(it->second.indices, 0, RhiIndexType::UINT32);
   RhiDrawIndexedParams params{};
@@ -158,6 +217,7 @@ void MeshRenderer::draw(RhiCommandList& cmd, const DrawParams& params) const {
   cmd.bindPipeline(pipeline_);
   cmd.setViewport(params.viewport);
   cmd.setScissor(params.scissor);
+  bindLights(cmd, params.lights);
   for (const auto& instance : params.instances) {
     drawInstance(cmd, instance, params.view_projection);
   }

@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <editor/shell/editor-properties-layout.h>
-#include <editor/shell/editor-property-field.h>
 
 namespace eng::editor {
 
@@ -64,8 +63,8 @@ Rect propertyValueRect(const Rect& row) {
   return makeRect(x, row.y, std::max(0.0f, increment.x - x), row.h);
 }
 
-int hitTestPropertyRow(const Rect& body, float x, float y) {
-  for (size_t i = 0; i < EDITOR_PROPERTY_FIELD_COUNT; ++i) {
+int hitTestPropertyRow(const Rect& body, size_t rows, float x, float y) {
+  for (size_t i = 0; i < rows; ++i) {
     if (containsPoint(propertyRowRect(body, i), x, y)) {
       return static_cast<int>(i);
     }

@@ -65,9 +65,13 @@ struct EditorPropertiesLayout {
 /// drag scrubs.
 [[nodiscard]] Rect propertyValueRect(const Rect& row);
 
-/// Index of the row under a point, or -1. Rows are separated by a gap that
-/// belongs to neither of them, so a press between two rows hits nothing
-/// instead of the nearer one.
-[[nodiscard]] int hitTestPropertyRow(const Rect& body, float x, float y);
+/// Index of the row under a point, or -1, among the first @p rows of them.
+///
+/// Rows are separated by a gap that belongs to neither of them, so a press
+/// between two rows hits nothing instead of the nearer one, and a press
+/// below the last row of the selection hits nothing rather than a row that
+/// is not being shown.
+[[nodiscard]] int hitTestPropertyRow(const Rect& body, size_t rows, float x,
+                                     float y);
 
 }  // namespace eng::editor

@@ -1,3 +1,5 @@
+#include "editor-vector-field.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -19,74 +21,96 @@ namespace {
     return (wrapped < 0.0f ? wrapped + FULL_TURN : wrapped) - HALF_TURN;
   }
 
-  /// Write one of a position's three components.
-  void setPosition(WorldPoint& position, EditorPropertyField field,
-                   float value) {
-    if (field == EditorPropertyField::POSITION_X) {
-      position.x = value;
-    } else if (field == EditorPropertyField::POSITION_Y) {
-      position.y = value;
-    } else {
-      position.z = value;
-    }
+  /// Whether a field names one of a placement's position components.
+  bool isPositionField(EditorPropertyField field) {
+    return editorFieldInTriple(field, EditorPropertyField::POSITION_X);
   }
 
-  /// Write one of a rotation's three components.
-  void setRotation(Vec3& rotation, EditorPropertyField field, float value) {
-    if (field == EditorPropertyField::ROTATION_X) {
-      rotation.x = value;
-    } else if (field == EditorPropertyField::ROTATION_Y) {
-      rotation.y = value;
-    } else {
-      rotation.z = value;
-    }
+  /// Whether a field names one of a placement's rotation components.
+  bool isRotationField(EditorPropertyField field) {
+    return editorFieldInTriple(field, EditorPropertyField::ROTATION_X);
   }
 
 }  // namespace
 
+float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
+  switch (editorPropertyFieldKind(field)) {
+    case EditorPropertyKind::ANGLE:
+      return wrapDegrees(value);
+    case EditorPropertyKind::AXIS:
+      return std::clamp(value, -1.0f, 1.0f);
+    case EditorPropertyKind::EXTENT:
+    case EditorPropertyKind::FACTOR:
+      return std::max(0.0f, value);
+    case EditorPropertyKind::UNIT:
+      return std::clamp(value, 0.0f, 1.0f);
+    case EditorPropertyKind::DISTANCE:
+      return value;
+  }
+  return value;
+}
+
 float editorPropertyValue(const EditorPlacement& placement,
                           EditorPropertyField field) {
-  switch (field) {
-    case EditorPropertyField::POSITION_X:
-      return placement.position.x;
-    case EditorPropertyField::POSITION_Y:
-      return placement.position.y;
-    case EditorPropertyField::POSITION_Z:
-      return placement.position.z;
-    case EditorPropertyField::ROTATION_X:
-      return placement.rotation.x;
-    case EditorPropertyField::ROTATION_Y:
-      return placement.rotation.y;
-    case EditorPropertyField::ROTATION_Z:
-      return placement.rotation.z;
+  if (isPositionField(field)) {
+    return editorVectorValue(
+        placement.position,
+        editorFieldAxis(field, EditorPropertyField::POSITION_X));
+  }
+  if (isRotationField(field)) {
+    return editorVectorValue(
+        placement.rotation,
+        editorFieldAxis(field, EditorPropertyField::ROTATION_X));
   }
   return 0.0f;
 }
 
 void setEditorPropertyValue(EditorPlacement& placement,
                             EditorPropertyField field, float value) {
-  switch (field) {
-    case EditorPropertyField::POSITION_X:
-    case EditorPropertyField::POSITION_Y:
-    case EditorPropertyField::POSITION_Z:
-      setPosition(placement.position, field, value);
-      return;
-    case EditorPropertyField::ROTATION_X:
-    case EditorPropertyField::ROTATION_Y:
-    case EditorPropertyField::ROTATION_Z:
-      setRotation(placement.rotation, field, wrapDegrees(value));
-      return;
+  const float written = normalizeEditorPropertyValue(field, value);
+  if (isPositionField(field)) {
+    editorVectorAxis(placement.position,
+                     editorFieldAxis(field, EditorPropertyField::POSITION_X)) =
+        written;
+  } else if (isRotationField(field)) {
+    editorVectorAxis(placement.rotation,
+                     editorFieldAxis(field, EditorPropertyField::ROTATION_X)) =
+        written;
   }
 }
 
 float editorPropertyStep(EditorPropertyField field) {
-  return editorPropertyFieldIsAngle(field) ? EDITOR_ROTATION_STEP
-                                           : EDITOR_POSITION_STEP;
+  switch (editorPropertyFieldKind(field)) {
+    case EditorPropertyKind::DISTANCE:
+    case EditorPropertyKind::EXTENT:
+      return EDITOR_POSITION_STEP;
+    case EditorPropertyKind::ANGLE:
+      return EDITOR_ROTATION_STEP;
+    case EditorPropertyKind::AXIS:
+      return EDITOR_AXIS_STEP;
+    case EditorPropertyKind::FACTOR:
+      return EDITOR_FACTOR_STEP;
+    case EditorPropertyKind::UNIT:
+      return EDITOR_UNIT_STEP;
+  }
+  return EDITOR_POSITION_STEP;
 }
 
 float editorPropertyDragPerPixel(EditorPropertyField field) {
-  return editorPropertyFieldIsAngle(field) ? EDITOR_ROTATION_DRAG_PER_PIXEL
-                                           : EDITOR_POSITION_DRAG_PER_PIXEL;
+  switch (editorPropertyFieldKind(field)) {
+    case EditorPropertyKind::DISTANCE:
+    case EditorPropertyKind::EXTENT:
+      return EDITOR_POSITION_DRAG_PER_PIXEL;
+    case EditorPropertyKind::ANGLE:
+      return EDITOR_ROTATION_DRAG_PER_PIXEL;
+    case EditorPropertyKind::AXIS:
+      return EDITOR_AXIS_DRAG_PER_PIXEL;
+    case EditorPropertyKind::FACTOR:
+      return EDITOR_FACTOR_DRAG_PER_PIXEL;
+    case EditorPropertyKind::UNIT:
+      return EDITOR_UNIT_DRAG_PER_PIXEL;
+  }
+  return EDITOR_POSITION_DRAG_PER_PIXEL;
 }
 
 std::string formatEditorPropertyValue(float value, EditorPropertyField field) {

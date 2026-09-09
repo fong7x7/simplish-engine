@@ -11,14 +11,17 @@
 
 namespace eng::editor {
 
-/// Index of the root folder. Every tree has one, so this is always valid.
+/// Index of the assets root. Every tree has one, so this is always valid,
+/// and it is the folder the browser opens on.
 inline constexpr size_t EDITOR_ASSET_FOLDER_ROOT = 0;
 
-/// Every folder under a project's assets root, flattened into one vector.
+/// Every folder the browser lists, flattened into one vector.
 ///
 /// The assets themselves stay in the flat list the scan produced, and the
 /// folders hold indices into it. Placements index that same list, so
-/// grouping assets by folder costs their numbering nothing.
+/// grouping assets by folder costs their numbering nothing. A folder may
+/// also hold entries past the end of it — see `editor-general-section.h`,
+/// which is what those numbers mean.
 /// @thread_safety Main-thread-only.
 struct EditorAssetTree {
   /// Folders, with the root at `EDITOR_ASSET_FOLDER_ROOT`. Never empty.

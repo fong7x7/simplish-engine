@@ -433,16 +433,46 @@ fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
 
   /// MSL source for static meshes (matches `eng::MeshVertex`).
   ///
-  /// The vertex stage takes the world-to-clip matrix as vertex stage bytes
-  /// at slot 1, so a draw needs no descriptor set. Shading is one hard-coded
-  /// directional light plus ambient: enough to read a model's form in the
-  /// editor, and nothing the real lighting model has to agree with.
+  /// The vertex stage takes the world-to-clip and object-to-world matrices
+  /// as vertex stage bytes at slot 1, and the fragment stage takes the
+  /// level's lights at slot 0, so a draw needs no descriptor set. The
+  /// structures here mirror `eng::MeshLight` and the block
+  /// `mesh-renderer.cpp` builds around it, register for register — see
+  /// `mesh-light.h` for why they are laid out as `float4`s.
+  ///
+  /// Shading is ambient plus a lambert term per light, which is what
+  /// `mesh-rasterizer.cpp` computes on the CPU for thumbnails and tests. The
+  /// two are meant to agree; neither is the real lighting model that
+  /// [Engine REQUIREMENTS §5.4] describes.
   constexpr const char MESH_MSL_SOURCE[] = R"msl(
 #include <metal_stdlib>
 using namespace metal;
 
+// These four are `mesh-light.h`'s constants, restated because MSL cannot
+// include a C++ header. MESH_MAX_LIGHTS sizes the array below, so it and the
+// C++ one have to move together.
+constant uint MESH_MAX_LIGHTS = 8;
+constant float MESH_LIGHT_AMBIENT = 0.38f;
+constant float MESH_LIGHT_DIFFUSE = 0.62f;
+constant float MESH_LIGHT_POINT = 1.0f;
+
 struct MeshUniforms {
   float4x4 view_projection;
+  float4x4 model;
+};
+
+struct MeshLight {
+  float4 position_range;
+  float4 direction_intensity;
+  float4 color_kind;
+};
+
+struct MeshLights {
+  uint count;
+  uint pad0;
+  uint pad1;
+  uint pad2;
+  MeshLight lights[MESH_MAX_LIGHTS];
 };
 
 struct MeshVertexIn {
@@ -452,6 +482,7 @@ struct MeshVertexIn {
 
 struct MeshVsOut {
   float4 position [[position]];
+  float3 world_position;
   float3 normal;
 };
 
@@ -463,22 +494,58 @@ float mesh_srgb_to_linear(float srgb) {
   return pow((srgb + 0.055f) / 1.055f, 2.4f);
 }
 
+/// How much of a point light reaches a surface this far from it: full at the
+/// light, nothing at its range, and squared in between so the falloff reads
+/// as light rather than as a gradient.
+float mesh_falloff(float distance, float range) {
+  if (range <= 0.0f) {
+    return 0.0f;
+  }
+  float reach = saturate(1.0f - distance / range);
+  return reach * reach;
+}
+
+/// What one light adds to a surface.
+float3 mesh_light_contribution(MeshLight light, float3 world_position,
+                               float3 normal) {
+  float3 to_light = light.direction_intensity.xyz;
+  float attenuation = 1.0f;
+  if (light.color_kind.w == MESH_LIGHT_POINT) {
+    float3 offset = light.position_range.xyz - world_position;
+    attenuation = mesh_falloff(length(offset), light.position_range.w);
+    to_light = offset;
+  }
+  // A light aimed nowhere lights nothing, rather than dividing by zero.
+  float aim = length(to_light);
+  if (aim < 1e-4f || attenuation <= 0.0f) {
+    return float3(0.0f);
+  }
+  float lambert = saturate(dot(normal, to_light / aim));
+  return light.color_kind.xyz * light.direction_intensity.w * lambert *
+         attenuation * MESH_LIGHT_DIFFUSE;
+}
+
 vertex MeshVsOut mesh_vs_main(MeshVertexIn in [[stage_in]],
                               constant MeshUniforms& u [[buffer(1)]]) {
   MeshVsOut out;
-  out.position = u.view_projection * float4(in.position, 1.0f);
-  out.normal = in.normal;
+  float4 world = u.model * float4(in.position, 1.0f);
+  out.position = u.view_projection * world;
+  out.world_position = world.xyz;
+  // The placement transform is a rotation and a uniform scale, so the same
+  // matrix carries the normal; the length the scale adds comes back out in
+  // the normalize below.
+  out.normal = (u.model * float4(in.normal, 0.0f)).xyz;
   return out;
 }
 
-fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]]) {
+fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
+                             constant MeshLights& lights [[buffer(0)]]) {
   float3 n = normalize(in.normal);
-  // Up, and over the viewer's left shoulder: the direction the editor's
-  // camera implies, so a model's top face reads brightest.
-  float3 light = normalize(float3(-0.35f, -0.45f, 0.82f));
-  float lambert = saturate(dot(n, light));
-  float shade = 0.38f + 0.62f * lambert;
-  float3 base = float3(0.74f, 0.76f, 0.80f) * shade;
+  float3 lit = float3(MESH_LIGHT_AMBIENT);
+  for (uint i = 0; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
+    lit += mesh_light_contribution(lights.lights[i], in.world_position, n);
+  }
+  float3 base = saturate(float3(0.74f, 0.76f, 0.80f) * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
 }
@@ -768,6 +835,14 @@ namespace {
         return;
       }
       [render_enc_ setVertexBytes:data length:size atIndex:slot];
+    }
+
+    void setFragmentStageBytes(const void* data, size_t size,
+                               uint32_t slot) override {
+      if (render_enc_ == nil || data == nullptr || size == 0) {
+        return;
+      }
+      [render_enc_ setFragmentBytes:data length:size atIndex:slot];
     }
 
     void bindFragmentTexture(RhiTextureHandle tex, uint32_t slot) override {
