@@ -31,9 +31,9 @@ struct EditorShellState {
   /// Assets found under the open project, in scan order. Placements
   /// index into this list, so it is the numbering that must stay put.
   std::vector<EditorAsset> assets;
-  /// What the browser lists: the folders those assets sit in, and the
-  /// built-in General section beside them. Both hold entry numbers, of
-  /// which the assets are the first `assets.size()`.
+  /// What the browser lists: the built-in general section, and the folders
+  /// those assets sit in. Both hold entry numbers, of which the assets are
+  /// the first `assets.size()`.
   EditorAssetTree asset_tree;
   /// What has been placed and what lights it. In memory only — see
   /// `editor-document.h`.

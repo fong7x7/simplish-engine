@@ -37,6 +37,18 @@ namespace {
   /// Name shown for the root, which has none of its own.
   constexpr std::string_view ROOT_LABEL = "assets";
 
+  /// Give a tree the parts every lookup here assumes it has: a root to
+  /// index, and a section naming it, without which the pane would list
+  /// nothing at all and read as a browser that lost the project.
+  void ensureListable(EditorAssetTree& tree) {
+    if (tree.folders.empty()) {
+      tree.folders.emplace_back();
+    }
+    if (tree.sections.empty()) {
+      tree.sections.push_back(EDITOR_ASSET_FOLDER_ROOT);
+    }
+  }
+
 }  // namespace
 
 EditorAssetBrowserWidget::EditorAssetBrowserWidget() {
@@ -95,11 +107,7 @@ std::string_view EditorAssetBrowserWidget::folderLabel(size_t folder) const {
 void EditorAssetBrowserWidget::setAssets(EditorAssetTree tree,
                                          std::vector<std::string> names) {
   tree_ = std::move(tree);
-  // Every lookup here indexes `folders` directly, and a tree without a root
-  // would make all of them unsafe.
-  if (tree_.folders.empty()) {
-    tree_.folders.emplace_back();
-  }
+  ensureListable(tree_);
   names_ = std::move(names);
   thumbnails_.assign(names_.size(), RHI_TEXTURE_INVALID);
   selected_folder_ = EDITOR_ASSET_FOLDER_ROOT;
@@ -141,7 +149,7 @@ void EditorAssetBrowserWidget::rebuildRows() {
 void EditorAssetBrowserWidget::rebuildHeaderText() {
   const EditorAssetFolder& folder = tree_.folders[selected_folder_];
   // A folder standing for no directory is a section of its own — the
-  // built-in General one — and the header names it rather than filing it
+  // built-in general one — and the header names it rather than filing it
   // under a directory it does not come from.
   if (folder.relative_path.empty() && !folder.name.empty()) {
     header_text_ = folder.name;

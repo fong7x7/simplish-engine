@@ -27,7 +27,7 @@ struct EditorAssetFolder {
   std::filesystem::path relative_path;
   /// Enclosing folder, or `EDITOR_ASSET_FOLDER_NONE` for a folder the pane
   /// lists as a section of its own: the assets root, and the built-in
-  /// General section beside it.
+  /// general section above it.
   size_t parent = EDITOR_ASSET_FOLDER_NONE;
   /// Child folders, as indices into `EditorAssetTree::folders`, name-sorted.
   std::vector<size_t> child_folders{};

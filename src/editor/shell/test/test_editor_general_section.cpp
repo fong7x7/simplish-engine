@@ -49,28 +49,42 @@ TEST_CASE("built-in items are numbered after the assets") {
           3 + EDITOR_GENERAL_ITEM_COUNT - 1);
 }
 
-TEST_CASE("the pane lists the section as a second top-level row") {
+TEST_CASE("the pane lists the section as the first top-level row") {
   const EditorAssetTree tree = treeWithSection(1);
   const auto rows = flattenAssetFolderRows(tree, {});
 
   REQUIRE(rows.size() == 2);
-  REQUIRE(rows.front().folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows.back().folder == tree.folders.size() - 1);
+  REQUIRE(rows.front().folder == tree.folders.size() - 1);
+  REQUIRE(rows.back().folder == EDITOR_ASSET_FOLDER_ROOT);
   // Beside the assets root rather than inside it, which is what "the same
   // level" means to whoever is looking at the pane.
-  REQUIRE(rows.back().depth == 0);
-  REQUIRE_FALSE(rows.back().has_children);
+  REQUIRE(rows.front().depth == 0);
+  REQUIRE_FALSE(rows.front().has_children);
 }
 
-TEST_CASE("expanding the assets root keeps the section below its folders") {
+TEST_CASE("expanding the assets root does not push the section around") {
   EditorAssetTree tree;
   tree.folders.push_back({"props", "props", EDITOR_ASSET_FOLDER_ROOT});
   tree.folders[EDITOR_ASSET_FOLDER_ROOT].child_folders.push_back(1);
   appendEditorGeneralSection(tree, 0);
   const auto rows = flattenAssetFolderRows(tree, {EDITOR_ASSET_FOLDER_ROOT});
 
+  // The section, then the assets root, then what the root holds — the two
+  // sections keep their order however deep the tree under one of them goes.
   REQUIRE(rows.size() == 3);
-  REQUIRE(rows[1].depth == 1);
-  REQUIRE(rows[2].depth == 0);
-  REQUIRE(tree.folders[rows[2].folder].name == EDITOR_GENERAL_FOLDER_NAME);
+  REQUIRE(tree.folders[rows[0].folder].name == EDITOR_GENERAL_FOLDER_NAME);
+  REQUIRE(rows[0].depth == 0);
+  REQUIRE(rows[1].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[2].depth == 1);
+}
+
+TEST_CASE("a tree naming a section it does not have lists what it does") {
+  EditorAssetTree tree;
+  // An index left over from a larger tree names no folder here; walking it
+  // would run off the end of the folder list.
+  tree.sections.push_back(9);
+  const auto rows = flattenAssetFolderRows(tree, {});
+
+  REQUIRE(rows.size() == 1);
+  REQUIRE(rows.front().folder == EDITOR_ASSET_FOLDER_ROOT);
 }

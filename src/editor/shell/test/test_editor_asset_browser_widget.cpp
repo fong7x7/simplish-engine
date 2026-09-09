@@ -59,7 +59,7 @@ std::vector<std::string> namesWithGeneral(const EditorAssetScan& scan) {
   return names;
 }
 
-/// A browser listing those assets and the built-in General section beside
+/// A browser listing those assets and the built-in general section above
 /// them, which is what the editor actually hands it.
 EditorAssetBrowserWidget
 makeBrowserWithGeneral(const std::vector<std::string>& paths) {
@@ -735,19 +735,28 @@ TEST_CASE("a folder with nothing in it names no visible cards") {
   REQUIRE(browser.visibleSlotCount() == 0);
 }
 
-TEST_CASE("the general section is a row of its own beside the assets") {
+TEST_CASE("the general section is the first row, above the assets") {
   const EditorAssetBrowserWidget browser =
       makeBrowserWithGeneral({"crate.obj"});
   const auto& rows = browser.folderRows();
 
   REQUIRE(rows.size() == 2);
-  REQUIRE(rows[0].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[1].depth == 0);
+  REQUIRE(rows[0].depth == 0);
+  REQUIRE(rows[1].folder == EDITOR_ASSET_FOLDER_ROOT);
+}
+
+TEST_CASE("the browser opens on the assets, not on the built-in section") {
+  const EditorAssetBrowserWidget browser =
+      makeBrowserWithGeneral({"crate.obj"});
+  // The section is listed first, but a project's own assets are what
+  // somebody opening the browser came for.
+  REQUIRE(browser.selectedFolder() == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(browser.visibleAssets() == std::vector<size_t>{0});
 }
 
 TEST_CASE("selecting the general section shows its items as cards") {
   EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
-  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+  browser.handleMouseDown(centreOf(browser.folderRowRect(0)));
 
   REQUIRE(browser.visibleAssets().size() == EDITOR_GENERAL_ITEM_COUNT);
   // Numbered after the one asset, which is how the editor tells a light
@@ -762,7 +771,7 @@ TEST_CASE("dragging a built-in item out reports its own entry number") {
   browser.on_asset_dropped = [&](size_t entry, float, float) {
     dropped = entry;
   };
-  browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
+  browser.handleMouseDown(centreOf(browser.folderRowRect(0)));
 
   browser.handleMouseDown(centreOf(browser.cardRect(1)));
   browser.handleMouseUp(mouseAt(600.0f, 300.0f));

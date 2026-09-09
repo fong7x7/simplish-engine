@@ -11,10 +11,10 @@
 
 namespace eng::editor {
 
-/// One item the browser's General section lists.
+/// One item the browser's general section lists.
 ///
 /// These are not files: nothing on disk backs them, and every project has
-/// the same ones. They are listed beside the project's assets because that
+/// the same ones. They are listed above the project's assets because that
 /// is where somebody looks for something to drop into the level, and
 /// dropping one is the same gesture as dropping a model.
 /// @thread_safety Immutable value type.

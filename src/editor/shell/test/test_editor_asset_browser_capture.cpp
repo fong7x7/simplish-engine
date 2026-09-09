@@ -107,7 +107,7 @@ struct BrowserCapture {
     return out;
   }
 
-  /// That project's folders, with the built-in General section beside
+  /// That project's folders, with the built-in general section above
   /// them, which is the tree the editor hands the browser.
   static EditorAssetTree treeWithGeneral() {
     const EditorAssetScan found = scan();

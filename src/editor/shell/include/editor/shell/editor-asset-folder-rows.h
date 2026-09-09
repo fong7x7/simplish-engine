@@ -15,9 +15,10 @@ namespace eng::editor {
 /// Flatten @p tree into the rows to draw, descending only into folders
 /// listed in @p expanded.
 ///
-/// The assets root is always the first row, so the pane always offers
-/// somewhere to go back to, and every other parentless folder — the
-/// built-in General section — follows it at the same depth. A folder in @p
+/// Every section the tree names is listed at depth zero, in its order, and
+/// the folders under an expanded one are listed beneath it. The assets root
+/// is always one of them, so the pane always offers somewhere to go back
+/// to. A folder in @p
 /// expanded that this tree does not have is ignored, so a set left over from a
 /// larger tree cannot walk off the end of this one. It will still name the
 /// wrong folders, though — indices only mean anything against the tree they

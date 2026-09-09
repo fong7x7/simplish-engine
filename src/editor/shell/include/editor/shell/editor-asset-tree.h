@@ -26,6 +26,13 @@ inline constexpr size_t EDITOR_ASSET_FOLDER_ROOT = 0;
 struct EditorAssetTree {
   /// Folders, with the root at `EDITOR_ASSET_FOLDER_ROOT`. Never empty.
   std::vector<EditorAssetFolder> folders{EditorAssetFolder{}};
+  /// The parentless folders, in the order the pane lists them.
+  ///
+  /// Held rather than derived: which section comes first is a decision
+  /// about the pane, and a tree that answers it cannot have it re-derived
+  /// two different ways by two callers. A scan produces the assets root
+  /// alone; `editor-general-section.h` adds the built-in one.
+  std::vector<size_t> sections{EDITOR_ASSET_FOLDER_ROOT};
 };
 
 /// Group a scan into its folder hierarchy.

@@ -422,7 +422,7 @@ void SimplishEditor::refreshAssetPanel() {
   for (const EditorAsset& asset : state_.assets) {
     names.push_back(asset.name);
   }
-  // Named after the assets, in the order the General section numbers them,
+  // Named after the assets, in the order the general section numbers them,
   // because that is the numbering its folder holds.
   for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
     names.emplace_back(editorGeneralItemName(item));
@@ -573,7 +573,7 @@ void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
     }
     return;
   }
-  // Past the assets are the built-in items, in the order the General
+  // Past the assets are the built-in items, in the order the general
   // section lists them. An entry past those is a drop the browser should
   // never have reported.
   const size_t item = entry - state_.assets.size();

@@ -9,7 +9,7 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
-//   - Lists the built-in General section beside them, whose light sources
+//   - Lists the built-in general section above them, whose light sources
 //     drop into the world the same way and light every mesh in the scene
 //   - Clicking a placed asset or a light selects it, outlines it in the
 //     viewport, and opens a properties panel down the right; the panel

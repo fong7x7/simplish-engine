@@ -14,6 +14,9 @@ size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_entry) {
     folder.assets.push_back(first_entry + item);
   }
   tree.folders.push_back(std::move(folder));
+  // In front of the assets root: the pane lists the sections in this order,
+  // which is the one decision about them the tree carries.
+  tree.sections.insert(tree.sections.begin(), index);
   return index;
 }
 
