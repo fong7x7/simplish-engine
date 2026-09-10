@@ -36,3 +36,4 @@ An ADR is *not* required for implementation detail with one obvious answer, or f
 | [ADR-005](ADR-005-deterministic-lockstep-coop.md) | Deterministic lockstep for co-op | Accepted | 2026-08-22 |
 | [ADR-006](ADR-006-headless-deterministic-ci.md) | Stub RHI backend as the determinism CI path | Accepted | 2026-08-22 |
 | [ADR-007](ADR-007-json-authored-cpp-baked-content.md) | JSON-authored content, baked to generated C++ for shipping builds | Accepted | 2026-09-03 |
+| [ADR-008](ADR-008-level-scenario-hierarchy.md) | Levels own the space, scenarios sequence stages, groups select what varies | Proposed | 2026-09-09 |
