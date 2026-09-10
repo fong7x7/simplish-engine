@@ -162,6 +162,24 @@ namespace {
     }
   }
 
+  /// Straight-line blend of two vectors.
+  Vec3 lerpVec3(const Vec3& a, const Vec3& b, float u) {
+    return a + (b - a) * u;
+  }
+
+  /// @p a and @p b blended @p u of the way, as `blendPoses` does per joint.
+  JointPose blendJoint(const JointPose& a, const JointPose& b, float u) {
+    const float qa[4] = {a.rotation.x, a.rotation.y, a.rotation.z,
+                         a.rotation.w};
+    const float qb[4] = {b.rotation.x, b.rotation.y, b.rotation.z,
+                         b.rotation.w};
+    float q[4] = {};
+    slerpQuats(qa, qb, u, q);
+    return {lerpVec3(a.translation, b.translation, u),
+            {q[0], q[1], q[2], q[3]},
+            lerpVec3(a.scale, b.scale, u)};
+  }
+
 }  // namespace
 
 float loopClipTime(const AnimationClip& clip, double elapsed) {
@@ -206,6 +224,15 @@ void samplePose(const Skeleton& skeleton, const AnimationClip& clip,
     readTarget(joint, channel.target, value);
     sampleChannel(channel, seconds, value);
     writeTarget(value, channel.target, joint);
+  }
+}
+
+void blendPoses(std::span<const JointPose> from, std::span<const JointPose> to,
+                float weight, std::span<JointPose> out) {
+  const float u = std::clamp(weight, 0.0f, 1.0f);
+  const size_t count = std::min({from.size(), to.size(), out.size()});
+  for (size_t joint = 0; joint < count; ++joint) {
+    out[joint] = blendJoint(from[joint], to[joint], u);
   }
 }
 

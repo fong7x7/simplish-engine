@@ -23,6 +23,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-thumbnail-cache.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-animator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-clip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-pick.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"

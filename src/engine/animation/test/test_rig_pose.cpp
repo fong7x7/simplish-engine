@@ -84,3 +84,29 @@ TEST_CASE("posing a smaller rig after a bigger one shrinks the palette") {
   single.skin.inverse_bind = {Mat4::identity()};
   REQUIRE(pose.evaluate(single, RIG_REST_POSE, 0.0f).size() == 1);
 }
+
+TEST_CASE("local poses a caller built are posed like a clip's") {
+  const Rig rig = swingingArm();
+  RigPose pose;
+  std::vector<eng::animation::JointPose> locals = rig.skeleton.rest;
+  const float half = std::sqrt(0.5f);
+  locals[0].rotation = {0.0f, 0.0f, half, half};
+  const auto skin = pose.evaluateLocals(rig, locals);
+  const Vec3 p = eng::math::transformPoint(skin[1], {0.0f, 2.0f, 0.0f});
+  REQUIRE(p.x == Approx(-2.0f));
+  REQUIRE(pose.localPoses()[0].rotation.z == Approx(half));
+}
+
+TEST_CASE("joints a short set of local poses leaves out stay at rest") {
+  const Rig rig = swingingArm();
+  RigPose pose;
+  std::vector<eng::animation::JointPose> one(1);
+  static_cast<void>(pose.evaluateLocals(rig, one));
+  REQUIRE(pose.localPoses().size() == 2);
+  REQUIRE(pose.localPoses()[1].translation.y == 1.0f);
+}
+
+TEST_CASE("a pose has nothing to show before its first evaluation") {
+  const RigPose pose;
+  REQUIRE(pose.localPoses().empty());
+}

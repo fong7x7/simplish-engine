@@ -118,6 +118,7 @@
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-placement-animator.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-edit.h>
@@ -125,7 +126,6 @@
 #include <editor/shell/editor-shell-state.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
-#include <engine/animation/rig-pose.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gltf/skinned-model.h>
 #include <engine/gui/gui-widget-id.h>
@@ -498,8 +498,6 @@ private:
   /// to `skinned_instances_`.
   void appendSkinnedInstance(const EditorAsset& asset,
                              const EditorPlacement& placement);
-  /// How many placements draw as rigged models this frame.
-  [[nodiscard]] size_t riggedPlacementCount() const;
   /// The static pass's parameters with the rigged instances in place of
   /// the static ones: same camera, lights, scissor and style.
   [[nodiscard]] SkinnedMeshRenderer::DrawParams
@@ -647,11 +645,9 @@ private:
   SkinnedMeshRenderer skinned_renderer_{};
   /// Rigged placements, posed, rebuilt each frame as `scene_instances_` is.
   std::vector<SkinnedMeshInstance> skinned_instances_{};
-  /// Posing storage, one per rigged placement, kept between frames so that
-  /// posing allocates only when the level grows. Each instance's skin span
-  /// points into one of these, so the vector is sized before any pose is
-  /// taken and never while those spans are live.
-  std::vector<animation::RigPose> skinned_poses_{};
+  /// Every rigged placement's clip playback, kept between frames so that a
+  /// change of clip fades. Each instance's skin span points into it.
+  EditorPlacementAnimator placement_animator_{};
   /// Seconds every placed clip loops on. Presentation only: it runs off the
   /// frame's delta, and neither the level nor the simulation reads it.
   double animation_clock_ = 0.0;

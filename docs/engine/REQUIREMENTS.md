@@ -67,7 +67,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
-| Testing | Catch2 v3 | All | 1,112 tests green on macOS/Metal, 1,064 on the headless stub |
+| Testing | Catch2 v3 | All | 1,129 tests green on macOS/Metal, 1,081 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
 
 ---
@@ -172,7 +172,7 @@ Legibility is a rendering requirement, not an art note:
 | Isometric camera, projection, depth policy | `rendering/isometric.md` | M0 |
 | Mesh rendering (instanced terrain, structures, props) | `rendering/mesh.md` | M1 |
 | Sprite system (atlases, 8-direction facing, animation clips, batcher) | `rendering/sprites.md` | M1 |
-| Skeletal animation (skeletons, clips, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
+| Skeletal animation (skeletons, clips, crossfades and pose blending, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
 | Lighting and shadows | `rendering/lighting.md` | M5 |
 | Effects (GPU particles, decals, trails, screen shake) | `rendering/fx.md` | M5 |
 | Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | `spatial.md` | M2 |

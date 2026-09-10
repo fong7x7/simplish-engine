@@ -225,3 +225,38 @@ TEST_CASE("a skin joint naming a missing skeleton joint stays put") {
   computeSkinMatrices(skin, worlds, out);
   REQUIRE(eng::math::transformPoint(out[0], {}).x == 0.0f);
 }
+
+TEST_CASE("blending poses moves each part of each joint between them") {
+  std::vector<JointPose> from(1);
+  std::vector<JointPose> to(1);
+  from[0].translation = {0.0f, 2.0f, 0.0f};
+  to[0].translation = {4.0f, 2.0f, 0.0f};
+  to[0].scale = {3.0f, 1.0f, 1.0f};
+  to[0].rotation = {0.0f, 0.0f, HALF_SQRT2, HALF_SQRT2};
+  std::vector<JointPose> out(1);
+  eng::animation::blendPoses(from, to, 0.5f, out);
+  REQUIRE(out[0].translation.x == Approx(2.0f));
+  REQUIRE(out[0].scale.x == Approx(2.0f));
+  // Half a quarter turn about Z.
+  REQUIRE(out[0].rotation.z == Approx(std::sin(PI / 8.0f)));
+  REQUIRE(out[0].rotation.w == Approx(std::cos(PI / 8.0f)));
+}
+
+TEST_CASE("blend weights past either end are clamped") {
+  std::vector<JointPose> from(1);
+  std::vector<JointPose> to(1);
+  to[0].translation.x = 1.0f;
+  std::vector<JointPose> out(1);
+  eng::animation::blendPoses(from, to, 2.0f, out);
+  REQUIRE(out[0].translation.x == 1.0f);
+  eng::animation::blendPoses(from, to, -1.0f, out);
+  REQUIRE(out[0].translation.x == 0.0f);
+}
+
+TEST_CASE("a blend may be written over one of its inputs") {
+  std::vector<JointPose> from(1);
+  std::vector<JointPose> to(1);
+  to[0].translation.x = 8.0f;
+  eng::animation::blendPoses(from, to, 0.25f, to);
+  REQUIRE(to[0].translation.x == Approx(2.0f));
+}

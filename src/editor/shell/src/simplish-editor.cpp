@@ -22,7 +22,6 @@
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
-#include <engine/animation/pose-sampling.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/core/logger.h>
 #include <engine/gltf/gltf-loader.h>
@@ -1301,26 +1300,14 @@ void SimplishEditor::buildSceneLights() {
   }
 }
 
-size_t SimplishEditor::riggedPlacementCount() const {
-  return static_cast<size_t>(std::ranges::count_if(
-      state_.document.placements, [this](const EditorPlacement& placement) {
-        return placement.asset < state_.assets.size() &&
-               state_.assets[placement.asset].rig != nullptr;
-      }));
-}
-
 void SimplishEditor::appendSkinnedInstance(const EditorAsset& asset,
                                            const EditorPlacement& placement) {
-  const animation::Rig& rig = *asset.rig;
-  const size_t clip = editorPlacementClip(placement, &rig);
-  const float seconds =
-      clip < rig.clips.size()
-          ? animation::loopClipTime(rig.clips[clip], animation_clock_)
-          : 0.0f;
-  animation::RigPose& pose = skinned_poses_[skinned_instances_.size()];
+  // The animator fades a prop whose clip was just changed in the panel,
+  // rather than snapping it to the new clip's first frame.
   skinned_instances_.push_back(
       {asset.skinned_mesh, makePlacementTransform(asset, placement),
-       asset.texture, pose.evaluate(rig, clip, seconds)});
+       asset.texture,
+       placement_animator_.pose(placement, *asset.rig, animation_clock_)});
 }
 
 void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
@@ -1339,13 +1326,12 @@ void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
 void SimplishEditor::buildSceneInstances() {
   scene_instances_.clear();
   skinned_instances_.clear();
-  // Sized before the first pose is taken: every instance's skin span points
-  // into its slot here, and a vector that grew under them would leave the
-  // earlier spans pointing at freed storage.
-  skinned_poses_.resize(riggedPlacementCount());
   for (const auto& placement : state_.document.placements) {
     appendPlacementInstance(placement);
   }
+  // Players for props deleted since the last frame go; a prop brought back
+  // by an undo gets a fresh one, which cuts in rather than fading.
+  placement_animator_.endFrame();
   appendPlaytestInstances();
 }
 

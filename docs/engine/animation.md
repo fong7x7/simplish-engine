@@ -3,7 +3,7 @@
 **Parent document:** [Engine REQUIREMENTS](REQUIREMENTS.md) §5
 **Packages:** `src/engine/animation/` (`eng::animation`), `src/engine/gltf/` (`eng::gltf`), and the skinned half of `src/engine/render-mesh/` (`eng`)
 **Governed by:** [ADR-003's 2026-09-10 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters), [ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md)
-**Status:** Built and tested. The editor imports rigged `.gltf` and `.glb` models, places them, and plays a clip on each ([Editor §1](../editor/REQUIREMENTS.md#current-state)). Nothing in the game uses them yet.
+**Status:** Built and tested. The editor imports rigged `.gltf` and `.glb` models, places them, and plays a clip on each, crossfading when the clip is changed ([Editor §1](../editor/REQUIREMENTS.md#current-state)). Nothing in the game uses them yet.
 
 Rigged models posed by animation clips and drawn skinned on the GPU, for the handful of characters ADR-003 admits: players, bosses, set pieces. The horde stays sprites.
 
@@ -32,6 +32,8 @@ Rigged models posed by animation clips and drawn skinned on the GPU, for the han
 | `Rig` | `engine/animation/rig.h` | Skeleton, skin, and clips together |
 | `samplePose` and friends | `engine/animation/pose-sampling.h` | The three steps from clip and time to skin matrices, each testable alone |
 | `RigPose` | `engine/animation/rig-pose.h` | The storage for posing one rig, kept between frames so posing does not allocate |
+| `blendPoses` | `engine/animation/pose-sampling.h` | Two sets of local poses mixed by a weight, joint by joint |
+| `ClipPlayer` | `engine/animation/clip-player.h` | One rig's playback: the clip it plays, and the crossfade from the one before |
 | `SkinnedModel`, `loadGltfModel` | `engine/gltf/*.h` | glTF 2.0 in, mesh plus rig out, or a `GltfLoadError` that says what to fix |
 | `orientSkinnedYUpToZUp` | `engine/gltf/skinned-model-orientation.h` | glTF's Y-up turned into the engine's Z-up, bones included |
 | `SkinnedMeshVertex`, `SkinnedMeshData` | `engine/render-mesh/skinned-mesh-*.h` | A static vertex plus four joint bytes and four weights; 52 bytes |
@@ -57,7 +59,31 @@ Interpolation is glTF's: `STEP`, `LINEAR` (rotations by slerp along the shorter 
 
 ---
 
-## 3. Drawing
+## 3. Blending
+
+Two clips blend on **local poses**, joint by joint: translations and scales in a straight line, rotations by slerp along the shorter arc. That is `blendPoses`, and it sits between sampling and the world pass — sample each clip into its own pose, blend them, and pose the blend with `RigPose::evaluateLocals`. Blending the skin matrices instead would be wrong: two arms swung either side of a body average to an arm hanging down, where averaging their matrices shrinks the arm.
+
+`blendPoses` is the primitive for any mix a game wants — walk and run weighted by speed, say. `ClipPlayer` is the one mix every character needs: a **crossfade** when it switches clips.
+
+```cpp
+animation::ClipPlayer player;                     // one per character
+player.play(WALK, now, animation::CLIP_DEFAULT_FADE_SECONDS);   // on a change
+auto skin = player.evaluate(rig, now);            // every frame
+```
+
+- **Time is the caller's clock**, passed to every call, so any number of players share one and a paused clock pauses them all. Each clip loops from the moment `play` chose it.
+- **A fade keeps the outgoing clip moving.** Feet carry on walking while the idle takes over, rather than freezing mid-stride.
+- **A fade interrupted by another switch fades from the pose on screen.** Mid-fade the screen shows a mix of two clips, so there is no single clip to fade from; `ClipPlayer` freezes the pose `RigPose` last drew — `localPoses()` — and fades from that. Either way the frame after a switch is the frame before it: switching never pops.
+- **The weight is eased** — smoothstep over the fade — so the new clip's influence starts and finishes gently rather than with the kink a straight ramp has at either end.
+- **The first clip cuts in**, since there is nothing on screen to fade from, and playing the clip already playing does nothing.
+
+`CLIP_DEFAULT_FADE_SECONDS` is a fifth of a second: long enough that a walk does not snap to an idle, short enough that a character still answers input at once.
+
+Not done yet: **phase matching**, so a walk fading to a run keeps its feet in step — a fade today starts the new clip from its beginning; **masked layers**, so the upper body aims while the legs walk; and **additive clips**, such as a flinch laid over whatever is playing. `blendPoses` over a subset of joints is where masking would start.
+
+---
+
+## 4. Drawing
 
 `SkinnedMeshRenderer` is `MeshRenderer`'s twin, with two differences: its vertices carry joints and weights, and each instance sends a `SkinPalette` as vertex stage bytes at **slot 2**, beside the matrices at slot 1. The fragment stage is the static mesh's own shader, so a skinned character is lit, banded, and outlined exactly as the props around it are. Both renderers share the fragment light block (`mesh-fragment-lights.h`), the untextured stand-in (`mesh-stand-in-texture.h`), and the slot numbers (`src/mesh-draw-bindings.h`).
 
@@ -78,7 +104,7 @@ Three numbers are restated in every shader because none of them can include a C+
 
 ---
 
-## 4. Loading glTF
+## 5. Loading glTF
 
 `loadGltfModel` reads `.gltf`, with buffers beside it or in `data:` URIs, and self-contained `.glb`. It tells the two apart by their first four bytes, not their names. It reads:
 
@@ -96,11 +122,11 @@ Not read yet: images embedded in a buffer or a data URI (the model draws untextu
 
 ---
 
-## 5. Testing
+## 6. Testing
 
 Everything above the backends runs headless:
 
-- `animation` tests each interpolation mode, shortest-arc slerp, the parent-first world pass, and that a bind pose gives identity skin matrices.
+- `animation` tests each interpolation mode, shortest-arc slerp, the parent-first world pass, and that a bind pose gives identity skin matrices. `test_clip_player.cpp` measures every fade: eased weights, the outgoing clip still moving, and a switch mid-fade continuing from exactly the pose on screen.
 - `gltf` tests build documents in memory (`test/support/test-gltf.h`), as `.gltf` with an inline buffer or as `.glb`. A two-joint arm is loaded, posed by its clip, and measured with `poseSkinnedMesh`, alongside every refusal above.
 - `render-mesh` tests the palette packing, CPU posing, and what `SkinnedMeshRenderer` records, against a fake device.
 

@@ -17,6 +17,10 @@
 ///                                             where that joint has moved it
 ///
 /// None of them allocates. `RigPose` owns the storage and runs all three.
+///
+/// `blendPoses` sits between steps 1 and 2 when two clips are playing at
+/// once: sample each into its own pose, blend, and carry on from the blend.
+/// `ClipPlayer` does that for a crossfade.
 
 #include <engine/animation/animation-channel.h>
 #include <engine/animation/animation-clip.h>
@@ -48,6 +52,19 @@ void sampleChannel(const AnimationChannel& channel, float seconds,
 /// its end is skipped rather than written out of bounds.
 void samplePose(const Skeleton& skeleton, const AnimationClip& clip,
                 float seconds, std::span<JointPose> pose);
+
+/// Two sets of local poses mixed @p weight of the way from @p from to @p to:
+/// translations and scales in a straight line, rotations at constant speed
+/// along the shorter arc. Zero gives @p from and one gives @p to; the weight
+/// is clamped to that range.
+///
+/// Blending is done on local poses, joint by joint, never on the world or
+/// skin matrices: two arms swung either side of a body average to an arm
+/// hanging down, where averaging their matrices would shrink the arm.
+/// @p out may be either input. Only as many joints as all three spans hold
+/// are written.
+void blendPoses(std::span<const JointPose> from, std::span<const JointPose> to,
+                float weight, std::span<JointPose> out);
 
 /// Each joint's world transform — its local pose composed with every
 /// ancestor's — in one forward pass, which is correct because a skeleton

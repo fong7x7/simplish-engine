@@ -19,6 +19,12 @@ namespace eng::animation {
 /// `RigPose::evaluate`'s clip index for "no clip": the skeleton's rest pose.
 inline constexpr size_t RIG_REST_POSE = std::numeric_limits<size_t>::max();
 
+/// Every joint's local pose @p seconds into clip @p clip of @p rig, or its
+/// rest pose when @p clip is past the rig's clips — `RIG_REST_POSE` among
+/// them. @p pose must be as long as the skeleton.
+void sampleRigPose(const Rig& rig, size_t clip, float seconds,
+                   std::span<JointPose> pose);
+
 /// Storage for posing a rig: local poses, world matrices, and skin matrices,
 /// kept between calls so that posing a character every frame allocates
 /// only the first time, or when it is handed a bigger rig.
@@ -34,6 +40,19 @@ public:
   /// used as given; `loopClipTime` is what wraps it into the clip.
   std::span<const Mat4> evaluate(const Rig& rig, size_t clip, float seconds);
 
+  /// Skin matrices for local poses the caller built — a blend of two clips,
+  /// typically — rather than for one clip. @p locals is copied, one pose per
+  /// skeleton joint; a short span leaves the joints past its end at rest.
+  std::span<const Mat4> evaluateLocals(const Rig& rig,
+                                       std::span<const JointPose> locals);
+
+  /// Every joint's local pose from the last evaluation, which is the pose on
+  /// screen: what a crossfade interrupted part way freezes and fades from.
+  /// Empty before the first.
+  [[nodiscard]] std::span<const JointPose> localPoses() const {
+    return locals_;
+  }
+
   /// The world transform of every skeleton joint from the last `evaluate`,
   /// in the skeleton's space before the skin's root is applied.
   [[nodiscard]] std::span<const Mat4> jointWorlds() const { return worlds_; }
@@ -41,6 +60,9 @@ public:
 private:
   /// Size the three arrays for @p rig.
   void reserveFor(const Rig& rig);
+
+  /// World and skin matrices from `locals_`, which the caller has filled.
+  std::span<const Mat4> finish(const Rig& rig);
 
   /// Local pose per skeleton joint.
   std::vector<JointPose> locals_;

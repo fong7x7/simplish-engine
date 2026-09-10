@@ -13,6 +13,7 @@ simplish_add_module(simplish-engine-animation
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/skeleton.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/pose-sampling.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/rig-pose.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/clip-player.cpp
     DEPENDENCIES simplish-engine-math
 )
 
@@ -22,6 +23,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_skeleton.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_pose_sampling.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_rig_pose.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_clip_player.cpp
         DEPENDENCIES simplish-engine-animation
     )
 endif()
