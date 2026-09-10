@@ -1,5 +1,9 @@
 ---
-Language: Cpp
+# Shared style. This first section names no language, so it is the default
+# for every section below; each language section adds nothing of its own.
+# Objective-C++ (the Metal backend's .mm files) needs its own section because
+# clang-format refuses a file whose language has none — keep this one style
+# for both rather than copying options into each section.
 Standard: c++20
 
 # Indentation
@@ -75,3 +79,8 @@ AccessModifierOffset: -2
 FixNamespaceComments: true
 SortUsingDeclarations: true
 MaxEmptyLinesToKeep: 2
+---
+Language: Cpp
+---
+Language: ObjC
+...
