@@ -472,7 +472,7 @@ struct MeshLight {
 
 struct MeshLights {
   uint count;
-  uint pad0;
+  uint shade_bands;
   uint pad1;
   uint pad2;
   MeshLight lights[MESH_MAX_LIGHTS];
@@ -510,9 +510,19 @@ float mesh_falloff(float distance, float range) {
   return reach * reach;
 }
 
+/// One light's strength flattened into `bands` tones, or left alone for
+/// fewer than two. `meshShadeBand` in `mesh-style.h`, restated.
+float mesh_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
 /// What one light adds to a surface.
 float3 mesh_light_contribution(MeshLight light, float3 world_position,
-                               float3 normal) {
+                               float3 normal, uint bands) {
   float3 to_light = light.direction_intensity.xyz;
   float attenuation = 1.0f;
   if (light.color_kind.w == MESH_LIGHT_POINT) {
@@ -526,8 +536,8 @@ float3 mesh_light_contribution(MeshLight light, float3 world_position,
     return float3(0.0f);
   }
   float lambert = saturate(dot(normal, to_light / aim));
-  return light.color_kind.xyz * light.direction_intensity.w * lambert *
-         attenuation * MESH_LIGHT_DIFFUSE;
+  return light.color_kind.xyz * light.direction_intensity.w *
+         mesh_band(lambert * attenuation, bands) * MESH_LIGHT_DIFFUSE;
 }
 
 vertex MeshVsOut mesh_vs_main(MeshVertexIn in [[stage_in]],
@@ -551,7 +561,8 @@ fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
   float3 n = normalize(in.normal);
   float3 lit = float3(MESH_LIGHT_AMBIENT);
   for (uint i = 0; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
-    lit += mesh_light_contribution(lights.lights[i], in.world_position, n);
+    lit += mesh_light_contribution(lights.lights[i], in.world_position, n,
+                                   lights.shade_bands);
   }
   // The map is unorm, so this is the sRGB value the artist authored, shaded
   // and then converted on the way out — which is what the flat colour this
@@ -616,6 +627,102 @@ fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
     }
     auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
     configureMeshRenderPipelineDesc(pd, vs, fs);
+    NSError* err = nil;
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
+  /// MSL for the mesh outline: one full-screen triangle, and a fragment
+  /// stage that reads the scene's depth and draws a line wherever it bends.
+  /// `mesh-outline-renderer.h` explains the method. `OutlineUniforms` below
+  /// is the C++ struct of that name in `mesh-outline-renderer.cpp`, which
+  /// this cannot include; OUTLINE_HLSL_SOURCE and the GLSL mirror it.
+  constexpr const char OUTLINE_MSL_SOURCE[] = R"msl(
+#include <metal_stdlib>
+using namespace metal;
+
+struct OutlineUniforms {
+  float4 color;
+  float4 bounds;
+  float width;
+  float threshold;
+  float pad0;
+  float pad1;
+};
+
+struct OutlineVsOut {
+  float4 position [[position]];
+};
+
+vertex OutlineVsOut outline_vs_main(uint id [[vertex_id]]) {
+  // (-1,-1), (3,-1) and (-1,3): one triangle covering all of clip space,
+  // so there is no seam down a diagonal and no vertex buffer to bind.
+  float2 corner = float2(float((id << 1u) & 2u), float(id & 2u));
+  OutlineVsOut out;
+  out.position = float4(corner * 2.0f - 1.0f, 0.0f, 1.0f);
+  return out;
+}
+
+/// Depth at a pixel, held inside the scissor so that nothing outside what
+/// the scene drew into is read, and a mesh cut off by it is not lined.
+float outline_depth_at(depth2d<float> depth, constant OutlineUniforms& u,
+                       int2 p) {
+  int2 lo = int2(u.bounds.xy);
+  int2 hi = int2(u.bounds.zw) - 1;
+  return depth.read(uint2(clamp(p, lo, hi)));
+}
+
+fragment float4 outline_fs_main(OutlineVsOut in [[stage_in]],
+                                constant OutlineUniforms& u [[buffer(0)]],
+                                depth2d<float> depth [[texture(0)]]) {
+  int2 p = int2(in.position.xy);
+  float centre = outline_depth_at(depth, u, p);
+  // Nothing was drawn here, so there is nothing to outline.
+  if (centre >= 1.0f) {
+    discard_fragment();
+  }
+  int w = int(u.width);
+  float across = outline_depth_at(depth, u, p + int2(w, 0)) +
+                 outline_depth_at(depth, u, p - int2(w, 0)) - 2.0f * centre;
+  float down = outline_depth_at(depth, u, p + int2(0, w)) +
+               outline_depth_at(depth, u, p - int2(0, w)) - 2.0f * centre;
+  // Positive where this pixel is nearer than its neighbours on average,
+  // which is the near side of an edge: the rim of the thing in front.
+  float bend = max(across, down);
+  if (bend <= u.threshold) {
+    discard_fragment();
+  }
+  float cover = saturate((bend - u.threshold) / max(u.threshold, 1e-9f));
+  return float4(u.color.rgb, u.color.a * cover);
+}
+)msl";
+
+  id<MTLLibrary> compileOutlineShaderLibrary(id<MTLDevice> mtl_device) {
+    NSError* err = nil;
+    NSString* src = [NSString stringWithUTF8String:OUTLINE_MSL_SOURCE];
+    id<MTLLibrary> lib = [mtl_device newLibraryWithSource:src
+                                                  options:nil
+                                                    error:&err];
+    (void)err;
+    return lib;
+  }
+
+  /// The outline pipeline: no vertex input, no depth attachment, and the
+  /// GUI's "over" blend so a softened crease pixel mixes with the scene.
+  bool buildOutlinePipelinePso(id<MTLDevice> mtl_device,
+                               id<MTLRenderPipelineState>* out_pso) {
+    id<MTLLibrary> lib = compileOutlineShaderLibrary(mtl_device);
+    id<MTLFunction> vs = [lib newFunctionWithName:@"outline_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"outline_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    pd.vertexFunction = vs;
+    pd.fragmentFunction = fs;
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    applyGuiAlphaBlend(pd.colorAttachments[0]);
     NSError* err = nil;
     *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
     (void)err;
@@ -719,6 +826,7 @@ public:
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out) override;
   bool tryCreateMeshPipeline(RhiPipelineHandle& out) override;
+  bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -756,6 +864,8 @@ private:
                                 RhiPipelineHandle& out);
   bool insertMeshPipelineFromPso(id<MTLRenderPipelineState> pso,
                                  RhiPipelineHandle& out);
+  bool insertOutlinePipelineFromPso(id<MTLRenderPipelineState> pso,
+                                    RhiPipelineHandle& out);
 
   /// Metal GPU device.
   id<MTLDevice> device_ = nil;
@@ -1335,6 +1445,34 @@ bool MetalRealDevice::tryCreateMeshPipeline(RhiPipelineHandle& out) {
       return false;
     }
     return insertMeshPipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::insertOutlinePipelineFromPso(
+    id<MTLRenderPipelineState> pso, RhiPipelineHandle& out) {
+  // It reads the depth texture rather than testing against it: the pass it
+  // draws in has no depth attachment, since this one is being sampled.
+  RhiDepthStencilState ds{};
+  ds.depth_test = false;
+  ds.depth_write = false;
+  RhiRasterState raster{};
+  raster.cull_back = false;
+  const auto h = next_handle_++;
+  pipelines_.insert(h, PipelineEntry{pso, nil,
+                                     makeMtlDepthStencilState(device_, ds),
+                                     RhiPrimitiveTopology::TRIANGLE_LIST,
+                                     raster});
+  out = h;
+  return true;
+}
+
+bool MetalRealDevice::tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildOutlinePipelinePso(device_, &pso)) {
+      return false;
+    }
+    return insertOutlinePipelineFromPso(pso, out);
   }
 }
 

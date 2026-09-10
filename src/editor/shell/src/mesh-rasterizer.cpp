@@ -54,6 +54,8 @@ namespace {
     /// Lights to shade by, never empty: the caller substitutes the built-in
     /// key light for a scene that has none.
     std::span<const MeshLight> lights{};
+    /// Tones each light is flattened into; `MESH_SHADE_SMOOTH` for none.
+    uint32_t shade_bands = MESH_SHADE_SMOOTH;
   };
 
   Vec3 transformPoint(const Mat4& m, const Vec3& p) {
@@ -105,9 +107,10 @@ namespace {
     return {offset, falloff(Vec3::length(offset), light.range)};
   }
 
-  /// What one light adds to a surface, per colour channel.
+  /// What one light adds to a surface, per colour channel, with its
+  /// strength flattened into @p bands tones as the mesh shader does.
   Vec3 contribution(const MeshLight& light, const Vec3& world,
-                    const Vec3& unit_normal) {
+                    const Vec3& unit_normal, uint32_t bands) {
     const auto [to_light, attenuation] = lightAt(light, world);
     const float aim = Vec3::length(to_light);
     if (aim < MIN_AIM || attenuation <= 0.0f) {
@@ -115,8 +118,9 @@ namespace {
     }
     const float lambert =
         std::max(0.0f, Vec3::dot(unit_normal, to_light / aim));
-    const float scale =
-        light.intensity * lambert * attenuation * MESH_LIGHT_DIFFUSE;
+    const float scale = light.intensity *
+                        meshShadeBand(lambert * attenuation, bands) *
+                        MESH_LIGHT_DIFFUSE;
     return light.color * scale;
   }
 
@@ -126,7 +130,7 @@ namespace {
     const Vec3 unit = Vec3::normalize(fragment.normal);
     Vec3 lit{MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT};
     for (const MeshLight& light : target.lights) {
-      lit = lit + contribution(light, fragment.world, unit);
+      lit = lit + contribution(light, fragment.world, unit, target.shade_bands);
     }
     return lit;
   }
@@ -290,7 +294,8 @@ ImageData rasterizeMeshScene(const MeshRasterScene& scene) {
   const RasterTarget target{&image, &depth,
                             scene.lights.empty()
                                 ? std::span<const MeshLight>{&key_light, 1}
-                                : scene.lights};
+                                : scene.lights,
+                            scene.shade_bands};
   for (const auto& draw : scene.draws) {
     if (draw.mesh != nullptr) {
       drawMesh(target, scene, draw);

@@ -57,6 +57,28 @@ namespace {
     return desc;
   }
 
+  /// The format a texture's resource is created with.
+  ///
+  /// D3D12 will not make a shader view of a depth format, so a depth target
+  /// that is also sampled — the scene depth the outline pass reads — is
+  /// created typeless, and its depth and shader views each name the typed
+  /// format they read it as: `dx12SrvFormat` for the one, the texture's own
+  /// format for the other.
+  DXGI_FORMAT dx12ResourceFormat(const RhiTextureDesc& desc) {
+    const bool sampled_depth = (desc.usage & RhiTextureUsage::DEPTH_STENCIL) &&
+                               (desc.usage & RhiTextureUsage::SAMPLED);
+    if (sampled_depth && desc.format == RhiFormat::D32_FLOAT) {
+      return DXGI_FORMAT_R32_TYPELESS;
+    }
+    return toDxgiFormat(desc.format);
+  }
+
+  /// The format a shader view reads a texture as: a depth format's colour
+  /// twin, and anything else as itself.
+  DXGI_FORMAT dx12SrvFormat(DXGI_FORMAT format) {
+    return format == DXGI_FORMAT_D32_FLOAT ? DXGI_FORMAT_R32_FLOAT : format;
+  }
+
   D3D12_RESOURCE_DESC buildTextureDesc(const RhiTextureDesc& desc) {
     D3D12_RESOURCE_DESC rd{};
     rd.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -64,7 +86,7 @@ namespace {
     rd.Height = desc.height;
     rd.DepthOrArraySize = static_cast<UINT16>(desc.array_layers);
     rd.MipLevels = static_cast<UINT16>(desc.mip_levels);
-    rd.Format = toDxgiFormat(desc.format);
+    rd.Format = dx12ResourceFormat(desc);
     rd.SampleDesc.Count = 1;
     rd.Flags = toDx12ResourceFlags(desc.usage);
     return rd;
@@ -147,7 +169,7 @@ namespace {
       return;  // Heap full: the texture still exists, it just never binds.
     }
     D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{};
-    srv_desc.Format = tex.format;
+    srv_desc.Format = dx12SrvFormat(tex.format);
     srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srv_desc.Texture2D.MipLevels = 1;
@@ -180,8 +202,14 @@ namespace {
     if (tex.dsv_index == DX12_DESCRIPTOR_INDEX_NONE) {
       return;
     }
+    // Spelled out rather than inferred from the resource, which may be
+    // typeless — see `dx12ResourceFormat` — and then has no depth format to
+    // infer. `tex.format` is always the typed one.
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc{};
+    dsv_desc.Format = tex.format;
+    dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     auto handle = impl.dsvCpuHandle(tex.dsv_index);
-    impl.device->CreateDepthStencilView(tex.resource, nullptr, handle);
+    impl.device->CreateDepthStencilView(tex.resource, &dsv_desc, handle);
     tex.dsv_handle = handle;
   }
 
@@ -889,6 +917,18 @@ bool Dx12Device::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
     return false;
   }
   out_pipeline = insertBuiltinPipeline(*impl_, state, dx12MeshVertexStride());
+  return true;
+}
+
+bool Dx12Device::tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) {
+  auto* state = createDx12OutlinePipelineState(impl_->device,
+                                               impl_->graphics_root_signature,
+                                               impl_->swapchain_rtv_format);
+  if (state == nullptr) {
+    return false;
+  }
+  // No vertex buffer is ever bound to it, so the stride is never read.
+  out_pipeline = insertBuiltinPipeline(*impl_, state, 0);
   return true;
 }
 

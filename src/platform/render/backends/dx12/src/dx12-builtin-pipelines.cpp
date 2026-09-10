@@ -146,6 +146,7 @@ cbuffer MeshUniforms : register(b1) {
   float4x4 mesh_model;
 };
 
+// The header is the light count, then the band count, then padding.
 cbuffer MeshLights : register(b0) {
   uint4 mesh_light_header;
   MeshLight mesh_lights[8];
@@ -187,9 +188,19 @@ float mesh_falloff(float dist, float range) {
   return reach * reach;
 }
 
+/// One light's strength flattened into `bands` tones, or left alone for
+/// fewer than two. `meshShadeBand` in `mesh-style.h`, restated.
+float mesh_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
 /// What one light adds to a surface.
 float3 mesh_light_contribution(MeshLight light, float3 world_position,
-                               float3 normal) {
+                               float3 normal, uint bands) {
   float3 to_light = light.direction_intensity.xyz;
   float attenuation = 1.0f;
   if (light.color_kind.w == MESH_LIGHT_POINT) {
@@ -203,8 +214,8 @@ float3 mesh_light_contribution(MeshLight light, float3 world_position,
     return float3(0.0f, 0.0f, 0.0f);
   }
   float lambert = saturate(dot(normal, to_light / aim));
-  return light.color_kind.xyz * light.direction_intensity.w * lambert *
-         attenuation * MESH_LIGHT_DIFFUSE;
+  return light.color_kind.xyz * light.direction_intensity.w *
+         mesh_band(lambert * attenuation, bands) * MESH_LIGHT_DIFFUSE;
 }
 
 MeshVsOut mesh_vs_main(MeshVertexIn v) {
@@ -226,7 +237,8 @@ float4 mesh_ps_main(MeshVsOut i) : SV_Target {
                       MESH_LIGHT_AMBIENT);
   uint count = min(mesh_light_header.x, MESH_MAX_LIGHTS);
   for (uint k = 0; k < count; ++k) {
-    lit += mesh_light_contribution(mesh_lights[k], i.world_position, n);
+    lit += mesh_light_contribution(mesh_lights[k], i.world_position, n,
+                                   mesh_light_header.y);
   }
   // The map is unorm, so this is the sRGB value the artist authored, shaded
   // and then converted on the way out. An instance with no map of its own
@@ -235,6 +247,60 @@ float4 mesh_ps_main(MeshVsOut i) : SV_Target {
   float3 base = saturate(mesh_texture.Sample(mesh_sampler, i.uv).rgb * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
+}
+)hlsl";
+
+  /// HLSL for the mesh outline. Mirrors `OUTLINE_MSL_SOURCE`; the cbuffer
+  /// is `OutlineUniforms` in `mesh-outline-renderer.cpp`. The depth texture
+  /// is the scene's own, read through an R32_FLOAT view of its typeless
+  /// resource — see `dx12ResourceFormat`.
+  constexpr const char OUTLINE_HLSL_SOURCE[] = R"hlsl(
+cbuffer OutlineUniforms : register(b0) {
+  float4 outline_color;
+  float4 outline_bounds;
+  float outline_width;
+  float outline_threshold;
+  float2 outline_pad;
+};
+
+Texture2D<float> outline_depth : register(t0);
+
+float4 outline_vs_main(uint id : SV_VertexID) : SV_Position {
+  // (-1,-1), (3,-1) and (-1,3): one triangle covering all of clip space,
+  // so there is no seam down a diagonal and no vertex buffer to bind.
+  float2 corner = float2(float((id << 1u) & 2u), float(id & 2u));
+  return float4(corner * 2.0f - 1.0f, 0.0f, 1.0f);
+}
+
+/// Depth at a pixel, held inside the scissor so that nothing outside what
+/// the scene drew into is read, and a mesh cut off by it is not lined.
+float outline_depth_at(int2 p) {
+  int2 lo = int2(outline_bounds.xy);
+  int2 hi = int2(outline_bounds.zw) - 1;
+  return outline_depth.Load(int3(clamp(p, lo, hi), 0));
+}
+
+float4 outline_ps_main(float4 position : SV_Position) : SV_Target {
+  int2 p = int2(position.xy);
+  float centre = outline_depth_at(p);
+  // Nothing was drawn here, so there is nothing to outline.
+  if (centre >= 1.0f) {
+    discard;
+  }
+  int w = int(outline_width);
+  float across = outline_depth_at(p + int2(w, 0)) +
+                 outline_depth_at(p - int2(w, 0)) - 2.0f * centre;
+  float down = outline_depth_at(p + int2(0, w)) +
+               outline_depth_at(p - int2(0, w)) - 2.0f * centre;
+  // Positive where this pixel is nearer than its neighbours on average,
+  // which is the near side of an edge: the rim of the thing in front.
+  float bend = max(across, down);
+  if (bend <= outline_threshold) {
+    discard;
+  }
+  float cover = saturate((bend - outline_threshold) /
+                         max(outline_threshold, 1e-9f));
+  return float4(outline_color.rgb, outline_color.a * cover);
 }
 )hlsl";
 
@@ -417,6 +483,28 @@ ID3D12PipelineState* createDx12MeshPipelineState(ID3D12Device5* device,
   pso.InputLayout = {MESH_INPUT_ELEMENTS.data(),
                      static_cast<UINT>(MESH_INPUT_ELEMENTS.size())};
   pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+  ID3D12PipelineState* state = createPso(device, pso);
+  releasePair(shaders);
+  return state;
+}
+
+ID3D12PipelineState*
+createDx12OutlinePipelineState(ID3D12Device5* device,
+                               ID3D12RootSignature* root_sig,
+                               DXGI_FORMAT color_format) {
+  const ShaderPair shaders =
+      compilePair(OUTLINE_HLSL_SOURCE, "outline_vs_main", "outline_ps_main");
+  if (shaders.vs == nullptr) {
+    return nullptr;
+  }
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+  pso.pRootSignature = root_sig;
+  fillCommonPsoFields(pso, shaders, color_format);
+  // Blended like the GUI, so a softened crease pixel mixes with the scene.
+  pso.BlendState = buildGuiBlendDesc();
+  // No input layout: the triangle comes from SV_VertexID. No depth either,
+  // since the depth is the texture being read.
+  pso.DSVFormat = DXGI_FORMAT_UNKNOWN;
   ID3D12PipelineState* state = createPso(device, pso);
   releasePair(shaders);
   return state;

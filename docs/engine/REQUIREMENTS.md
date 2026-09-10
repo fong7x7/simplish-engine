@@ -119,8 +119,9 @@ Because the camera is fixed and orthographic, the engine gets several things che
 
 A **static mesh path** exists as a first slice of that camera's use: `render-mesh` reads Wavefront OBJ, uploads vertex and index buffers, and draws instances depth-tested against a `D32_FLOAT` target. Two things about it are worth knowing before building on it:
 
-- **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal and DX12 each embed HLSL/MSL that shade alike; Vulkan and OpenGL return false and draw no meshes, which is a gap to close before those two can show geometry.
+- **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal, DX12 and OpenGL each embed MSL/HLSL/GLSL that shade alike; Vulkan returns false and draws no meshes, which is a gap to close before it can show geometry.
 - **Depth is measured along the projection ray, not along world Y.** The camera is oblique (§5.1), so points collapse to one pixel along `(0, RISE, DEPTH)` rather than along the screen normal. `makeIsoViewProjection` derives the clip matrix from that; a conventional look-at would order geometry wrongly wherever two things overlap on screen.
+- **How meshes look is chosen per frame.** A `MeshStyle` (`mesh-style.h`) carries the look a game sets at run time: how many tones each light is flattened into (none, for smooth light), and the width and colour of an outline. Banding happens in the mesh shader. The outline is its own pass — `MeshOutlineRenderer`, through `RhiDevice::tryCreateMeshOutlinePipeline` — that reads the depth the scene pass wrote and lines wherever it bends sharply: every silhouette, and creases such as a box's edges. Under the orthographic camera, depth across any flat surface is linear in screen position, so its second difference is zero on a plane however tilted and large at an edge; that is the whole test. The two presets are `MESH_STYLE_SMOOTH` and `MESH_STYLE_CEL`. The style is presentation only and never reaches the simulation. Depth alone cannot see an edge between two surfaces at the same depth and slope; that would need a normal buffer, which the scene pass does not write.
 
 ### 5.2 Hybrid Geometry and Sprites
 
@@ -135,12 +136,15 @@ Sprites participate in depth by writing a per-pixel depth derived from their wor
 | Depth pre-pass | Static terrain and structures | Instanced, depth-only |
 | Opaque geometry | Terrain, structures, large props | Instanced by mesh + material, sorted front-to-back |
 | Sprite opaque | Characters, enemies, props | Batched by atlas page, alpha-test, depth-write |
+| Outline | Silhouettes and creases of everything above | Full-screen, reads the depth those passes wrote; skipped when the `MeshStyle` has no outline |
 | Projectiles | Bullets, tracers, trails | Single instanced draw per archetype from a GPU-resident buffer |
 | Transparent FX | Explosions, smoke, glows | Back-to-front, additive and alpha, depth-test without write |
 | Decals | Scorch, blood, impact marks | Projected onto the depth buffer, pooled and age-evicted |
 | HUD / GUI | Retained-mode UI | Screen space, last |
 
 Projectile rendering never round-trips through the CPU per-instance: the simulation writes positions into a persistently-mapped ring buffer and the draw is a single instanced call per archetype.
+
+The outline sits after the opaque passes because it needs their finished depth, and before projectiles and effects so that nothing it draws lands on them: a hostile projectile keeps its reserved hue (§5.5) whatever style the game is drawn in. Any later full-screen filter that changes colour, rather than adding lines, belongs at the same point for the same reason.
 
 ### 5.4 Lighting
 

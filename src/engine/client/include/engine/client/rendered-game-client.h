@@ -133,6 +133,13 @@ protected:
   /// Record scene draws. Called inside the scene pass, never outside one.
   virtual void recordScene(RhiCommandList& /*cmd*/) {}
 
+  /// Record draws that read what the scene pass wrote — its depth, for the
+  /// outline. Called once that pass has ended, at the start of the pass the
+  /// GUI then draws over the scene in, which has the same colour target and
+  /// no depth attachment. Viewport and scissor are the caller's to set; the
+  /// GUI sets its own afterwards.
+  virtual void recordSceneOverlay(RhiCommandList& /*cmd*/) {}
+
   /// Directory searched for a bundled UI font before the system paths.
   /// Defaults to `<data_dir>/fonts` from the engine config.
   [[nodiscard]] virtual std::filesystem::path guiFontDirectory();

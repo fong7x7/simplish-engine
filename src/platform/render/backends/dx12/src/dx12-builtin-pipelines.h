@@ -13,7 +13,7 @@
 namespace eng::render {
 
 // ---------------------------------------------------------------------------
-// These two exist for the same reason the Metal backend compiles MSL at
+// These exist for the same reason the Metal backend compiles MSL at
 // device creation: `createShader` takes compiled bytecode and the project
 // has no shader build step yet, so the GUI and the mesh renderer would have
 // nothing to draw with. The HLSL lives in the .cpp beside them and mirrors
@@ -30,6 +30,13 @@ ID3D12PipelineState* createDx12GuiPipelineState(ID3D12Device5* device,
 ID3D12PipelineState* createDx12MeshPipelineState(ID3D12Device5* device,
                                                  ID3D12RootSignature* root_sig,
                                                  DXGI_FORMAT color_format);
+
+/// Compile the built-in mesh outline shaders and create their PSO, which
+/// takes no vertex input and no depth attachment. Null on failure.
+ID3D12PipelineState*
+createDx12OutlinePipelineState(ID3D12Device5* device,
+                               ID3D12RootSignature* root_sig,
+                               DXGI_FORMAT color_format);
 
 /// Byte stride the GUI pipeline's vertex buffer is bound with.
 uint32_t dx12GuiVertexStride();

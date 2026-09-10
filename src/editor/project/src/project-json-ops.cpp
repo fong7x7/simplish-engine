@@ -20,6 +20,35 @@ namespace {
     return parsed;
   }
 
+  /// Read the two settings that decide how the world is drawn.
+  void parseLook(const nlohmann::json& parsed, ProjectMetadata& meta) {
+    // Both are absent in every project written before the setting existed,
+    // and those were all authored against the dimetric projection and
+    // drawn smooth.
+    meta.projection = projectProjectionFromName(
+        parsed.value("projection", std::string("dimetric")));
+    meta.shading =
+        projectShadingFromName(parsed.value("shading", std::string("smooth")));
+  }
+
+  /// One recent-projects row, or nullopt for a row that is not one.
+  std::optional<RecentProjectEntry>
+  parseRecentEntry(const nlohmann::json& item) {
+    if (!item.is_object()) {
+      return std::nullopt;
+    }
+    RecentProjectEntry entry;
+    entry.path = item.value("path", "");
+    // A row without a path cannot be reopened, so it is dropped rather than
+    // surfaced as an unusable launcher entry.
+    if (entry.path.empty()) {
+      return std::nullopt;
+    }
+    entry.name = item.value("name", "");
+    entry.last_opened_at = item.value("last_opened_at", "");
+    return entry;
+  }
+
 }  // namespace
 
 std::optional<ProjectMetadata> parseProjectMetadata(std::string_view json) {
@@ -33,10 +62,7 @@ std::optional<ProjectMetadata> parseProjectMetadata(std::string_view json) {
   meta.created_at = parsed->value("created_at", "");
   meta.last_opened_at = parsed->value("last_opened_at", "");
   meta.default_workspace = parsed->value("default_workspace", "Level");
-  // Absent in every project written before the setting existed, and those
-  // were all authored against the dimetric projection.
-  meta.projection = projectProjectionFromName(
-      parsed->value("projection", std::string("dimetric")));
+  parseLook(*parsed, meta);
   return meta;
 }
 
@@ -48,6 +74,7 @@ std::string serializeProjectMetadata(const ProjectMetadata& meta) {
   out["last_opened_at"] = meta.last_opened_at;
   out["default_workspace"] = meta.default_workspace;
   out["projection"] = projectProjectionName(meta.projection);
+  out["shading"] = projectShadingName(meta.shading);
   return out.dump(2);
 }
 
@@ -62,19 +89,9 @@ std::optional<RecentProjectsList> parseRecentProjects(std::string_view json) {
     return list;
   }
   for (const auto& item : *entries) {
-    if (!item.is_object()) {
-      continue;
+    if (auto entry = parseRecentEntry(item)) {
+      list.entries.push_back(std::move(*entry));
     }
-    RecentProjectEntry entry;
-    entry.path = item.value("path", "");
-    // A row without a path cannot be reopened, so it is dropped rather than
-    // surfaced as an unusable launcher entry.
-    if (entry.path.empty()) {
-      continue;
-    }
-    entry.name = item.value("name", "");
-    entry.last_opened_at = item.value("last_opened_at", "");
-    list.entries.push_back(std::move(entry));
   }
   return list;
 }

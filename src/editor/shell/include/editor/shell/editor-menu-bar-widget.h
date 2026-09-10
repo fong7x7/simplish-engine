@@ -43,6 +43,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <editor/project/project-projection.h>
+#include <editor/project/project-shading.h>
 #include <editor/project/recent-projects-list.h>
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-level-entry.h>
@@ -132,6 +133,9 @@ public:
   /// Mark whichever projection row @p projection names as the live one.
   void setProjection(ProjectProjection projection);
 
+  /// Mark whichever shading row @p shading names as the live one.
+  void setShading(ProjectShading shading);
+
   /// Gate the Undo and Redo rows on what @p history holds.
   ///
   /// Takes the history rather than two flags so the bar cannot be told a
@@ -220,6 +224,8 @@ private:
   EditorProjectPresence project_ = EditorProjectPresence::NONE;
   /// The open project's projection, mirrored so its row shows a mark.
   ProjectProjection projection_ = ProjectProjection::DIMETRIC;
+  /// The open project's shading, mirrored so its row shows a mark.
+  ProjectShading shading_ = ProjectShading::SMOOTH;
   /// Whether the history has an applied action for Undo to revert.
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.

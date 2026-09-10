@@ -32,11 +32,18 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::TOGGLE_GRID,
     EditorMenuCommand::SET_VIEW_DIMETRIC,
     EditorMenuCommand::SET_VIEW_ISOMETRIC,
+    EditorMenuCommand::SET_SHADING_SMOOTH,
+    EditorMenuCommand::SET_SHADING_CEL,
     EditorMenuCommand::ABOUT,
 };
 
 /// Whether @p command names work that exists at all.
 [[nodiscard]] bool editorMenuCommandImplemented(EditorMenuCommand command);
+
+/// Whether @p command writes into the open project, and so has nowhere to
+/// go until one is open. The menu bar, which sees no `EditorShellState`,
+/// reads this directly; everything else asks `editorMenuCommandEnabled`.
+[[nodiscard]] bool editorMenuCommandNeedsProject(EditorMenuCommand command);
 
 /// Whether @p command would do anything against @p state right now.
 ///

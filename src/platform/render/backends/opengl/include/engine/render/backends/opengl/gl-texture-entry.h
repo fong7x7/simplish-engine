@@ -18,6 +18,9 @@ struct GlTextureEntry {
   uint32_t height = 0;
   /// Original RHI format.
   RhiFormat format = RhiFormat::UNDEFINED;
+  /// Original RHI usage. A sampled depth target is one a pass's depth has
+  /// to be copied into, since GL draws depth into the default framebuffer.
+  RhiTextureUsage usage = RhiTextureUsage::SAMPLED;
 };
 
 }  // namespace eng::render

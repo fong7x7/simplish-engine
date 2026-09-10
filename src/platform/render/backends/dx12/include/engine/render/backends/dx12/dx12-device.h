@@ -91,6 +91,7 @@ public:
   bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
   /// Create the built-in static-mesh pipeline.
   bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;

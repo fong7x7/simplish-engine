@@ -177,6 +177,17 @@ TEST_CASE("the camera reports which projection it is drawing with") {
   REQUIRE(camera.at("projection") == "isometric");
 }
 
+TEST_CASE("the camera reports which shading it is drawing with") {
+  EditorShellState state;
+  REQUIRE(json::parse(agentStateJson(state)).at("camera").at("shading") ==
+          "smooth");
+
+  state.project.metadata.shading = ProjectShading::CEL;
+
+  REQUIRE(json::parse(agentStateJson(state)).at("camera").at("shading") ==
+          "cel");
+}
+
 TEST_CASE("folders list the browser's tree and its built-in section") {
   EditorShellState state;
   state.assets.push_back({.name = "crate"});

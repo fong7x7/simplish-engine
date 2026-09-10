@@ -29,16 +29,20 @@
 //     begins or ends one, because the depth target belongs to that pass
 //   - The depth target is recreated when the surface size changes, so it
 //     always matches the colour attachment
+//   - The depth target is sampleable as well as a depth attachment, so a
+//     later pass can read what this one wrote — see MeshOutlineRenderer
 //
 // Integration Points:
 //   - RenderedGameClient: opens the scene pass and calls draw()
 //   - Editor viewport: supplies the view projection and the instance list
+//   - MeshOutlineRenderer: reads depthTarget() after the scene pass ends
 
 #include <cstdint>
 #include <engine/math/mat4.h>
 #include <engine/render-mesh/mesh-data.h>
 #include <engine/render-mesh/mesh-instance.h>
 #include <engine/render-mesh/mesh-light.h>
+#include <engine/render-mesh/mesh-style.h>
 #include <engine/render/rhi-command-list.h>
 #include <engine/render/rhi-device.h>
 #include <optional>
@@ -64,6 +68,9 @@ public:
     RhiViewport viewport{};
     /// Pixel scissor, which keeps meshes inside the editor's viewport rect.
     RhiScissor scissor{};
+    /// Tones each light is flattened into — `MeshStyle::shade_bands`.
+    /// `MESH_SHADE_SMOOTH` shades exactly as meshes always have.
+    uint32_t shade_bands = MESH_SHADE_SMOOTH;
   };
 
   /// Create the mesh pipeline. False when the backend has none, which
@@ -117,8 +124,9 @@ private:
   bool createUntexturedStandIn(RhiDevice& device);
 
   /// Hand the fragment stage the lights every instance of this draw is
-  /// shaded by, which is one bind rather than one per instance.
-  void bindLights(RhiCommandList& cmd, std::span<const MeshLight> lights) const;
+  /// shaded by, and how many tones to flatten them into, which is one bind
+  /// rather than one per instance.
+  void bindLights(RhiCommandList& cmd, const DrawParams& params) const;
 
   /// Release the depth target if one exists.
   void destroyDepthTarget(RhiDevice& device);

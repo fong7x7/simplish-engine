@@ -209,7 +209,9 @@ void RenderedGameClient::recordLayeredFrame(RhiCommandList& cmd,
                                             RhiDevice& device,
                                             RhiTextureHandle depth) {
   // Three passes, in paint order: what goes under the scene, the scene, and
-  // what goes over it. The split is wherever the GUI marked it.
+  // what goes over it. The split is wherever the GUI marked it. The last
+  // pass opens with whatever reads the scene's depth, which can only happen
+  // once the pass that had it attached has ended.
   const size_t split = gui_.renderer->sceneSplit();
   const size_t total = gui_.renderer->commands.size();
   gui_.renderer->uploadFrame();
@@ -224,6 +226,7 @@ void RenderedGameClient::recordLayeredFrame(RhiCommandList& cmd,
   cmd.endRenderPass();
 
   beginGuiPass(cmd, device, RhiLoadOp::LOAD);
+  recordSceneOverlay(cmd);
   gui_.renderer->bindFrame(cmd);
   gui_.renderer->submitCommandRange(cmd, split, total - split);
   cmd.endRenderPass();

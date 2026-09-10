@@ -33,6 +33,12 @@ struct GlPipelineEntry {
   GLint loc_u_light_count = -1;
   /// `u_lights` uniform array location; -1 if unused.
   GLint loc_u_lights = -1;
+  /// `u_shade_bands` uniform location; -1 if unused. Rides in the mesh's
+  /// light block, as the second word of its header.
+  GLint loc_u_shade_bands = -1;
+  /// `u_outline` uniform array location; -1 if unused. The outline
+  /// pipeline's whole stage-bytes payload, as three `vec4`s.
+  GLint loc_u_outline = -1;
   /// Blend state snapshot.
   bool blend_enabled = false;
   /// Depth test enabled.

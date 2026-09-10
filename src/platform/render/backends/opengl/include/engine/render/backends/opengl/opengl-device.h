@@ -93,6 +93,7 @@ public:
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;
@@ -208,8 +209,13 @@ private:
   /// Push the mesh program's two matrices, read from one payload.
   static void setMeshMatrices(const GlPipelineEntry& pe, const float* matrices);
 
-  /// Push the mesh program's light count and light array from one block.
+  /// Push the mesh program's light count, band count, and light array from
+  /// one block.
   static void setMeshLights(const GlPipelineEntry& pe, const uint8_t* block);
+
+  /// Copy the default framebuffer's depth into the texture the pass that
+  /// just ended named as its depth target, when that texture is sampled.
+  void copyPassDepth();
 
   void executeCommand(const GlCmdSetVertexStageBytes& cmd);
   void executeCommand(const GlCmdSetFragmentStageBytes& cmd);
@@ -272,6 +278,8 @@ private:
   RhiIndexType current_index_type_ = RhiIndexType::UINT16;
   /// Last bound graphics pipeline (for stride / uniform replay).
   RhiPipelineHandle current_pipeline_ = RHI_PIPELINE_INVALID;
+  /// Depth target the open render pass named, copied into at its end.
+  RhiTextureHandle pass_depth_target_ = RHI_TEXTURE_INVALID;
 };
 
 }  // namespace eng::render

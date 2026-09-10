@@ -199,6 +199,10 @@ inline void glDeleteFramebuffers(int /*n*/, const GLuint* /*framebuffers*/) {}
 inline void glFramebufferTexture2D(GLenum /*target*/, GLenum /*attachment*/,
                                    GLenum /*textarget*/, GLuint /*texture*/,
                                    int /*level*/) {}
+inline void glCopyTexSubImage2D(GLenum /*target*/, int /*level*/,
+                                int /*xoffset*/, int /*yoffset*/, int /*x*/,
+                                int /*y*/, GLsizei /*width*/,
+                                GLsizei /*height*/) {}
 inline const unsigned char* glGetStringi(GLenum /*name*/, GLuint /*index*/) {
   return nullptr;
 }
@@ -400,7 +404,7 @@ RhiTextureHandle OpenGlDevice::createTexture(const RhiTextureDesc& desc) {
     return RHI_TEXTURE_INVALID;
   }
   auto handle = allocHandle();
-  textures_[handle] = {gl_id, desc.width, desc.height, desc.format};
+  textures_[handle] = {gl_id, desc.width, desc.height, desc.format, desc.usage};
   return handle;
 }
 
@@ -808,13 +812,37 @@ uint32_t OpenGlDevice::applyClearState(const RhiRenderPassBeginInfo& info) {
 
 void OpenGlDevice::executeCommand(const GlCmdBeginRenderPass& cmd) {
   glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+  pass_depth_target_ = cmd.info.depth_target;
   auto clear_bits = applyClearState(cmd.info);
   if (clear_bits != 0) {
     glClear(clear_bits);
   }
 }
 
-void OpenGlDevice::executeCommand(const GlCmdEndRenderPass& /*cmd*/) {}
+void OpenGlDevice::executeCommand(const GlCmdEndRenderPass& /*cmd*/) {
+  copyPassDepth();
+  pass_depth_target_ = RHI_TEXTURE_INVALID;
+}
+
+void OpenGlDevice::copyPassDepth() {
+  // Every pass draws into the default framebuffer, depth included, whatever
+  // depth texture it named: that texture is never attached. A caller that
+  // asked to sample it — the outline pass — is handed a copy of what the
+  // pass left in the framebuffer's own depth buffer, taken before the next
+  // pass can clear it. The copy keeps GL's bottom-up rows, which is what
+  // the outline shader expects.
+  auto it = textures_.find(pass_depth_target_);
+  if (it == textures_.end() || !(it->second.usage & RhiTextureUsage::SAMPLED) ||
+      !(it->second.usage & RhiTextureUsage::DEPTH_STENCIL)) {
+    return;
+  }
+  const GlTextureEntry& tex = it->second;
+  glBindTexture(GL_TEXTURE_2D, tex.gl_id);
+  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0,
+                      static_cast<GLsizei>(tex.width),
+                      static_cast<GLsizei>(tex.height));
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
 
 void OpenGlDevice::executeCommand(const GlCmdBindPipeline& cmd) {
   current_pipeline_ = cmd.pipeline;
@@ -849,6 +877,14 @@ namespace {
   constexpr uint32_t MESH_LIGHT_BLOCK_BYTES =
       MESH_LIGHT_HEADER_BYTES +
       (static_cast<uint32_t>(MESH_LIGHT_VECTORS) * 16U);
+  /// Where the band count sits in that header: the word after the count.
+  constexpr uint32_t MESH_SHADE_BANDS_OFFSET = 4;
+  /// How many `vec4`s the outline block is — `OutlineUniforms` in
+  /// `mesh-outline-renderer.cpp`.
+  constexpr int OUTLINE_VECTORS = 3;
+  /// The outline block's size in bytes.
+  constexpr uint32_t OUTLINE_BLOCK_BYTES =
+      static_cast<uint32_t>(OUTLINE_VECTORS) * 16U;
 
 }  // namespace
 
@@ -884,21 +920,28 @@ void OpenGlDevice::executeCommand(const GlCmdSetFragmentStageBytes& cmd) {
     return;
   }
   const auto& pe = pipelines_[current_pipeline_];
-  if (pe.loc_u_light_count < 0 || cmd.size < MESH_LIGHT_BLOCK_BYTES) {
-    return;
-  }
   glUseProgram(pe.program);
-  setMeshLights(pe, cmd.data);
+  // As on the vertex stage, the uniforms the program resolved say what the
+  // payload is: the mesh's lights, or the outline's three vectors.
+  if (pe.loc_u_light_count >= 0 && cmd.size >= MESH_LIGHT_BLOCK_BYTES) {
+    setMeshLights(pe, cmd.data);
+  } else if (pe.loc_u_outline >= 0 && cmd.size >= OUTLINE_BLOCK_BYTES) {
+    glUniform4fv(pe.loc_u_outline, OUTLINE_VECTORS,
+                 reinterpret_cast<const float*>(cmd.data));
+  }
 }
 
 void OpenGlDevice::setMeshLights(const GlPipelineEntry& pe,
                                  const uint8_t* block) {
-  // A count in the first register, then the lights — see `MeshRenderer`'s
-  // FragmentLights, whose layout this reads by hand because GL has no
-  // struct binding short of a uniform buffer.
+  // A count and a band count in the first register, then the lights — see
+  // `MeshRenderer`'s FragmentLights, whose layout this reads by hand
+  // because GL has no struct binding short of a uniform buffer.
   uint32_t count = 0;
   std::memcpy(&count, block, sizeof(count));
   glUniform1ui(pe.loc_u_light_count, count);
+  uint32_t bands = 0;
+  std::memcpy(&bands, block + MESH_SHADE_BANDS_OFFSET, sizeof(bands));
+  glUniform1ui(pe.loc_u_shade_bands, bands);
   if (pe.loc_u_lights >= 0) {
     const auto* lights =
         reinterpret_cast<const float*>(block + MESH_LIGHT_HEADER_BYTES);
@@ -1119,11 +1162,22 @@ in vec3 v_world_position;
 in vec3 v_normal;
 in vec2 v_uv;
 uniform uint u_light_count;
+uniform uint u_shade_bands;
 // Three vec4s per light, as `MeshLight` is laid out: position and range,
 // direction and intensity, colour and kind.
 uniform vec4 u_lights[3 * 8];
 layout(binding = 0) uniform sampler2D u_mesh_tex;
 out vec4 frag_color;
+
+/// One light's strength flattened into `bands` tones, or left alone for
+/// fewer than two. `meshShadeBand` in `mesh-style.h`, restated.
+float mesh_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
 
 float srgb_to_lin(float srgb) {
   if (srgb <= 0.04045) {
@@ -1161,8 +1215,8 @@ vec3 mesh_light_contribution(uint index, vec3 world_position, vec3 normal) {
     return vec3(0.0);
   }
   float lambert = clamp(dot(normal, to_light / aim), 0.0, 1.0);
-  return color_kind.xyz * direction_intensity.w * lambert * attenuation *
-         MESH_LIGHT_DIFFUSE;
+  return color_kind.xyz * direction_intensity.w *
+         mesh_band(lambert * attenuation, u_shade_bands) * MESH_LIGHT_DIFFUSE;
 }
 
 void main() {
@@ -1179,6 +1233,61 @@ void main() {
   vec3 base = clamp(texture(u_mesh_tex, v_uv).rgb * lit, 0.0, 1.0);
   frag_color = vec4(srgb_to_lin(base.r), srgb_to_lin(base.g),
                     srgb_to_lin(base.b), 1.0);
+}
+)glsl";
+
+  /// Outline shaders, mirroring OUTLINE_MSL_SOURCE in the Metal backend and
+  /// OUTLINE_HLSL_SOURCE in the DX12 one. `mesh-outline-renderer.h` has the
+  /// method; `u_outline` is its `OutlineUniforms`, three vec4s.
+  constexpr const char OUTLINE_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+void main() {
+  // (-1,-1), (3,-1) and (-1,3): one triangle covering all of clip space,
+  // so there is no seam down a diagonal and no vertex buffer to bind.
+  vec2 corner = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+}
+)glsl";
+
+  constexpr const char OUTLINE_FRAGMENT_SHADER_GLSL[] = R"glsl(
+#version 460 core
+// Colour; the scissor's left, top, right and bottom; then the sample width
+// and the threshold.
+uniform vec4 u_outline[3];
+layout(binding = 0) uniform sampler2D u_depth;
+out vec4 frag_color;
+
+float outline_depth_at(ivec2 p, ivec2 lo, ivec2 hi) {
+  return texelFetch(u_depth, clamp(p, lo, hi), 0).r;
+}
+
+void main() {
+  // GL counts rows from the bottom, and so does the depth copied out of its
+  // framebuffer; only the scissor, which arrives top-down, is turned over.
+  int height = textureSize(u_depth, 0).y;
+  vec4 bounds = u_outline[1];
+  ivec2 lo = ivec2(int(bounds.x), height - int(bounds.w));
+  ivec2 hi = ivec2(int(bounds.z), height - int(bounds.y)) - 1;
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  float centre = outline_depth_at(p, lo, hi);
+  // Nothing was drawn here, so there is nothing to outline.
+  if (centre >= 1.0) {
+    discard;
+  }
+  int w = int(u_outline[2].x);
+  float threshold = u_outline[2].y;
+  float across = outline_depth_at(p + ivec2(w, 0), lo, hi) +
+                 outline_depth_at(p - ivec2(w, 0), lo, hi) - 2.0 * centre;
+  float down = outline_depth_at(p + ivec2(0, w), lo, hi) +
+               outline_depth_at(p - ivec2(0, w), lo, hi) - 2.0 * centre;
+  // GL's default depth range stores half the clip depth plus a half, so
+  // every bend here is half what the threshold was measured against.
+  float bend = 2.0 * max(across, down);
+  if (bend <= threshold) {
+    discard;
+  }
+  float cover = clamp((bend - threshold) / max(threshold, 1e-9), 0.0, 1.0);
+  frag_color = vec4(u_outline[0].rgb, u_outline[0].a * cover);
 }
 )glsl";
 
@@ -1367,7 +1476,62 @@ namespace {
     return desc;
   }
 
+  /// Fixed function state for the outline pipeline: blended over the
+  /// scene, and neither testing nor writing depth, since the depth it reads
+  /// is a texture rather than the framebuffer's.
+  RhiGraphicsPipelineDesc outlinePipelineDesc() {
+    RhiGraphicsPipelineDesc desc{};
+    desc.blend.enabled = true;
+    desc.depth_stencil.depth_test = false;
+    desc.depth_stencil.depth_write = false;
+    desc.raster.cull_back = false;
+    desc.color_format = RhiFormat::RGB_A8_SRGB;
+    return desc;
+  }
+
+  /// A vertex array for a freshly linked program, or zero — with the
+  /// program deleted, since nothing will own it — when GL cannot make one.
+  GLuint createVertexArrayFor(GLuint program) {
+    GLuint vao = 0;
+    glGenVertexArrays(1, &vao);
+    if (vao == 0) {
+      glDeleteProgram(program);
+    }
+    return vao;
+  }
+
+  /// Look up every uniform the mesh program's stage-bytes payloads land in.
+  void resolveMeshUniforms(GlPipelineEntry& entry, GLuint program) {
+    entry.loc_u_view_projection =
+        glGetUniformLocation(program, "u_view_projection");
+    entry.loc_u_model = glGetUniformLocation(program, "u_model");
+    entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
+    entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
+    entry.loc_u_shade_bands = glGetUniformLocation(program, "u_shade_bands");
+  }
+
 }  // namespace
+
+bool OpenGlDevice::tryCreateMeshOutlinePipeline(
+    RhiPipelineHandle& out_pipeline) {
+  const GLuint program = linkShaderSource(OUTLINE_VERTEX_SHADER_GLSL,
+                                          OUTLINE_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  // A core profile draws nothing with no vertex array bound, even though
+  // this one has no attributes: the triangle comes from gl_VertexID.
+  const GLuint vao = createVertexArrayFor(program);
+  if (vao == 0) {
+    return false;
+  }
+  GlPipelineEntry entry =
+      buildGraphicsEntry(program, vao, outlinePipelineDesc());
+  entry.loc_u_outline = glGetUniformLocation(program, "u_outline");
+  out_pipeline = allocHandle();
+  pipelines_[out_pipeline] = entry;
+  return true;
+}
 
 bool OpenGlDevice::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
   const GLuint program =
@@ -1375,20 +1539,14 @@ bool OpenGlDevice::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
   if (program == 0) {
     return false;
   }
-  GLuint vao = 0;
-  glGenVertexArrays(1, &vao);
+  const GLuint vao = createVertexArrayFor(program);
   if (vao == 0) {
-    glDeleteProgram(program);
     return false;
   }
   setupMeshVertexArray(vao);
 
   GlPipelineEntry entry = buildGraphicsEntry(program, vao, meshPipelineDesc());
-  entry.loc_u_view_projection =
-      glGetUniformLocation(program, "u_view_projection");
-  entry.loc_u_model = glGetUniformLocation(program, "u_model");
-  entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
-  entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
+  resolveMeshUniforms(entry, program);
   const RhiPipelineHandle handle = allocHandle();
   pipelines_[handle] = entry;
   out_pipeline = handle;

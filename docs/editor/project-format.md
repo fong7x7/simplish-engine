@@ -61,11 +61,14 @@ my-project/
   "created_at": "2026-08-01T09:00:00Z",
   "last_opened_at": "2026-08-22T10:30:00Z",
   "default_workspace": "Level",
-  "projection": "dimetric"
+  "projection": "dimetric",
+  "shading": "smooth"
 }
 ```
 
 `projection` is `"dimetric"` or `"isometric"`, and the View menu writes it when a projection is chosen. It belongs to the project rather than to the editor because tile art is authored against one of them ([ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-08-projection-as-a-project-setting)). Absent or unrecognised, it reads as `"dimetric"`: every project written before the field existed was authored that way, and a project should open at a recoverable default rather than refuse to load.
+
+`shading` is `"smooth"` or `"cel"`, and the View menu writes it too. It names one of the engine's mesh styles — continuous light, or banded light with an outline — rather than storing the style's numbers, because a project picks a look and the engine's presets define it. Absent or unrecognised, it reads as `"smooth"`, which is how every project written before the field existed has always been drawn.
 
 ---
 

@@ -62,6 +62,10 @@ enum class EditorMenuCommand : uint8_t {
   SET_VIEW_DIMETRIC,
   /// Draw the world with the 2:1 isometric projection.
   SET_VIEW_ISOMETRIC,
+  /// Shade meshes with smooth light and no outline.
+  SET_SHADING_SMOOTH,
+  /// Cel-shade meshes: banded light and a dark outline.
+  SET_SHADING_CEL,
   /// Show build and version information.
   ABOUT,
 };
@@ -115,6 +119,8 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::TOGGLE_GRID, "Toggle Grid", "G"},
     {EditorMenuCommand::SET_VIEW_DIMETRIC, "Dimetric View", ""},
     {EditorMenuCommand::SET_VIEW_ISOMETRIC, "Isometric View", ""},
+    {EditorMenuCommand::SET_SHADING_SMOOTH, "Smooth Shading", ""},
+    {EditorMenuCommand::SET_SHADING_CEL, "Cel Shading", ""},
     {EditorMenuCommand::ABOUT, "About Simplish", ""},
 };
 

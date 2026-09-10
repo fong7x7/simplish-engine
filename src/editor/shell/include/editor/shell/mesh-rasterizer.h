@@ -23,6 +23,7 @@
 #include <engine/math/mat4.h>
 #include <engine/render-mesh/mesh-data.h>
 #include <engine/render-mesh/mesh-light.h>
+#include <engine/render-mesh/mesh-style.h>
 #include <span>
 #include <vector>
 
@@ -51,6 +52,10 @@ struct MeshRasterScene {
   uint32_t width = 1;
   /// Output height in pixels.
   uint32_t height = 1;
+  /// Tones each light is flattened into, as `MeshStyle::shade_bands` has
+  /// the mesh shader do it. The outline is a GPU pass over depth and is not
+  /// drawn here.
+  uint32_t shade_bands = MESH_SHADE_SMOOTH;
 };
 
 /// Rasterize a scene into an RGBA8 image, depth-tested, with the same

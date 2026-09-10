@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <editor/project/project-projection.h>
+#include <editor/project/project-shading.h>
 #include <string>
 
 namespace eng::editor {
@@ -24,6 +25,8 @@ struct ProjectMetadata {
   std::string default_workspace{"Level"};
   /// The projection this project's world is drawn and authored with.
   ProjectProjection projection = ProjectProjection::DIMETRIC;
+  /// How this project's meshes are shaded.
+  ProjectShading shading = ProjectShading::SMOOTH;
 };
 
 }  // namespace eng::editor

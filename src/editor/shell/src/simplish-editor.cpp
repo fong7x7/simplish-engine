@@ -12,6 +12,7 @@
 #include <editor/shell/editor-level-list.h>
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-mesh-style.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-project-title.h>
@@ -225,15 +226,29 @@ bool SimplishEditor::onInit() {
   if (!eng::client::RenderedGameClient::onInit()) {
     return false;
   }
-  if (rhiDevice() != nullptr && !mesh_renderer_.init(*rhiDevice())) {
-    // Not fatal: the editor runs, placements still show their footprints,
-    // and only the geometry is missing.
-    LOG_WARN("editor", "Backend has no mesh pipeline; assets will not draw");
-  }
+  initSceneRenderers();
   initChrome();
   applyProjectToChrome();
   layoutChrome();
   return true;
+}
+
+void SimplishEditor::initSceneRenderers() {
+  RhiDevice* device = rhiDevice();
+  if (device == nullptr) {
+    return;
+  }
+  if (!mesh_renderer_.init(*device)) {
+    // Not fatal: the editor runs, placements still show their footprints,
+    // and only the geometry is missing.
+    LOG_WARN("editor", "Backend has no mesh pipeline; assets will not draw");
+    return;
+  }
+  if (!outline_renderer_.init(*device)) {
+    // Cel shading still bands the light; it only loses its line.
+    LOG_WARN("editor", "Backend has no outline pipeline; cel shading will "
+                       "draw without outlines");
+  }
 }
 
 void SimplishEditor::initChrome() {
@@ -431,6 +446,7 @@ void SimplishEditor::applyProjectToChrome() {
   applyProjectNameToChrome();
   applyProjectToWidgets();
   applyProjectionToWidgets();
+  applyShadingToWidgets();
 }
 
 void SimplishEditor::applyProjectNameToChrome() {
@@ -1232,6 +1248,15 @@ RhiViewport SimplishEditor::surfaceViewport() {
           1.0f};
 }
 
+float SimplishEditor::surfaceScale() {
+  const auto width = static_cast<float>(guiLayoutWidth());
+  return width > 0.0f ? static_cast<float>(backbufferWidth()) / width : 1.0f;
+}
+
+MeshStyle SimplishEditor::sceneStyle() const {
+  return editorMeshStyleFor(state_.project.metadata.shading);
+}
+
 MeshRenderer::DrawParams
 SimplishEditor::sceneDrawParams(const EditorViewportWidget& viewport) {
   const auto width = static_cast<float>(guiLayoutWidth());
@@ -1246,9 +1271,24 @@ SimplishEditor::sceneDrawParams(const EditorViewportWidget& viewport) {
   params.instances = scene_instances_;
   params.lights = scene_lights_;
   params.viewport = surfaceViewport();
-  params.scissor = toSurfaceScissor(
-      viewport.rect,
-      width > 0.0f ? static_cast<float>(backbufferWidth()) / width : 1.0f);
+  params.scissor = toSurfaceScissor(viewport.rect, surfaceScale());
+  params.shade_bands = sceneStyle().shade_bands;
+  return params;
+}
+
+MeshOutlineRenderer::DrawParams
+SimplishEditor::outlineDrawParams(const EditorViewportWidget& viewport) {
+  const MeshRenderer::DrawParams scene = sceneDrawParams(viewport);
+  const MeshStyle style = sceneStyle();
+  MeshOutlineRenderer::DrawParams params{};
+  params.depth = sceneDepthTarget();
+  params.view_projection = scene.view_projection;
+  // The style's width is in layout pixels, so a line is as thick on a
+  // Retina display as on any other, just sharper.
+  params.width = style.outline_width * surfaceScale();
+  params.color = style.outline_color;
+  params.viewport = scene.viewport;
+  params.scissor = scene.scissor;
   return params;
 }
 
@@ -1260,6 +1300,14 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   buildSceneInstances();
   buildSceneLights();
   mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
+}
+
+void SimplishEditor::recordSceneOverlay(RhiCommandList& cmd) {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr || sceneStyle().outline_width <= 0.0f) {
+    return;
+  }
+  outline_renderer_.draw(cmd, outlineDrawParams(*viewport));
 }
 
 void SimplishEditor::refreshToolbar() {
@@ -1506,12 +1554,16 @@ void SimplishEditor::executeCommand(EditorMenuCommand command) {
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
-  // The two projection rows change the project; everything else on the View
-  // menu only moves the camera over it.
+  // The projection and shading rows change the project; everything else on
+  // the View menu only moves the camera over it.
   if (command == EditorMenuCommand::SET_VIEW_DIMETRIC) {
     applyProjection(ProjectProjection::DIMETRIC);
   } else if (command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
     applyProjection(ProjectProjection::ISOMETRIC);
+  } else if (command == EditorMenuCommand::SET_SHADING_SMOOTH) {
+    applyShading(ProjectShading::SMOOTH);
+  } else if (command == EditorMenuCommand::SET_SHADING_CEL) {
+    applyShading(ProjectShading::CEL);
   } else {
     applyCameraCommand(command);
   }
@@ -1563,6 +1615,28 @@ void SimplishEditor::applyProjectionToWidgets() {
   if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
           guiWidgetTree().findWidget(menu_bar_id_))) {
     menu->setProjection(state_.project.metadata.projection);
+  }
+}
+
+void SimplishEditor::applyShading(ProjectShading shading) {
+  if (!state_.project.loaded || state_.project.metadata.shading == shading) {
+    return;
+  }
+  // Nothing to rebuild: the scene pass reads the setting every frame, so
+  // the next one is drawn in the new style. Thumbnails stay as they are —
+  // a card is for recognising an asset, and it looks the same either way.
+  state_.project.metadata.shading = shading;
+  applyShadingToWidgets();
+  if (!saveProjectMetadata(state_.project)) {
+    LOG_WARN("editor", "Could not write the shading to project.json");
+    showStatusMessage("Switched shading, but could not save it to the project");
+  }
+}
+
+void SimplishEditor::applyShadingToWidgets() {
+  if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
+          guiWidgetTree().findWidget(menu_bar_id_))) {
+    menu->setShading(state_.project.metadata.shading);
   }
 }
 
@@ -1722,6 +1796,7 @@ void SimplishEditor::onShutdown() {
   releaseAssetTextures();
   shutdownChrome();
   if (rhiDevice() != nullptr) {
+    outline_renderer_.shutdown(*rhiDevice());
     mesh_renderer_.shutdown(*rhiDevice());
   }
   // Release the GuiContext last: the widgets above live in its tree.

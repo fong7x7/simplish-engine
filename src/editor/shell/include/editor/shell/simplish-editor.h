@@ -126,7 +126,9 @@
 #include <engine/client/desktop-game-client.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
+#include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
+#include <engine/render-mesh/mesh-style.h>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -196,6 +198,7 @@ protected:
   [[nodiscard]] GuiColor frameClearColor() const override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
+  void recordSceneOverlay(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
   void onShutdown() override;
   void onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
@@ -390,9 +393,20 @@ private:
   void releaseAssetThumbnails();
   /// The whole drawable surface as a GPU viewport.
   [[nodiscard]] RhiViewport surfaceViewport();
+  /// Surface pixels per layout pixel — two on a Retina display.
+  [[nodiscard]] float surfaceScale();
   /// Build the draw parameters for this frame's scene pass.
   [[nodiscard]] MeshRenderer::DrawParams
   sceneDrawParams(const EditorViewportWidget& viewport);
+  /// Build the draw parameters for this frame's outline pass, which match
+  /// the scene pass's so the line sits exactly on what it outlines.
+  [[nodiscard]] MeshOutlineRenderer::DrawParams
+  outlineDrawParams(const EditorViewportWidget& viewport);
+  /// The style the open project's meshes are drawn with.
+  [[nodiscard]] MeshStyle sceneStyle() const;
+  /// Create the mesh and outline pipelines, warning about whichever the
+  /// backend lacks. Neither is fatal: the editor runs without geometry.
+  void initSceneRenderers();
   /// Rebuild `scene_instances_` from the current placements.
   void buildSceneInstances();
   /// Rebuild `scene_lights_` from the document's lights.
@@ -424,6 +438,15 @@ private:
   /// Push the open project's projection into the viewport camera and the
   /// menu's checked row.
   void applyProjectionToWidgets();
+
+  /// Switch the open project to @p shading and write the choice back to its
+  /// project.json. Takes effect on the next frame; a no-op with no project
+  /// open, since there would be nowhere to record the choice.
+  void applyShading(ProjectShading shading);
+
+  /// Push the open project's shading into the menu's checked row. The
+  /// renderer needs no pushing: it reads the setting every frame.
+  void applyShadingToWidgets();
   /// The asset browser, or nullptr before the chrome exists.
   [[nodiscard]] EditorAssetBrowserWidget* assetBrowserWidget();
   /// The properties panel, or nullptr before the chrome exists.
@@ -522,6 +545,8 @@ private:
   GuiWidgetId properties_panel_id_ = GUI_WIDGET_ID_INVALID;
   /// Mesh pipeline, uploaded meshes, and the scene depth target.
   MeshRenderer mesh_renderer_{};
+  /// Outline pipeline, which reads `mesh_renderer_`'s depth target.
+  MeshOutlineRenderer outline_renderer_{};
   /// Instances rebuilt each frame from the placements. Kept as a member so
   /// a frame does not allocate.
   std::vector<MeshInstance> scene_instances_{};

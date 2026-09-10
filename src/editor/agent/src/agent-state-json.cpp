@@ -41,15 +41,18 @@ namespace {
   /// Where the viewport camera sits and what it is over.
   json cameraJson(const EditorShellState& state) {
     const EditorViewState& view = state.view;
-    json out = {{"focus_x", view.camera.focus.x},
-                {"focus_y", view.camera.focus.y},
-                {"zoom", view.camera.zoom},
-                {"show_grid", view.show_grid},
-                // Named rather than derived from the axes: an agent asking
-                // which projection it is looking at wants the word the
-                // project file and the View menu both use.
-                {"projection",
-                 projectProjectionName(state.project.metadata.projection)}};
+    json out = {
+        {"focus_x", view.camera.focus.x},
+        {"focus_y", view.camera.focus.y},
+        {"zoom", view.camera.zoom},
+        {"show_grid", view.show_grid},
+        // Named rather than derived from the axes: an agent asking
+        // which projection it is looking at wants the word the
+        // project file and the View menu both use.
+        {"projection",
+         projectProjectionName(state.project.metadata.projection)},
+        // The same word for the look: "smooth" or "cel".
+        {"shading", projectShadingName(state.project.metadata.shading)}};
     out["hovered_tile"] =
         view.hovered ? agentPointJson(view.hovered_tile) : json(nullptr);
     return out;

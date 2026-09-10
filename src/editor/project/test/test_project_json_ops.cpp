@@ -5,6 +5,7 @@ using eng::editor::parseProjectMetadata;
 using eng::editor::parseRecentProjects;
 using eng::editor::ProjectMetadata;
 using eng::editor::ProjectProjection;
+using eng::editor::ProjectShading;
 using eng::editor::RecentProjectEntry;
 using eng::editor::RecentProjectsList;
 using eng::editor::serializeProjectMetadata;
@@ -64,6 +65,14 @@ TEST_CASE("project metadata survives a serialize/parse round trip") {
   REQUIRE(restored->projection == original.projection);
 }
 
+TEST_CASE("the shading survives a serialize/parse round trip") {
+  ProjectMetadata original;
+  original.shading = ProjectShading::CEL;
+  auto restored = parseProjectMetadata(serializeProjectMetadata(original));
+  REQUIRE(restored.has_value());
+  REQUIRE(restored->shading == ProjectShading::CEL);
+}
+
 TEST_CASE("a project written before projections was dimetric") {
   // Every project that exists today has no projection field, and every one
   // of them was authored against the dimetric view. Reading them as
@@ -87,6 +96,27 @@ TEST_CASE("the projection is written by name") {
   // A word, not an ordinal: the file is meant to be read and hand-edited,
   // and an ordinal would silently change meaning if the enum ever grew.
   REQUIRE(serializeProjectMetadata(meta).find("\"isometric\"") !=
+          std::string::npos);
+}
+
+TEST_CASE("a project written before shading was smooth") {
+  // Every project that exists today has no shading field and has only ever
+  // been drawn smooth; opening one should not change how it looks.
+  auto meta = parseProjectMetadata(R"({"name": "Untitled"})");
+  REQUIRE(meta.has_value());
+  REQUIRE(meta->shading == ProjectShading::SMOOTH);
+}
+
+TEST_CASE("an unrecognised shading name reads as smooth") {
+  auto meta = parseProjectMetadata(R"({"shading": "watercolour"})");
+  REQUIRE(meta.has_value());
+  REQUIRE(meta->shading == ProjectShading::SMOOTH);
+}
+
+TEST_CASE("the shading is written by name") {
+  ProjectMetadata meta;
+  meta.shading = ProjectShading::CEL;
+  REQUIRE(serializeProjectMetadata(meta).find("\"shading\": \"cel\"") !=
           std::string::npos);
 }
 

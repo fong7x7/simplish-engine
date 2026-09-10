@@ -83,6 +83,9 @@ namespace {
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SET_VIEW_DIMETRIC,
       EditorMenuCommand::SET_VIEW_ISOMETRIC,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::SET_SHADING_SMOOTH,
+      EditorMenuCommand::SET_SHADING_CEL,
   };
 
   constexpr EditorMenuCommand LEVEL_ROWS[] = {EditorMenuCommand::NEW_LEVEL};
@@ -327,11 +330,7 @@ void EditorMenuBarWidget::rebuildItems(GuiWidgetTree& tree) {
 bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   // The state-dependent rows first: each is built, and each would still do
   // nothing if it were live right now.
-  if (command == EditorMenuCommand::CLOSE_PROJECT ||
-      command == EditorMenuCommand::SAVE ||
-      command == EditorMenuCommand::NEW_LEVEL ||
-      command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
-      command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
+  if (editorMenuCommandNeedsProject(command)) {
     return project_ == EditorProjectPresence::OPEN;
   }
   if (command == EditorMenuCommand::UNDO) {
@@ -350,6 +349,12 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
     return projection_ == ProjectProjection::ISOMETRIC;
   }
+  if (command == EditorMenuCommand::SET_SHADING_SMOOTH) {
+    return shading_ == ProjectShading::SMOOTH;
+  }
+  if (command == EditorMenuCommand::SET_SHADING_CEL) {
+    return shading_ == ProjectShading::CEL;
+  }
   return false;
 }
 
@@ -358,6 +363,14 @@ void EditorMenuBarWidget::setProjection(ProjectProjection projection) {
     return;
   }
   projection_ = projection;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setShading(ProjectShading shading) {
+  if (shading_ == shading) {
+    return;
+  }
+  shading_ = shading;
   items_dirty_ = true;
 }
 

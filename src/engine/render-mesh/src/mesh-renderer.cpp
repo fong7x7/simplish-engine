@@ -37,32 +37,41 @@ namespace {
     Mat4 model{};
   };
 
-  /// What the fragment stage reads: the light count, then the lights.
+  /// What the fragment stage reads: the light count and the band count,
+  /// then the lights.
   ///
   /// A fixed array always sent whole, so a draw with no lights needs no
   /// second code path in the shader and no second binding here.
   struct alignas(16) FragmentLights {
     /// How many entries of `lights` are live.
     uint32_t count = 0;
-    /// The rest of the register the count sits in. The array after it is
-    /// read as `float4`s, which have to start on a register boundary.
-    uint32_t padding[3]{};
+    /// Tones each light is flattened into; `MESH_SHADE_SMOOTH` for none.
+    /// It rides in the count's register, which was padding before it.
+    uint32_t shade_bands = MESH_SHADE_SMOOTH;
+    /// The rest of that register. The array after it is read as `float4`s,
+    /// which have to start on a register boundary.
+    uint32_t padding[2]{};
     /// The lights, of which the first `count` are live.
     MeshLight lights[MESH_MAX_LIGHTS]{};
   };
 
-  // The shader's own struct puts the array one register in; padding that
-  // drifts here shifts every light the shader reads.
+  // The shader's own struct puts the array one register in, and reads the
+  // band count as the second word of the first; padding that drifts here
+  // shifts every light the shader reads.
+  static_assert(offsetof(FragmentLights, shade_bands) == 4,
+                "the band count is the header's second word");
   static_assert(offsetof(FragmentLights, lights) == 16,
-                "the lights follow the count's whole register");
+                "the lights follow the header's whole register");
 
   /// The lights of a draw, in the layout the shader reads.
   ///
   /// An empty list becomes the one default light, which is the built-in key
   /// light — see `mesh-light.h`. Lights past the array's length are
   /// dropped: the shader's loop is a fixed length and cannot grow.
-  FragmentLights toFragmentLights(std::span<const MeshLight> lights) {
+  FragmentLights toFragmentLights(std::span<const MeshLight> lights,
+                                  uint32_t shade_bands) {
     FragmentLights block;
+    block.shade_bands = shade_bands;
     if (lights.empty()) {
       block.count = 1;
       return block;
@@ -105,13 +114,16 @@ namespace {
   }
 
   /// Depth texture matching a surface of this size.
+  ///
+  /// Sampled as well as attached, because the outline pass reads it back
+  /// once the scene pass has written it.
   RhiTextureHandle createDepthTexture(RhiDevice& device, uint32_t width,
                                       uint32_t height) {
     RhiTextureDesc desc{};
     desc.width = width;
     desc.height = height;
     desc.format = RhiFormat::D32_FLOAT;
-    desc.usage = RhiTextureUsage::DEPTH_STENCIL;
+    desc.usage = RhiTextureUsage::DEPTH_STENCIL | RhiTextureUsage::SAMPLED;
     desc.debug_name = "mesh_depth";
     return device.createTexture(desc);
   }
@@ -229,8 +241,9 @@ RhiTextureHandle MeshRenderer::depthTarget(RhiDevice& device, uint32_t width,
 }
 
 void MeshRenderer::bindLights(RhiCommandList& cmd,
-                              std::span<const MeshLight> lights) const {
-  const FragmentLights block = toFragmentLights(lights);
+                              const DrawParams& params) const {
+  const FragmentLights block =
+      toFragmentLights(params.lights, params.shade_bands);
   cmd.setFragmentStageBytes(&block, sizeof(block), MESH_LIGHT_SLOT);
 }
 
@@ -262,7 +275,7 @@ void MeshRenderer::draw(RhiCommandList& cmd, const DrawParams& params) const {
   cmd.bindPipeline(pipeline_);
   cmd.setViewport(params.viewport);
   cmd.setScissor(params.scissor);
-  bindLights(cmd, params.lights);
+  bindLights(cmd, params);
   for (const auto& instance : params.instances) {
     drawInstance(cmd, instance, params.view_projection);
   }

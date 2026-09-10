@@ -87,6 +87,14 @@ public:
   /// one return `false` and meshes simply do not draw there.
   virtual bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional outline pipeline for meshes: a full-screen triangle, drawn
+  /// with no vertex buffer, that reads the scene's `D32_FLOAT` depth at
+  /// fragment texture slot 0 and its parameters from fragment stage bytes at
+  /// slot 0, and blends an outline over the colour target wherever the depth
+  /// bends sharply. A builtin for the same reason the mesh pipeline is.
+  /// Backends without one return `false` and meshes draw unoutlined.
+  virtual bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline);
+
   // --- Swap chain ---
   virtual RhiTextureHandle
   backbufferTexture() const = 0;  // Current frame's backbuffer
@@ -140,6 +148,11 @@ RhiDevice::tryCreateGuiPipeline(RhiPipelineHandle& /*out_pipeline*/) {
 
 inline bool
 RhiDevice::tryCreateMeshPipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateMeshOutlinePipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

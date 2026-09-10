@@ -62,6 +62,8 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "toggle_grid",
     "set_view_dimetric",
     "set_view_isometric",
+    "set_shading_smooth",
+    "set_shading_cel",
     "about",
 };
 

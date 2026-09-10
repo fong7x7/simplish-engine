@@ -10,8 +10,10 @@
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/mesh-rasterizer.h>
 #include <engine/gui/gui-software-rasterizer.h>
+#include <engine/render-mesh/mesh-style.h>
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -97,6 +99,8 @@ struct CubeScene {
   EditorAsset asset = assetFor(mesh);
   std::vector<MeshRasterScene::Draw> draws;
   std::vector<MeshLight> lights;
+  /// Tones each light is flattened into; smooth unless a test says so.
+  uint32_t shade_bands = MESH_SHADE_SMOOTH;
   ImageData image;
 
   /// A placement of the asset on one tile.
@@ -119,6 +123,7 @@ struct CubeScene {
                                static_cast<float>(CAPTURE_H)});
     scene.draws = draws;
     scene.lights = lights;
+    scene.shade_bands = shade_bands;
     scene.width = CAPTURE_W;
     scene.height = CAPTURE_H;
     image = eng::editor::rasterizeMeshScene(scene);
@@ -173,6 +178,28 @@ struct CubeScene {
       }
     }
     return count;
+  }
+
+  /// How many different colours the geometry came out in.
+  [[nodiscard]] size_t distinctTones() const {
+    std::set<std::array<uint8_t, 3>> tones;
+    for (uint32_t y = 0; y < image.height; ++y) {
+      for (uint32_t x = 0; x < image.width; ++x) {
+        if (!isBackground(x, y)) {
+          tones.insert(pixel(x, y));
+        }
+      }
+    }
+    return tones.size();
+  }
+
+  /// Render one sphere on a tile, which faces every way the key light can
+  /// arrive from and so shows every tone the shading has.
+  void renderSphere() {
+    mesh = makeEditorShapeMesh(EditorShapeKind::SPHERE);
+    asset = assetFor(mesh);
+    const WorldPoint tiles[] = {{1.0f, 1.0f}};
+    render(tiles);
   }
 };
 
@@ -380,6 +407,33 @@ TEST_CASE("a coloured light tints what it lights") {
   // would have had anyway.
   REQUIRE(rgb[0] > rgb[1]);
   REQUIRE(rgb[1] > 0);
+}
+
+TEST_CASE("smooth shading grades a sphere through many tones") {
+  CubeScene scene;
+  scene.renderSphere();
+  // A continuous falloff across a round surface: far more than a handful.
+  REQUIRE(scene.distinctTones() > 20);
+}
+
+TEST_CASE("cel shading flattens a sphere into its bands") {
+  // One light, the key light, flattened into three steps: unlit, half and
+  // full. Each is one colour, so the whole sphere is at most three — and
+  // the key light arrives from over the shoulder, so all three show.
+  CubeScene scene;
+  scene.shade_bands = MESH_STYLE_CEL.shade_bands;
+  scene.renderSphere();
+  REQUIRE(scene.distinctTones() == MESH_STYLE_CEL.shade_bands);
+}
+
+TEST_CASE("the cel-shaded sphere can be written to PNG for inspection") {
+  CubeScene scene;
+  scene.shade_bands = MESH_STYLE_CEL.shade_bands;
+  scene.renderSphere();
+  const std::string path = "editor-mesh-cel-capture.png";
+  const bool written = GuiSoftwareRasterizer::writePng(scene.image, path);
+  INFO("wrote " << path << ": " << written);
+  SUCCEED();
 }
 
 TEST_CASE("a light past the shader's list is not the renderer's to drop") {
