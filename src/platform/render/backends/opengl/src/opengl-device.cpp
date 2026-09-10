@@ -1,3 +1,4 @@
+#include <engine/render/backends/opengl/gl-window-rect.h>
 #include <engine/render/backends/opengl/opengl-command-list.h>
 #include <engine/render/backends/opengl/opengl-device.h>
 #include <engine/render/backends/opengl/opengl-types.h>
@@ -967,17 +968,19 @@ void OpenGlDevice::executeCommand(const GlCmdBindIndexBuffer& cmd) {
 
 void OpenGlDevice::executeCommand(const GlCmdBindDescriptorSet& /*cmd*/) {}
 
+// Every pass draws into the default framebuffer, which is the backbuffer, so
+// its height is what both rectangles are turned over against.
 void OpenGlDevice::executeCommand(const GlCmdSetViewport& cmd) {
-  glViewport(static_cast<int>(cmd.viewport.x), static_cast<int>(cmd.viewport.y),
-             static_cast<int>(cmd.viewport.width),
-             static_cast<int>(cmd.viewport.height));
+  const GlWindowRect r =
+      glViewportRect(cmd.viewport, config_.backbuffer_height);
+  glViewport(r.x, r.y, r.width, r.height);
   glDepthRangef(cmd.viewport.min_depth, cmd.viewport.max_depth);
 }
 
 void OpenGlDevice::executeCommand(const GlCmdSetScissor& cmd) {
   glEnable(GL_SCISSOR_TEST);
-  glScissor(cmd.scissor.x, cmd.scissor.y, static_cast<int>(cmd.scissor.width),
-            static_cast<int>(cmd.scissor.height));
+  const GlWindowRect r = glScissorRect(cmd.scissor, config_.backbuffer_height);
+  glScissor(r.x, r.y, r.width, r.height);
 }
 
 void OpenGlDevice::executeCommand(const GlCmdDraw& cmd) {

@@ -3,10 +3,14 @@
 namespace eng {
 
 /// Viewport rectangle with depth range for rasterisation.
+///
+/// Measured from the top-left corner of the target, rows counting down, as
+/// Metal, DX12 and Vulkan take it. A backend whose API counts from the
+/// bottom — OpenGL — turns it over itself.
 struct RhiViewport {
-  /// Horizontal origin in pixels.
+  /// Left edge in pixels.
   float x = 0.0f;
-  /// Vertical origin in pixels.
+  /// Top edge in pixels, counted down from the target's top row.
   float y = 0.0f;
   /// Width in pixels.
   float width = 0.0f;
