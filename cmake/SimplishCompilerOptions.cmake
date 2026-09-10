@@ -46,6 +46,22 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
+# Floating point — the determinism contract (ADR-002)
+# ---------------------------------------------------------------------------
+# Clang contracts a*b+c into a fused multiply-add by default. arm64 always has
+# FMA and x86_64 here does not (-mavx2 without -mfma), so the same expression
+# rounds differently on the two architectures and a tick hash diverges. Off
+# for every target, so simulation code cannot inherit the default by accident.
+if(MSVC)
+    target_compile_options(simplish_compiler_options INTERFACE /fp:precise)
+else()
+    target_compile_options(simplish_compiler_options INTERFACE
+        -ffp-contract=off
+        -fno-fast-math
+    )
+endif()
+
+# ---------------------------------------------------------------------------
 # SIMD flags
 # ---------------------------------------------------------------------------
 # x86_64: enable SSE4.2 + AVX2 (per REQUIREMENTS.md §3)

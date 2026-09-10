@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <engine/core/logger.h>
+#include <string>
 #include <string_view>
 
 // ============================================================================

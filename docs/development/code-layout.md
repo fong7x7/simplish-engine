@@ -238,6 +238,7 @@ src/
 ├── engine/                         # platform-agnostic
 │   ├── math/{include,src,test}
 │   ├── core/{include,src,test}
+│   ├── sim/{include,src,test}      # tick, entity slots, hashing, replay
 │   ├── image/{include,src,test}    # stb implementation TUs
 │   ├── render/include/             # RHI interface — headers only
 │   ├── gui/{include,src,test}

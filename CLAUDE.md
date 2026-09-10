@@ -126,13 +126,16 @@ above. A bare `NOLINT` is a review rejection.
 ## State of the tree
 
 Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
-`render-mesh`; platform `render` (five backends), `client` (SDL3), `agent`
-(loopback HTTP); editor `project`, `shell` and `agent`; `bin/editor`.
+`render-mesh`, `sim` (tick, pools, hashing, replay —
+[docs/engine/simulation.md](docs/engine/simulation.md)); platform `render`
+(five backends), `client` (SDL3), `agent` (loopback HTTP); editor `project`,
+`shell` and `agent`; `bin/editor`.
 
-Not written yet: `engine/sim`, `spatial`, `render-iso`, `render-sprite`,
+Not written yet: `engine/spatial`, `render-iso`, `render-sprite`,
 `render-fx`, `physics`, `audio`, `input`, `content`, `net`, `debug`, and the
-whole of `src/game/`. The deterministic tick and the isometric renderer are
-ahead, not behind — check [REQUIREMENTS.md §6](REQUIREMENTS.md#6-repository--project-structure-target)
+whole of `src/game/`. The deterministic tick exists but nothing steps it yet,
+and the isometric renderer is ahead, not behind — check
+[REQUIREMENTS.md §6](REQUIREMENTS.md#6-repository--project-structure-target)
 before assuming a system exists.
 
 Determinism outranks everything else in the principle ranking: no wall-clock

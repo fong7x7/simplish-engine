@@ -67,7 +67,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
-| Testing | Catch2 v3 | All | 114 tests green on macOS/Metal, 66 on the headless stub |
+| Testing | Catch2 v3 | All | 849 tests green on macOS/Metal, 801 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
 
 ---
@@ -161,9 +161,9 @@ Legibility is a rendering requirement, not an art note:
 
 | System | Document | Milestone |
 |---|---|---|
-| Core (allocators, handles, logging, RNG streams, fixed clock) | `core.md` | M0 |
-| Deterministic simulation tick, entity pools, command queue | `simulation.md` | M1 |
-| Replay recording and playback | `replay.md` | M1 |
+| Core (allocators, handles, logging, RNG streams, fixed clock) | `core.md`; PCG32 and the fixed-step clock in [simulation.md](simulation.md) | M0 |
+| Deterministic simulation tick, entity pools, command queue | [simulation.md](simulation.md) | **Built** |
+| Replay recording and playback | [simulation.md §5](simulation.md#5-replay) | **Built** (engine side) |
 | Isometric camera, projection, depth policy | `rendering/isometric.md` | M0 |
 | Mesh rendering (instanced terrain, structures, props) | `rendering/mesh.md` | M1 |
 | Sprite system (atlases, 8-direction facing, animation clips, batcher) | `rendering/sprites.md` | M1 |
@@ -236,8 +236,8 @@ Budgets are enforced by the CI performance gate — see [Development REQUIREMENT
 
 | Milestone | Scope |
 |---|---|
-| **M0 — Foundation** | **Done:** `cmake/` module layer and presets; the engine/platform split; `math`, `core`, `image`, `render`, `gui`, and `client` engine packages plus the platform factory, five backends, and desktop client, with tests green on macOS/Metal and the headless stub; a first editor slice ([Editor REQUIREMENTS](../editor/REQUIREMENTS.md)). **Remaining:** RNG streams and the fixed clock in `core`; isometric camera and projection; a triangle, then a tile, on screen; CI matrix green on macOS arm64/x86_64, Windows x86_64, Linux x86_64 |
-| **M1 — Simulation & Draw** | Deterministic 60 Hz tick with the fixed phase order; SoA entity pools with generational handles; tick hashing; replay record and playback; instanced mesh rendering; sprite atlas, 8-direction facing, animation clips, and the depth-interleaved sprite/mesh pass |
+| **M0 — Foundation** | **Done:** `cmake/` module layer and presets; the engine/platform split; `math`, `core`, `image`, `render`, `gui`, and `client` engine packages plus the platform factory, five backends, and desktop client, with tests green on macOS/Metal and the headless stub; a first editor slice ([Editor REQUIREMENTS](../editor/REQUIREMENTS.md)). PCG32 RNG streams and the fixed-step clock in `core` ([simulation.md](simulation.md)). **Remaining:** isometric camera and projection; a triangle, then a tile, on screen; CI matrix green on macOS arm64/x86_64, Windows x86_64, Linux x86_64 |
+| **M1 — Simulation & Draw** | **Done, engine side** ([simulation.md](simulation.md)): deterministic 60 Hz tick with the fixed phase order; SoA entity pools with generational handles; tick hashing; replay record, encode, and verify. **Remaining:** replay playback with rendering attached; instanced mesh rendering; sprite atlas, 8-direction facing, animation clips, and the depth-interleaved sprite/mesh pass |
 | **M2 — Projectiles & Space** | Uniform-grid and spatial-hash broadphase; isometric tile grid and flow fields; projectile archetypes, integration, swept collision, penetration, homing; character sweep, overlap, and line-of-sight queries; GPU-resident projectile draw |
 | **M3 — Content, Audio, UI** | JSON data tables with schema validation and hot-reload; `IAudioBackend` with OpenAL Soft, spatialisation, voice stealing, combat ducking; retained-mode GUI with layout, text, and theming; dev console, CVars, and the frame profiler |
 | **M4 — Playable Slice** | First end-to-end vertical slice: one hand-built level, one weapon, two enemy archetypes, a working wave, win and lose states. Game-side scope in [Game REQUIREMENTS](../game/REQUIREMENTS.md) |
