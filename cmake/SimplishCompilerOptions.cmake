@@ -61,8 +61,17 @@ endif()
 # FMA and x86_64 here does not (-mavx2 without -mfma), so the same expression
 # rounds differently on the two architectures and a tick hash diverges. Off
 # for every target, so simulation code cannot inherit the default by accident.
-if(MSVC)
+#
+# clang-cl sets MSVC but is not MSVC here: under /fp:precise it still
+# contracts, and its /arch:AVX2 turns FMA on, so it takes the Clang flags
+# (spelled /clang: to reach the driver) rather than /fp:precise.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(simplish_compiler_options INTERFACE /fp:precise)
+elseif(MSVC)
+    target_compile_options(simplish_compiler_options INTERFACE
+        /clang:-ffp-contract=off
+        /clang:-fno-fast-math
+    )
 else()
     target_compile_options(simplish_compiler_options INTERFACE
         -ffp-contract=off

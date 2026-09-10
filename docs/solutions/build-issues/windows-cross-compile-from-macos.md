@@ -70,6 +70,16 @@ Windows.
 - The DX12 tests included private headers through a relative path that
   resolves to a directory that doesn't exist (`src/render/...`). The Vulkan
   tests still have the same broken paths.
+- clang-cl sets `MSVC`, so it took the MSVC floating-point flag,
+  `/fp:precise`. clang-cl still contracts `a*b+c` into an FMA under
+  `/fp:precise`, and its `/arch:AVX2` turns FMA on, which breaks the
+  ADR-002 rule against contraction without any error or warning. This was
+  checked by disassembling a test function: `vfmadd213ss` with
+  `/fp:precise`, `vmulss` + `vaddss` with the fix. clang-cl now gets
+  `/clang:-ffp-contract=off /clang:-fno-fast-math` instead. Adding
+  `-ffp-contract=off` alongside `/fp:precise` doesn't work: it triggers
+  `-Woverriding-option`, an error under `/WX`. MSVC itself doesn't contract
+  under `/fp:precise` since VS 2022 without `/fp:contract`.
 - Newer clang enables `-Wmissing-designated-field-initializers` under
   `-Wextra`. It fires for aggregates whose fields have no default member
   initializer, so `EditorAsset::path` and `relative_path` now have `{}`.
