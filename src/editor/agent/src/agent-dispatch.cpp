@@ -45,6 +45,10 @@ namespace {
     return agentOk(agentLightsJson(state));
   }
 
+  AgentResult toolListPlayerStarts(EditorShellState& state, const json&) {
+    return agentOk(agentPlayerStartsJson(state));
+  }
+
   AgentResult toolGetSelection(EditorShellState& state, const json&) {
     return agentOk(agentSelectionJson(state));
   }
@@ -100,15 +104,34 @@ namespace {
   /// the assertion below catches the tool added to the enum without an
   /// answer here.
   constexpr AgentToolFn AGENT_TOOL_FNS[] = {
-      toolDescribe,       toolGetState,     toolListAssets,
-      runAgentGetAsset,   toolListFolders,  toolListPlacements,
-      toolListLights,     toolGetSelection, toolGetHistory,
-      toolGetLevel,       toolListLevels,   toolListCommands,
-      runAgentPlaceAsset, runAgentAddLight, runAgentSetProperty,
-      runAgentTranslate,  runAgentDelete,   runAgentSelect,
-      runAgentSetTool,    toolRunCommand,   toolUndo,
-      toolRedo,           toolOpenProject,  toolRescanAssets,
-      toolCreateLevel,    toolOpenLevel,
+      toolDescribe,
+      toolGetState,
+      toolListAssets,
+      runAgentGetAsset,
+      toolListFolders,
+      toolListPlacements,
+      toolListLights,
+      toolListPlayerStarts,
+      toolGetSelection,
+      toolGetHistory,
+      toolGetLevel,
+      toolListLevels,
+      toolListCommands,
+      runAgentPlaceAsset,
+      runAgentAddLight,
+      runAgentAddPlayerStart,
+      runAgentSetProperty,
+      runAgentTranslate,
+      runAgentDelete,
+      runAgentSelect,
+      runAgentSetTool,
+      toolRunCommand,
+      toolUndo,
+      toolRedo,
+      toolOpenProject,
+      toolRescanAssets,
+      toolCreateLevel,
+      toolOpenLevel,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

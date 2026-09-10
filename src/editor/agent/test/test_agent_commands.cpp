@@ -449,3 +449,122 @@ TEST_CASE("unwritten edits stop a level switch before it is queued") {
   REQUIRE(refused.status == AgentStatus::UNAVAILABLE);
   REQUIRE(refused.host.kind == AgentHostRequestKind::NONE);
 }
+
+TEST_CASE("adding a player start hands out players in order") {
+  EditorShellState state = stateWithAssets();
+
+  const json first = call(state, "add_player_start", R"({"x": 1.5, "y": 2.5})");
+  const json second =
+      call(state, "add_player_start", R"({"x": 3.5, "y": 2.5})");
+
+  REQUIRE(state.document.player_starts.size() == 2);
+  REQUIRE(first.at("player") == 1);
+  REQUIRE(second.at("player") == 2);
+  REQUIRE(first.at("ref") == "player_start:start_01");
+  REQUIRE(first.at("position").at("x") == Approx(1.5f));
+  REQUIRE(first.at("position").at("z") == Approx(0.0f));
+  // Selected, as a drag from general > tools leaves it, and undoable.
+  REQUIRE(state.selection.kind == EditorSelectionKind::PLAYER_START);
+  REQUIRE(state.selection.index == 1);
+  REQUIRE(state.history.actions.size() == 2);
+}
+
+TEST_CASE("a player start can be added for a named player, clamped to four") {
+  EditorShellState state = stateWithAssets();
+
+  const json named =
+      call(state, "add_player_start", R"({"x": 0, "y": 0, "player": 3})");
+  const json clamped =
+      call(state, "add_player_start", R"({"x": 0, "y": 0, "player": 11})");
+
+  REQUIRE(named.at("player") == 3);
+  REQUIRE(clamped.at("player") == 4);
+}
+
+TEST_CASE("adding a player start without a position, or a player, is refused") {
+  EditorShellState state = stateWithAssets();
+
+  REQUIRE(runAgentTool(state, "add_player_start", R"({"x": 1})").status ==
+          AgentStatus::BAD_PARAMS);
+  REQUIRE(runAgentTool(state, "add_player_start",
+                       R"({"x": 1, "y": 1, "player": "two"})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(state.document.player_starts.empty());
+}
+
+TEST_CASE("a player start's player and position are set like any property") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_player_start", R"({"x": 0, "y": 0})");
+
+  const json changed = call(
+      state, "set_property",
+      R"({"target": "player_start", "index": 0, "field": "player", "value": 2})");
+  (void)call(state, "set_property",
+             R"({"target": "selection", "field": "position_y", "value": 7})");
+
+  REQUIRE(changed.at("player") == 2);
+  REQUIRE(state.document.player_starts[0].player == 2);
+  REQUIRE(state.document.player_starts[0].position.y == Approx(7.0f));
+  REQUIRE(state.history.actions.back().kind ==
+          EditorActionKind::TRANSFORM_PLAYER_START);
+}
+
+TEST_CASE("a player start refuses a property it does not have") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_player_start", R"({"x": 0, "y": 0})");
+
+  const AgentResult result = runAgentTool(
+      state, "set_property",
+      R"({"target": "player_start", "index": 0, "field": "rotation_z", "value": 90})");
+
+  REQUIRE(result.status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("a placement and a light refuse a player") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+  (void)call(state, "add_light", R"({"kind": "point", "x": 0, "y": 0})");
+
+  REQUIRE(
+      runAgentTool(
+          state, "set_property",
+          R"({"target": "placement", "index": 0, "field": "player", "value": 2})")
+          .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(
+      runAgentTool(
+          state, "set_property",
+          R"({"target": "light", "index": 0, "field": "player", "value": 2})")
+          .status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("a player start moves, and is removed and put back by undo") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_player_start", R"({"x": 1, "y": 1})");
+
+  (void)call(state, "translate",
+             R"({"target": "player_start", "index": 0, "dx": 2})");
+  REQUIRE(state.document.player_starts[0].position.x == Approx(3.0f));
+
+  const json removed =
+      call(state, "delete", R"({"target": "player_start", "index": 0})");
+  REQUIRE(removed.at("removed") == true);
+  REQUIRE(removed.at("player") == 1);
+  REQUIRE(state.document.player_starts.empty());
+
+  (void)call(state, "undo", "");
+  REQUIRE(state.document.player_starts.size() == 1);
+  REQUIRE(state.selection.kind == EditorSelectionKind::PLAYER_START);
+}
+
+TEST_CASE("a player start is selected by name, and reported as selected") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_player_start", R"({"x": 1, "y": 1})");
+  (void)call(state, "select", R"({"target": "none"})");
+
+  const json selected =
+      call(state, "select", R"({"target": "player_start", "index": 0})");
+
+  REQUIRE(selected.at("target") == "player_start");
+  REQUIRE(selected.at("name") == "Player 1 Start");
+  REQUIRE(selected.at("fields").at(0).at("name") == "player");
+}

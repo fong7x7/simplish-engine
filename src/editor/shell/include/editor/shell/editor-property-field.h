@@ -16,10 +16,10 @@ namespace eng::editor {
 /// enum, so a light's intensity is another entry here and another arm in
 /// `editor-property-ops.cpp` rather than a second panel.
 ///
-/// One enum covers placements and lights together, so a field two of them
-/// share — a position — is one row definition and one edit path. The three
-/// members of every triple are declared in component order, which is what
-/// lets `editor-property-ops.cpp` take a component index by subtraction
+/// One enum covers placements, lights and player starts together, so a field
+/// two of them share — a position — is one row definition and one edit path.
+/// The three members of every triple are declared in component order, which is
+/// what lets `editor-property-ops.cpp` take a component index by subtraction
 /// rather than a case per axis.
 /// @thread_safety Immutable value type.
 enum class EditorPropertyField : uint8_t {
@@ -51,6 +51,8 @@ enum class EditorPropertyField : uint8_t {
   INTENSITY,
   /// How far a point light reaches, in tiles.
   RANGE,
+  /// Which player a start is for, 1 to `EDITOR_PLAYER_SLOTS`.
+  PLAYER,
 };
 
 /// Every field there is, in the enum's own order.
@@ -66,6 +68,7 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::DIRECTION_Z, EditorPropertyField::COLOR_R,
     EditorPropertyField::COLOR_G,     EditorPropertyField::COLOR_B,
     EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
+    EditorPropertyField::PLAYER,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -94,6 +97,18 @@ inline constexpr EditorPropertyField EDITOR_POINT_LIGHT_FIELDS[] = {
     EditorPropertyField::POSITION_Z, EditorPropertyField::RANGE,
     EditorPropertyField::INTENSITY,  EditorPropertyField::COLOR_R,
     EditorPropertyField::COLOR_G,    EditorPropertyField::COLOR_B,
+};
+
+/// What the panel lists for a player start: which player, then where.
+///
+/// The player first, because it is the one number about a start that
+/// somebody reaching for the panel is most likely to be changing; the
+/// position they have usually just set by where they dropped it.
+inline constexpr EditorPropertyField EDITOR_PLAYER_START_FIELDS[] = {
+    EditorPropertyField::PLAYER,
+    EditorPropertyField::POSITION_X,
+    EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z,
 };
 
 /// How many rows a placement's properties fill.

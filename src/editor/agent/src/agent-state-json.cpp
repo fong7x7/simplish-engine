@@ -11,6 +11,7 @@
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
 #include <nlohmann/json.hpp>
@@ -177,6 +178,15 @@ namespace {
     return out;
   }
 
+  /// The rows the panel lists for a player start.
+  json playerStartFields(const EditorPlayerStart& start) {
+    json out = json::array();
+    for (EditorPropertyField field : EDITOR_PLAYER_START_FIELDS) {
+      out.push_back(fieldValue(field, editorPlayerStartValue(start, field)));
+    }
+    return out;
+  }
+
   /// The selected placement, as the panel shows it.
   json placementSelectionJson(const EditorShellState& state, size_t index) {
     const EditorPlacement& placement = state.document.placements[index];
@@ -196,6 +206,34 @@ namespace {
     out["index"] = index;
     out["fields"] = lightFields(light);
     return out;
+  }
+
+  /// The selected player start, as the panel shows it.
+  json playerStartSelectionJson(const EditorShellState& state, size_t index) {
+    const EditorPlayerStart& start = state.document.player_starts[index];
+    json out = agentPlayerStartValue(start);
+    out["target"] = "player_start";
+    out["index"] = index;
+    out["name"] = editorPlayerStartName(start);
+    out["fields"] = playerStartFields(start);
+    return out;
+  }
+
+  /// What is selected, as the panel shows it. Only asked of a selection
+  /// naming an entry that is there.
+  json selectedEntryJson(const EditorShellState& state) {
+    const size_t index = state.selection.index;
+    switch (state.selection.kind) {
+      case EditorSelectionKind::PLACEMENT:
+        return placementSelectionJson(state, index);
+      case EditorSelectionKind::LIGHT:
+        return lightSelectionJson(state, index);
+      case EditorSelectionKind::PLAYER_START:
+        return playerStartSelectionJson(state, index);
+      case EditorSelectionKind::NONE:
+        break;
+    }
+    return {{"target", agentSelectionKindName(EditorSelectionKind::NONE)}};
   }
 
   /// One parameter of one tool, as the manifest publishes it.
@@ -228,6 +266,7 @@ std::string agentStateJson(const EditorShellState& state) {
               {"asset_count", state.assets.size()},
               {"placement_count", state.document.placements.size()},
               {"light_count", state.document.lights.size()},
+              {"player_start_count", state.document.player_starts.size()},
               {"can_undo", canUndoEditorAction(state.history)},
               {"can_redo", canRedoEditorAction(state.history)},
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)}};
@@ -243,7 +282,8 @@ std::string agentLevelJson(const EditorShellState& state) {
               {"readable", state.level_readable},
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
               {"prop_count", state.document.placements.size()},
-              {"light_count", state.document.lights.size()}};
+              {"light_count", state.document.lights.size()},
+              {"player_start_count", state.document.player_starts.size()}};
   // Only where there is a project to be relative to; an absolute path made
   // from an empty root would name the working directory, not a level.
   out["path"] = loaded ? editorLevelPath(state).generic_string() : "";
@@ -303,19 +343,25 @@ std::string agentLightsJson(const EditorShellState& state) {
   return json{{"lights", lights}}.dump(2);
 }
 
+std::string agentPlayerStartsJson(const EditorShellState& state) {
+  json starts = json::array();
+  const auto& list = state.document.player_starts;
+  for (size_t i = 0; i < list.size(); ++i) {
+    json entry = agentPlayerStartValue(list[i]);
+    entry["index"] = i;
+    starts.push_back(entry);
+  }
+  return json{{"player_starts", starts}, {"player_slots", EDITOR_PLAYER_SLOTS}}
+      .dump(2);
+}
+
 std::string agentSelectionJson(const EditorShellState& state) {
   const EditorSelection& selection = state.selection;
-  const size_t index = selection.index;
-  if (selectionIs(selection, EditorSelectionKind::PLACEMENT) &&
-      index < state.document.placements.size()) {
-    return placementSelectionJson(state, index).dump(2);
+  if (selection.index >= editorListSize(state.document, selection.kind)) {
+    return json{{"target", agentSelectionKindName(EditorSelectionKind::NONE)}}
+        .dump(2);
   }
-  if (selectionIs(selection, EditorSelectionKind::LIGHT) &&
-      index < state.document.lights.size()) {
-    return lightSelectionJson(state, index).dump(2);
-  }
-  return json{{"target", agentSelectionKindName(EditorSelectionKind::NONE)}}
-      .dump(2);
+  return selectedEntryJson(state).dump(2);
 }
 
 std::string agentHistoryJson(const EditorShellState& state) {

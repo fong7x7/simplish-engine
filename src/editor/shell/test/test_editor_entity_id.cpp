@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-shape.h>
 
 using namespace eng::editor;
@@ -208,4 +209,17 @@ TEST_CASE("a placement naming an index the old list never had is dropped") {
   document.placements.push_back(identifiedPlacement("stale_01", 7));
   REQUIRE(rebindPlacementAssets(document, {}, {}));
   REQUIRE(document.placements.empty());
+}
+
+TEST_CASE("a player start is numbered from start, not from its player") {
+  EditorDocument document;
+  EditorPlayerStart first = makeEditorPlayerStart(3, {});
+  first.id = mintEditorPlayerStartId(document);
+  document.player_starts.push_back(first);
+
+  REQUIRE(first.id == "start_01");
+  // Which player a start is for can change; its id cannot, so the id says
+  // nothing about the player.
+  REQUIRE(mintEditorPlayerStartId(document) == "start_02");
+  REQUIRE(editorPlayerStartRef(first) == "player_start:start_01");
 }

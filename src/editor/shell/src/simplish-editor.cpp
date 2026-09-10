@@ -13,6 +13,7 @@
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-project-title.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-shape.h>
@@ -97,6 +98,29 @@ namespace {
            a.direction.z == b.direction.z && a.color.x == b.color.x &&
            a.color.y == b.color.y && a.color.z == b.color.z &&
            a.intensity == b.intensity && a.range == b.range;
+  }
+
+  /// Whether two player starts are for the same player on the same spot,
+  /// for the reason `sameTransform` compares placements exactly.
+  bool sameStart(const EditorPlayerStart& a, const EditorPlayerStart& b) {
+    return a.player == b.player && a.position.x == b.position.x &&
+           a.position.y == b.position.y && a.position.z == b.position.z;
+  }
+
+  /// The entry a viewport marker stands for. Markers are the placements,
+  /// then the lights, then the player starts — the order
+  /// `refreshPlacementMarkers` pushes them in.
+  EditorSelection markerSelection(const EditorDocument& document,
+                                  size_t marker) {
+    const size_t placements = document.placements.size();
+    if (marker < placements) {
+      return {EditorSelectionKind::PLACEMENT, marker};
+    }
+    const size_t light = marker - placements;
+    if (light < document.lights.size()) {
+      return {EditorSelectionKind::LIGHT, light};
+    }
+    return {EditorSelectionKind::PLAYER_START, light - document.lights.size()};
   }
 
   /// Stands in for an asset a placement names but the list no longer has.
@@ -453,6 +477,7 @@ void SimplishEditor::clearDocument() {
   state_.selection = EditorSelection{};
   placement_prior_.reset();
   light_prior_.reset();
+  player_start_prior_.reset();
   clearEditorActions(state_.history);
 }
 
@@ -569,7 +594,9 @@ void SimplishEditor::adoptOpenedLevel(const EditorLevelResult& result) {
   // A gesture in flight belongs to a document that is no longer here.
   placement_prior_.reset();
   light_prior_.reset();
+  player_start_prior_.reset();
   reportDroppedProps(result.dropped_props);
+  reportDroppedEntities(result.dropped_entities);
   ensurePlacedMeshes();
   applyEditToChrome();
   applyProjectNameToChrome();
@@ -588,6 +615,7 @@ void SimplishEditor::loadDocument() {
     return;
   }
   reportDroppedProps(load->dropped_props);
+  reportDroppedEntities(load->dropped_entities);
   state_.document = std::move(load->document);
   ensurePlacedMeshes();
 }
@@ -606,6 +634,14 @@ void SimplishEditor::reportDroppedProps(size_t dropped) {
   }
   LOG_WARN("editor", "Level dropped " + std::to_string(dropped) +
                          " prop(s) whose asset is gone");
+}
+
+void SimplishEditor::reportDroppedEntities(size_t dropped) {
+  if (dropped == 0) {
+    return;
+  }
+  LOG_WARN("editor", "Level dropped " + std::to_string(dropped) +
+                         " entit(ies) this editor has no definition for");
 }
 
 void SimplishEditor::refreshAssetPanel() {
@@ -819,8 +855,17 @@ void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
   // never have reported.
   const size_t item = entry - state_.assets.size();
   if (item < EDITOR_GENERAL_ITEM_COUNT) {
-    placeLight(EDITOR_GENERAL_ITEMS[item], tile);
+    placeGeneralItem(EDITOR_GENERAL_ITEMS[item], tile);
   }
+}
+
+void SimplishEditor::placeGeneralItem(EditorGeneralItem item, WorldPoint tile) {
+  if (const std::optional<EditorLightKind> kind =
+          editorGeneralItemLightKind(item)) {
+    placeLight(*kind, tile);
+    return;
+  }
+  placePlayerStart(tile);
 }
 
 void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
@@ -839,14 +884,13 @@ void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
   select({EditorSelectionKind::PLACEMENT, placed});
 }
 
-void SimplishEditor::placeLight(EditorGeneralItem item, WorldPoint tile) {
+void SimplishEditor::placeLight(EditorLightKind kind, WorldPoint tile) {
   // Over the middle of the tile it was dropped on, and above head height,
   // so a point light lights what is around it rather than sitting inside a
   // prop standing there.
   const WorldPoint position{tile.x + 0.5f, tile.y + 0.5f,
                             EDITOR_LIGHT_DROP_HEIGHT};
   const size_t added = state_.document.lights.size();
-  const EditorLightKind kind = editorGeneralItemLightKind(item);
   EditorLight light = makeEditorLight(kind, position);
   light.id = mintEditorLightId(state_.document, kind);
   recordAction(
@@ -854,18 +898,24 @@ void SimplishEditor::placeLight(EditorGeneralItem item, WorldPoint tile) {
   select({EditorSelectionKind::LIGHT, added});
 }
 
+void SimplishEditor::placePlayerStart(WorldPoint tile) {
+  // Feet on the middle of the tile it was dropped on, where a player
+  // standing on that tile would be.
+  const WorldPoint position{tile.x + 0.5f, tile.y + 0.5f, 0.0f};
+  const size_t added = state_.document.player_starts.size();
+  EditorPlayerStart start =
+      makeEditorPlayerStart(nextEditorPlayerSlot(state_.document), position);
+  start.id = mintEditorPlayerStartId(state_.document);
+  recordAction({.kind = EditorActionKind::ADD_PLAYER_START,
+                .index = added,
+                .player_start = start});
+  select({EditorSelectionKind::PLAYER_START, added});
+}
+
 size_t SimplishEditor::selectionCount() const {
-  switch (state_.selection.kind) {
-    case EditorSelectionKind::PLACEMENT:
-      return state_.document.placements.size();
-    case EditorSelectionKind::LIGHT:
-      return state_.document.lights.size();
-    case EditorSelectionKind::NONE:
-      // Nothing selected has no list, so no index is ever in range — which
-      // is what every caller here asks this in order to find out.
-      return 0;
-  }
-  return 0;
+  // Nothing selected has no list, so no index is ever in range — which is
+  // what every caller here asks this in order to find out.
+  return editorListSize(state_.document, state_.selection.kind);
 }
 
 bool SimplishEditor::isSelected(EditorSelectionKind kind, size_t index) const {
@@ -891,13 +941,7 @@ void SimplishEditor::selectMarker(int marker) {
     select({});
     return;
   }
-  // Markers are the placements and then the lights, so which list a marker
-  // names is which half of that run it falls in.
-  const auto index = static_cast<size_t>(marker);
-  const size_t placements = state_.document.placements.size();
-  select(index < placements
-             ? EditorSelection{EditorSelectionKind::PLACEMENT, index}
-             : EditorSelection{EditorSelectionKind::LIGHT, index - placements});
+  select(markerSelection(state_.document, static_cast<size_t>(marker)));
 }
 
 void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
@@ -916,6 +960,12 @@ void SimplishEditor::showLightSelection(EditorPropertiesWidget& panel) {
   panel.setSelection(std::string(editorLightKindName(light.kind)), light);
 }
 
+void SimplishEditor::showPlayerStartSelection(EditorPropertiesWidget& panel) {
+  const EditorPlayerStart& start =
+      state_.document.player_starts[state_.selection.index];
+  panel.setSelection(editorPlayerStartName(start), start);
+}
+
 void SimplishEditor::applySelectionToChrome() {
   auto* panel = propertiesWidget();
   if (panel == nullptr) {
@@ -925,8 +975,10 @@ void SimplishEditor::applySelectionToChrome() {
     panel->clearSelection();
   } else if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
     showPlacementSelection(*panel);
-  } else {
+  } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
     showLightSelection(*panel);
+  } else {
+    showPlayerStartSelection(*panel);
   }
   refreshPlacementMarkers();
 }
@@ -938,8 +990,10 @@ void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
   }
   if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
     applyPlacementEdit(field, value, edit);
-  } else {
+  } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
     applyLightEdit(field, value, edit);
+  } else {
+    applyPlayerStartEdit(field, value, edit);
   }
   refreshPlacementMarkers();
 }
@@ -971,12 +1025,27 @@ void SimplishEditor::applyLightEdit(EditorPropertyField field, float value,
   }
 }
 
+void SimplishEditor::applyPlayerStartEdit(EditorPropertyField field,
+                                          float value,
+                                          EditorPropertyEdit edit) {
+  EditorPlayerStart& start =
+      state_.document.player_starts[state_.selection.index];
+  if (!player_start_prior_.has_value()) {
+    player_start_prior_ = start;
+  }
+  setEditorPlayerStartValue(start, field, value);
+  if (edit == EditorPropertyEdit::COMMIT) {
+    commitPlayerStartEdit();
+  }
+}
+
 void SimplishEditor::commitPendingEdit() {
-  // One or the other, never both: a gesture edits what is selected, and one
+  // One at most, never several: a gesture edits what is selected, and one
   // thing is selected. Each is offered the chance and the one holding a
   // prior takes it.
   commitPlacementEdit();
   commitLightEdit();
+  commitPlayerStartEdit();
 }
 
 bool SimplishEditor::editSubjectSelected(EditorSelectionKind kind) const {
@@ -1030,6 +1099,24 @@ void SimplishEditor::commitLightEdit() {
                 .light_prior = prior});
 }
 
+void SimplishEditor::commitPlayerStartEdit() {
+  if (!player_start_prior_.has_value()) {
+    return;
+  }
+  const auto prior = *std::exchange(player_start_prior_, std::nullopt);
+  if (!editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
+    return;
+  }
+  const auto& start = state_.document.player_starts[state_.selection.index];
+  if (sameStart(prior, start)) {
+    return;
+  }
+  recordAction({.kind = EditorActionKind::TRANSFORM_PLAYER_START,
+                .index = state_.selection.index,
+                .player_start = start,
+                .player_start_prior = prior});
+}
+
 void SimplishEditor::applyEditToChrome() {
   refreshUnsavedMarker();
   applySelectionToChrome();
@@ -1064,22 +1151,30 @@ EditorPlacementMarker SimplishEditor::lightMarker(size_t index) {
           isSelected(EditorSelectionKind::LIGHT, index)};
 }
 
+EditorPlacementMarker SimplishEditor::playerStartMarker(size_t index) {
+  const EditorPlayerStart& start = state_.document.player_starts[index];
+  return {editorPlayerStartBounds(start),
+          isSelected(EditorSelectionKind::PLAYER_START, index),
+          EditorMarkerStyle::PLAYER_START, start.player};
+}
+
 void SimplishEditor::refreshPlacementMarkers() {
   EditorViewportWidget* viewport = viewportWidget();
   if (viewport == nullptr) {
     return;
   }
-  const EditorDocument& document = state_.document;
-  viewport->placement_markers.clear();
-  viewport->placement_markers.reserve(document.placements.size() +
-                                      document.lights.size());
-  // Placements first and lights after, which is the order `selectMarker`
-  // reads a pick back in.
-  for (size_t i = 0; i < document.placements.size(); ++i) {
-    viewport->placement_markers.push_back(placementMarker(i));
+  // Placements, then lights, then player starts: the order
+  // `markerSelection` reads a pick back in.
+  std::vector<EditorPlacementMarker>& markers = viewport->placement_markers;
+  markers.clear();
+  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
+    markers.push_back(placementMarker(i));
   }
-  for (size_t i = 0; i < document.lights.size(); ++i) {
-    viewport->placement_markers.push_back(lightMarker(i));
+  for (size_t i = 0; i < state_.document.lights.size(); ++i) {
+    markers.push_back(lightMarker(i));
+  }
+  for (size_t i = 0; i < state_.document.player_starts.size(); ++i) {
+    markers.push_back(playerStartMarker(i));
   }
 }
 

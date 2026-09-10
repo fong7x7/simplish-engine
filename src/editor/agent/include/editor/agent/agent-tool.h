@@ -36,6 +36,8 @@ enum class AgentTool : uint8_t {
   LIST_PLACEMENTS,
   /// Every light in the level.
   LIST_LIGHTS,
+  /// Every player start in the level.
+  LIST_PLAYER_STARTS,
   /// What the properties panel is editing.
   GET_SELECTION,
   /// The undo history and its cursor.
@@ -51,17 +53,20 @@ enum class AgentTool : uint8_t {
   PLACE_ASSET,
   /// Add a light, as dragging one from the general section would.
   ADD_LIGHT,
-  /// Set one property of a placement or a light to an absolute value.
+  /// Add a player start, as dragging one from general > tools would.
+  ADD_PLAYER_START,
+  /// Set one property of a placement, a light or a player start to an
+  /// absolute value.
   SET_PROPERTY,
-  /// Move a placement or a light by a delta, in tiles.
+  /// Move a placement, a light or a player start by a delta, in tiles.
   TRANSLATE,
-  /// Take a placement or a light back out of the level.
+  /// Take a placement, a light or a player start back out of the level.
   ///
   /// Not `DELETE`: `<windows.h>` defines that as an access mask, and a
   /// macro cannot be scoped away by an enum class. The wire name is
   /// `delete`, which is what an agent actually calls it.
   DELETE_ENTRY,
-  /// Select a placement or a light, or clear the selection.
+  /// Select a placement, a light or a player start, or clear the selection.
   SELECT,
   /// Choose the active toolbar tool.
   SET_TOOL,
@@ -87,19 +92,20 @@ enum class AgentTool : uint8_t {
 /// reading the manifest wants them in: what can be asked, then what can be
 /// changed.
 inline constexpr AgentTool AGENT_TOOLS[] = {
-    AgentTool::DESCRIBE,     AgentTool::GET_STATE,
-    AgentTool::LIST_ASSETS,  AgentTool::GET_ASSET,
-    AgentTool::LIST_FOLDERS, AgentTool::LIST_PLACEMENTS,
-    AgentTool::LIST_LIGHTS,  AgentTool::GET_SELECTION,
-    AgentTool::GET_HISTORY,  AgentTool::GET_LEVEL,
-    AgentTool::LIST_LEVELS,  AgentTool::LIST_COMMANDS,
-    AgentTool::PLACE_ASSET,  AgentTool::ADD_LIGHT,
-    AgentTool::SET_PROPERTY, AgentTool::TRANSLATE,
-    AgentTool::DELETE_ENTRY, AgentTool::SELECT,
-    AgentTool::SET_TOOL,     AgentTool::RUN_COMMAND,
-    AgentTool::UNDO,         AgentTool::REDO,
-    AgentTool::OPEN_PROJECT, AgentTool::RESCAN_ASSETS,
-    AgentTool::CREATE_LEVEL, AgentTool::OPEN_LEVEL,
+    AgentTool::DESCRIBE,      AgentTool::GET_STATE,
+    AgentTool::LIST_ASSETS,   AgentTool::GET_ASSET,
+    AgentTool::LIST_FOLDERS,  AgentTool::LIST_PLACEMENTS,
+    AgentTool::LIST_LIGHTS,   AgentTool::LIST_PLAYER_STARTS,
+    AgentTool::GET_SELECTION, AgentTool::GET_HISTORY,
+    AgentTool::GET_LEVEL,     AgentTool::LIST_LEVELS,
+    AgentTool::LIST_COMMANDS, AgentTool::PLACE_ASSET,
+    AgentTool::ADD_LIGHT,     AgentTool::ADD_PLAYER_START,
+    AgentTool::SET_PROPERTY,  AgentTool::TRANSLATE,
+    AgentTool::DELETE_ENTRY,  AgentTool::SELECT,
+    AgentTool::SET_TOOL,      AgentTool::RUN_COMMAND,
+    AgentTool::UNDO,          AgentTool::REDO,
+    AgentTool::OPEN_PROJECT,  AgentTool::RESCAN_ASSETS,
+    AgentTool::CREATE_LEVEL,  AgentTool::OPEN_LEVEL,
 };
 
 }  // namespace eng::editor

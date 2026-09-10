@@ -29,6 +29,12 @@ enum class EditorActionKind : uint8_t {
   TRANSFORM_LIGHT,
   /// A light was taken back out of the world.
   REMOVE_LIGHT,
+  /// A player start was added to the level.
+  ADD_PLAYER_START,
+  /// A player start was moved, or given to another player.
+  TRANSFORM_PLAYER_START,
+  /// A player start was taken back out of the level.
+  REMOVE_PLAYER_START,
 };
 
 }  // namespace eng::editor

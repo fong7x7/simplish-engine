@@ -9,6 +9,8 @@
 //   - Outlines the footprint of every marker it is given — the placements,
 //     and the boxes that stand in for lights — so what is in the level is
 //     visible even on a backend with no mesh pipeline
+//   - Draws a player start's whole column in its player's colour, since
+//     there is no geometry in the scene to see one by
 //   - Draws the selected marker's box in the accent colour, so what the
 //     properties panel is editing is unmistakable in the viewport
 //   - A left click that did not drag picks the marker under the cursor and
@@ -61,6 +63,17 @@ namespace eng::editor {
 /// because it is the viewport's colour, and the editor sets the frame clear
 /// from it.
 inline constexpr GuiColor EDITOR_VIEWPORT_BG{22, 22, 26, 255};
+
+/// The colour a player start is drawn in, one per player from player 1:
+/// green, orange, violet, magenta. Four starts on a map read as four
+/// players at a glance, and none of them is the selection blue or the tan a
+/// prop's footprint is drawn in.
+inline constexpr GuiColor EDITOR_PLAYER_START_COLORS[] = {
+    {90, 210, 120, 255},
+    {240, 130, 60, 255},
+    {180, 120, 240, 255},
+    {240, 90, 170, 255},
+};
 
 /// The level viewport: a dimetric tile grid with pan and zoom.
 /// @thread_safety Main-thread only.

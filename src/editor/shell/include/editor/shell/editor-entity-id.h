@@ -62,6 +62,10 @@ void assignEditorAssetIds(std::vector<EditorAsset>& assets);
 /// How another file references the light @p light: `light:point_01`.
 [[nodiscard]] std::string editorLightRef(const EditorLight& light);
 
+/// How another file references the player start @p start:
+/// `player_start:start_01`.
+[[nodiscard]] std::string editorPlayerStartRef(const EditorPlayerStart& start);
+
 /// Point every placement in @p document at its asset's index in @p assets,
 /// given the ids those indices meant before. Returns how many placements
 /// were dropped, which is zero for the ordinary case of a file added.
@@ -88,5 +92,13 @@ size_t rebindPlacementAssets(EditorDocument& document,
 /// An id for a new light of @p kind, free in @p document.
 [[nodiscard]] std::string mintEditorLightId(const EditorDocument& document,
                                             EditorLightKind kind);
+
+/// An id for a new player start, free in @p document: `start_01`.
+///
+/// Not numbered by the player it starts. Which player a start is for can
+/// be changed in the panel, and an id is fixed for life, so `player_2`
+/// would go on naming a start that now belongs to player 3.
+[[nodiscard]] std::string
+mintEditorPlayerStartId(const EditorDocument& document);
 
 }  // namespace eng::editor

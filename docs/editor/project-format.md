@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — the manifest and the level file's props and lights are implemented; everything else is not
+**Status:** Specification — the manifest and the level file's props, lights and player starts are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -149,7 +149,7 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 
 File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/<id>.level.json` for the level the Level menu has open, and opening a project reads one back. `main` is where a new project starts and where an opened one goes back to when it has such a level; every other id is authored, through Level > New Level, which turns a typed name into an id the rules above allow. Its `name` is its id, because nothing in the editor shows or edits a level name yet — writing the project's name there instead would put the same name in every level file of a project holding several.
 
-Two parts of §4 are written, and one of them differs from the shape above:
+Three parts of §4 are written — props, lights, and one kind of entity — and one of them differs from the shape above:
 
 ```json
 {
@@ -165,6 +165,10 @@ Two parts of §4 are written, and one of them differs from the shape above:
       { "id": "point_01", "kind": "point", "at": [1.0, 1.0, 3.0],
         "direction": [-0.35, -0.45, 0.82], "color": [1.0, 1.0, 1.0],
         "intensity": 1.0, "range": 8.0 }
+    ],
+    "entities": [
+      { "id": "start_01", "definition": "entity:player_start",
+        "at": [2.5, 3.5, 0.0], "properties": { "player": 1 } }
     ]
   }
 }
@@ -174,7 +178,9 @@ Two parts of §4 are written, and one of them differs from the shape above:
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 
-Everything else in §4 — bounds, the tile palette, the RLE layers, entities and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
+**The player start is the one entity definition the editor knows.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
+
+Everything else in §4 — bounds, the tile palette, the RLE layers, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
 
 **A prop names its asset by reference, never by index.** `mesh:props_crate` for a model on disk, `shape:cube` for a built-in shape. The index a session holds an asset at is renumbered by any rescan, so a level saved with indices would decay the moment a file was added beside it; a reference is resolved against the scan when the level loads. A prop whose asset the project no longer holds is dropped on load and counted in the log — one deleted `.obj` costs that prop and nothing else. A prop with no `id` is given one, so nothing in a level is unnameable even after a hand edit.
 
@@ -422,7 +428,7 @@ Migrations are code, not configuration: a function per version step, unit-tested
 The format is specified; none of it is built. A sensible order, each step useful on its own:
 
 1. **Schemas and the envelope** — schema ids, the validator wired to them, and `data/` tables, which are the simplest file kind and already have a runtime consumer.
-2. **Level files** — ~~the tile layer, props, entities, and regions~~. Props and lights are done (§4.1): placements and light sources survive a restart. The tile layer, entities and regions wait on the tools that author them.
+2. **Level files** — ~~the tile layer, props, entities, and regions~~. Props, lights and player starts are done (§4.1): placements, light sources and where players spawn survive a restart. The tile layer, the other entities and regions wait on the tools that author them.
 3. **The generator** — starting with data tables and ids, before logic.
 4. **Encounters and scenarios** — once the director exists to consume them.
 5. **Logic and expressions** — last, because the equivalence test and the expression golden test are what make it safe, and both want the earlier pieces in place.

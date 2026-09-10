@@ -32,6 +32,12 @@ bool undoEditorAction(EditorActionHistory& history, EditorDocument& document);
 /// Reapply the oldest reverted action. False when there is none.
 bool redoEditorAction(EditorActionHistory& history, EditorDocument& document);
 
+/// How many entries the document list @p kind names holds, and none for
+/// `NONE` — so `selection.index < editorListSize(document, selection.kind)`
+/// is the one test for "the selection names something that is there".
+[[nodiscard]] size_t editorListSize(const EditorDocument& document,
+                                    EditorSelectionKind kind);
+
 /// The action that removes whatever @p selection names, or nothing when
 /// it names nothing that is there.
 ///

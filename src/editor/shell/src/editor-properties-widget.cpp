@@ -1,5 +1,6 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <engine/gui/gui-draw-context.h>
@@ -93,6 +94,15 @@ void EditorPropertiesWidget::setSelection(std::string name,
                  editorLightFields(light.kind));
   for (size_t row = 0; row < fields_.size(); ++row) {
     values_[row] = editorLightValue(light, fields_[row]);
+  }
+}
+
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorPlayerStart& start) {
+  beginSelection(std::move(name), editorPlayerStartRef(start),
+                 EDITOR_PLAYER_START_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorPlayerStartValue(start, fields_[row]);
   }
 }
 

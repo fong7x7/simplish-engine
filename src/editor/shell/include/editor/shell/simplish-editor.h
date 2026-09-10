@@ -9,13 +9,16 @@
 //     viewport, asset panel
 //   - Lists the open project's assets, and places one in the world when it
 //     is dragged from the panel onto the viewport
-//   - Lists the built-in general section above them, divided into lighting
-//     and shapes: its light sources drop into the world the same way and
-//     light every mesh in the scene, and its shapes are assets whose
-//     geometry is generated rather than read from a file
-//   - Clicking a placed asset or a light selects it, outlines it in the
-//     viewport, and opens a properties panel down the right; the panel
-//     moves and turns a placement, and aims, dims and tints a light, and
+//   - Lists the built-in general section above them, divided into
+//     lighting, shapes and tools: its light sources drop into the world the
+//     same way and light every mesh in the scene, its shapes are assets
+//     whose geometry is generated rather than read from a file, and its
+//     tools hold the player start, which marks where a player spawns and
+//     is handed the lowest player that has no start yet
+//   - Clicking a placed asset, a light or a player start selects it,
+//     outlines it in the viewport, and opens a properties panel down the
+//     right; the panel moves and turns a placement, aims, dims and tints a
+//     light, and moves a player start or gives it to another player, and
 //     clicking bare ground or pressing Escape puts the panel away again
 //   - File > Save writes what has been placed and what lights it to the
 //     project's own level file, and Ctrl/Cmd+S does the same; opening a
@@ -226,6 +229,9 @@ private:
   void reportLevelUnreadable();
   /// Say how many props the level lost because their asset is gone.
   void reportDroppedProps(size_t dropped);
+  /// Say how many entities the level lost because the editor has no
+  /// definition for them.
+  void reportDroppedEntities(size_t dropped);
   /// Show what a level operation did, and rebuild the chrome when it
   /// changed which level is open.
   void applyLevelResult(const EditorLevelResult& result, std::string_view id);
@@ -265,9 +271,14 @@ private:
   /// Put the asset at @p index on the tile at @p position, as an action the
   /// user can undo.
   void placeAsset(size_t index, WorldPoint position);
-  /// Add the light a built-in item stands for, over the tile at @p tile, as
-  /// an action the user can undo.
-  void placeLight(EditorGeneralItem item, WorldPoint tile);
+  /// Put the built-in item @p item on @p tile, whichever sort it is.
+  void placeGeneralItem(EditorGeneralItem item, WorldPoint tile);
+  /// Add a light of @p kind over the tile at @p tile, as an action the user
+  /// can undo.
+  void placeLight(EditorLightKind kind, WorldPoint tile);
+  /// Add a player start on the tile at @p tile, for the lowest player that
+  /// has none yet, as an action the user can undo.
+  void placePlayerStart(WorldPoint tile);
   /// Carry out the Edit menu's undo, redo and delete. Returns false when
   /// the command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
@@ -286,9 +297,9 @@ private:
   /// Select @p selection, or nothing when it names an entry the document
   /// does not have.
   void select(EditorSelection selection);
-  /// Select what a viewport pick reported: markers are the placements and
-  /// then the lights, so which list a marker belongs to is which half of
-  /// that run it falls in.
+  /// Select what a viewport pick reported: markers are the placements, then
+  /// the lights, then the player starts, so which list a marker belongs to
+  /// is which run it falls in.
   void selectMarker(int marker);
   /// How many entries the list the selection names holds, and zero when
   /// nothing is selected — so `index >= selectionCount()` is the one test
@@ -302,6 +313,8 @@ private:
   void showPlacementSelection(EditorPropertiesWidget& panel);
   /// Show the selected light's kind and properties in @p panel.
   void showLightSelection(EditorPropertiesWidget& panel);
+  /// Show the selected player start's player and position in @p panel.
+  void showPlayerStartSelection(EditorPropertiesWidget& panel);
   /// Apply one property change to whatever is selected, recording history
   /// when the gesture that produced it has finished.
   void applyPropertyEdit(EditorPropertyField field, float value,
@@ -312,6 +325,9 @@ private:
   /// Apply one property change to the selected light.
   void applyLightEdit(EditorPropertyField field, float value,
                       EditorPropertyEdit edit);
+  /// Apply one property change to the selected player start.
+  void applyPlayerStartEdit(EditorPropertyField field, float value,
+                            EditorPropertyEdit edit);
   /// Finish whatever edit the panel had in flight, before anything other
   /// than that panel changes the document or the selection.
   void commitPendingEdit();
@@ -326,6 +342,8 @@ private:
   void commitPlacementEdit();
   /// Record the finished light edit as one undoable action.
   void commitLightEdit();
+  /// Record the finished player start edit as one undoable action.
+  void commitPlayerStartEdit();
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -379,14 +397,17 @@ private:
   void buildSceneInstances();
   /// Rebuild `scene_lights_` from the document's lights.
   void buildSceneLights();
-  /// Push placement and light boxes into the viewport for its overlay and
-  /// picking, placements first.
+  /// Push placement, light and player start boxes into the viewport for
+  /// its overlay and picking, in that order.
   void refreshPlacementMarkers();
   /// The viewport's marker for the placement at @p index.
   [[nodiscard]] EditorPlacementMarker placementMarker(size_t index);
   /// The viewport's marker for the light at @p index: the small box that
   /// stands in for geometry a light does not have.
   [[nodiscard]] EditorPlacementMarker lightMarker(size_t index);
+  /// The viewport's marker for the player start at @p index: a column about
+  /// a person tall, in its player's colour.
+  [[nodiscard]] EditorPlacementMarker playerStartMarker(size_t index);
   /// Whether anything the chrome's layout depends on has changed.
   [[nodiscard]] bool chromeNeedsLayout();
   /// The viewport widget, or nullptr before the chrome exists.
@@ -538,6 +559,8 @@ private:
   /// The same for a light, since a gesture edits one or the other and the
   /// two are restored into different lists.
   std::optional<EditorLight> light_prior_{};
+  /// The same for a player start.
+  std::optional<EditorPlayerStart> player_start_prior_{};
 };
 
 }  // namespace eng::editor

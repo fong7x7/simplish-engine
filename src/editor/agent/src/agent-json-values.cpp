@@ -28,4 +28,11 @@ nlohmann::json agentLightValue(const EditorLight& light) {
           {"range", light.range}};
 }
 
+nlohmann::json agentPlayerStartValue(const EditorPlayerStart& start) {
+  return {{"id", start.id},
+          {"ref", editorPlayerStartRef(start)},
+          {"player", start.player},
+          {"position", agentPointJson(start.position)}};
+}
+
 }  // namespace eng::editor

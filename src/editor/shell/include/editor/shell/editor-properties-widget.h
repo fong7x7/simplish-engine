@@ -7,7 +7,8 @@
 //     selected: its name, its `kind:id` reference, and one row per
 //     editable number
 //   - A placed asset lists position X, Y, Z and rotation X, Y, Z; a light
-//     lists the direction, colour, intensity and range its own kind uses
+//     lists the direction, colour, intensity and range its own kind uses;
+//     a player start lists its player and its position
 //   - Each row is a label, a step-down button, a value box, and a step-up
 //     button; a click on a button steps the value, a drag across the value
 //     box scrubs it
@@ -48,6 +49,7 @@
 #include <cstddef>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
+#include <editor/shell/editor-player-start.h>
 #include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
@@ -87,6 +89,9 @@ public:
 
   /// Show a light's properties, which are the ones its kind uses.
   void setSelection(std::string name, const EditorLight& light);
+
+  /// Show a player start's properties: which player, and where.
+  void setSelection(std::string name, const EditorPlayerStart& start);
 
   /// Show nothing, and hide the panel.
   void clearSelection();

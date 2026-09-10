@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 
 namespace eng::editor {
@@ -19,6 +20,20 @@ namespace {
   float wrapDegrees(float degrees) {
     const float wrapped = std::fmod(degrees + HALF_TURN, FULL_TURN);
     return (wrapped < 0.0f ? wrapped + FULL_TURN : wrapped) - HALF_TURN;
+  }
+
+  /// Write @p value into @p text as @p field is shown: a whole number for a
+  /// player, one decimal for an angle, two for everything else. Returns
+  /// what snprintf returns.
+  int writeValue(std::array<char, VALUE_TEXT_CAPACITY>& text, float value,
+                 EditorPropertyField field) {
+    if (editorPropertyFieldKind(field) == EditorPropertyKind::SLOT) {
+      return std::snprintf(text.data(), text.size(), "%.0f", value);
+    }
+    if (editorPropertyFieldIsAngle(field)) {
+      return std::snprintf(text.data(), text.size(), "%.1f", value);
+    }
+    return std::snprintf(text.data(), text.size(), "%.2f", value);
   }
 
   /// Whether a field names one of a placement's position components.
@@ -44,6 +59,8 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return std::max(0.0f, value);
     case EditorPropertyKind::UNIT:
       return std::clamp(value, 0.0f, 1.0f);
+    case EditorPropertyKind::SLOT:
+      return static_cast<float>(clampEditorPlayerSlot(value));
     case EditorPropertyKind::DISTANCE:
       return value;
   }
@@ -92,6 +109,8 @@ float editorPropertyStep(EditorPropertyField field) {
       return EDITOR_FACTOR_STEP;
     case EditorPropertyKind::UNIT:
       return EDITOR_UNIT_STEP;
+    case EditorPropertyKind::SLOT:
+      return EDITOR_SLOT_STEP;
   }
   return EDITOR_POSITION_STEP;
 }
@@ -109,6 +128,8 @@ float editorPropertyDragPerPixel(EditorPropertyField field) {
       return EDITOR_FACTOR_DRAG_PER_PIXEL;
     case EditorPropertyKind::UNIT:
       return EDITOR_UNIT_DRAG_PER_PIXEL;
+    case EditorPropertyKind::SLOT:
+      return EDITOR_SLOT_DRAG_PER_PIXEL;
   }
   return EDITOR_POSITION_DRAG_PER_PIXEL;
 }
@@ -118,9 +139,7 @@ std::string formatEditorPropertyValue(float value, EditorPropertyField field) {
   // Negative zero is the same number as zero and reads as a bug, so it is
   // written as zero.
   const float shown = value == 0.0f ? 0.0f : value;
-  const int written =
-      std::snprintf(text.data(), text.size(),
-                    editorPropertyFieldIsAngle(field) ? "%.1f" : "%.2f", shown);
+  const int written = writeValue(text, shown, field);
   if (written <= 0) {
     return {};
   }

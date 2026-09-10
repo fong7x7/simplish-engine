@@ -15,7 +15,7 @@ namespace eng::editor {
 /// The sort of number a property holds.
 ///
 /// Stepping, scrubbing, formatting and clamping are decided from this
-/// rather than from the field itself: there are five kinds and fourteen
+/// rather than from the field itself: there are seven kinds and fifteen
 /// fields, and a rule written per kind cannot disagree with itself about
 /// two fields that hold the same sort of number.
 /// @thread_safety Immutable value type.
@@ -33,6 +33,8 @@ enum class EditorPropertyKind : uint8_t {
   FACTOR,
   /// A fraction, clamped to [0, 1].
   UNIT,
+  /// A player, a whole number from 1 to `EDITOR_PLAYER_SLOTS`.
+  SLOT,
 };
 
 /// One property's fixed description.
@@ -48,8 +50,8 @@ struct EditorPropertyTraits {
 
 /// Every field's traits, indexed by the field's own value.
 ///
-/// A table rather than a switch: fourteen arms of two lines each says no
-/// more than fourteen rows of one, and the assertion below catches the
+/// A table rather than a switch: fifteen arms of two lines each says no
+/// more than fifteen rows of one, and the assertion below catches the
 /// field added to the enum without an entry here.
 inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Position X", EditorPropertyKind::DISTANCE},
@@ -66,6 +68,7 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Colour B", EditorPropertyKind::UNIT},
     {"Intensity", EditorPropertyKind::FACTOR},
     {"Range", EditorPropertyKind::EXTENT},
+    {"Player", EditorPropertyKind::SLOT},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

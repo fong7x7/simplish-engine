@@ -53,7 +53,7 @@ namespace {
       return {EditorLevelStatus::UNREADABLE, 0};
     }
     state.document = std::move(load->document);
-    return {EditorLevelStatus::OK, load->dropped_props};
+    return {EditorLevelStatus::OK, load->dropped_props, load->dropped_entities};
   }
 
   /// Make @p id the open level, and read whatever is in its file.

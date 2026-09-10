@@ -743,14 +743,15 @@ TEST_CASE("the general section is the first row, above the assets") {
       makeBrowserWithGeneral({"crate.obj"});
   const auto& rows = browser.folderRows();
 
-  // The section opens on its own, so its two subsections are listed under
-  // it and the assets root follows them.
-  REQUIRE(rows.size() == 4);
+  // The section opens on its own, so its three subsections are listed
+  // under it and the assets root follows them.
+  REQUIRE(rows.size() == 5);
   REQUIRE(rows[0].depth == 0);
   REQUIRE(rows[1].depth == 1);
   REQUIRE(rows[2].depth == 1);
-  REQUIRE(rows[3].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[3].depth == 0);
+  REQUIRE(rows[3].depth == 1);
+  REQUIRE(rows[4].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[4].depth == 0);
 }
 
 TEST_CASE("the browser opens on the assets, not on the built-in section") {
@@ -766,10 +767,23 @@ TEST_CASE("selecting the lighting subsection shows the lights as cards") {
   EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
   browser.handleMouseDown(centreOf(browser.folderRowRect(1)));
 
-  REQUIRE(browser.visibleAssets().size() == EDITOR_GENERAL_ITEM_COUNT);
+  REQUIRE(browser.visibleAssets().size() == EDITOR_GENERAL_LIGHT_COUNT);
   // Past the one asset and the shapes among them, which is how the editor
   // tells a light from a model when the card is dropped.
   REQUIRE(browser.visibleAssets().front() == 1 + EDITOR_SHAPE_COUNT);
+}
+
+TEST_CASE("selecting the tools subsection shows the player start card") {
+  EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
+  browser.handleMouseDown(centreOf(browser.folderRowRect(3)));
+
+  // Numbered after the lights, so the entry a drop reports indexes the
+  // general items to the player start.
+  REQUIRE(
+      browser.visibleAssets() ==
+      std::vector<size_t>{1 + EDITOR_SHAPE_COUNT + EDITOR_GENERAL_LIGHT_COUNT});
+  REQUIRE(EDITOR_GENERAL_ITEMS[EDITOR_GENERAL_LIGHT_COUNT] ==
+          EditorGeneralItem::PLAYER_START);
 }
 
 TEST_CASE("selecting the shapes subsection shows the shapes as cards") {

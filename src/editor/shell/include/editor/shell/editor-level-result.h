@@ -23,6 +23,9 @@ struct EditorLevelResult {
   /// How many props the level lost because nothing in the project answers
   /// to the asset they name. Zero for the ordinary case.
   size_t dropped_props = 0;
+  /// How many entities it lost because the editor has no definition for
+  /// them. Zero for every level the editor itself wrote.
+  size_t dropped_entities = 0;
 };
 
 }  // namespace eng::editor

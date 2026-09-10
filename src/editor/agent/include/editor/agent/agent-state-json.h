@@ -31,6 +31,9 @@ namespace eng::editor {
 /// Every light in the level.
 [[nodiscard]] std::string agentLightsJson(const EditorShellState& state);
 
+/// Every player start in the level, and how many players a session holds.
+[[nodiscard]] std::string agentPlayerStartsJson(const EditorShellState& state);
+
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
 

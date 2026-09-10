@@ -8,6 +8,7 @@
 #include <editor/shell/editor-action-kind.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
+#include <editor/shell/editor-player-start.h>
 
 namespace eng::editor {
 
@@ -23,8 +24,8 @@ namespace eng::editor {
 struct EditorAction {
   /// Which operation this record describes.
   EditorActionKind kind = EditorActionKind::PLACE_ASSET;
-  /// Which entry of the list its kind names — placements or lights — the
-  /// operation added, removed, or changed.
+  /// Which entry of the list its kind names — placements, lights or
+  /// player starts — the operation added, removed, or changed.
   size_t index = 0;
   /// The placement the operation names: what was added, what a transform
   /// changed it to, or what a removal took out. Kept so redo restores it
@@ -43,6 +44,11 @@ struct EditorAction {
   EditorLight light{};
   /// The light as it was before a transform, unused by every other kind.
   EditorLight light_prior{};
+  /// The player start the operation names, for the three kinds that name
+  /// one — carried beside the others for the reason `light` is.
+  EditorPlayerStart player_start{};
+  /// The start as it was before a transform, unused by every other kind.
+  EditorPlayerStart player_start_prior{};
 };
 
 }  // namespace eng::editor

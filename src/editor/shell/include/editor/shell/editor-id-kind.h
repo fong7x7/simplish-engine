@@ -15,9 +15,8 @@ namespace eng::editor {
 /// References are `kind:id` strings rather than paths
 /// ([project-format.md §3]), and the prefix is what lets the content
 /// generator type-check a reference without loading its target first. The
-/// four here are the ones the editor can name today: the two sorts of
-/// thing that can be placed, and the two sorts of thing placing one
-/// produces.
+/// ones here are what the editor can name today: the two sorts of asset
+/// that can be placed, and the three sorts of thing a level holds.
 /// @thread_safety Immutable value type.
 enum class EditorIdKind : uint8_t {
   /// A model read from the project's assets directory.
@@ -28,6 +27,8 @@ enum class EditorIdKind : uint8_t {
   PROP,
   /// A light, standing in the level.
   LIGHT,
+  /// A point a player enters the level at.
+  PLAYER_START,
 };
 
 /// The prefix a reference to @p kind carries, without the colon.
@@ -41,6 +42,8 @@ enum class EditorIdKind : uint8_t {
       return "prop";
     case EditorIdKind::LIGHT:
       return "light";
+    case EditorIdKind::PLAYER_START:
+      return "player_start";
   }
   return {};
 }

@@ -28,7 +28,7 @@ namespace eng::editor {
 inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
     "position_x", "position_y",  "position_z",  "rotation_x",  "rotation_y",
     "rotation_z", "direction_x", "direction_y", "direction_z", "color_r",
-    "color_g",    "color_b",     "intensity",   "range",
+    "color_g",    "color_b",     "intensity",   "range",       "player",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -108,30 +108,34 @@ agentSelectionKindName(EditorSelectionKind kind) {
       return "placement";
     case EditorSelectionKind::LIGHT:
       return "light";
+    case EditorSelectionKind::PLAYER_START:
+      return "player_start";
     case EditorSelectionKind::NONE:
       return "none";
   }
   return "none";
 }
 
+/// Wire name of every recorded edit, indexed by the kind's own value.
+///
+/// A table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one: nine arms of
+/// two lines say no more than nine rows, and the assertion below catches a
+/// kind added to the enum without a name here.
+inline constexpr std::string_view AGENT_ACTION_KIND_NAMES[] = {
+    "place_asset",      "transform_placement",    "remove_placement",
+    "add_light",        "transform_light",        "remove_light",
+    "add_player_start", "transform_player_start", "remove_player_start",
+};
+
+static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
+                  static_cast<size_t>(EditorActionKind::REMOVE_PLAYER_START) +
+                      1,
+              "every recorded edit needs a name the agent API reports it by");
+
 /// Wire name of one recorded edit.
 [[nodiscard]] constexpr std::string_view
 agentActionKindName(EditorActionKind kind) {
-  switch (kind) {
-    case EditorActionKind::PLACE_ASSET:
-      return "place_asset";
-    case EditorActionKind::TRANSFORM_PLACEMENT:
-      return "transform_placement";
-    case EditorActionKind::REMOVE_PLACEMENT:
-      return "remove_placement";
-    case EditorActionKind::ADD_LIGHT:
-      return "add_light";
-    case EditorActionKind::TRANSFORM_LIGHT:
-      return "transform_light";
-    case EditorActionKind::REMOVE_LIGHT:
-      return "remove_light";
-  }
-  return "place_asset";
+  return AGENT_ACTION_KIND_NAMES[static_cast<size_t>(kind)];
 }
 
 /// Wire name of how far an asset's card picture has got.

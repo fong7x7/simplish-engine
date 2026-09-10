@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <optional>
 #include <vector>
 
@@ -47,6 +48,27 @@ struct HistoryFixture {
                          .light = makeEditorLight(kind, {0.0f, 0.0f, 3.0f})});
   }
 
+  /// Add a start for @p player at the end of the list, as dropping one
+  /// does.
+  void addStart(uint8_t player) {
+    performEditorAction(history, document,
+                        {.kind = EditorActionKind::ADD_PLAYER_START,
+                         .index = document.player_starts.size(),
+                         .player_start = makeEditorPlayerStart(player, {})});
+  }
+
+  /// Give the start at @p index to @p player, as a finished property edit
+  /// does.
+  void reassign(size_t index, uint8_t player) {
+    EditorPlayerStart changed = document.player_starts[index];
+    changed.player = player;
+    performEditorAction(history, document,
+                        {.kind = EditorActionKind::TRANSFORM_PLAYER_START,
+                         .index = index,
+                         .player_start = changed,
+                         .player_start_prior = document.player_starts[index]});
+  }
+
   /// Dim the light at @p index, as a finished property edit does.
   void dim(size_t index, float intensity) {
     EditorLight dimmed = document.lights[index];
@@ -89,6 +111,11 @@ EditorSelection placementAt(size_t index) {
 /// A selection of the light at @p index.
 EditorSelection lightAt(size_t index) {
   return {EditorSelectionKind::LIGHT, index};
+}
+
+/// A selection of the player start at @p index.
+EditorSelection startAt(size_t index) {
+  return {EditorSelectionKind::PLAYER_START, index};
 }
 
 /// Whether two selections name the same entry of the same list.
@@ -592,4 +619,71 @@ TEST_CASE("undoing a removal selects what came back") {
 
   // Shown rather than left to be looked for, the same as an undone move.
   REQUIRE(sameSelection(editorSelectionAfterUndo(action, {}), placementAt(0)));
+}
+
+TEST_CASE("adding a player start is undone and redone like a placement") {
+  HistoryFixture fx;
+  fx.addStart(2);
+
+  REQUIRE(fx.document.player_starts.size() == 1);
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.player_starts.empty());
+  REQUIRE(fx.redo());
+  REQUIRE(fx.document.player_starts.size() == 1);
+  REQUIRE(fx.document.player_starts[0].player == 2);
+}
+
+TEST_CASE("giving a start to another player is undone on its own list") {
+  HistoryFixture fx;
+  fx.place(0);
+  fx.addLight(EditorLightKind::POINT);
+  fx.addStart(1);
+  fx.reassign(0, 3);
+
+  REQUIRE(fx.document.player_starts[0].player == 3);
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.player_starts[0].player == 1);
+  // The other lists are numbered separately and untouched.
+  REQUIRE(fx.placements().size() == 1);
+  REQUIRE(fx.document.lights.size() == 1);
+}
+
+TEST_CASE("removing a player start takes it out and undo puts it back") {
+  HistoryFixture fx;
+  fx.addStart(1);
+  fx.addStart(2);
+
+  const EditorAction action = fx.remove(startAt(0));
+
+  REQUIRE(action.kind == EditorActionKind::REMOVE_PLAYER_START);
+  REQUIRE(fx.document.player_starts.size() == 1);
+  REQUIRE(fx.document.player_starts[0].player == 2);
+  REQUIRE(sameSelection(editorSelectionAfterRedo(action, startAt(0)), {}));
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.player_starts[0].player == 1);
+  REQUIRE(sameSelection(editorSelectionAfterUndo(action, {}), startAt(0)));
+}
+
+TEST_CASE("undoing a player start leaves a selected light alone") {
+  HistoryFixture fx;
+  fx.addLight(EditorLightKind::POINT);
+  fx.addStart(1);
+  const EditorAction added = fx.history.actions.back();
+
+  REQUIRE(fx.undo());
+  REQUIRE(
+      sameSelection(editorSelectionAfterUndo(added, lightAt(0)), lightAt(0)));
+}
+
+TEST_CASE("the list a selection names is measured by its own kind") {
+  HistoryFixture fx;
+  fx.place(0);
+  fx.addStart(1);
+  fx.addStart(2);
+
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::PLACEMENT) == 1);
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::LIGHT) == 0);
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::PLAYER_START) == 2);
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::NONE) == 0);
+  REQUIRE_FALSE(editorDeleteAction(fx.document, startAt(2)).has_value());
 }

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <editor/shell/editor-light.h>
+#include <optional>
 #include <string_view>
 
 namespace eng::editor {
@@ -23,32 +24,59 @@ enum class EditorGeneralItem : uint8_t {
   DIRECTIONAL_LIGHT,
   /// A light shining from one point, falling off with distance.
   POINT_LIGHT,
+  /// The point a player enters the level at.
+  PLAYER_START,
 };
 
-/// Every built-in item, in the order the section lists them.
+/// Every built-in item, in the order the section numbers them: the lights,
+/// then the tools. Each subsection holds a run of this list, so the order
+/// is also the grouping.
 inline constexpr EditorGeneralItem EDITOR_GENERAL_ITEMS[] = {
     EditorGeneralItem::DIRECTIONAL_LIGHT,
     EditorGeneralItem::POINT_LIGHT,
+    EditorGeneralItem::PLAYER_START,
 };
 
 /// How many built-in items there are.
 inline constexpr size_t EDITOR_GENERAL_ITEM_COUNT =
     sizeof(EDITOR_GENERAL_ITEMS) / sizeof(EDITOR_GENERAL_ITEMS[0]);
 
-/// The kind of light an item drops. Every item is a light today; when one
-/// is not, this becomes a question the caller has to ask first.
-[[nodiscard]] constexpr EditorLightKind
+/// How many of those, from the front, are light sources: the run the
+/// lighting subsection holds.
+inline constexpr size_t EDITOR_GENERAL_LIGHT_COUNT = 2;
+
+/// How many follow the lights as tools — things that mark the level for
+/// the game rather than showing in it: the run the tools subsection holds.
+inline constexpr size_t EDITOR_GENERAL_TOOL_COUNT =
+    EDITOR_GENERAL_ITEM_COUNT - EDITOR_GENERAL_LIGHT_COUNT;
+
+/// The kind of light an item drops, or nothing for an item that is not a
+/// light — which is the question a drop has to ask first.
+[[nodiscard]] constexpr std::optional<EditorLightKind>
 editorGeneralItemLightKind(EditorGeneralItem item) {
-  return item == EditorGeneralItem::DIRECTIONAL_LIGHT
-             ? EditorLightKind::DIRECTIONAL
-             : EditorLightKind::POINT;
+  switch (item) {
+    case EditorGeneralItem::DIRECTIONAL_LIGHT:
+      return EditorLightKind::DIRECTIONAL;
+    case EditorGeneralItem::POINT_LIGHT:
+      return EditorLightKind::POINT;
+    case EditorGeneralItem::PLAYER_START:
+      return std::nullopt;
+  }
+  return std::nullopt;
 }
 
 /// Name shown on the item's card.
 [[nodiscard]] constexpr std::string_view
 editorGeneralItemName(EditorGeneralItem item) {
-  return item == EditorGeneralItem::DIRECTIONAL_LIGHT ? "Directional Light"
-                                                      : "Point Light";
+  switch (item) {
+    case EditorGeneralItem::DIRECTIONAL_LIGHT:
+      return "Directional Light";
+    case EditorGeneralItem::POINT_LIGHT:
+      return "Point Light";
+    case EditorGeneralItem::PLAYER_START:
+      return "Player Start";
+  }
+  return {};
 }
 
 }  // namespace eng::editor

@@ -3,6 +3,7 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -101,6 +102,27 @@ namespace {
     return out;
   }
 
+  /// A player start, as the format's entity shape: a definition naming what
+  /// it is and a property block holding what it carries
+  /// ([project-format.md §4]).
+  json playerStartJson(const EditorPlayerStart& start) {
+    json out;
+    out["id"] = start.id;
+    out["definition"] = EDITOR_PLAYER_START_DEFINITION;
+    out["at"] =
+        tripleJson(start.position.x, start.position.y, start.position.z);
+    out["properties"] = {{"player", start.player}};
+    return out;
+  }
+
+  json entitiesJson(const EditorDocument& document) {
+    json entities = json::array();
+    for (const EditorPlayerStart& start : document.player_starts) {
+      entities.push_back(playerStartJson(start));
+    }
+    return entities;
+  }
+
   json propsJson(const EditorDocument& document,
                  const std::vector<EditorAsset>& assets) {
     json props = json::array();
@@ -186,6 +208,23 @@ namespace {
     return light;
   }
 
+  /// One player start. Its player is read from the property block and held
+  /// to a slot a session has, so a hand-edited `"player": 9` opens as
+  /// player 4 rather than as a start nobody spawns at.
+  EditorPlayerStart readPlayerStart(const json& entry,
+                                    const EditorDocument& document) {
+    const Triple at = readTriple(entry, "at", ZERO_TRIPLE);
+    const json properties = entry.value("properties", json::object());
+    EditorPlayerStart start = makeEditorPlayerStart(
+        clampEditorPlayerSlot(readNumber(properties, "player", 1.0f)),
+        {at[0], at[1], at[2]});
+    start.id = readString(entry, "id");
+    if (start.id.empty()) {
+      start.id = mintEditorPlayerStartId(document);
+    }
+    return start;
+  }
+
   /// The array under @p key, or an empty one when the file has no such
   /// array. A level with no lights in it is an ordinary level.
   json arrayAt(const json& content, const char* key) {
@@ -210,6 +249,21 @@ namespace {
     }
   }
 
+  /// Every entity the editor has a definition for. Player starts are the
+  /// only one today; any other is dropped and counted, as a prop naming a
+  /// missing asset is, rather than silently rewritten into something else.
+  void readEntities(const json& content, EditorLevelLoad& load) {
+    for (const json& entry : arrayAt(content, "entities")) {
+      if (!entry.is_object() ||
+          readString(entry, "definition") != EDITOR_PLAYER_START_DEFINITION) {
+        ++load.dropped_entities;
+        continue;
+      }
+      load.document.player_starts.push_back(
+          readPlayerStart(entry, load.document));
+    }
+  }
+
   void readLights(const json& content, EditorDocument& document) {
     for (const json& entry : arrayAt(content, "lights")) {
       if (entry.is_object()) {
@@ -226,6 +280,7 @@ std::string serializeEditorLevel(const EditorDocument& document,
   json content;
   content["props"] = propsJson(document, assets);
   content["lights"] = lightsJson(document);
+  content["entities"] = entitiesJson(document);
   json out;
   out["schema"] = EDITOR_LEVEL_SCHEMA;
   out["id"] = std::string(id);
@@ -248,6 +303,7 @@ parseEditorLevel(std::string_view text,
   EditorLevelLoad load;
   readProps(content, assets, load);
   readLights(content, load.document);
+  readEntities(content, load);
   return load;
 }
 

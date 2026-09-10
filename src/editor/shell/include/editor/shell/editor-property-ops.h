@@ -29,6 +29,9 @@ inline constexpr float EDITOR_FACTOR_STEP = 0.1f;
 /// How far one step button moves a fraction, a colour channel among them.
 inline constexpr float EDITOR_UNIT_STEP = 0.05f;
 
+/// How far one step button moves a player: to the next one.
+inline constexpr float EDITOR_SLOT_STEP = 1.0f;
+
 /// Tiles a distance moves per pixel dragged.
 ///
 /// One tile per tile-width of travel at zoom 1, so a drag across the value
@@ -49,6 +52,11 @@ inline constexpr float EDITOR_FACTOR_DRAG_PER_PIXEL = 1.0f / 64.0f;
 /// How far a fraction moves per pixel dragged.
 inline constexpr float EDITOR_UNIT_DRAG_PER_PIXEL = 1.0f / 256.0f;
 
+/// How far a player moves per pixel dragged: one player every 24 pixels,
+/// so the whole of a session's players fits in a short drag and a hand
+/// that wobbles does not skip one.
+inline constexpr float EDITOR_SLOT_DRAG_PER_PIXEL = 1.0f / 24.0f;
+
 /// Current value of one of a placement's properties. A field a placement
 /// does not have — a light's intensity — reads as zero.
 [[nodiscard]] float editorPropertyValue(const EditorPlacement& placement,
@@ -61,7 +69,8 @@ void setEditorPropertyValue(EditorPlacement& placement,
 
 /// The value a field will actually hold once given @p value: angles wrapped
 /// into [-180, 180), fractions and direction components clamped to their
-/// range, multipliers held at or above zero.
+/// range, multipliers held at or above zero, and players rounded to a
+/// whole one a session has.
 ///
 /// One place decides this, and both the document and the panel showing it
 /// go through here, so the number on screen is never one the document would
@@ -75,10 +84,10 @@ void setEditorPropertyValue(EditorPlacement& placement,
 /// How far one dragged pixel moves this property.
 [[nodiscard]] float editorPropertyDragPerPixel(EditorPropertyField field);
 
-/// The value as the panel writes it: one decimal for an angle, two for
-/// everything else. Fixed-point rather than the shortest round-trip, so a
-/// column of values lines up and a number does not change width as it is
-/// dragged.
+/// The value as the panel writes it: a whole number for a player, one
+/// decimal for an angle, two for everything else. Fixed-point rather than the
+/// shortest round-trip, so a column of values lines up and a number does not
+/// change width as it is dragged.
 [[nodiscard]] std::string formatEditorPropertyValue(float value,
                                                     EditorPropertyField field);
 

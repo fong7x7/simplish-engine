@@ -60,29 +60,48 @@ inline constexpr AgentParam AGENT_PARAMS_ADD_LIGHT[] = {
      "drag from the browser uses, which clears anything on the tile."},
 };
 
+/// `add_player_start` marks where a player spawns.
+inline constexpr AgentParam AGENT_PARAMS_ADD_PLAYER_START[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X the player's feet land at, in tiles. A whole number and a "
+     "half is the middle of a tile, which is where a drag from the browser "
+     "puts one."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y the player's feet land at, in tiles."},
+    {"z", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Height above the ground plane, in tiles. Defaults to 0, standing on "
+     "the ground."},
+    {"player", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Which player spawns here, 1 to 4. Defaults to the lowest player with "
+     "no start yet, or 1 once all four have one — the same one a drag from "
+     "the browser would pick. Out-of-range values are clamped, and the "
+     "response reports the player actually stored."},
+};
+
 /// `set_property` writes one number on one entry.
 inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", or \"selection\" for whatever the "
-     "properties panel is currently editing."},
+     "\"placement\", \"light\", \"player_start\", or \"selection\" for "
+     "whatever the properties panel is currently editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Ignored, and not needed, when target is "
      "\"selection\"."},
     {"field", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "Property name as `list_placements` and `list_lights` report it: "
-     "position_x, position_y, position_z, rotation_x, rotation_y, "
-     "rotation_z, direction_x, direction_y, direction_z, color_r, "
-     "color_g, color_b, intensity, or range."},
+     "Property name as `get_selection` reports it: position_x, position_y, "
+     "position_z, rotation_x, rotation_y, rotation_z, direction_x, "
+     "direction_y, direction_z, color_r, color_g, color_b, intensity, "
+     "range, or player. A player start takes the position and player "
+     "only."},
     {"value", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
      "The value to write. Angles wrap into [-180, 180), colour channels "
-     "and direction components are clamped, and the response reports what "
-     "was actually stored."},
+     "and direction components are clamped, a player is rounded into 1 to "
+     "4, and the response reports what was actually stored."},
 };
 
 /// `translate` moves an entry by a delta rather than to a position.
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", or \"selection\"."},
+     "\"placement\", \"light\", \"player_start\", or \"selection\"."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"selection\"."},
     {"dx", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
@@ -97,8 +116,8 @@ inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
 /// `delete` takes an entry back out of the level.
 inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", or \"selection\" for whatever the "
-     "properties panel is currently editing."},
+     "\"placement\", \"light\", \"player_start\", or \"selection\" for "
+     "whatever the properties panel is currently editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Ignored, and not needed, when target is "
      "\"selection\". Everything after it moves down one, so delete from "
@@ -108,7 +127,8 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 /// `select` names an entry, or clears the selection.
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", or \"none\" to clear the selection."},
+     "\"placement\", \"light\", \"player_start\", or \"none\" to clear "
+     "the selection."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"none\"."},
 };
@@ -189,8 +209,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::GET_STATE,
      "get_state",
      "The editor at a glance: the open project, the active tool, the "
-     "camera, what is selected, how many placements and lights the level "
-     "holds, and whether undo and redo have anything to do.",
+     "camera, what is selected, how many placements, lights and player "
+     "starts the level holds, and whether undo and redo have anything to "
+     "do.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_ASSETS,
@@ -206,8 +227,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::LIST_FOLDERS,
      "list_folders",
      "The folder tree the asset browser shows: the assets root and its "
-     "sub-folders, and the built-in general section holding the light "
-     "sources.",
+     "sub-folders, and the built-in general section: its lighting, shapes "
+     "and tools subsections, the last holding the player start.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_PLACEMENTS,
@@ -220,6 +241,13 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "list_lights",
      "Every light in the level, with its index, kind, position, "
      "direction, colour, intensity, and range.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::LIST_PLAYER_STARTS,
+     "list_player_starts",
+     "Every player start in the level — where each player spawns — with "
+     "its index, id, the player it is for (1 to 4), and its position. Also "
+     "reports how many players a session holds.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::GET_SELECTION,
@@ -248,7 +276,7 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Every level the open project holds, by id, with which one is being "
      "edited and whether each has a file on disk yet. A level is a whole "
      "document: opening another replaces the placements, the lights, the "
-     "selection and the undo history.",
+     "player starts, the selection and the undo history.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_COMMANDS,
@@ -266,25 +294,32 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Add a light to the level, exactly as dragging one from the general "
      "section would, and select it. Recorded as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_ADD_LIGHT},
+    {AgentTool::ADD_PLAYER_START, "add_player_start",
+     "Mark where a player spawns, exactly as dragging the player start from "
+     "the browser's general > tools section would, and select it. Recorded "
+     "as one undoable edit, and saved with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_ADD_PLAYER_START},
     {AgentTool::SET_PROPERTY, "set_property",
-     "Set one property of a placement or a light to an absolute value, as "
-     "typing it into the properties panel would. Recorded as one undoable "
-     "edit, and a write that changes nothing records nothing.",
+     "Set one property of a placement, a light or a player start to an "
+     "absolute value, as typing it into the properties panel would. "
+     "Recorded as one undoable edit, and a write that changes nothing "
+     "records nothing.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_PROPERTY},
     {AgentTool::TRANSLATE, "translate",
-     "Move a placement or a light by a delta in tiles — the tool to reach "
-     "for when asked to shift something in a direction rather than to a "
-     "coordinate. Recorded as one undoable edit.",
+     "Move a placement, a light or a player start by a delta in tiles — "
+     "the tool to reach for when asked to shift something in a direction "
+     "rather than to a coordinate. Recorded as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_TRANSLATE},
     {AgentTool::DELETE_ENTRY, "delete",
-     "Remove a placement or a light from the level, as the Delete key does "
-     "to what is selected. Recorded as one undoable edit, so undo puts the "
+     "Remove a placement, a light or a player start from the level, as the "
+     "Delete key does to what is selected. Recorded as one undoable edit, so "
+     "undo puts the "
      "entry back where it was; the selection is cleared, and everything "
      "after it in that list is renumbered down one.",
      AgentToolEffect::EDIT, AGENT_PARAMS_DELETE},
     {AgentTool::SELECT, "select",
-     "Select a placement or a light, which opens the properties panel on "
-     "it, or clear the selection.",
+     "Select a placement, a light or a player start, which opens the "
+     "properties panel on it, or clear the selection.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SELECT},
     {AgentTool::SET_TOOL, "set_tool", "Choose the active toolbar tool.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_TOOL},
@@ -322,9 +357,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      AgentToolEffect::HOST, AGENT_PARAMS_CREATE_LEVEL},
     {AgentTool::OPEN_LEVEL, "open_level",
      "Edit another of the open project's levels. Everything the editor "
-     "holds belongs to the level being closed — placements, lights, "
-     "selection, undo history — so all of it is replaced by what the new "
-     "level's file holds.",
+     "holds belongs to the level being closed — placements, lights, player "
+     "starts, selection, undo history — so all of it is replaced by what "
+     "the new level's file holds.",
      AgentToolEffect::HOST, AGENT_PARAMS_OPEN_LEVEL},
 };
 

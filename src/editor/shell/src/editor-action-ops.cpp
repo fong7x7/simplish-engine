@@ -40,7 +40,7 @@ namespace {
 
   /// What an action does to the one list its kind names.
   ///
-  /// Every kind is one of these three edits to one of the two lists, and
+  /// Every kind is one of these three edits to one of the document's lists, and
   /// saying that once is what keeps `applyOne` and `revertOne` short as
   /// kinds are added: a new kind answers two questions rather than growing
   /// four switches.
@@ -57,6 +57,10 @@ namespace {
       case EditorActionKind::TRANSFORM_LIGHT:
       case EditorActionKind::REMOVE_LIGHT:
         return EditorSelectionKind::LIGHT;
+      case EditorActionKind::ADD_PLAYER_START:
+      case EditorActionKind::TRANSFORM_PLAYER_START:
+      case EditorActionKind::REMOVE_PLAYER_START:
+        return EditorSelectionKind::PLAYER_START;
     }
     return EditorSelectionKind::PLACEMENT;
   }
@@ -66,12 +70,15 @@ namespace {
     switch (kind) {
       case EditorActionKind::PLACE_ASSET:
       case EditorActionKind::ADD_LIGHT:
+      case EditorActionKind::ADD_PLAYER_START:
         return ListEdit::INSERT;
       case EditorActionKind::TRANSFORM_PLACEMENT:
       case EditorActionKind::TRANSFORM_LIGHT:
+      case EditorActionKind::TRANSFORM_PLAYER_START:
         return ListEdit::WRITE;
       case EditorActionKind::REMOVE_PLACEMENT:
       case EditorActionKind::REMOVE_LIGHT:
+      case EditorActionKind::REMOVE_PLAYER_START:
         return ListEdit::ERASE;
     }
     return ListEdit::WRITE;
@@ -110,14 +117,32 @@ namespace {
     }
   }
 
+  /// Which of the two values an action carries an edit writes: the one it
+  /// leaves behind, or — for undoing a transform — the one it replaced.
+  enum class ActionValue : uint8_t { CURRENT, PRIOR };
+
+  /// Do @p edit to the list @p action names, writing the value @p value
+  /// picks out of the action.
+  void editDocument(const EditorAction& action, ListEdit edit,
+                    ActionValue value, EditorDocument& document) {
+    const bool prior = value == ActionValue::PRIOR;
+    const EditorSelectionKind list = actionList(action.kind);
+    if (list == EditorSelectionKind::PLACEMENT) {
+      editList(document.placements, edit, action.index,
+               prior ? action.prior : action.placement);
+    } else if (list == EditorSelectionKind::LIGHT) {
+      editList(document.lights, edit, action.index,
+               prior ? action.light_prior : action.light);
+    } else {
+      editList(document.player_starts, edit, action.index,
+               prior ? action.player_start_prior : action.player_start);
+    }
+  }
+
   /// Do what @p action describes.
   void applyOne(const EditorAction& action, EditorDocument& document) {
-    const ListEdit edit = appliedEdit(action.kind);
-    if (actionList(action.kind) == EditorSelectionKind::PLACEMENT) {
-      editList(document.placements, edit, action.index, action.placement);
-      return;
-    }
-    editList(document.lights, edit, action.index, action.light);
+    editDocument(action, appliedEdit(action.kind), ActionValue::CURRENT,
+                 document);
   }
 
   /// Undo what @p action describes: the inverse edit, and — for the one
@@ -126,14 +151,34 @@ namespace {
   /// as it was rather than as a default one wearing its index.
   void revertOne(const EditorAction& action, EditorDocument& document) {
     const ListEdit edit = invertedEdit(appliedEdit(action.kind));
-    const bool replaced = edit == ListEdit::WRITE;
-    if (actionList(action.kind) == EditorSelectionKind::PLACEMENT) {
-      editList(document.placements, edit, action.index,
-               replaced ? action.prior : action.placement);
-      return;
+    editDocument(action, edit,
+                 edit == ListEdit::WRITE ? ActionValue::PRIOR
+                                         : ActionValue::CURRENT,
+                 document);
+  }
+
+  /// The kind of action that takes an entry out of the list @p kind names.
+  /// Only asked of a list that exists.
+  EditorActionKind removalKind(EditorSelectionKind kind) {
+    if (kind == EditorSelectionKind::LIGHT) {
+      return EditorActionKind::REMOVE_LIGHT;
     }
-    editList(document.lights, edit, action.index,
-             replaced ? action.light_prior : action.light);
+    return kind == EditorSelectionKind::PLAYER_START
+               ? EditorActionKind::REMOVE_PLAYER_START
+               : EditorActionKind::REMOVE_PLACEMENT;
+  }
+
+  /// Copy the entry @p action names out of @p document into the action, so
+  /// undoing the removal can put that one back.
+  void captureEntry(const EditorDocument& document, EditorAction& action) {
+    const EditorSelectionKind list = actionList(action.kind);
+    if (list == EditorSelectionKind::PLACEMENT) {
+      action.placement = document.placements[action.index];
+    } else if (list == EditorSelectionKind::LIGHT) {
+      action.light = document.lights[action.index];
+    } else {
+      action.player_start = document.player_starts[action.index];
+    }
   }
 
   /// Where a selection lands once the entry at @p index of @p list is
@@ -217,21 +262,30 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
   return true;
 }
 
+size_t editorListSize(const EditorDocument& document,
+                      EditorSelectionKind kind) {
+  switch (kind) {
+    case EditorSelectionKind::PLACEMENT:
+      return document.placements.size();
+    case EditorSelectionKind::LIGHT:
+      return document.lights.size();
+    case EditorSelectionKind::PLAYER_START:
+      return document.player_starts.size();
+    case EditorSelectionKind::NONE:
+      return 0;
+  }
+  return 0;
+}
+
 std::optional<EditorAction> editorDeleteAction(const EditorDocument& document,
                                                EditorSelection selection) {
-  if (selectionIs(selection, EditorSelectionKind::PLACEMENT) &&
-      selection.index < document.placements.size()) {
-    return EditorAction{.kind = EditorActionKind::REMOVE_PLACEMENT,
-                        .index = selection.index,
-                        .placement = document.placements[selection.index]};
+  if (selection.index >= editorListSize(document, selection.kind)) {
+    return std::nullopt;
   }
-  if (selectionIs(selection, EditorSelectionKind::LIGHT) &&
-      selection.index < document.lights.size()) {
-    return EditorAction{.kind = EditorActionKind::REMOVE_LIGHT,
-                        .index = selection.index,
-                        .light = document.lights[selection.index]};
-  }
-  return std::nullopt;
+  EditorAction action{.kind = removalKind(selection.kind),
+                      .index = selection.index};
+  captureEntry(document, action);
+  return action;
 }
 
 EditorSelection editorSelectionAfterUndo(const EditorAction& action,

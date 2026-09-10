@@ -4,6 +4,7 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <nlohmann/json.hpp>
 
 using Catch::Approx;
@@ -258,4 +259,38 @@ TEST_CASE("get_level reports the level being edited, not a fixed one") {
   state.level_id = "transit_station";
 
   REQUIRE(json::parse(agentLevelJson(state)).at("id") == "transit_station");
+}
+
+TEST_CASE("player starts are listed with the player each is for") {
+  EditorShellState state;
+  EditorPlayerStart start = makeEditorPlayerStart(2, {1.5f, 2.5f, 0.0f});
+  start.id = "start_01";
+  state.document.player_starts.push_back(start);
+
+  const json listed = json::parse(agentPlayerStartsJson(state));
+
+  REQUIRE(listed.at("player_slots") == 4);
+  REQUIRE(listed.at("player_starts").size() == 1);
+  REQUIRE(listed.at("player_starts").at(0).at("index") == 0);
+  REQUIRE(listed.at("player_starts").at(0).at("player") == 2);
+  REQUIRE(listed.at("player_starts").at(0).at("ref") ==
+          "player_start:start_01");
+  REQUIRE(json::parse(agentStateJson(state)).at("player_start_count") == 1);
+  REQUIRE(json::parse(agentLevelJson(state)).at("player_start_count") == 1);
+}
+
+TEST_CASE("the tools folder lists the player start as a built-in entry") {
+  EditorShellState state;
+  appendEditorGeneralSection(state.asset_tree, 0, 0);
+
+  const json folders = json::parse(agentFoldersJson(state)).at("folders");
+  bool found = false;
+  for (const json& folder : folders) {
+    if (folder.at("name") == EDITOR_TOOLS_FOLDER_NAME) {
+      REQUIRE(folder.at("entries").at(0).at("name") == "Player Start");
+      REQUIRE(folder.at("entries").at(0).at("kind") == "builtin");
+      found = true;
+    }
+  }
+  REQUIRE(found);
 }

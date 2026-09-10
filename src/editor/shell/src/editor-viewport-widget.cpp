@@ -6,6 +6,7 @@
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-renderer.h>
 #include <engine/gui/gui-theme-constants.h>
+#include <iterator>
 
 namespace eng::editor {
 
@@ -122,6 +123,20 @@ namespace {
     }
   }
 
+  /// The colour @p marker is outlined in: the selection's when it is
+  /// selected, its player's when it is a start, the prop tan otherwise.
+  GuiColor markerColor(const EditorPlacementMarker& marker) {
+    if (marker.selected) {
+      return SELECTION_OUTLINE;
+    }
+    if (marker.style != EditorMarkerStyle::PLAYER_START) {
+      return PLACEMENT_OUTLINE;
+    }
+    const size_t slot = marker.player > 0 ? marker.player - 1U : 0U;
+    return EDITOR_PLAYER_START_COLORS[slot %
+                                      std::size(EDITOR_PLAYER_START_COLORS)];
+  }
+
 }  // namespace
 
 EditorViewportWidget::EditorViewportWidget() {
@@ -136,9 +151,15 @@ std::unique_ptr<GuiWidget> EditorViewportWidget::clone() const {
 void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
                                             const IsoView& view) const {
   for (const EditorPlacementMarker& marker : placement_markers) {
-    renderFootprintOutline(
-        renderer, view, marker.bounds,
-        (marker.selected ? SELECTION_OUTLINE : PLACEMENT_OUTLINE).pack());
+    const uint32_t color = markerColor(marker).pack();
+    // A start is a column with nothing in the scene standing in it, so it
+    // is drawn whole; everything else has its footprint drawn here and its
+    // geometry drawn by the scene pass.
+    if (marker.style == EditorMarkerStyle::PLAYER_START) {
+      renderBoxOutline(renderer, view, marker.bounds, color);
+    } else {
+      renderFootprintOutline(renderer, view, marker.bounds, color);
+    }
   }
 }
 

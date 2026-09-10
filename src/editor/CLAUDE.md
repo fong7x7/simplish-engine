@@ -12,10 +12,10 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   editor must do, and its §1 *Current State* for what is actually built.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
   on-disk format. Two kinds of file exist today: `.simplish/project.json`,
-  and `content/levels/<id>.level.json` — one per level, carrying the props
-  and lights the editor authors (§4.1 — it differs from §4's sketch in two
-  documented ways). Tiles, entities, regions, encounters, scenarios, and data tables
-  are specified but unwritten.
+  and `content/levels/<id>.level.json` — one per level, carrying the props,
+  lights and player starts the editor authors (§4.1 — it differs from §4's
+  sketch in two documented ways). Tiles, other entities, regions,
+  encounters, scenarios, and data tables are specified but unwritten.
 - [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,
   and §6's checklist. **Read it before adding a tool, a panel, or a menu
   command**, because exposing it is part of the same change.

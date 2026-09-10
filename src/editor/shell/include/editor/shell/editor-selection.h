@@ -25,6 +25,8 @@ enum class EditorSelectionKind : uint8_t {
   PLACEMENT,
   /// A light, indexed into `EditorDocument::lights`.
   LIGHT,
+  /// A player start, indexed into `EditorDocument::player_starts`.
+  PLAYER_START,
 };
 
 /// The one thing the properties panel is editing.

@@ -24,6 +24,9 @@ struct EditorLevelLoad {
   /// How many props were dropped because nothing in that list answered to
   /// the asset they named. Zero for the ordinary case.
   size_t dropped_props = 0;
+  /// How many entities were dropped because their definition is not one
+  /// the editor knows — anything but a player start, today.
+  size_t dropped_entities = 0;
 };
 
 }  // namespace eng::editor

@@ -22,6 +22,11 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentAddLight(EditorShellState& state,
                                            const nlohmann::json& params);
 
+/// Add a player start at a position, for a named player or the lowest one
+/// with no start yet, and select it.
+[[nodiscard]] AgentResult runAgentAddPlayerStart(EditorShellState& state,
+                                                 const nlohmann::json& params);
+
 /// Write one property of one entry to an absolute value.
 [[nodiscard]] AgentResult runAgentSetProperty(EditorShellState& state,
                                               const nlohmann::json& params);

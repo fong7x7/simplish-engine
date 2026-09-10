@@ -3,7 +3,7 @@
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
 **Status:** Living register — update it in the change that moves a row
-**Last Updated:** 2026-09-09
+**Last Updated:** 2026-09-10
 
 What the editor can do, and whether an agent can do it too. One row per
 capability, three states per row.
@@ -44,8 +44,8 @@ puzzled over.
 | Close a project | ✅ | `run_command` (`close_project`) | |
 | Recent projects list | ✅ | ❌ | Reachable from the menu, not from the API. Add `list_recent` when something needs it |
 | Read the open project | ✅ | `get_state` | Name, root, and whether one is open |
-| Save a level | 🚧 | `run_command` (`save`) | Props and lights only, to `content/levels/<id>.level.json`; `Ctrl`/`Cmd`+S runs the same command. Tiles, entities and regions wait on the tools that author them — [project-format.md §4.1](project-format.md#41-what-the-editor-writes-today) |
-| Load a level when a project opens | 🚧 | `open_project`, `list_placements`, `list_lights` | Read after the assets are scanned, so a prop binds by asset id; a prop whose asset is gone is dropped and counted |
+| Save a level | 🚧 | `run_command` (`save`) | Props, lights and player starts, to `content/levels/<id>.level.json`; `Ctrl`/`Cmd`+S runs the same command. Tiles, other entities and regions wait on the tools that author them — [project-format.md §4.1](project-format.md#41-what-the-editor-writes-today) |
+| Load a level when a project opens | 🚧 | `open_project`, `list_placements`, `list_lights`, `list_player_starts` | Read after the assets are scanned, so a prop binds by asset id; a prop whose asset is gone is dropped and counted, and so is an entity whose definition the editor does not know |
 | See whether the level has unsaved changes | ✅ | `get_level`, `get_state` | The project's name carries a trailing asterisk in the title bar and toolbar while it does |
 | See where the level is written, and whether one is there | ✅ | `get_level` | Also whether the file could be read; a file that would not parse is not saved over |
 | Save under another name | ❌ | ❌ | Nothing writes a level to a chosen path; a new level is created and edited instead. Listed in the menu, disabled |
@@ -69,7 +69,7 @@ puzzled over.
 | Browse them by folder | ✅ | `list_folders` | Includes the built-in section beside the project's own folders |
 | Read one asset's state | ✅ | `get_asset` | Mesh loaded, load failed, thumbnail state, measured bounds, how many placements use it |
 | Card thumbnails | ✅ | `list_assets` (state only) | An agent can see how far a thumbnail got, not look at it. Add an image route if that is ever wanted |
-| Built-in items the browser offers besides files | ✅ | `list_folders`, `place_asset`, `add_light` | Both drop through the same tools a scanned model does |
+| Built-in items the browser offers besides files | ✅ | `list_folders`, `place_asset`, `add_light`, `add_player_start` | general › lighting, shapes and tools. Each drops through the tool for what it makes |
 | Import anything but `.obj` | ❌ | ❌ | [REQUIREMENTS §8](REQUIREMENTS.md#8-asset-pipeline) |
 
 ## 4. Placing and editing
@@ -78,12 +78,15 @@ puzzled over.
 |---|---|---|---|
 | Place an asset on a tile | ✅ | `place_asset` | |
 | Add a light | ✅ | `add_light` | |
+| Mark where a player starts | ✅ | `add_player_start` | Dragged from general › tools. Each start is for one of the four players, and a dropped one takes the lowest player without a start yet; the viewport draws it as a person-height column in that player's colour |
+| Give a start to another player | ✅ | `set_property` (`player`) | The panel's Player row steps 1–4; a value outside that is clamped |
+| Read every player start | ✅ | `list_player_starts` | With the player each is for, and how many players a session holds |
 | Read every placement | ✅ | `list_placements` | |
 | Read every light | ✅ | `list_lights` | |
 | Move or turn an entry | ✅ | `set_property`, `translate` | Absolute or by a delta |
 | Aim, dim, tint, and set a light's reach | ✅ | `set_property` | |
 | Select, and clear the selection | ✅ | `select`, `get_selection` | |
-| Delete a placement or a light | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
+| Delete a placement, a light or a player start | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
 | Duplicate an entry | ❌ | ❌ | The action kinds a removal needed are built now; a duplicate is an insert of a copy at the end |
 | Multi-select | ❌ | ❌ | `EditorSelection` holds one entry by design |
 | Copy and paste | ❌ | ❌ | Listed in the menu, disabled |
@@ -121,7 +124,7 @@ exist, and so that whoever builds one knows the API is part of building it.
 | Capability | Specified in |
 |---|---|
 | Tile and height painting | [§4.1](REQUIREMENTS.md#41-the-grid) |
-| Entity placement and property blocks | [§4.2](REQUIREMENTS.md#42-props-and-entities) |
+| Entity placement and property blocks, beyond the player start | [§4.2](REQUIREMENTS.md#42-props-and-entities) — the player start is the one definition built, with its `player` property; a general entity needs a definition schema to render a property block from |
 | Flow-field and reachability overlays | [§4.3](REQUIREMENTS.md#43-navigation-and-flow) |
 | Encounter and wave authoring | [§5](REQUIREMENTS.md#5-encounter-and-wave-authoring) |
 | Data-table editing | [§6](REQUIREMENTS.md#6-data-editing) |

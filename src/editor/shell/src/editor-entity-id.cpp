@@ -116,6 +116,16 @@ namespace {
     return taken;
   }
 
+  /// Every id the document's player starts hold.
+  std::unordered_set<std::string>
+  playerStartIds(const EditorDocument& document) {
+    std::unordered_set<std::string> taken;
+    for (const EditorPlayerStart& start : document.player_starts) {
+      taken.insert(start.id);
+    }
+    return taken;
+  }
+
   /// Every id the document's lights hold.
   std::unordered_set<std::string> lightIds(const EditorDocument& document) {
     std::unordered_set<std::string> taken;
@@ -184,6 +194,10 @@ std::string editorLightRef(const EditorLight& light) {
   return editorQualifiedId(EditorIdKind::LIGHT, light.id);
 }
 
+std::string editorPlayerStartRef(const EditorPlayerStart& start) {
+  return editorQualifiedId(EditorIdKind::PLAYER_START, start.id);
+}
+
 size_t rebindPlacementAssets(EditorDocument& document,
                              const std::vector<std::string>& previous_ids,
                              const std::vector<EditorAsset>& assets) {
@@ -214,6 +228,10 @@ std::string mintEditorLightId(const EditorDocument& document,
                               EditorLightKind kind) {
   return firstFreeOrdinal(makeEditorIdentifier(editorLightKindId(kind)),
                           lightIds(document));
+}
+
+std::string mintEditorPlayerStartId(const EditorDocument& document) {
+  return firstFreeOrdinal("start", playerStartIds(document));
 }
 
 }  // namespace eng::editor

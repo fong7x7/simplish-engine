@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Twenty-six, in three groups. `GET /tools` is authoritative and carries
+Twenty-eight, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -161,6 +161,7 @@ each one's parameters; this table is the map.
 | `list_folders` | The browser's folder tree, the built-in general section included |
 | `list_placements` | Every placement: index, asset, position, rotation |
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
+| `list_player_starts` | Every player start: the player it is for, its position, and how many players a session holds |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
@@ -173,10 +174,11 @@ each one's parameters; this table is the map.
 |---|---|
 | `place_asset` | Places an asset on a tile and selects it, as a browser drag would |
 | `add_light` | Adds a directional or point light and selects it |
+| `add_player_start` | Marks where a player spawns and selects it, for a named player or the lowest one with no start yet |
 | `set_property` | Writes one property to an absolute value |
-| `translate` | Moves a placement or a light by a delta in tiles |
-| `delete` | Removes a placement or a light, as the Delete key does |
-| `select` | Selects a placement or a light, or clears the selection |
+| `translate` | Moves a placement, a light or a player start by a delta in tiles |
+| `delete` | Removes a placement, a light or a player start, as the Delete key does |
+| `select` | Selects a placement, a light or a player start, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
 
@@ -201,24 +203,25 @@ each one's parameters; this table is the map.
   from the camera (down-screen), +Z is straight up. One unit is one tile.
   The manifest repeats this under `axes`.
 - **Targets.** Every tool that names an entry takes `target` of
-  `"placement"`, `"light"`, or `"selection"`, and an `index` for the first
-  two. `"selection"` means whatever the properties panel is on.
+  `"placement"`, `"light"`, `"player_start"`, or `"selection"`, and an
+  `index` for all but the last. `"selection"` means whatever the properties
+  panel is on.
 - **Editing selects.** A tool that changes an entry selects it, so the
   viewport outlines what just moved. `delete` is the exception that proves
   it: what it removed cannot be outlined, so the selection is cleared.
 - **Removing renumbers.** Deleting an entry moves everything after it in
-  that list down one, and the other list is untouched. Remove several by
+  that list down one, and the other lists are untouched. Remove several by
   index back to front, or re-read `list_placements` between calls.
 - **A write that changes nothing records nothing.** `changed` comes back
   false and the history does not grow — the same rule a property drag that
   ends where it began follows.
 - **Values are normalised on the way in.** Angles wrap into [-180, 180),
   colour channels and direction components clamp, multipliers hold at or
-  above zero. The response reports what was actually stored, not what was
+  above zero, and a player rounds to a whole one from 1 to 4. The response reports what was actually stored, not what was
   asked for.
 - **Fields follow what a kind stores, not what the panel shows.** A light
-  stores everything but a rotation; a placement stores a position and a
-  rotation. A directional light's position is only where its marker sits, so
+  stores everything but a rotation and a player; a placement stores a
+  position and a rotation; a player start stores a position and a player. A directional light's position is only where its marker sits, so
   the panel hides it — but it is real, and this API will move it.
 
 ### The worked example

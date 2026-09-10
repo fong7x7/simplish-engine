@@ -3,6 +3,8 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -160,4 +162,76 @@ TEST_CASE("an empty level is a level") {
   REQUIRE(read.has_value());
   REQUIRE(read->document.placements.empty());
   REQUIRE(read->document.lights.empty());
+}
+
+TEST_CASE("player starts round-trip as entities") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written;
+  written.player_starts = {{"start_01", 1, {2.5f, 3.5f, 0.0f}},
+                           {"start_02", 4, {-1.5f, 6.5f, 1.0f}}};
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->dropped_entities == 0);
+  REQUIRE(read->document.player_starts.size() == 2);
+  REQUIRE(read->document.player_starts[0].id == "start_01");
+  REQUIRE(read->document.player_starts[0].player == 1);
+  REQUIRE(read->document.player_starts[1].player == 4);
+  REQUIRE(read->document.player_starts[1].position.x == -1.5f);
+  REQUIRE(read->document.player_starts[1].position.z == 1.0f);
+}
+
+TEST_CASE("a player start is written in the format's entity shape") {
+  EditorDocument document;
+  EditorPlayerStart start = makeEditorPlayerStart(2, {1.5f, 1.5f, 0.0f});
+  start.id = "start_01";
+  document.player_starts.push_back(start);
+
+  const nlohmann::json level =
+      nlohmann::json::parse(serializeEditorLevel(document, {}, "main"));
+  const nlohmann::json& entity = level.at("content").at("entities").at(0);
+
+  REQUIRE(entity.at("id") == "start_01");
+  REQUIRE(entity.at("definition") == "entity:player_start");
+  REQUIRE(entity.at("properties").at("player") == 2);
+  REQUIRE(entity.at("at").size() == 3);
+}
+
+TEST_CASE("an entity the editor has no definition for is dropped and counted") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {"entities": [
+      {"id": "spawn_north", "definition": "entity:spawn_point", "at": [0, 0, 0]},
+      {"id": "start_01", "definition": "entity:player_start", "at": [1, 2, 0],
+       "properties": {"player": 2}},
+      "not an object"
+    ]}})";
+
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, {});
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->dropped_entities == 2);
+  REQUIRE(read->document.player_starts.size() == 1);
+  REQUIRE(read->document.player_starts[0].player == 2);
+}
+
+TEST_CASE("a hand-written player start gets an id and a player it lacks") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {"entities": [
+      {"definition": "entity:player_start", "at": [1, 2, 0]},
+      {"definition": "entity:player_start", "properties": {"player": 9}}
+    ]}})";
+
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, {});
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.player_starts.size() == 2);
+  REQUIRE(read->document.player_starts[0].id == "start_01");
+  REQUIRE(read->document.player_starts[0].player == 1);
+  REQUIRE(read->document.player_starts[1].id == "start_02");
+  // Out of range reads as the nearest player a session has.
+  REQUIRE(read->document.player_starts[1].player == 4);
 }

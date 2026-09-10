@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <iterator>
@@ -358,4 +359,33 @@ TEST_CASE("clearing the selection clears the reference with it") {
   fixture.panel.setSelection("crate", placement);
   fixture.panel.clearSelection();
   REQUIRE(fixture.panel.reference().empty());
+}
+
+TEST_CASE("a player start lists its player first, then where it stands") {
+  PanelFixture fixture;
+  EditorPlayerStart start = makeEditorPlayerStart(2, {1.5f, 2.5f, 0.0f});
+  start.id = "start_01";
+
+  fixture.panel.setSelection(editorPlayerStartName(start), start);
+
+  REQUIRE(fixture.panel.fields() == std::vector<EditorPropertyField>(
+                                        std::begin(EDITOR_PLAYER_START_FIELDS),
+                                        std::end(EDITOR_PLAYER_START_FIELDS)));
+  REQUIRE(fixture.panel.value(EditorPropertyField::PLAYER) == Approx(2.0f));
+  REQUIRE(fixture.panel.value(EditorPropertyField::POSITION_Y) == Approx(2.5f));
+  REQUIRE(fixture.panel.reference() == "player_start:start_01");
+}
+
+TEST_CASE("stepping a start's player moves to the next player and stops at 4") {
+  PanelFixture fixture;
+  fixture.panel.setSelection("Player 4 Start", makeEditorPlayerStart(4, {}));
+  const eng::Rect row = fixture.rowOf(EditorPropertyField::PLAYER);
+  const eng::Rect increment = propertyIncrementRect(row);
+  const eng::Rect decrement = propertyDecrementRect(row);
+
+  (void)fixture.press(midX(increment), midY(increment));
+  REQUIRE(fixture.changes.back().value == Approx(4.0f));
+  (void)fixture.press(midX(decrement), midY(decrement));
+  REQUIRE(fixture.changes.back().value == Approx(3.0f));
+  REQUIRE(fixture.changes.back().edit == EditorPropertyEdit::COMMIT);
 }

@@ -11,6 +11,7 @@
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -23,13 +24,15 @@ namespace {
 
   using nlohmann::json;
 
+  /// What `add_player_start` says when it is called wrongly.
+  constexpr std::string_view ADD_PLAYER_START_USAGE =
+      "x and y are required, and player, when given, is a number from 1 "
+      "to 4";
+
   /// How many entries the list @p kind names holds.
   size_t documentCount(const EditorDocument& document,
                        EditorSelectionKind kind) {
-    if (kind == EditorSelectionKind::PLACEMENT) {
-      return document.placements.size();
-    }
-    return kind == EditorSelectionKind::LIGHT ? document.lights.size() : 0;
+    return editorListSize(document, kind);
   }
 
   /// Whether @p field names one of the three rotation angles, which is
@@ -39,10 +42,10 @@ namespace {
            field <= EditorPropertyField::ROTATION_Z;
   }
 
-  /// Whether @p field names something only a light stores — a direction, a
-  /// tint, a strength, a reach.
-  bool isLightOnlyField(EditorPropertyField field) {
-    return field > EditorPropertyField::ROTATION_Z;
+  /// Whether @p field is one a placement stores: its position or its
+  /// rotation, and nothing a light or a player start carries.
+  bool isPlacementField(EditorPropertyField field) {
+    return field <= EditorPropertyField::ROTATION_Z;
   }
 
   /// Select @p selection, dropping it when it names an entry that is not
@@ -74,6 +77,9 @@ namespace {
     if (target == "light") {
       return EditorSelectionKind::LIGHT;
     }
+    if (target == "player_start") {
+      return EditorSelectionKind::PLAYER_START;
+    }
     return std::nullopt;
   }
 
@@ -90,8 +96,8 @@ namespace {
     if (!kind || !index) {
       return agentFailure(
           AgentStatus::BAD_PARAMS,
-          "expected target \"placement\", \"light\" or \"selection\", "
-          "with an index for the first two");
+          "expected target \"placement\", \"light\", \"player_start\" or "
+          "\"selection\", with an index for all but the last");
     }
     entry = {*kind, *index};
     return entryInRange(state, entry);
@@ -141,6 +147,26 @@ namespace {
     return out.dump(2);
   }
 
+  /// One player start as this API reports it, index included.
+  std::string playerStartPayload(const EditorShellState& state, size_t index) {
+    json out = agentPlayerStartValue(state.document.player_starts[index]);
+    out["index"] = index;
+    return out.dump(2);
+  }
+
+  /// Record a changed player start as one undoable edit, and select it.
+  AgentResult recordPlayerStart(EditorShellState& state, size_t index,
+                                const EditorPlayerStart& prior,
+                                const EditorPlayerStart& next) {
+    performEditorAction(state.history, state.document,
+                        {.kind = EditorActionKind::TRANSFORM_PLAYER_START,
+                         .index = index,
+                         .player_start = next,
+                         .player_start_prior = prior});
+    selectEntry(state, {EditorSelectionKind::PLAYER_START, index});
+    return agentEdited(playerStartPayload(state, index));
+  }
+
   /// Record a changed placement as one undoable edit, and select it.
   AgentResult recordPlacement(EditorShellState& state, size_t index,
                               const EditorPlacement& prior,
@@ -169,10 +195,10 @@ namespace {
   /// Write one field of a placement.
   AgentResult setPlacementField(EditorShellState& state, size_t index,
                                 EditorPropertyField field, float value) {
-    if (isLightOnlyField(field)) {
+    if (!isPlacementField(field)) {
       return agentFailure(AgentStatus::BAD_PARAMS,
-                          "a placement holds a position and a rotation; "
-                          "that property belongs to a light");
+                          "a placement holds a position and a rotation, and "
+                          "nothing else");
     }
     const EditorPlacement prior = state.document.placements[index];
     EditorPlacement next = prior;
@@ -186,10 +212,10 @@ namespace {
   /// Write one field of a light.
   AgentResult setLightField(EditorShellState& state, size_t index,
                             EditorPropertyField field, float value) {
-    if (isRotationField(field)) {
+    if (isRotationField(field) || field == EditorPropertyField::PLAYER) {
       return agentFailure(AgentStatus::BAD_PARAMS,
                           "a light is aimed by its direction, not turned by "
-                          "a rotation");
+                          "a rotation, and belongs to no player");
     }
     const EditorLight prior = state.document.lights[index];
     EditorLight next = prior;
@@ -198,6 +224,36 @@ namespace {
       return agentOk(lightPayload(state, index));
     }
     return recordLight(state, index, prior, next);
+  }
+
+  /// Write one field of a player start.
+  AgentResult setPlayerStartField(EditorShellState& state, size_t index,
+                                  EditorPropertyField field, float value) {
+    if (!editorPlayerStartHasField(field)) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "a player start holds a player and a position, "
+                          "and nothing else");
+    }
+    const EditorPlayerStart prior = state.document.player_starts[index];
+    EditorPlayerStart next = prior;
+    setEditorPlayerStartValue(next, field, value);
+    if (editorPlayerStartValue(next, field) ==
+        editorPlayerStartValue(prior, field)) {
+      return agentOk(playerStartPayload(state, index));
+    }
+    return recordPlayerStart(state, index, prior, next);
+  }
+
+  /// Write one field of whichever entry @p entry names.
+  AgentResult setEntryField(EditorShellState& state, EditorSelection entry,
+                            EditorPropertyField field, float value) {
+    if (entry.kind == EditorSelectionKind::PLACEMENT) {
+      return setPlacementField(state, entry.index, field, value);
+    }
+    if (entry.kind == EditorSelectionKind::PLAYER_START) {
+      return setPlayerStartField(state, entry.index, field, value);
+    }
+    return setLightField(state, entry.index, field, value);
   }
 
   /// Whether two positions are the same to the last bit, which is the test
@@ -240,6 +296,18 @@ namespace {
       return agentOk(lightPayload(state, index));
     }
     return recordLight(state, index, prior, next);
+  }
+
+  /// Move a player start, as one undoable edit.
+  AgentResult translatePlayerStart(EditorShellState& state, size_t index,
+                                   const json& params) {
+    const EditorPlayerStart prior = state.document.player_starts[index];
+    EditorPlayerStart next = prior;
+    next.position = shifted(prior.position, params);
+    if (samePoint(next.position, prior.position)) {
+      return agentOk(playerStartPayload(state, index));
+    }
+    return recordPlayerStart(state, index, prior, next);
   }
 
   /// The x, y and z the call names, with @p ground standing in for a z it
@@ -330,13 +398,52 @@ namespace {
     return agentEdited(lightPayload(state, index));
   }
 
+  /// Add @p start to the document as one undoable edit, and select it.
+  AgentResult addPlayerStart(EditorShellState& state,
+                             const EditorPlayerStart& start) {
+    const size_t index = state.document.player_starts.size();
+    EditorPlayerStart identified = start;
+    if (identified.id.empty()) {
+      identified.id = mintEditorPlayerStartId(state.document);
+    }
+    performEditorAction(state.history, state.document,
+                        {.kind = EditorActionKind::ADD_PLAYER_START,
+                         .index = index,
+                         .player_start = identified});
+    selectEntry(state, {EditorSelectionKind::PLAYER_START, index});
+    return agentEdited(playerStartPayload(state, index));
+  }
+
+  /// The player an `add_player_start` call names, or the lowest one with no
+  /// start yet when it names none. Nothing when it names something that is
+  /// not a number.
+  std::optional<uint8_t> playerParam(const EditorShellState& state,
+                                     const json& params) {
+    if (!params.contains("player")) {
+      return nextEditorPlayerSlot(state.document);
+    }
+    const std::optional<double> player = agentNumberParam(params, "player");
+    if (!player) {
+      return std::nullopt;
+    }
+    return clampEditorPlayerSlot(static_cast<float>(*player));
+  }
+
+  /// The removed entry an action carries, as this API reports it.
+  json removedValue(const EditorAction& action) {
+    if (action.kind == EditorActionKind::REMOVE_PLACEMENT) {
+      return agentPlacementValue(action.placement);
+    }
+    return action.kind == EditorActionKind::REMOVE_LIGHT
+               ? agentLightValue(action.light)
+               : agentPlayerStartValue(action.player_start);
+  }
+
   /// The entry an action is about to remove, as this API reports it.
   /// Built before the removal, because afterwards there is no entry at
   /// that index to report.
   std::string removedPayload(const EditorAction& action) {
-    json out = action.kind == EditorActionKind::REMOVE_PLACEMENT
-                   ? agentPlacementValue(action.placement)
-                   : agentLightValue(action.light);
+    json out = removedValue(action);
     out["index"] = action.index;
     out["removed"] = true;
     return out.dump(2);
@@ -466,6 +573,18 @@ AgentResult runAgentAddLight(EditorShellState& state, const json& params) {
                                                    EDITOR_LIGHT_DROP_HEIGHT)));
 }
 
+AgentResult runAgentAddPlayerStart(EditorShellState& state,
+                                   const json& params) {
+  const std::optional<double> x = agentNumberParam(params, "x");
+  const std::optional<double> y = agentNumberParam(params, "y");
+  const std::optional<uint8_t> player = playerParam(state, params);
+  if (!x || !y || !player) {
+    return agentFailure(AgentStatus::BAD_PARAMS, ADD_PLAYER_START_USAGE);
+  }
+  return addPlayerStart(
+      state, makeEditorPlayerStart(*player, droppedAt(params, *x, *y, 0.0f)));
+}
+
 AgentResult runAgentSetProperty(EditorShellState& state, const json& params) {
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);
@@ -478,10 +597,7 @@ AgentResult runAgentSetProperty(EditorShellState& state, const json& params) {
   if (named.status != AgentStatus::OK) {
     return named;
   }
-  if (entry.kind == EditorSelectionKind::PLACEMENT) {
-    return setPlacementField(state, entry.index, field, value);
-  }
-  return setLightField(state, entry.index, field, value);
+  return setEntryField(state, entry, field, value);
 }
 
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
@@ -492,6 +608,9 @@ AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   }
   if (entry.kind == EditorSelectionKind::PLACEMENT) {
     return translatePlacement(state, entry.index, params);
+  }
+  if (entry.kind == EditorSelectionKind::PLAYER_START) {
+    return translatePlayerStart(state, entry.index, params);
   }
   return translateLight(state, entry.index, params);
 }

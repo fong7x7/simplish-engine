@@ -39,7 +39,8 @@ inline constexpr std::string_view EDITOR_LEVEL_ID = "main";
 /// never by the index the session happens to hold it at: the index is a
 /// handle that a rescan renumbers, and the id is the thing that survives
 /// one. Arrays are written in document order, because that order is what
-/// the runtime iterates ([project-format.md §3]).
+/// the runtime iterates ([project-format.md §3]). Player starts go in
+/// `entities`, as the format's `entity:player_start` definition.
 [[nodiscard]] std::string
 serializeEditorLevel(const EditorDocument& document,
                      const std::vector<EditorAsset>& assets,
@@ -50,7 +51,9 @@ serializeEditorLevel(const EditorDocument& document,
 /// Nothing when @p text is not valid JSON, is not an object, or names a
 /// schema this build does not write. A prop whose asset the list does not
 /// hold is dropped and counted rather than failing the whole read: one
-/// deleted `.obj` should not cost a level everything else in it.
+/// deleted `.obj` should not cost a level everything else in it. An entity
+/// whose definition the editor does not know is dropped and counted the
+/// same way.
 [[nodiscard]] std::optional<EditorLevelLoad>
 parseEditorLevel(std::string_view text, const std::vector<EditorAsset>& assets);
 

@@ -34,13 +34,16 @@ namespace {
 }  // namespace
 
 size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_shape,
-                                  size_t first_light) {
+                                  size_t first_item) {
   const size_t section =
       addFolder(tree, EDITOR_ASSET_FOLDER_NONE, EDITOR_GENERAL_FOLDER_NAME);
   const size_t lighting = addFolder(tree, section, EDITOR_LIGHTING_FOLDER_NAME);
-  fillFolder(tree, lighting, first_light, EDITOR_GENERAL_ITEM_COUNT);
+  fillFolder(tree, lighting, first_item, EDITOR_GENERAL_LIGHT_COUNT);
   const size_t shapes = addFolder(tree, section, EDITOR_SHAPES_FOLDER_NAME);
   fillFolder(tree, shapes, first_shape, EDITOR_SHAPE_COUNT);
+  const size_t tools = addFolder(tree, section, EDITOR_TOOLS_FOLDER_NAME);
+  fillFolder(tree, tools, first_item + EDITOR_GENERAL_LIGHT_COUNT,
+             EDITOR_GENERAL_TOOL_COUNT);
   // In front of the assets root: the pane lists the sections in this order,
   // which is the one decision about them the tree carries.
   tree.sections.insert(tree.sections.begin(), section);
