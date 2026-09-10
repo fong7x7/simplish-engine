@@ -57,7 +57,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Rendering — RHI | Custom (in-tree) | All | Abstract interface in `engine/render/`; backends in `platform/` |
 | Rendering — Metal | Metal, MetalKit, QuartzCore | macOS | `src/platform/`; building |
 | Rendering — Vulkan | Vulkan 1.3 | Linux, Windows | `src/platform/`; not yet built in CI |
-| Rendering — DX12 | D3D12, DXGI 1.6 | Windows, Xbox | `src/platform/`; not yet built in CI |
+| Rendering — DX12 | D3D12, DXGI 1.6 | Windows, Xbox | `src/platform/`; compiles and links from macOS through the `windows-cross` preset, never yet run; not yet built in CI |
 | Rendering — OpenGL | OpenGL 4.6 | Desktop | Fallback; `src/platform/` |
 | Windowing & input | SDL3 | Desktop | `src/platform/`, plus the GUI's clipboard/cursor path (see above) |
 | Math | In-tree `engine/math` | All | No GLM: the engine owns its vector and matrix types so simulation math stays under the determinism contract |

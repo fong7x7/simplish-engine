@@ -61,12 +61,32 @@ Each package declares its module and its test executable in its own `CMakeLists.
 | `headless` | Host | RelWithDebInfo | `STUB` | Determinism and simulation CI — no GPU |
 | `asan` | Host | Debug | Default | Address and UB sanitizers |
 | `opengl` | Desktop | Debug | `OPENGL` | Fallback-backend verification |
+| `windows-cross` | Windows x86_64, built on macOS or Linux | Debug | `DX12` | Compile and link the Windows build without a Windows machine — see §3.1. Build only |
 | `ps5` | PlayStation 5 | Release | `GNM` | Requires the private SDK overlay — not yet defined |
 | `xbox-series-x` | Xbox Series X | Release | `DX12` | Requires the private GDK overlay — not yet defined |
 
 ```bash
 cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 ```
+
+### 3.1 Building for Windows from macOS
+
+`windows-cross` builds the whole tree — editor, every test executable, and the DX12 backend — as x86_64 Windows binaries. clang-cl compiles and lld-link links against the MSVC runtime and Windows SDK, laid out by [xwin](https://github.com/Jake-Shadle/xwin). It is how DX12 code gets a compiler to read it without a Windows machine. Nothing it produces runs on the host, so it has no test preset. Test discovery is deferred to `ctest` time (`PRE_TEST`) so the build never tries to run a `.exe`.
+
+One-time setup: about 900 MB downloaded, and about 800 MB kept in `~/.xwin/sysroot`. Running xwin with `--accept-license` accepts Microsoft's license for the SDK and runtime.
+
+```bash
+brew install llvm lld xwin
+xwin --accept-license --cache-dir ~/.xwin/cache --arch x86_64 splat --include-debug-libs --use-winsysroot-style --preserve-ms-arch-notation --disable-symlinks --output ~/.xwin/sysroot
+```
+
+Then:
+
+```bash
+cmake --preset windows-cross && cmake --build --preset windows-cross
+```
+
+The toolchain file is [`cmake/toolchains/windows-x64-clang-cl.cmake`](../../cmake/toolchains/windows-x64-clang-cl.cmake). Set `SIMPLISH_WINDOWS_SYSROOT` to use a sysroot somewhere other than `~/.xwin/sysroot`. clang-cl sets CMake's `MSVC`, so the build takes the same `/W4 /WX` branch of `SimplishCompilerOptions` a Windows machine does, and it catches the same MSVC-STL and Windows-SDK problems. It does not replace the Windows CI job in §7: it compiles with a different compiler from MSVC and runs nothing.
 
 ---
 

@@ -1,6 +1,6 @@
 #ifdef ENGINE_RENDERER_DX12
 
-#include "../../../render/backends/dx12/src/dx12-copy-alignment.h"
+#include "dx12-copy-alignment.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>

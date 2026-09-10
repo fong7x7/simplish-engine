@@ -45,12 +45,12 @@ struct EditorAsset {
   /// Display name, taken from the file stem, or the shape's own name.
   std::string name;
   /// Absolute path to the source file.
-  std::filesystem::path path;
+  std::filesystem::path path{};
   /// Path relative to the project's assets directory, file name included
   /// (`props/crate.obj`). This is what identifies the asset for grouping
   /// under a folder, and it is stable across machines in a way `path` is
   /// not.
-  std::filesystem::path relative_path;
+  std::filesystem::path relative_path{};
   /// Which built-in shape this is, or nothing for a model on disk. It is
   /// what decides whether the mesh is generated or read, so the two paths
   /// above are empty exactly when this is set.

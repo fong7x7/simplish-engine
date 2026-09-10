@@ -128,9 +128,10 @@ TEST_CASE("commands say which are built and which would work right now") {
 
   const json commands = json::parse(agentCommandsJson(state)).at("commands");
   const auto find = [&commands](std::string_view name) {
-    return *std::find_if(
-        commands.begin(), commands.end(),
-        [name](const json& row) { return row.at("name") == name; });
+    return *std::find_if(commands.begin(), commands.end(),
+                         [name](const json& row) {
+                           return row.at("name") == std::string(name);
+                         });
   };
 
   REQUIRE(find("save_as").at("implemented") == false);
@@ -286,7 +287,7 @@ TEST_CASE("the tools folder lists the player start as a built-in entry") {
   const json folders = json::parse(agentFoldersJson(state)).at("folders");
   bool found = false;
   for (const json& folder : folders) {
-    if (folder.at("name") == EDITOR_TOOLS_FOLDER_NAME) {
+    if (folder.at("name") == std::string(EDITOR_TOOLS_FOLDER_NAME)) {
       REQUIRE(folder.at("entries").at(0).at("name") == "Player Start");
       REQUIRE(folder.at("entries").at(0).at("kind") == "builtin");
       found = true;

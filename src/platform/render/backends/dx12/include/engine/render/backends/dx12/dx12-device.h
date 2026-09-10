@@ -123,12 +123,20 @@ public:
   Dx12Device(const Dx12Device&) = delete;
   Dx12Device& operator=(const Dx12Device&) = delete;
 
+  /// Opaque implementation data (all D3D12 types hidden here). The name is
+  /// public because the backend's own helpers — the command list and the
+  /// texture lookups — take it as a parameter; the definition lives only in
+  /// the private dx12-device-impl.h, so nothing outside the backend can use
+  /// it.
+  // A pImpl is a forward declaration by construction: defining it here
+  // would pull d3d12.h into every includer of this header. The invariant
+  // checker reads only a same-line suppression.
+  struct Impl;  // NOLINT(no-forward-decl)
+
 private:
   /// Private constructor; use create() factory.
   Dx12Device();
 
-  /// Opaque implementation data (all D3D12 types hidden here).
-  struct Impl;
   /// Pointer to implementation (PIMPL pattern).
   std::unique_ptr<Impl> impl_;
 };

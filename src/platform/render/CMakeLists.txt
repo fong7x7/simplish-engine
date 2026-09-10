@@ -165,4 +165,10 @@ if(ENGINE_BUILD_TESTS AND _render_tests)
         SOURCES      ${_render_tests}
         DEPENDENCIES simplish-platform-render
     )
+    # Backend tests reach their backend's private headers by name, as a
+    # package's own tests may (code-layout.md §4).
+    if(_is_dx12)
+        target_include_directories(simplish-platform-render-tests PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backends/dx12/src)
+    endif()
 endif()

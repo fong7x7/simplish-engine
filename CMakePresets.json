@@ -53,6 +53,16 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer"
       }
+    },
+    {
+      "name": "windows-cross",
+      "inherits": "base",
+      "displayName": "Windows x86_64 cross — clang-cl + xwin SDK, DX12, build only",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/windows-x64-clang-cl.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CATCH_DISCOVER_TESTS_DISCOVERY_MODE": "PRE_TEST"
+      }
     }
   ],
   "buildPresets": [
@@ -61,7 +71,8 @@
     { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
     { "name": "headless", "configurePreset": "headless" },
     { "name": "opengl", "configurePreset": "opengl" },
-    { "name": "asan", "configurePreset": "asan" }
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "windows-cross", "configurePreset": "windows-cross" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },

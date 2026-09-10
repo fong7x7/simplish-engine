@@ -13,6 +13,8 @@ build/*
 !editor/build/
 !editor/build/**
 !tests/**/build/
+# A solutions category, not a build directory — build*/ would swallow it.
+!docs/solutions/build-issues/
 !tests/**/build/**
 
 # Code coverage artifacts (LLVM/Clang)

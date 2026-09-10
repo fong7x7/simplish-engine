@@ -10,6 +10,10 @@ simplish_add_module(simplish-platform-agent
     SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/src
     DEPENDENCIES simplish-engine-core
 )
+# Winsock lives in its own import library; POSIX sockets are in libc.
+if(ENGINE_PLATFORM_WINDOWS)
+    target_link_libraries(simplish-platform-agent PUBLIC ws2_32)
+endif()
 
 file(GLOB _agent_tests "${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp")
 if(ENGINE_BUILD_TESTS AND _agent_tests)

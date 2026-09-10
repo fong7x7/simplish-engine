@@ -22,9 +22,18 @@ if(MSVC)
         /WX
         /permissive-
         /Zc:__cplusplus          # Report correct __cplusplus value
-        /Zc:preprocessor         # Standards-conforming preprocessor
         /utf-8                   # Source and execution charset UTF-8
     )
+    # Standards-conforming preprocessor. clang-cl's always is, and rejects the
+    # flag as unused — an error under /WX.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(simplish_compiler_options INTERFACE
+            /Zc:preprocessor)
+    endif()
+    # The CRT deprecates standard functions such as std::getenv in favour of
+    # its own _s variants; portable code keeps the standard ones.
+    target_compile_definitions(simplish_compiler_options INTERFACE
+        _CRT_SECURE_NO_WARNINGS)
 else()
     target_compile_options(simplish_compiler_options INTERFACE
         -Wall

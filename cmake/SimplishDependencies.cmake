@@ -58,7 +58,7 @@ if(ENGINE_PLATFORM_DESKTOP)
     # SDL3 — windowing and input
     FetchContent_Declare(SDL3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG        release-3.2.8
+        GIT_TAG        release-3.2.30
         GIT_SHALLOW    TRUE
     )
 endif()
@@ -73,7 +73,7 @@ if(ENGINE_PLATFORM_WINDOWS)
     set(D3D12MA_BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(D3D12MemoryAllocator
         GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator.git
-        GIT_TAG        v2.1.0
+        GIT_TAG        v3.2.0
         GIT_SHALLOW    TRUE
     )
 endif()
@@ -84,6 +84,11 @@ endif()
 message(STATUS "Fetching dependencies...")
 
 FetchContent_MakeAvailable(nlohmann_json Catch2)
+
+# Catch2 asks only for C++14, which is what MSVC and clang-cl default to; the
+# string_view StringMaker enabled above needs C++17. Apple Clang defaults to
+# C++17, which is why this only shows up on Windows.
+target_compile_features(Catch2 PUBLIC cxx_std_17)
 
 set(CMAKE_DISABLE_FIND_PACKAGE_HarfBuzz TRUE)
 FetchContent_MakeAvailable(freetype)

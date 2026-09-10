@@ -56,7 +56,8 @@ TEST_CASE("the manifest publishes every tool the editor has") {
     const auto listed =
         std::find_if(manifest.at("tools").begin(), manifest.at("tools").end(),
                      [tool](const json& entry) {
-                       return entry.at("name") == agentToolName(tool);
+                       return entry.at("name").get_ref<const std::string&>() ==
+                              agentToolName(tool);
                      });
     INFO("tool " << agentToolName(tool));
     REQUIRE(listed != manifest.at("tools").end());

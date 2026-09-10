@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <array>
 #include <engine/core/init-context.h>
 #include <string_view>
@@ -38,14 +37,12 @@ namespace {
 }  // namespace
 
 bool InitContext::isPhaseReady(std::string_view phase_name) const {
-  const auto* const it =
-      std::find_if(  // NOLINT(modernize-use-ranges,llvm-use-ranges)
-          PHASE_TABLE.begin(), PHASE_TABLE.end(),
-          [&](const PhaseEntry& e) { return e.name == phase_name; });
-  if (it == PHASE_TABLE.end()) {
-    return false;
+  for (const PhaseEntry& entry : PHASE_TABLE) {
+    if (entry.name == phase_name) {
+      return this->*(entry.flag);
+    }
   }
-  return this->*(it->flag);
+  return false;
 }
 
 }  // namespace eng

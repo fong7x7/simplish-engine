@@ -16,6 +16,27 @@ AgentHttpResponse post(EditorAgentService& service, EditorShellState& state,
   return service.route(state, {"POST", std::string(path), std::string(body)});
 }
 
+/// Set the agent port variable. The CRT has no setenv; _putenv_s is its
+/// equivalent.
+void setAgentPortVariable(const char* value) {
+#ifdef _WIN32
+  _putenv_s("SIMPLISH_AGENT_PORT", value);
+#else
+  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
+  setenv("SIMPLISH_AGENT_PORT", value, 1);
+#endif
+}
+
+/// Remove the agent port variable. On Windows, setting it empty removes it.
+void clearAgentPortVariable() {
+#ifdef _WIN32
+  _putenv_s("SIMPLISH_AGENT_PORT", "");
+#else
+  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
+  unsetenv("SIMPLISH_AGENT_PORT");
+#endif
+}
+
 }  // namespace
 
 TEST_CASE("the root path describes the editor") {
@@ -87,22 +108,17 @@ TEST_CASE("a host request with no editor attached is dropped, not crashed") {
 }
 
 TEST_CASE("no port is opened unless the environment names one") {
-  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
-  unsetenv("SIMPLISH_AGENT_PORT");
+  clearAgentPortVariable();
   REQUIRE(editorAgentPortFromEnvironment() == 0);
 
-  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
-  setenv("SIMPLISH_AGENT_PORT", "not-a-port", 1);
+  setAgentPortVariable("not-a-port");
   REQUIRE(editorAgentPortFromEnvironment() == 0);
 
-  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
-  setenv("SIMPLISH_AGENT_PORT", "9123", 1);
+  setAgentPortVariable("9123");
   REQUIRE(editorAgentPortFromEnvironment() == 9123);
 
-  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
-  setenv("SIMPLISH_AGENT_PORT", "default", 1);
+  setAgentPortVariable("default");
   REQUIRE(editorAgentPortFromEnvironment() == EDITOR_AGENT_DEFAULT_PORT);
 
-  // NOLINTNEXTLINE(concurrency-mt-unsafe) -- single-threaded test
-  unsetenv("SIMPLISH_AGENT_PORT");
+  clearAgentPortVariable();
 }
