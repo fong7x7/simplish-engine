@@ -100,6 +100,20 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "actually stored."},
 };
 
+/// `set_animation` names the clip a placed rigged model plays.
+inline constexpr AgentParam AGENT_PARAMS_SET_ANIMATION[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"placement\", or \"selection\" when a placement is selected. Only "
+     "placements play clips."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the placement list. Not needed when target is "
+     "\"selection\"."},
+    {"clip", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "Name of the clip, one of the `clips` `get_asset` lists for the "
+     "placement's asset. Omitted or empty plays the model's first clip, "
+     "which is what a placement plays until one is chosen."},
+};
+
 /// `translate` moves an entry by a delta rather than to a position.
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -236,7 +250,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "list_assets",
      "Every asset scanned from the open project, with its index, name, "
      "path, measured bounds, and state: whether its mesh is loaded, "
-     "whether loading it failed, and how far its browser thumbnail got.",
+     "whether loading it failed, and how far its browser thumbnail got. "
+     "A rigged glTF model says `rigged`, and once loaded lists the names "
+     "of its animation `clips`.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::GET_ASSET, "get_asset",
@@ -252,8 +268,10 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::LIST_PLACEMENTS,
      "list_placements",
      "Every asset placed in the level, with its index, the asset it "
-     "instances, its position in tiles, its rotation in degrees, and "
-     "whether players collide with it in a playtest.",
+     "instances, its position in tiles, its rotation in degrees, "
+     "whether players collide with it in a playtest, and the animation "
+     "clip it plays — empty for the model's first, and ignored by a model "
+     "with no clips.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_LIGHTS,
@@ -324,6 +342,12 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Recorded as one undoable edit, and a write that changes nothing "
      "records nothing.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_PROPERTY},
+    {AgentTool::SET_ANIMATION, "set_animation",
+     "Choose the animation clip a placed rigged model plays, as the "
+     "properties panel's Animation row does. Recorded as one undoable "
+     "edit. Refused for a placement whose model has no clips, and for a "
+     "clip the model does not have — the error lists the ones it does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_ANIMATION},
     {AgentTool::TRANSLATE, "translate",
      "Move a placement, a light or a player start by a delta in tiles — "
      "the tool to reach for when asked to shift something in a direction "

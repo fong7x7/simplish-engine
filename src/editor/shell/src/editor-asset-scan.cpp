@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cctype>
 #include <editor/shell/editor-asset-scan.h>
+#include <iterator>
 #include <string>
 #include <system_error>
 
@@ -19,7 +20,9 @@ namespace {
   }
 
   bool isMeshFile(const fs::path& path) {
-    return toLower(path.extension().string()) == ASSET_MESH_EXTENSION;
+    const std::string extension = toLower(path.extension().string());
+    return std::ranges::find(ASSET_MESH_EXTENSIONS, extension) !=
+           std::end(ASSET_MESH_EXTENSIONS);
   }
 
   /// Whether a name starts with a dot. Dot-directories hold editor and
@@ -72,6 +75,11 @@ namespace {
   }
 
 }  // namespace
+
+bool isRiggedModelFile(const std::filesystem::path& path) {
+  const std::string extension = toLower(path.extension().string());
+  return extension == ".gltf" || extension == ".glb";
+}
 
 EditorAssetScan scanEditorAssets(const fs::path& assets_dir) {
   EditorAssetScan scan;

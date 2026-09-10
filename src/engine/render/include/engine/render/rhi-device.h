@@ -87,6 +87,14 @@ public:
   /// one return `false` and meshes simply do not draw there.
   virtual bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional skinned-mesh pipeline: the static mesh pipeline's bindings and
+  /// fragment shader, with a vertex stage that reads `SkinnedMeshVertex`
+  /// records and blends each vertex by up to four joints from a
+  /// `SkinPalette` in vertex stage bytes at slot 2. A builtin for the same
+  /// reason the mesh pipeline is. Backends without one return `false` and
+  /// skinned meshes do not draw there.
+  virtual bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline);
+
   /// Optional outline pipeline for meshes: a full-screen triangle, drawn
   /// with no vertex buffer, that reads the scene's `D32_FLOAT` depth at
   /// fragment texture slot 0 and its parameters from fragment stage bytes at
@@ -148,6 +156,11 @@ RhiDevice::tryCreateGuiPipeline(RhiPipelineHandle& /*out_pipeline*/) {
 
 inline bool
 RhiDevice::tryCreateMeshPipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateSkinnedMeshPipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

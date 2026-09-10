@@ -31,6 +31,13 @@ ID3D12PipelineState* createDx12MeshPipelineState(ID3D12Device5* device,
                                                  ID3D12RootSignature* root_sig,
                                                  DXGI_FORMAT color_format);
 
+/// Compile the built-in skinned mesh shaders — the mesh pixel shader behind
+/// a skinning vertex stage — and create their PSO. Null on failure.
+ID3D12PipelineState*
+createDx12SkinnedMeshPipelineState(ID3D12Device5* device,
+                                   ID3D12RootSignature* root_sig,
+                                   DXGI_FORMAT color_format);
+
 /// Compile the built-in mesh outline shaders and create their PSO, which
 /// takes no vertex input and no depth attachment. Null on failure.
 ID3D12PipelineState*
@@ -43,6 +50,9 @@ uint32_t dx12GuiVertexStride();
 
 /// Byte stride the mesh pipeline's vertex buffer is bound with.
 uint32_t dx12MeshVertexStride();
+
+/// Byte stride the skinned mesh pipeline's vertex buffer is bound with.
+uint32_t dx12SkinnedMeshVertexStride();
 
 }  // namespace eng::render
 

@@ -559,6 +559,52 @@ vertex MeshVsOut mesh_vs_main(MeshVertexIn in [[stage_in]],
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Skinned meshes: a different vertex stage in front of the same fragment one.
+// SKIN_MAX_JOINTS is `MESH_MAX_SKIN_JOINTS` in `skin-palette.h`, restated;
+// the palette is `SkinPalette`, three rows of each joint's matrix.
+// ---------------------------------------------------------------------------
+constant uint SKIN_MAX_JOINTS = 80;
+
+struct SkinnedVertexIn {
+  float3 position [[attribute(0)]];
+  float3 normal [[attribute(1)]];
+  float2 uv [[attribute(2)]];
+  uchar4 joints [[attribute(3)]];
+  float4 weights [[attribute(4)]];
+};
+
+struct SkinPalette {
+  float4 rows[SKIN_MAX_JOINTS * 3];
+};
+
+vertex MeshVsOut skinned_vs_main(SkinnedVertexIn in [[stage_in]],
+                                 constant MeshUniforms& u [[buffer(1)]],
+                                 constant SkinPalette& palette [[buffer(2)]]) {
+  // Linear blend skinning: the weighted sum of the joints' matrices, built a
+  // row at a time, which is what `poseSkinnedMesh` does on the CPU.
+  float4 r0 = float4(0.0f);
+  float4 r1 = float4(0.0f);
+  float4 r2 = float4(0.0f);
+  for (uint i = 0; i < 4; ++i) {
+    uint j = min(uint(in.joints[i]), SKIN_MAX_JOINTS - 1u) * 3u;
+    r0 += palette.rows[j] * in.weights[i];
+    r1 += palette.rows[j + 1u] * in.weights[i];
+    r2 += palette.rows[j + 2u] * in.weights[i];
+  }
+  float4 p = float4(in.position, 1.0f);
+  float4 n = float4(in.normal, 0.0f);
+  float3 skinned_position = float3(dot(r0, p), dot(r1, p), dot(r2, p));
+  float3 skinned_normal = float3(dot(r0, n), dot(r1, n), dot(r2, n));
+  MeshVsOut out;
+  float4 world = u.model * float4(skinned_position, 1.0f);
+  out.position = u.view_projection * world;
+  out.world_position = world.xyz;
+  out.normal = (u.model * float4(skinned_normal, 0.0f)).xyz;
+  out.uv = in.uv;
+  return out;
+}
+
 fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
                              constant MeshLights& lights [[buffer(0)]],
                              texture2d<float> diffuse [[texture(0)]]) {
@@ -631,6 +677,49 @@ fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
     }
     auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
     configureMeshRenderPipelineDesc(pd, vs, fs);
+    NSError* err = nil;
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
+  /// Byte stride for `SkinnedMeshVertex`: a `MeshVertex`, four joint bytes,
+  /// and four float weights. `skinned-mesh-vertex.h` asserts the same three
+  /// numbers.
+  constexpr NSUInteger SKINNED_VERTEX_STRIDE = 52;
+  constexpr NSUInteger SKINNED_JOINTS_OFFSET = 32;
+  constexpr NSUInteger SKINNED_WEIGHTS_OFFSET = 36;
+
+  /// The static mesh's three attributes, then the joints and weights.
+  MTLVertexDescriptor* makeSkinnedVertexDescriptor() {
+    MTLVertexDescriptor* vd = makeMeshVertexDescriptor();
+    vd.layouts[0].stride = SKINNED_VERTEX_STRIDE;
+    vd.attributes[3].format = MTLVertexFormatUChar4;
+    vd.attributes[3].offset = SKINNED_JOINTS_OFFSET;
+    vd.attributes[3].bufferIndex = 0;
+    vd.attributes[4].format = MTLVertexFormatFloat4;
+    vd.attributes[4].offset = SKINNED_WEIGHTS_OFFSET;
+    vd.attributes[4].bufferIndex = 0;
+    return vd;
+  }
+
+  /// The skinned pipeline: `skinned_vs_main` in front of the static mesh's
+  /// own fragment function, from the same library, so the two shade alike
+  /// by construction rather than by keeping two copies in step.
+  bool buildSkinnedMeshPipelinePso(id<MTLDevice> mtl_device,
+                                   id<MTLRenderPipelineState>* out_pso) {
+    id<MTLLibrary> lib = nil;
+    if (!compileMeshShaderLibrary(mtl_device, &lib)) {
+      return false;
+    }
+    id<MTLFunction> vs = [lib newFunctionWithName:@"skinned_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"mesh_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    configureMeshRenderPipelineDesc(pd, vs, fs);
+    pd.vertexDescriptor = makeSkinnedVertexDescriptor();
     NSError* err = nil;
     *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
     (void)err;
@@ -830,6 +919,7 @@ public:
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out) override;
   bool tryCreateMeshPipeline(RhiPipelineHandle& out) override;
+  bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
@@ -1498,6 +1588,18 @@ bool MetalRealDevice::tryCreateMeshPipeline(RhiPipelineHandle& out) {
     if (!buildMeshPipelinePso(device_, &pso)) {
       return false;
     }
+    return insertMeshPipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildSkinnedMeshPipelinePso(device_, &pso)) {
+      return false;
+    }
+    // Same depth and raster state as static meshes: the two draw into one
+    // pass and resolve against each other in its depth buffer.
     return insertMeshPipelineFromPso(pso, out);
   }
 }

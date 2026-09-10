@@ -231,6 +231,47 @@ MeshVsOut mesh_vs_main(MeshVertexIn v) {
   return o;
 }
 
+// Skinned meshes: a different vertex stage in front of the same pixel one.
+// SKIN_MAX_JOINTS is `MESH_MAX_SKIN_JOINTS` in `skin-palette.h`, restated;
+// the palette is `SkinPalette`, three rows of each joint's matrix.
+static const uint SKIN_MAX_JOINTS = 80;
+
+cbuffer SkinPalette : register(b2) {
+  float4 skin_rows[240];
+};
+
+struct SkinnedVertexIn {
+  float3 position : ATTR0;
+  float3 normal : ATTR1;
+  float2 uv : ATTR2;
+  uint4 joints : ATTR3;
+  float4 weights : ATTR4;
+};
+
+MeshVsOut skinned_vs_main(SkinnedVertexIn v) {
+  // Linear blend skinning, a row at a time — `skinned_vs_main` in the MSL.
+  float4 r0 = float4(0.0f, 0.0f, 0.0f, 0.0f);
+  float4 r1 = r0;
+  float4 r2 = r0;
+  [unroll] for (uint k = 0; k < 4; ++k) {
+    uint j = min(v.joints[k], SKIN_MAX_JOINTS - 1u) * 3u;
+    r0 += skin_rows[j] * v.weights[k];
+    r1 += skin_rows[j + 1u] * v.weights[k];
+    r2 += skin_rows[j + 2u] * v.weights[k];
+  }
+  float4 p = float4(v.position, 1.0f);
+  float4 n = float4(v.normal, 0.0f);
+  MeshVsOut o;
+  float4 world = mul(mesh_model, float4(dot(r0, p), dot(r1, p), dot(r2, p),
+                                        1.0f));
+  o.position = mul(mesh_view_projection, world);
+  o.world_position = world.xyz;
+  o.normal = mul(mesh_model, float4(dot(r0, n), dot(r1, n), dot(r2, n),
+                                    0.0f)).xyz;
+  o.uv = v.uv;
+  return o;
+}
+
 float4 mesh_ps_main(MeshVsOut i) : SV_Target {
   float3 n = normalize(i.normal);
   float3 lit = float3(MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT,
@@ -330,6 +371,25 @@ float4 outline_ps_main(float4 position : SV_Position) : SV_Target {
       {"ATTR", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 2, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+  }};
+
+  /// Byte stride of `eng::SkinnedMeshVertex`, and where its joints and
+  /// weights sit — `skinned-mesh-vertex.h` asserts the same three numbers.
+  constexpr uint32_t SKINNED_VERTEX_STRIDE = 52;
+
+  /// Vertex input elements for `eng::SkinnedMeshVertex`: the static mesh's
+  /// three, then four joint bytes read as integers and four weights.
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 5> SKINNED_INPUT_ELEMENTS{{
+      {"ATTR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 1, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 2, DXGI_FORMAT_R32G32_FLOAT, 0, 24,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 3, DXGI_FORMAT_R8G8B8A8_UINT, 0, 32,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 36,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
   }};
 
@@ -489,6 +549,28 @@ ID3D12PipelineState* createDx12MeshPipelineState(ID3D12Device5* device,
 }
 
 ID3D12PipelineState*
+createDx12SkinnedMeshPipelineState(ID3D12Device5* device,
+                                   ID3D12RootSignature* root_sig,
+                                   DXGI_FORMAT color_format) {
+  const ShaderPair shaders =
+      compilePair(MESH_HLSL_SOURCE, "skinned_vs_main", "mesh_ps_main");
+  if (shaders.vs == nullptr) {
+    return nullptr;
+  }
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+  pso.pRootSignature = root_sig;
+  fillCommonPsoFields(pso, shaders, color_format);
+  pso.BlendState = buildOpaqueBlendDesc();
+  pso.DepthStencilState = buildMeshDepthDesc();
+  pso.InputLayout = {SKINNED_INPUT_ELEMENTS.data(),
+                     static_cast<UINT>(SKINNED_INPUT_ELEMENTS.size())};
+  pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+  ID3D12PipelineState* state = createPso(device, pso);
+  releasePair(shaders);
+  return state;
+}
+
+ID3D12PipelineState*
 createDx12OutlinePipelineState(ID3D12Device5* device,
                                ID3D12RootSignature* root_sig,
                                DXGI_FORMAT color_format) {
@@ -518,6 +600,11 @@ uint32_t dx12GuiVertexStride() {
 /// Byte stride the command list binds mesh vertex buffers with.
 uint32_t dx12MeshVertexStride() {
   return MESH_VERTEX_STRIDE;
+}
+
+/// Byte stride the command list binds skinned mesh vertex buffers with.
+uint32_t dx12SkinnedMeshVertexStride() {
+  return SKINNED_VERTEX_STRIDE;
 }
 
 }  // namespace eng::render

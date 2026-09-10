@@ -415,3 +415,65 @@ TEST_CASE("clicking anywhere on the Collides row flips it and commits") {
   REQUIRE(fixture.changes.back().value == Approx(1.0f));
   REQUIRE_FALSE(fixture.panel.dragging());
 }
+
+namespace {
+
+/// A panel showing a rigged placement with three clips, recording every
+/// clip it reports.
+struct ClipFixture : PanelFixture {
+  std::vector<std::string> picked;
+
+  ClipFixture() {
+    panel.setClips({"idle", "walk", "run"}, "");
+    panel.on_clip_changed = [this](const std::string& clip) {
+      picked.push_back(clip);
+    };
+  }
+};
+
+}  // namespace
+
+TEST_CASE("a rigged placement lists an Animation row under its properties") {
+  ClipFixture fixture;
+  const eng::Rect row = fixture.panel.clipRowRect();
+  REQUIRE(row.h > 0.0f);
+  REQUIRE(row.y > fixture.rowOf(EditorPropertyField::COLLIDES).y);
+  // Naming no clip plays the first, and the row says so.
+  REQUIRE(fixture.panel.clip() == "idle");
+}
+
+TEST_CASE("the Animation row's buttons step through the clips, wrapping") {
+  ClipFixture fixture;
+  const eng::Rect row = fixture.panel.clipRowRect();
+  const eng::Rect next = propertyIncrementRect(row);
+  const eng::Rect back = propertyDecrementRect(row);
+
+  REQUIRE_FALSE(fixture.press(midX(next), midY(next)));
+  REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
+  REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
+  REQUIRE(fixture.picked == std::vector<std::string>{"walk", "idle", "run"});
+  REQUIRE(fixture.panel.clip() == "run");
+  // A clip is a name, not a property value: nothing numeric was reported.
+  REQUIRE(fixture.changes.empty());
+}
+
+TEST_CASE("a press on the Animation row's name changes nothing") {
+  ClipFixture fixture;
+  const eng::Rect value = propertyValueRect(fixture.panel.clipRowRect());
+  REQUIRE_FALSE(fixture.press(midX(value), midY(value)));
+  REQUIRE(fixture.picked.empty());
+  REQUIRE_FALSE(fixture.panel.dragging());
+}
+
+TEST_CASE("a placement shows the clip it names") {
+  ClipFixture fixture;
+  fixture.panel.setClips({"idle", "walk", "run"}, "walk");
+  REQUIRE(fixture.panel.clip() == "walk");
+}
+
+TEST_CASE("a new selection drops the previous one's clips") {
+  ClipFixture fixture;
+  fixture.panel.setSelection("crate", EditorPlacement{});
+  REQUIRE(fixture.panel.clipRowRect().h == 0.0f);
+  REQUIRE(fixture.panel.clip().empty());
+}

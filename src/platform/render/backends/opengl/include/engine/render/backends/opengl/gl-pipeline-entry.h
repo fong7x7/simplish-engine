@@ -36,6 +36,9 @@ struct GlPipelineEntry {
   /// `u_shade_bands` uniform location; -1 if unused. Rides in the mesh's
   /// light block, as the second word of its header.
   GLint loc_u_shade_bands = -1;
+  /// `u_skin_rows` uniform array location; -1 if unused. The skinned mesh
+  /// pipeline's joint palette, from vertex stage bytes at slot 2.
+  GLint loc_u_skin_rows = -1;
   /// `u_outline` uniform array location; -1 if unused. The outline
   /// pipeline's whole stage-bytes payload, as three `vec4`s.
   GLint loc_u_outline = -1;

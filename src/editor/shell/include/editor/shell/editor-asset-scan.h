@@ -10,10 +10,16 @@
 
 namespace eng::editor {
 
-/// File extension the asset panel lists. OBJ is the one format the mesh
-/// loader reads; anything else in the directory is ignored rather than
-/// listed as broken.
-inline constexpr std::string_view ASSET_MESH_EXTENSION = ".obj";
+/// File extensions the asset panel lists: static OBJ models, and rigged
+/// glTF ones in either of glTF's two forms. Anything else in the directory
+/// is ignored rather than listed as broken. Matched without regard to case.
+inline constexpr std::string_view ASSET_MESH_EXTENSIONS[] = {".obj", ".gltf",
+                                                             ".glb"};
+
+/// Whether @p path is a rigged model — a glTF file, read by the skinned
+/// loader and drawn posed — rather than a static OBJ. Decided by extension,
+/// as the scan decides what to list.
+[[nodiscard]] bool isRiggedModelFile(const std::filesystem::path& path);
 
 /// List the placeable assets and directories under @p assets_dir, walking
 /// sub-directories, sorted by relative path so the browser's order does not

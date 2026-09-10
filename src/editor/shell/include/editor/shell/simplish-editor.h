@@ -125,7 +125,9 @@
 #include <editor/shell/editor-shell-state.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
+#include <engine/animation/rig-pose.h>
 #include <engine/client/desktop-game-client.h>
+#include <engine/gltf/skinned-model.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
 #include <engine/input/held-actions.h>
@@ -133,6 +135,8 @@
 #include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <engine/render-mesh/mesh-style.h>
+#include <engine/render-mesh/skinned-mesh-instance.h>
+#include <engine/render-mesh/skinned-mesh-renderer.h>
 #include <engine/sim/player-input.h>
 #include <filesystem>
 #include <functional>
@@ -392,6 +396,9 @@ private:
   /// Apply one property change to the selected placement.
   void applyPlacementEdit(EditorPropertyField field, float value,
                           EditorPropertyEdit edit);
+  /// Set the clip the selected placement plays, as one undoable edit —
+  /// what the properties panel's Animation row reports.
+  void applyClipEdit(const std::string& clip);
   /// Apply one property change to the selected light.
   void applyLightEdit(EditorPropertyField field, float value,
                       EditorPropertyEdit edit);
@@ -423,6 +430,14 @@ private:
   /// Read, orient, and upload one asset's mesh, and its diffuse map with
   /// it.
   bool loadAssetMesh(EditorAsset& asset);
+  /// `loadAssetMesh` for a rigged glTF model: upload its skinned mesh to
+  /// `skinned_renderer_` and keep its rig on the asset. A file that will not
+  /// load says why in the status bar, since the reason is one the user can
+  /// act on in their exporter.
+  bool loadRiggedAsset(EditorAsset& asset);
+  /// Turn a loaded rigged model Z-up and make it @p asset's: its skinned
+  /// mesh uploaded, its bounds and map taken, its rig kept.
+  bool adoptRiggedModel(EditorAsset& asset, gltf::SkinnedModel& model);
   /// Decode and upload one image as a mesh texture. Invalid when there is
   /// no path, no device, or the file will not decode.
   [[nodiscard]] RhiTextureHandle
@@ -474,8 +489,21 @@ private:
   /// Create the mesh and outline pipelines, warning about whichever the
   /// backend lacks. Neither is fatal: the editor runs without geometry.
   void initSceneRenderers();
-  /// Rebuild `scene_instances_` from the current placements.
+  /// Rebuild `scene_instances_` and `skinned_instances_` from the current
+  /// placements.
   void buildSceneInstances();
+  /// Append @p placement's instance to whichever list its model draws in.
+  void appendPlacementInstance(const EditorPlacement& placement);
+  /// Pose @p placement's rigged model at the animation clock and append it
+  /// to `skinned_instances_`.
+  void appendSkinnedInstance(const EditorAsset& asset,
+                             const EditorPlacement& placement);
+  /// How many placements draw as rigged models this frame.
+  [[nodiscard]] size_t riggedPlacementCount() const;
+  /// The static pass's parameters with the rigged instances in place of
+  /// the static ones: same camera, lights, scissor and style.
+  [[nodiscard]] SkinnedMeshRenderer::DrawParams
+  skinnedDrawParams(const EditorViewportWidget& viewport);
   /// Rebuild `scene_lights_` from the document's lights.
   void buildSceneLights();
   /// Push placement, light and player start boxes into the viewport for
@@ -614,6 +642,19 @@ private:
   MeshRenderer mesh_renderer_{};
   /// Outline pipeline, which reads `mesh_renderer_`'s depth target.
   MeshOutlineRenderer outline_renderer_{};
+  /// Skinned-mesh pipeline and the rigged models' uploaded meshes. Draws
+  /// in the same pass, against the same depth, as `mesh_renderer_`.
+  SkinnedMeshRenderer skinned_renderer_{};
+  /// Rigged placements, posed, rebuilt each frame as `scene_instances_` is.
+  std::vector<SkinnedMeshInstance> skinned_instances_{};
+  /// Posing storage, one per rigged placement, kept between frames so that
+  /// posing allocates only when the level grows. Each instance's skin span
+  /// points into one of these, so the vector is sized before any pose is
+  /// taken and never while those spans are live.
+  std::vector<animation::RigPose> skinned_poses_{};
+  /// Seconds every placed clip loops on. Presentation only: it runs off the
+  /// frame's delta, and neither the level nor the simulation reads it.
+  double animation_clock_ = 0.0;
   /// Instances rebuilt each frame from the placements. Kept as a member so
   /// a frame does not allocate.
   std::vector<MeshInstance> scene_instances_{};

@@ -163,7 +163,10 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
     "props": [
       { "id": "props_crate_01", "asset": "mesh:props_crate",
         "at": [3.0, 4.0, 0.0], "rotation": [0.0, 0.0, 45.0],
-        "collides": true }
+        "collides": true },
+      { "id": "characters_knight_01", "asset": "mesh:characters_knight",
+        "at": [5.0, 4.0, 0.0], "rotation": [0.0, 0.0, 0.0],
+        "collides": true, "animation": "walk" }
     ],
     "lights": [
       { "id": "point_01", "kind": "point", "at": [1.0, 1.0, 3.0],
@@ -181,6 +184,8 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
 **A prop carries three rotation angles, not `yaw_steps`.** The properties panel edits rotation X, Y and Z as free degrees and the agent API sets them the same way, so `yaw_steps` would round somebody's authored value away on the first save. The integer stays the right answer for the projection — which has no yaw — and the snap belongs with the tool that enforces it; when that tool arrives, a §10 migration converts a rotation to the steps it was rounding to. `variant` is absent because nothing produces one yet.
 
 **A prop says whether it collides.** `collides` is `true` when players cannot walk through it, which is what every prop dropped starts as, and `false` for the ones they can — grass, a rug, a decal. A prop written before the key existed has none and reads as `true`, so a level saved earlier is as solid as its props look. What collides is the prop's box, the one the viewport outlines; a collision shape authored per asset would go in the asset pipeline, not here.
+
+**A rigged prop may name the clip it plays.** `animation` is the name of one of the model's animation clips, exactly as its glTF file names it, and is written only when a prop names one: a prop without it plays the model's first clip, which is what every rigged prop dropped does, and a static prop has no clips and never carries the key. A name the model does not have is kept rather than cleared, and plays the first clip too, so a clip renamed in the source file does not silently rewrite the level. The clip is presentation only — the simulation never reads a pose ([ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters)). A rigged model's asset reference is `mesh:` like any model on disk.
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 

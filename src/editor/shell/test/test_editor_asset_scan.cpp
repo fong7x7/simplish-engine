@@ -69,6 +69,23 @@ TEST_CASE("obj files in the directory are listed") {
   REQUIRE(scan.assets.size() == 2);
 }
 
+TEST_CASE("gltf and glb models are listed beside obj ones") {
+  TempDir tmp("gltf");
+  tmp.touch("crate.obj");
+  tmp.touch("knight.gltf");
+  tmp.touch("wolf.GLB");
+
+  const auto scan = scanEditorAssets(tmp.path());
+  REQUIRE(scan.assets.size() == 3);
+}
+
+TEST_CASE("only glTF files are rigged models") {
+  REQUIRE(isRiggedModelFile("knight.gltf"));
+  REQUIRE(isRiggedModelFile("props/wolf.GLB"));
+  REQUIRE_FALSE(isRiggedModelFile("crate.obj"));
+  REQUIRE_FALSE(isRiggedModelFile("knight.bin"));
+}
+
 TEST_CASE("assets are named by their file stem") {
   TempDir tmp("names");
   tmp.touch("stone_wall.obj");

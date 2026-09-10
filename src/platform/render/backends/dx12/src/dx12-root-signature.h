@@ -38,16 +38,21 @@ inline constexpr uint32_t DX12_ROOT_PARAM_PIXEL_CBV1 = 3;
 /// Root parameter holding the pixel stage's sampled texture table (`t0`).
 inline constexpr uint32_t DX12_ROOT_PARAM_PIXEL_SRV_TABLE = 4;
 
+/// Root parameter holding the vertex stage's slot-2 constant buffer (`b2`),
+/// which is where the skinned mesh shader reads its joint palette.
+inline constexpr uint32_t DX12_ROOT_PARAM_VERTEX_CBV2 = 5;
+
 /// Returned for a stage-bytes slot this signature has no room for.
 inline constexpr uint32_t DX12_ROOT_PARAM_NONE = UINT32_MAX;
 
 /// Number of root parameters in the shared graphics signature.
-inline constexpr uint32_t DX12_GRAPHICS_ROOT_PARAM_COUNT = 5;
+inline constexpr uint32_t DX12_GRAPHICS_ROOT_PARAM_COUNT = 6;
 
 /// Root parameter index for a vertex-stage slot, or `DX12_ROOT_PARAM_NONE`.
 inline uint32_t dx12VertexCbvRootParam(uint32_t slot) {
   return slot == 0   ? DX12_ROOT_PARAM_VERTEX_CBV0
          : slot == 1 ? DX12_ROOT_PARAM_VERTEX_CBV1
+         : slot == 2 ? DX12_ROOT_PARAM_VERTEX_CBV2
                      : DX12_ROOT_PARAM_NONE;
 }
 

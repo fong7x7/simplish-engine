@@ -65,12 +65,13 @@ puzzled over.
 
 | Capability | In the editor | Agent | Notes |
 |---|---|---|---|
-| Scan `.obj` files under `assets/` | ✅ | `list_assets`, `rescan_assets` | |
+| Scan `.obj`, `.gltf` and `.glb` files under `assets/` | ✅ | `list_assets`, `rescan_assets` | OBJ is static; glTF is read as a rigged, animated model ([animation.md](../engine/animation.md)) |
+| Import a rigged, animated model | ✅ | `list_assets`, `get_asset` (`rigged`, `clips`) | A `.gltf` or `.glb` with a skinned mesh loads when first placed, turned Z-up, with every clip it has. One that will not load says why in the status bar — Draco compression, over 80 joints, no skin — and `get_asset` reports `load_failed`. Static glTF and images embedded in a buffer are not read yet. Draws on every backend with a skinned pipeline — Metal, DX12, OpenGL |
 | Browse them by folder | ✅ | `list_folders` | Includes the built-in section beside the project's own folders |
-| Read one asset's state | ✅ | `get_asset` | Mesh loaded, load failed, thumbnail state, measured bounds, how many placements use it |
+| Read one asset's state | ✅ | `get_asset` | Mesh loaded, load failed, thumbnail state, measured bounds, how many placements use it, and for a rigged model its clip names |
 | Card thumbnails | ✅ | `list_assets` (state only) | An agent can see how far a thumbnail got, not look at it. Add an image route if that is ever wanted |
 | Built-in items the browser offers besides files | ✅ | `list_folders`, `place_asset`, `add_light`, `add_player_start` | general › lighting, shapes and tools. Each drops through the tool for what it makes |
-| Import anything but `.obj` | ❌ | ❌ | [REQUIREMENTS §8](REQUIREMENTS.md#8-asset-pipeline) |
+| Import other formats — FBX, static glTF, sprite sheets | ❌ | ❌ | [REQUIREMENTS §8](REQUIREMENTS.md#8-asset-pipeline) |
 
 ## 4. Placing and editing
 
@@ -86,6 +87,7 @@ puzzled over.
 | Move or turn an entry | ✅ | `set_property`, `translate` | Absolute or by a delta |
 | Aim, dim, tint, and set a light's reach | ✅ | `set_property` | |
 | Choose whether a prop blocks players | ✅ | `set_property` (`collides`), `list_placements` | A Collides checkbox, last in a prop's properties; a click anywhere on the row flips it, as one undoable edit. Props collide by default. One that does not has its footprint drawn faded in the viewport, and it is saved with the prop |
+| Choose which animation clip a rigged prop plays | ✅ | `set_animation`, `list_placements` | An Animation row, below a rigged prop's properties, names the clip; its step buttons move to the previous or next, wrapping round, as one undoable edit. A prop naming none plays the model's first clip, so a dropped model moves at once. Every placed clip loops on the viewport's own clock, in edit mode and in a playtest alike; it is presentation and never reaches the simulation. Saved with the prop |
 | Select, and clear the selection | ✅ | `select`, `get_selection` | |
 | Delete a placement, a light or a player start | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
 | Duplicate an entry | ❌ | ❌ | The action kinds a removal needed are built now; a duplicate is an insert of a copy at the end |

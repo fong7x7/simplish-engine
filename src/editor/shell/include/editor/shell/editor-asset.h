@@ -6,10 +6,12 @@
 
 #include <cstdint>
 #include <editor/shell/editor-shape-kind.h>
+#include <engine/animation/rig.h>
 #include <engine/math/vec3.h>
 #include <engine/render-mesh/mesh-instance.h>
 #include <engine/render/rhi-core-types.h>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -90,6 +92,22 @@ struct EditorAsset {
   /// How far that picture has got.
   EditorAssetThumbnailState thumbnail_state =
       EditorAssetThumbnailState::PENDING;
+  /// Uploaded skinned mesh for a rigged model, or `MESH_GPU_INVALID`.
+  ///
+  /// A separate field from `mesh` rather than a second use of it, because it
+  /// is an id in `SkinnedMeshRenderer`'s numbering, not `MeshRenderer`'s:
+  /// the two hand out ids independently, and one number read by the wrong
+  /// renderer would draw some other model. A loaded asset has exactly one of
+  /// the two.
+  MeshGpuId skinned_mesh = MESH_GPU_INVALID;
+  /// Skeleton, skin and clips of a rigged model once loaded; null for a
+  /// static one, and for a rigged one not yet loaded. Shared so that a copy
+  /// of the asset list — which the agent API takes — is not a copy of every
+  /// clip's keys.
+  std::shared_ptr<const animation::Rig> rig{};
 };
+
+/// Whether @p asset's geometry has reached the GPU, by either renderer.
+[[nodiscard]] bool editorAssetLoaded(const EditorAsset& asset);
 
 }  // namespace eng::editor

@@ -5,12 +5,14 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/agent/agent-tool-info.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-io.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
@@ -86,7 +88,9 @@ namespace {
             {"name", asset.name},
             {"path", asset.path.generic_string()},
             {"relative_path", asset.relative_path.generic_string()},
-            {"mesh_loaded", asset.mesh != MESH_GPU_INVALID},
+            {"mesh_loaded", editorAssetLoaded(asset)},
+            {"rigged", !asset.shape && isRiggedModelFile(asset.path)},
+            {"clips", editorClipNames(asset.rig.get())},
             {"load_failed", asset.load_failed},
             {"thumbnail", agentThumbnailStateName(asset.thumbnail_state)},
             {"bounds",

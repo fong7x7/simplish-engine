@@ -58,6 +58,8 @@ enum class AgentTool : uint8_t {
   /// Set one property of a placement, a light or a player start to an
   /// absolute value.
   SET_PROPERTY,
+  /// Choose which animation clip a placed rigged model plays.
+  SET_ANIMATION,
   /// Move a placement, a light or a player start by a delta, in tiles.
   TRANSLATE,
   /// Take a placement, a light or a player start back out of the level.
@@ -100,22 +102,23 @@ enum class AgentTool : uint8_t {
 /// reading the manifest wants them in: what can be asked, then what can be
 /// changed.
 inline constexpr AgentTool AGENT_TOOLS[] = {
-    AgentTool::DESCRIBE,      AgentTool::GET_STATE,
-    AgentTool::LIST_ASSETS,   AgentTool::GET_ASSET,
-    AgentTool::LIST_FOLDERS,  AgentTool::LIST_PLACEMENTS,
-    AgentTool::LIST_LIGHTS,   AgentTool::LIST_PLAYER_STARTS,
-    AgentTool::GET_SELECTION, AgentTool::GET_HISTORY,
-    AgentTool::GET_LEVEL,     AgentTool::LIST_LEVELS,
-    AgentTool::LIST_COMMANDS, AgentTool::PLACE_ASSET,
-    AgentTool::ADD_LIGHT,     AgentTool::ADD_PLAYER_START,
-    AgentTool::SET_PROPERTY,  AgentTool::TRANSLATE,
-    AgentTool::DELETE_ENTRY,  AgentTool::SELECT,
-    AgentTool::SET_TOOL,      AgentTool::RUN_COMMAND,
-    AgentTool::UNDO,          AgentTool::REDO,
-    AgentTool::OPEN_PROJECT,  AgentTool::RESCAN_ASSETS,
-    AgentTool::CREATE_LEVEL,  AgentTool::OPEN_LEVEL,
-    AgentTool::GET_PLAYTEST,  AgentTool::START_PLAYTEST,
-    AgentTool::STOP_PLAYTEST, AgentTool::SEND_INPUT,
+    AgentTool::DESCRIBE,       AgentTool::GET_STATE,
+    AgentTool::LIST_ASSETS,    AgentTool::GET_ASSET,
+    AgentTool::LIST_FOLDERS,   AgentTool::LIST_PLACEMENTS,
+    AgentTool::LIST_LIGHTS,    AgentTool::LIST_PLAYER_STARTS,
+    AgentTool::GET_SELECTION,  AgentTool::GET_HISTORY,
+    AgentTool::GET_LEVEL,      AgentTool::LIST_LEVELS,
+    AgentTool::LIST_COMMANDS,  AgentTool::PLACE_ASSET,
+    AgentTool::ADD_LIGHT,      AgentTool::ADD_PLAYER_START,
+    AgentTool::SET_PROPERTY,   AgentTool::SET_ANIMATION,
+    AgentTool::TRANSLATE,      AgentTool::DELETE_ENTRY,
+    AgentTool::SELECT,         AgentTool::SET_TOOL,
+    AgentTool::RUN_COMMAND,    AgentTool::UNDO,
+    AgentTool::REDO,           AgentTool::OPEN_PROJECT,
+    AgentTool::RESCAN_ASSETS,  AgentTool::CREATE_LEVEL,
+    AgentTool::OPEN_LEVEL,     AgentTool::GET_PLAYTEST,
+    AgentTool::START_PLAYTEST, AgentTool::STOP_PLAYTEST,
+    AgentTool::SEND_INPUT,
 };
 
 }  // namespace eng::editor

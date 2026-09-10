@@ -20,8 +20,8 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 | Package | Covers | State |
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 28 tests |
-| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, and click-to-select, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected, and the level file those placements are saved to and loaded from | Built; 535 tests |
-| `src/editor/agent/` | The agent API: 32 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 98 tests |
+| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, and click-to-select, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected, and the level file those placements are saved to and loaded from | Built; 561 tests |
+| `src/editor/agent/` | The agent API: 33 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 104 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 
@@ -29,7 +29,9 @@ What the slice deliberately does not do yet: almost nothing is authored. The vie
 
 File > New Project and File > Open Project are live too, both through OS dialogs starting in the user's Documents folder — where a person keeps their own work — and falling back to home when there is no Documents to start in. New Project takes the folder name typed into a "save as" dialog as the project name and opens the result immediately, with its `.simplish/`, `data/`, `assets/`, and `content/levels/` directories in place. Open Project takes a folder and opens the project inside it, leaving the current one untouched when the folder turns out not to be one; the reason appears in the toolbar status line, because a log line is invisible to whoever just picked the wrong folder.
 
-Asset placement is the second exception. The strip along the bottom lists the `.obj` files under `<project>/assets/`, and dragging one onto the viewport loads it, uploads it, and draws it as a real depth-tested mesh on the tile it was dropped on. Everything dropped this way is written to the project's level file on save and comes back when the project is next opened — the seventh exception below.
+Asset placement is the second exception. The strip along the bottom lists the `.obj`, `.gltf` and `.glb` files under `<project>/assets/`, and dragging one onto the viewport loads it, uploads it, and draws it as a real depth-tested mesh on the tile it was dropped on. Everything dropped this way is written to the project's level file on save and comes back when the project is next opened — the seventh exception below.
+
+A glTF file is a **rigged model**: a skinned mesh, its skeleton, and its animation clips ([animation.md](../engine/animation.md)). Dropped, it plays its first clip at once, looping on the viewport's own clock — in edit mode and during a playtest alike, since a pose is presentation the simulation never reads. Its properties end with an **Animation** row naming the clip it plays, whose step buttons move to the previous or next clip as one undoable edit; the choice is saved with the prop by name. The model is sized, sat on the ground and picked by its bind pose's box, so a clip that swings an arm past that box does not change where the prop stands. A file that will not load says why in the status bar — the usual reasons are Draco compression, a skin over 80 joints, or no skin at all.
 
 Selection and the properties panel are the third, and the first thing here that edits rather than places. Clicking a placed asset in the viewport selects it: its box is outlined in the accent colour, and a panel opens down the right listing the asset's name and six numbers — position X, Y and Z in tiles, rotation X, Y and Z in degrees. Each row has a step button either side and a value box that scrubs when dragged, so a prop is nudged a quarter tile or turned fifteen degrees by clicking, or moved continuously by dragging. Clicking bare ground, or pressing Escape, drops the selection and gives the viewport the panel's width back; Backspace or Delete removes what is selected, which Edit > Delete also does and which greys when nothing is selected. The three decisions inside it:
 
@@ -225,7 +227,7 @@ The load-bearing feature.
 |---|---|
 | Sprite atlasing | Offline packer producing atlas pages plus metadata (frame rects, pivots, per-direction sets). Runs as a build step and on demand from the editor |
 | Sprite import | Directory conventions map to animation clips and the eight facing directions automatically |
-| Mesh import | Static meshes for terrain and structures, with collision derived or authored |
+| Mesh import | Static meshes for terrain and structures, with collision derived or authored. Rigged, animated characters come in as glTF 2.0 — built: `.gltf` and `.glb` with a skinned mesh are read by `engine/gltf`, clips and all ([animation.md §4](../engine/animation.md#4-loading-gltf)); static glTF and embedded images are not read yet |
 | Audio import | Format conversion, loudness normalisation, and bank assembly |
 | Validation | Every import validates against the runtime's expectations — atlas page limits, mesh vertex budgets, audio channel counts — and fails loudly at import rather than quietly at runtime |
 | Determinism | The pipeline is reproducible: identical sources produce byte-identical outputs, so content hashes stay stable across machines |

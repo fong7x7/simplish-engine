@@ -67,7 +67,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
-| Testing | Catch2 v3 | All | 993 tests green on macOS/Metal, 945 on the headless stub |
+| Testing | Catch2 v3 | All | 1,112 tests green on macOS/Metal, 1,064 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
 
 ---
@@ -121,6 +121,7 @@ A **static mesh path** exists as a first slice of that camera's use: `render-mes
 
 - **The pipeline is a backend builtin**, reached through `RhiDevice::tryCreateMeshPipeline`, exactly as the GUI pipeline is. `createShader` takes compiled bytecode and the project has no shader build step, so a backend embeds its own shader source or reports no pipeline at all. Metal, DX12 and OpenGL each embed MSL/HLSL/GLSL that shade alike; Vulkan returns false and draws no meshes, which is a gap to close before it can show geometry.
 - **Depth is measured along the projection ray, not along world Y.** The camera is oblique (§5.1), so points collapse to one pixel along `(0, RISE, DEPTH)` rather than along the screen normal. `makeIsoViewProjection` derives the clip matrix from that; a conventional look-at would order geometry wrongly wherever two things overlap on screen.
+- **A mesh can be skinned.** A rigged glTF model — skeleton, skin, animation clips — is loaded by `engine/gltf`, posed each frame by `engine/animation`, and drawn by `SkinnedMeshRenderer` in the same pass and against the same depth as static meshes, through a second backend builtin, `RhiDevice::tryCreateSkinnedMeshPipeline`. It is for the handful of characters the [ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters) admits, not the horde, and posing is presentation that the simulation never reads. [animation.md](animation.md) has the details.
 - **How meshes look is chosen per frame.** A `MeshStyle` (`mesh-style.h`) carries the look a game sets at run time: how many tones each light is flattened into (none, for smooth light), and the width and colour of an outline. Banding happens in the mesh shader. The outline is its own pass — `MeshOutlineRenderer`, through `RhiDevice::tryCreateMeshOutlinePipeline` — that reads the depth the scene pass wrote and lines wherever it bends sharply: every silhouette, and creases such as a box's edges. Under the orthographic camera, depth across any flat surface is linear in screen position, so its second difference is zero on a plane however tilted and large at an edge; that is the whole test. The two presets are `MESH_STYLE_SMOOTH` and `MESH_STYLE_CEL`. The style is presentation only and never reaches the simulation. Depth alone cannot see an edge between two surfaces at the same depth and slope; that would need a normal buffer, which the scene pass does not write.
 
 ### 5.2 Hybrid Geometry and Sprites
@@ -171,6 +172,7 @@ Legibility is a rendering requirement, not an art note:
 | Isometric camera, projection, depth policy | `rendering/isometric.md` | M0 |
 | Mesh rendering (instanced terrain, structures, props) | `rendering/mesh.md` | M1 |
 | Sprite system (atlases, 8-direction facing, animation clips, batcher) | `rendering/sprites.md` | M1 |
+| Skeletal animation (skeletons, clips, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
 | Lighting and shadows | `rendering/lighting.md` | M5 |
 | Effects (GPU particles, decals, trails, screen shake) | `rendering/fx.md` | M5 |
 | Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | `spatial.md` | M2 |
@@ -212,6 +214,7 @@ Reference hardware for desktop budgets: **GTX 1060 / RX 580 class GPU, 4-core CP
 | In-flight projectiles | ≥ 20,000 simultaneously simulated and rendered at 60 FPS |
 | Dynamic lights | ≥ 256 per frame |
 | Draw calls | ≤ 1,500 per frame at full horde load |
+| Skinned mesh instances | ≤ 16 per frame, one draw each — players, bosses, set pieces. A crowd is sprites ([ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters)) |
 | Players per session | 1–4 |
 
 ### Timing and Footprint

@@ -6,6 +6,7 @@
 
 set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-action-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-layout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-folder-rows.cpp"
@@ -22,6 +23,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-thumbnail-cache.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-clip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-pick.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-player-start-ops.cpp"
@@ -45,7 +47,9 @@ simplish_add_module(simplish-editor-shell
     SOURCES     ${_shell_sources}
     DEPENDENCIES
         simplish-editor-project
+        simplish-engine-animation
         simplish-engine-core
+        simplish-engine-gltf
         simplish-engine-gui
         simplish-engine-render
         simplish-engine-render-mesh

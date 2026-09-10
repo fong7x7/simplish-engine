@@ -880,6 +880,13 @@ namespace {
       (static_cast<uint32_t>(MESH_LIGHT_VECTORS) * 16U);
   /// Where the band count sits in that header: the word after the count.
   constexpr uint32_t MESH_SHADE_BANDS_OFFSET = 4;
+  /// Vertex-stage slot the skinned mesh's palette arrives at.
+  constexpr uint32_t SKIN_PALETTE_SLOT = 2;
+  /// Rows in a `SkinPalette`: three per joint, `MESH_MAX_SKIN_JOINTS` joints.
+  constexpr int SKIN_PALETTE_ROWS = 3 * 80;
+  /// The palette's size in bytes, one `vec4` per row.
+  constexpr size_t SKIN_PALETTE_BYTES =
+      static_cast<size_t>(SKIN_PALETTE_ROWS) * 16U;
   /// How many `vec4`s the outline block is — `OutlineUniforms` in
   /// `mesh-outline-renderer.cpp`.
   constexpr int OUTLINE_VECTORS = 3;
@@ -905,6 +912,20 @@ void OpenGlDevice::executeCommand(const GlCmdSetVertexStageBytes& cmd) {
   } else if (pe.loc_u_screen_scale >= 0 && cmd.size >= sizeof(float) * 2) {
     glUniform2fv(pe.loc_u_screen_scale, 1, f);
   }
+}
+
+void OpenGlDevice::executeCommand(const GlCmdSetVertexStageBlock& cmd) {
+  if (cmd.slot != SKIN_PALETTE_SLOT || cmd.data.size() < SKIN_PALETTE_BYTES ||
+      !pipelines_.contains(current_pipeline_)) {
+    return;
+  }
+  const auto& pe = pipelines_[current_pipeline_];
+  if (pe.loc_u_skin_rows < 0) {
+    return;
+  }
+  glUseProgram(pe.program);
+  glUniform4fv(pe.loc_u_skin_rows, SKIN_PALETTE_ROWS,
+               reinterpret_cast<const float*>(cmd.data.data()));
 }
 
 void OpenGlDevice::setMeshMatrices(const GlPipelineEntry& pe,
@@ -1150,6 +1171,46 @@ void main() {
   // matrix carries the normal; the length the scale adds comes back out in
   // the normalize below.
   v_normal = (u_model * vec4(a_normal, 0.0)).xyz;
+  v_uv = a_uv;
+}
+)glsl";
+
+  /// Skinned mesh vertex shader: `skinned_vs_main` in the MSL and HLSL,
+  /// feeding the same fragment shader as a static mesh. SKIN_MAX_JOINTS is
+  /// `MESH_MAX_SKIN_JOINTS` in `skin-palette.h`, restated; 240 rows and two
+  /// matrices are 248 `vec4`s, inside the 256 every GL 4 implementation
+  /// guarantees a vertex stage.
+  constexpr const char SKINNED_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+const uint SKIN_MAX_JOINTS = 80u;
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+layout(location = 2) in vec2 a_uv;
+layout(location = 3) in uvec4 a_joints;
+layout(location = 4) in vec4 a_weights;
+uniform mat4 u_view_projection;
+uniform mat4 u_model;
+uniform vec4 u_skin_rows[240];
+out vec3 v_world_position;
+out vec3 v_normal;
+out vec2 v_uv;
+void main() {
+  // Linear blend skinning, a row at a time.
+  vec4 r0 = vec4(0.0);
+  vec4 r1 = vec4(0.0);
+  vec4 r2 = vec4(0.0);
+  for (int i = 0; i < 4; ++i) {
+    uint j = min(a_joints[i], SKIN_MAX_JOINTS - 1u) * 3u;
+    r0 += u_skin_rows[j] * a_weights[i];
+    r1 += u_skin_rows[j + 1u] * a_weights[i];
+    r2 += u_skin_rows[j + 2u] * a_weights[i];
+  }
+  vec4 p = vec4(a_position, 1.0);
+  vec4 n = vec4(a_normal, 0.0);
+  vec4 world = u_model * vec4(dot(r0, p), dot(r1, p), dot(r2, p), 1.0);
+  gl_Position = u_view_projection * world;
+  v_world_position = world.xyz;
+  v_normal = (u_model * vec4(dot(r0, n), dot(r1, n), dot(r2, n), 0.0)).xyz;
   v_uv = a_uv;
 }
 )glsl";
@@ -1404,6 +1465,26 @@ void main() {
     glBindVertexArray(0);
   }
 
+  /// Size of one `eng::SkinnedMeshVertex`, and where its joints and weights
+  /// sit — `skinned-mesh-vertex.h` asserts the same three numbers.
+  constexpr uint32_t SKINNED_VERTEX_STRIDE_BYTES = 52;
+  constexpr uint32_t SKINNED_JOINTS_OFFSET = 32;
+  constexpr uint32_t SKINNED_WEIGHTS_OFFSET = 36;
+
+  /// Vertex array for `eng::SkinnedMeshVertex`: the static mesh's three
+  /// attributes, four joint bytes read as integers, and four weights.
+  void setupSkinnedVertexArray(GLuint vao) {
+    setupMeshVertexArray(vao);
+    glBindVertexArray(vao);
+    glEnableVertexAttribArray(3);
+    glVertexAttribIFormat(3, 4, GL_UNSIGNED_BYTE, SKINNED_JOINTS_OFFSET);
+    glVertexAttribBinding(3, 0);
+    glEnableVertexAttribArray(4);
+    glVertexAttribFormat(4, 4, GL_FLOAT, GL_FALSE, SKINNED_WEIGHTS_OFFSET);
+    glVertexAttribBinding(4, 0);
+    glBindVertexArray(0);
+  }
+
   void setupGuiVertexArray(GLuint vao) {
     glBindVertexArray(vao);
     glEnableVertexAttribArray(0);
@@ -1479,6 +1560,14 @@ namespace {
     return desc;
   }
 
+  /// Fixed function state for the skinned mesh pipeline: the mesh
+  /// pipeline's, read through the wider skinned vertex.
+  RhiGraphicsPipelineDesc skinnedPipelineDesc() {
+    RhiGraphicsPipelineDesc desc = meshPipelineDesc();
+    desc.vertex_layout.stride = SKINNED_VERTEX_STRIDE_BYTES;
+    return desc;
+  }
+
   /// Fixed function state for the outline pipeline: blended over the
   /// scene, and neither testing nor writing depth, since the depth it reads
   /// is a texture rather than the framebuffer's.
@@ -1511,6 +1600,13 @@ namespace {
     entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
     entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
     entry.loc_u_shade_bands = glGetUniformLocation(program, "u_shade_bands");
+  }
+
+  /// Look up the skinned program's uniforms: the mesh program's, and the
+  /// joint palette its vertex stage adds.
+  void resolveSkinnedUniforms(GlPipelineEntry& entry, GLuint program) {
+    resolveMeshUniforms(entry, program);
+    entry.loc_u_skin_rows = glGetUniformLocation(program, "u_skin_rows");
   }
 
 }  // namespace
@@ -1553,6 +1649,26 @@ bool OpenGlDevice::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
   const RhiPipelineHandle handle = allocHandle();
   pipelines_[handle] = entry;
   out_pipeline = handle;
+  return true;
+}
+
+bool OpenGlDevice::tryCreateSkinnedMeshPipeline(
+    RhiPipelineHandle& out_pipeline) {
+  const GLuint program =
+      linkShaderSource(SKINNED_VERTEX_SHADER_GLSL, MESH_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  const GLuint vao = createVertexArrayFor(program);
+  if (vao == 0) {
+    return false;
+  }
+  setupSkinnedVertexArray(vao);
+  GlPipelineEntry entry =
+      buildGraphicsEntry(program, vao, skinnedPipelineDesc());
+  resolveSkinnedUniforms(entry, program);
+  out_pipeline = allocHandle();
+  pipelines_[out_pipeline] = entry;
   return true;
 }
 

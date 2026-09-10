@@ -13,6 +13,7 @@
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-mesh-style.h>
+#include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-project-title.h>
@@ -21,8 +22,11 @@
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
+#include <engine/animation/pose-sampling.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/core/logger.h>
+#include <engine/gltf/gltf-loader.h>
+#include <engine/gltf/skinned-model-orientation.h>
 #include <engine/gui/gui-label.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-theme-constants.h>
@@ -30,6 +34,7 @@
 #include <engine/gui/image-loader.h>
 #include <engine/render-mesh/mesh-transform.h>
 #include <engine/render-mesh/obj-loader.h>
+#include <engine/render-mesh/skinned-mesh-posing.h>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -78,7 +83,8 @@ namespace {
     return status;
   }
 
-  /// Whether two placements sit, face and collide exactly the same way.
+  /// Whether two placements sit, face, collide and animate exactly the same
+  /// way.
   ///
   /// A gesture that ended where it began is not an edit, and an undo entry
   /// that changes nothing is worse than no entry at all. Exact comparison
@@ -88,7 +94,7 @@ namespace {
     return a.position.x == b.position.x && a.position.y == b.position.y &&
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
-           a.collides == b.collides;
+           a.collides == b.collides && a.animation == b.animation;
   }
 
   /// Whether two lights shine exactly alike, for the same reason
@@ -132,11 +138,26 @@ namespace {
   /// two paths and a name.
   const EditorAsset UNKNOWN_ASSET{};
 
+  /// A rigged model's first clip at its first frame — what the viewport
+  /// shows the moment it is dropped — as static geometry, for a thumbnail.
+  std::optional<MeshData> readRiggedMesh(const std::filesystem::path& path) {
+    auto model = gltf::loadGltfModel(path);
+    if (!model.has_value()) {
+      return std::nullopt;
+    }
+    gltf::orientSkinnedYUpToZUp(*model);
+    animation::RigPose pose;
+    return poseSkinnedMesh(model->mesh, pose.evaluate(model->rig, 0, 0.0f));
+  }
+
   /// The geometry an asset stands for: a built-in shape, generated, or the
   /// file it names, read and turned into the world's axes.
   std::optional<MeshData> readAssetMesh(const EditorAsset& asset) {
     if (asset.shape.has_value()) {
       return makeEditorShapeMesh(*asset.shape);
+    }
+    if (isRiggedModelFile(asset.path)) {
+      return readRiggedMesh(asset.path);
     }
     std::optional<MeshData> mesh = loadObjMesh(asset.path);
     if (mesh.has_value()) {
@@ -250,6 +271,10 @@ void SimplishEditor::initSceneRenderers() {
     LOG_WARN("editor", "Backend has no outline pipeline; cel shading will "
                        "draw without outlines");
   }
+  if (!skinned_renderer_.init(*device)) {
+    LOG_WARN("editor", "Backend has no skinned mesh pipeline; rigged models "
+                       "will not load");
+  }
 }
 
 void SimplishEditor::initChrome() {
@@ -324,6 +349,9 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
   panel->on_property_changed = [this](EditorPropertyField field, float value,
                                       EditorPropertyEdit edit) {
     applyPropertyEdit(field, value, edit);
+  };
+  panel->on_clip_changed = [this](const std::string& clip) {
+    applyClipEdit(clip);
   };
   properties_panel_id_ =
       tree.insertExternalWidget(std::move(panel), root_panel_);
@@ -706,6 +734,33 @@ SimplishEditor::uploadMeshTexture(const std::filesystem::path& path) {
   return device->createTexture(meshTextureDesc(*image));
 }
 
+bool SimplishEditor::adoptRiggedModel(EditorAsset& asset,
+                                      gltf::SkinnedModel& model) {
+  gltf::orientSkinnedYUpToZUp(model);
+  auto uploaded = skinned_renderer_.upload(*rhiDevice(), model.mesh);
+  if (!uploaded.has_value()) {
+    return false;
+  }
+  asset.skinned_mesh = *uploaded;
+  asset.min = model.mesh.min;
+  asset.max = model.mesh.max;
+  asset.texture = uploadMeshTexture(model.mesh.texture_path);
+  asset.rig = std::make_shared<const animation::Rig>(std::move(model.rig));
+  return true;
+}
+
+bool SimplishEditor::loadRiggedAsset(EditorAsset& asset) {
+  auto model = gltf::loadGltfModel(asset.path);
+  if (model.has_value() && skinned_renderer_.ready()) {
+    return adoptRiggedModel(asset, *model);
+  }
+  const std::string reason =
+      model.has_value() ? "this backend cannot draw rigged models"
+                        : std::string(gltfLoadErrorMessage(model.error()));
+  showStatusMessage("Cannot load " + asset.name + ": " + reason);
+  return false;
+}
+
 bool SimplishEditor::loadAssetMesh(EditorAsset& asset) {
   std::optional<MeshData> mesh = readAssetMesh(asset);
   if (!mesh.has_value()) {
@@ -848,7 +903,7 @@ void SimplishEditor::pumpThumbnails() {
 
 bool SimplishEditor::ensureAssetMesh(size_t index) {
   EditorAsset& asset = state_.assets[index];
-  if (asset.mesh != MESH_GPU_INVALID) {
+  if (editorAssetLoaded(asset)) {
     return true;
   }
   // A failed load is remembered, so a bad file is not reparsed on every
@@ -856,7 +911,8 @@ bool SimplishEditor::ensureAssetMesh(size_t index) {
   if (asset.load_failed || !mesh_renderer_.ready()) {
     return false;
   }
-  asset.load_failed = !loadAssetMesh(asset);
+  const bool rigged = !asset.shape.has_value() && isRiggedModelFile(asset.path);
+  asset.load_failed = !(rigged ? loadRiggedAsset(asset) : loadAssetMesh(asset));
   return !asset.load_failed;
 }
 
@@ -987,6 +1043,10 @@ void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
                                ? state_.assets[placement.asset].name
                                : std::string{};
   panel.setSelection(name, placement);
+  if (placement.asset < state_.assets.size()) {
+    panel.setClips(editorClipNames(state_.assets[placement.asset].rig.get()),
+                   placement.animation);
+  }
 }
 
 void SimplishEditor::showLightSelection(EditorPropertiesWidget& panel) {
@@ -1045,6 +1105,19 @@ void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
   if (edit == EditorPropertyEdit::COMMIT) {
     commitPlacementEdit();
   }
+}
+
+void SimplishEditor::applyClipEdit(const std::string& clip) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  if (!placement_prior_.has_value()) {
+    placement_prior_ = placement;
+  }
+  placement.animation = clip;
+  commitPlacementEdit();
 }
 
 void SimplishEditor::applyLightEdit(EditorPropertyField field, float value,
@@ -1228,18 +1301,50 @@ void SimplishEditor::buildSceneLights() {
   }
 }
 
-void SimplishEditor::buildSceneInstances() {
-  scene_instances_.clear();
-  for (const auto& placement : state_.document.placements) {
-    if (placement.asset >= state_.assets.size()) {
-      continue;
-    }
-    const EditorAsset& asset = state_.assets[placement.asset];
-    if (asset.mesh == MESH_GPU_INVALID) {
-      continue;
-    }
+size_t SimplishEditor::riggedPlacementCount() const {
+  return static_cast<size_t>(std::ranges::count_if(
+      state_.document.placements, [this](const EditorPlacement& placement) {
+        return placement.asset < state_.assets.size() &&
+               state_.assets[placement.asset].rig != nullptr;
+      }));
+}
+
+void SimplishEditor::appendSkinnedInstance(const EditorAsset& asset,
+                                           const EditorPlacement& placement) {
+  const animation::Rig& rig = *asset.rig;
+  const size_t clip = editorPlacementClip(placement, &rig);
+  const float seconds =
+      clip < rig.clips.size()
+          ? animation::loopClipTime(rig.clips[clip], animation_clock_)
+          : 0.0f;
+  animation::RigPose& pose = skinned_poses_[skinned_instances_.size()];
+  skinned_instances_.push_back(
+      {asset.skinned_mesh, makePlacementTransform(asset, placement),
+       asset.texture, pose.evaluate(rig, clip, seconds)});
+}
+
+void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
+  if (placement.asset >= state_.assets.size()) {
+    return;
+  }
+  const EditorAsset& asset = state_.assets[placement.asset];
+  if (asset.rig != nullptr && asset.skinned_mesh != MESH_GPU_INVALID) {
+    appendSkinnedInstance(asset, placement);
+  } else if (asset.mesh != MESH_GPU_INVALID) {
     scene_instances_.push_back(
         {asset.mesh, makePlacementTransform(asset, placement), asset.texture});
+  }
+}
+
+void SimplishEditor::buildSceneInstances() {
+  scene_instances_.clear();
+  skinned_instances_.clear();
+  // Sized before the first pose is taken: every instance's skin span points
+  // into its slot here, and a vector that grew under them would leave the
+  // earlier spans pointing at freed storage.
+  skinned_poses_.resize(riggedPlacementCount());
+  for (const auto& placement : state_.document.placements) {
+    appendPlacementInstance(placement);
   }
   appendPlaytestInstances();
 }
@@ -1300,6 +1405,19 @@ SimplishEditor::sceneDrawParams(const EditorViewportWidget& viewport) {
   return params;
 }
 
+SkinnedMeshRenderer::DrawParams
+SimplishEditor::skinnedDrawParams(const EditorViewportWidget& viewport) {
+  const MeshRenderer::DrawParams scene = sceneDrawParams(viewport);
+  SkinnedMeshRenderer::DrawParams params{};
+  params.view_projection = scene.view_projection;
+  params.instances = skinned_instances_;
+  params.lights = scene.lights;
+  params.viewport = scene.viewport;
+  params.scissor = scene.scissor;
+  params.shade_bands = scene.shade_bands;
+  return params;
+}
+
 MeshOutlineRenderer::DrawParams
 SimplishEditor::outlineDrawParams(const EditorViewportWidget& viewport) {
   const MeshRenderer::DrawParams scene = sceneDrawParams(viewport);
@@ -1324,6 +1442,9 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   buildSceneInstances();
   buildSceneLights();
   mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
+  // Same pass and depth as the static meshes, so a character walking
+  // behind a crate is hidden by it, and the outline pass lines them both.
+  skinned_renderer_.draw(cmd, skinnedDrawParams(*viewport));
 }
 
 void SimplishEditor::recordSceneOverlay(RhiCommandList& cmd) {
@@ -1456,6 +1577,7 @@ bool SimplishEditor::onTick(float dt) {
   if (status_override_left_ > 0.0f) {
     status_override_left_ -= dt;
   }
+  animation_clock_ += dt;
   tickMenuBar();
   refreshToolbar();
   pumpThumbnails();
@@ -1849,6 +1971,7 @@ void SimplishEditor::onShutdown() {
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     outline_renderer_.shutdown(*rhiDevice());
+    skinned_renderer_.shutdown(*rhiDevice());
     mesh_renderer_.shutdown(*rhiDevice());
   }
   // Release the GuiContext last: the widgets above live in its tree.

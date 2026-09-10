@@ -13,6 +13,10 @@
 //   - Each row is a label, a step-down button, a value box, and a step-up
 //     button; a click on a button steps the value, a drag across the value
 //     box scrubs it
+//   - A rigged model gets one more row, Animation, whose value box names
+//     the clip it plays and whose buttons step to the previous or next clip,
+//     wrapping round. It is a name, not a number, so it is a row of its own
+//     rather than a property field, and reports through on_clip_changed
 //   - A drag reports every intermediate value as a preview and one final
 //     value as a commit, so the editor moves the prop live and records one
 //     undo entry for the gesture
@@ -45,7 +49,8 @@
 //
 // Integration Points:
 //   - SimplishEditor: owns this widget, feeds it the selection, and applies
-//     on_property_changed to whatever is selected
+//     on_property_changed to whatever is selected and on_clip_changed to
+//     the selected placement
 
 #include <cstddef>
 #include <editor/shell/editor-light.h>
@@ -94,6 +99,19 @@ public:
   /// Show a player start's properties: which player, and where.
   void setSelection(std::string name, const EditorPlayerStart& start);
 
+  /// Offer a rigged model's clips as an Animation row below the property
+  /// rows, showing the one @p current names — or the first, when it names
+  /// none of them, which is the clip such a placement plays. Called after
+  /// `setSelection`, which drops any clips a previous selection had; an
+  /// empty list shows no row.
+  void setClips(std::vector<std::string> clips, const std::string& current);
+
+  /// The clip the Animation row shows, or empty when there is no such row.
+  [[nodiscard]] const std::string& clip() const { return clip_; }
+
+  /// Rect of the Animation row, in layout pixels. Empty when there is none.
+  [[nodiscard]] Rect clipRowRect() const;
+
   /// Show nothing, and hide the panel.
   void clearSelection();
 
@@ -134,6 +152,11 @@ public:
   std::function<void(EditorPropertyField, float, EditorPropertyEdit)>
       on_property_changed{};
 
+  /// Raised when a step button on the Animation row picks another clip,
+  /// with the name of the clip it picked. Always a finished edit: there is
+  /// no gesture to preview.
+  std::function<void(const std::string&)> on_clip_changed{};
+
 private:
   /// Draw the title strip.
   void renderHeader(const GuiDrawContext& ctx) const;
@@ -151,6 +174,8 @@ private:
   /// Draw the checkbox an on-or-off row @p index shows, in @p row.
   void renderToggle(const GuiDrawContext& ctx, const Rect& row,
                     size_t index) const;
+  /// Draw the Animation row, when there is one.
+  void renderClipRow(const GuiDrawContext& ctx) const;
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;
@@ -168,6 +193,12 @@ private:
   void beginDrag(EditorPropertyField field, const GuiMouseEvent& event);
   /// Act on a press in row @p index. Returns true when a drag began.
   bool pressRow(size_t index, const GuiMouseEvent& event);
+  /// Act on a press in the Animation row: step to the previous or next
+  /// clip when it lands on a button.
+  void pressClipRow(const GuiMouseEvent& event);
+  /// Rows the panel lists: the property rows, and the Animation row when
+  /// there are clips.
+  [[nodiscard]] size_t rowCount() const;
   /// Move a value by one step and commit it.
   void stepField(EditorPropertyField field, float steps);
   /// Report a value, and remember it as what the panel shows.
@@ -184,6 +215,10 @@ private:
   std::string name_{};
   /// Backing store for the id line's text: the qualified reference.
   std::string reference_{};
+  /// Clip names the Animation row steps through; empty for no such row.
+  std::vector<std::string> clips_{};
+  /// The clip the Animation row shows.
+  std::string clip_{};
   /// Whether a value is being scrubbed.
   bool dragging_ = false;
   /// Field the scrub is changing.

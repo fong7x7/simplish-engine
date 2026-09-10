@@ -1,6 +1,6 @@
 # ADR-003: Hybrid 3D geometry and billboarded sprites under one depth buffer
 
-**Status:** Accepted (projection amended 2026-08-26, 2026-09-08, and 2026-09-09)
+**Status:** Accepted (projection amended 2026-08-26, 2026-09-08, and 2026-09-09; characters amended 2026-09-10)
 **Date:** 2026-08-22
 **Scope:** Engine
 
@@ -18,7 +18,7 @@ Render 3D geometry and sprites **interleaved in a single depth-buffered pass**, 
 
 - The camera is fixed orthographic at **zero yaw and 4:3 dimetric foreshortening**: world +X runs straight across the screen, world +Y is foreshortened to 3/4, and world +Z rises straight up the screen unforeshortened. Tiles are axis-aligned rectangles, not diamonds, and vertical surfaces are seen face-on. It translates and zooms; it never rotates, and the renderer is permitted to depend on that. (Amended three times — see the [straight-on projection](#amendment-2026-08-26-straight-on-projection), [projection as a project setting](#amendment-2026-09-08-projection-as-a-project-setting), and [the projection is a rotation](#amendment-2026-09-09-the-projection-is-a-rotation-not-a-shear) amendments.)
 - Terrain, structures, and large props are 3D meshes, instanced, depth-tested and depth-written normally.
-- Characters, small props, and effects are camera-facing billboarded quads. Each writes per-pixel depth derived from its world footprint and a declared height ramp — the sprite's base sits at its world-space ground position, and depth increases up the sprite according to the ramp, so a tall sprite occludes correctly against geometry both in front of and behind it.
+- Characters, small props, and effects are camera-facing billboarded quads — the horde always, and every character but a handful of heroes and bosses, which may instead be skinned meshes (see the [2026-09-10 amendment](#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters)). Each billboard writes per-pixel depth derived from its world footprint and a declared height ramp — the sprite's base sits at its world-space ground position, and depth increases up the sprite according to the ramp, so a tall sprite occludes correctly against geometry both in front of and behind it.
 - Alpha-test cutout gives hard sprite edges that depth-write correctly. Genuinely translucent effects draw in a later back-to-front pass with depth-test but no depth-write.
 - No CPU depth sort of gameplay objects. Ordering falls out of the depth buffer; CPU-side batching is by atlas page and material, chosen for draw-call count rather than for correctness.
 
@@ -153,3 +153,28 @@ The alternative was to keep the height scale and widen the tile to 80 px to matc
 **A note on the names.** Once the projection is a real rotation, the axis scales make "dimetric" the wrong word for the zero-yaw one: X, Y, and Z are foreshortened by 1, 0.75, and 0.661, all different, which is *trimetric*. The 2:1 one, where the two ground axes share a scale, is the one that is strictly dimetric. The names are kept as they are — they are the words games use for these two looks, they name the setting in `project.json` and the rows in the View menu, and renaming them would migrate a file format to win an argument about vocabulary.
 
 **Where it lives.** `isoRiseFor` and `isoSqrt` in `src/editor/shell/include/editor/shell/iso-axes.h`. `test_iso_projection.cpp` asserts the row-length invariant directly; `test_editor_mesh_capture.cpp` renders a sphere through the CPU rasterizer and measures its silhouette, which is the assertion that would have caught this in the first place.
+
+---
+
+## Amendment (2026-09-10): skinned meshes for a handful of characters
+
+Requested as a feature: rigged skeletons and animation. Alternative B above rejected skinning characters, and the reason it gave still holds for the horde. What is admitted here is narrower than what it rejected.
+
+**What changed.** A small number of characters — the one to four players, a boss, a set-piece creature — may be drawn as **skinned meshes**: a rigged model, posed every frame by an animation clip, drawn in the same depth-buffered pass as the static geometry and the sprites. Horde enemies stay billboarded sprites, as the Decision says.
+
+**Why.** Alternative B's cost argument scales with the number of characters. At horde density, skinning and drawing each enemy is the problem it describes; at four players and a boss it is a handful of draw calls. Those few are also where animation fidelity reads — a player aiming, reloading, turning; a boss telegraphing — and where 2D art is at its most expensive, since a player character needs every facing of every action. Nothing about the depth model changes: a skinned mesh writes depth like any other mesh, so a character behind a pillar is hidden by it and a sprite enemy in front of a boss is drawn over it, with no new ordering rule.
+
+It also serves [open question 2](../../REQUIREMENTS.md#8-open-questions). A rig the engine can pose is the rig an offline step would pose to render sprite sheets, so the same loader and the same clips feed either answer.
+
+**The limit, as a budget.** Skinned meshes are drawn one call per instance with a per-draw joint palette, deliberately without instancing: at the counts admitted, instancing would be machinery with nothing to pay for. The design point is **16 skinned instances per frame**, recorded in [Engine §7](../engine/REQUIREMENTS.md#scale-and-capacity). A design that wants more — a crowd, a swarm — wants sprites, and that is the answer rather than a reason to raise the number. One skin moves at most **80 joints** (`MESH_MAX_SKIN_JOINTS`), set by the smallest per-draw constant space any backend has — Metal's 4 KB of inline bytes; a full humanoid with finger bones is about 65.
+
+**Determinism.** Animation is presentation, and the simulation never reads a posed joint ([ADR-002](ADR-002-fixed-timestep-determinism.md)). That is what lets clip time run off the render frame's delta, and slerp call `acos` and `sin`, without touching the determinism contract. Anything gameplay needs from an animation — where a muzzle is, how big a hitbox is this frame — must come from simulation data, never from a pose. If that ever has to change, posing moves into the tick under the full contract (a tick-driven clock, no libm transcendentals) and this amendment is revisited first.
+
+**What it costs.**
+
+- A second vertex path in every backend with a mesh pipeline: `RhiDevice::tryCreateSkinnedMeshPipeline`, with MSL, HLSL and GLSL skinning stages in front of each backend's existing mesh fragment shader. Vulkan has neither pipeline yet, so it draws neither static nor skinned meshes.
+- A glTF 2.0 loader in-tree (`engine/gltf`), written over the nlohmann_json the engine already links rather than adding a dependency. It reads the subset a skinned character needs and refuses the rest by name.
+- Character art for heroes becomes a modelling and rigging pipeline, which is the cost Alternative B named. It is accepted for the few characters that justify it, and nowhere else.
+
+**Where it lives.** `src/engine/animation/` holds skeletons, skins, clips, and pose sampling — pure math, no GPU. `src/engine/gltf/` reads rigged `.gltf` and `.glb` files. `src/engine/render-mesh/` gains the skinned vertex, `SkinPalette`, and `SkinnedMeshRenderer`. [animation.md](../engine/animation.md) is the technical write-up.
+

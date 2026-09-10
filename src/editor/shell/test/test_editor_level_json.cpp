@@ -256,3 +256,17 @@ TEST_CASE("whether a prop collides round-trips, and a missing flag is solid") {
   REQUIRE(old_read.has_value());
   REQUIRE(old_read->document.placements[0].collides);
 }
+
+TEST_CASE("a prop's clip round-trips, and none is written when it names none") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[1].animation = "walk";
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const auto read = parseEditorLevel(text, assets);
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].animation.empty());
+  REQUIRE(read->document.placements[1].animation == "walk");
+  // One prop names a clip, so the key appears exactly once in the file.
+  REQUIRE(text.find("\"animation\"") == text.rfind("\"animation\""));
+}

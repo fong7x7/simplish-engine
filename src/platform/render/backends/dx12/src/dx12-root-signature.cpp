@@ -75,6 +75,8 @@ namespace {
     params[DX12_ROOT_PARAM_PIXEL_CBV1] =
         makeCbvParam(1, D3D12_SHADER_VISIBILITY_PIXEL);
     params[DX12_ROOT_PARAM_PIXEL_SRV_TABLE] = makeSrvTableParam(srv_range);
+    params[DX12_ROOT_PARAM_VERTEX_CBV2] =
+        makeCbvParam(2, D3D12_SHADER_VISIBILITY_VERTEX);
   }
 
   /// Serialise and create; releases the blobs either way. Null on failure.

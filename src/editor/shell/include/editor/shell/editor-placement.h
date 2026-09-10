@@ -41,6 +41,15 @@ struct EditorPlacement {
   /// is dropped into a level is a crate or a wall, and the few that are not
   /// — grass, a rug, a decal — are ticked off in the properties panel.
   bool collides = true;
+  /// Name of the clip a rigged model plays, as its file names it: `walk`.
+  ///
+  /// Empty plays the model's first clip, which is what a model dropped in
+  /// fresh does — so a character moves the moment it lands, and a model
+  /// placed before its rig has loaded needs no clip written into it later.
+  /// A name the model does not have is kept, not cleared, and plays the
+  /// first clip too: a clip renamed in the source file should not silently
+  /// rewrite the level. A static model has no clips and ignores this.
+  std::string animation{};
 };
 
 }  // namespace eng::editor

@@ -31,6 +31,10 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetProperty(EditorShellState& state,
                                               const nlohmann::json& params);
 
+/// Name the clip one placed rigged model plays.
+[[nodiscard]] AgentResult runAgentSetAnimation(EditorShellState& state,
+                                               const nlohmann::json& params);
+
 /// Move one entry by a delta in tiles.
 [[nodiscard]] AgentResult runAgentTranslate(EditorShellState& state,
                                             const nlohmann::json& params);

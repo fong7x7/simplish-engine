@@ -36,6 +36,7 @@
 #include "gl-cmd-end-render-pass.h"
 #include "gl-cmd-set-fragment-stage-bytes.h"
 #include "gl-cmd-set-scissor.h"
+#include "gl-cmd-set-vertex-stage-block.h"
 #include "gl-cmd-set-vertex-stage-bytes.h"
 #include "gl-cmd-set-viewport.h"
 #include "gl-cmd-texture-barrier.h"
@@ -47,11 +48,11 @@ namespace eng::render {
 using GlCommand =
     std::variant<GlCmdBeginRenderPass, GlCmdEndRenderPass, GlCmdBindPipeline,
                  GlCmdBindVertexBuffer, GlCmdBindIndexBuffer,
-                 GlCmdSetVertexStageBytes, GlCmdSetFragmentStageBytes,
-                 GlCmdBindFragmentTexture, GlCmdBindDescriptorSet,
-                 GlCmdSetViewport, GlCmdSetScissor, GlCmdDraw, GlCmdDrawIndexed,
-                 GlCmdDispatch, GlCmdCopyBuffer, GlCmdCopyTextureToBuffer,
-                 GlCmdTextureBarrier>;
+                 GlCmdSetVertexStageBytes, GlCmdSetVertexStageBlock,
+                 GlCmdSetFragmentStageBytes, GlCmdBindFragmentTexture,
+                 GlCmdBindDescriptorSet, GlCmdSetViewport, GlCmdSetScissor,
+                 GlCmdDraw, GlCmdDrawIndexed, GlCmdDispatch, GlCmdCopyBuffer,
+                 GlCmdCopyTextureToBuffer, GlCmdTextureBarrier>;
 
 }  // namespace eng::render
 

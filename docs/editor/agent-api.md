@@ -234,7 +234,9 @@ each one's parameters; this table is the map.
 - **Fields follow what a kind stores, not what the panel shows.** A light
   stores everything but a rotation and a player; a placement stores a
   position, a rotation and whether it collides (`collides`, 1 or 0); a
-  player start stores a position and a player. A directional light's position is only where its marker sits, so
+  player start stores a position and a player. A rigged placement's clip is
+  a name, not a number, so it has its own tool, `set_animation`, rather
+  than a `set_property` field; `get_asset` lists the clip names to pick from. A directional light's position is only where its marker sits, so
   the panel hides it — but it is real, and this API will move it.
 
 ### The worked example

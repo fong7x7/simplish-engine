@@ -15,7 +15,8 @@ nlohmann::json agentPlacementValue(const EditorPlacement& placement) {
           {"asset", placement.asset},
           {"position", agentPointJson(placement.position)},
           {"rotation", agentVec3Json(placement.rotation)},
-          {"collides", placement.collides}};
+          {"collides", placement.collides},
+          {"animation", placement.animation}};
 }
 
 nlohmann::json agentLightValue(const EditorLight& light) {

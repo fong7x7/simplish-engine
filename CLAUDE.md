@@ -17,6 +17,7 @@ these rules.
 | Proposing an architectural change | [docs/decisions/](docs/decisions/) — seven ADRs record what was already rejected and why |
 | Build, tests, lint, CI | [docs/development/REQUIREMENTS.md](docs/development/REQUIREMENTS.md) |
 | Engine, rendering, sim, netcode | [docs/engine/REQUIREMENTS.md](docs/engine/REQUIREMENTS.md) |
+| Skeletons, animation clips, glTF rigs, skinned drawing | [docs/engine/animation.md](docs/engine/animation.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters) that limits it to a handful of characters |
 | GUI: widgets, layout, text, docking, theming, markdown | [docs/engine/gui/README.md](docs/engine/gui/README.md) — one technical doc per subsystem, each naming its source files |
 | Editor: authoring, viewport, assets, project format | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md), [project-format.md](docs/editor/project-format.md) |
 | Adding **any** editor tool, panel, or command | [docs/editor/agent-api.md](docs/editor/agent-api.md) §6 — the same change exposes it to agents, and [capabilities.md](docs/editor/capabilities.md) records it |
@@ -126,7 +127,9 @@ above. A bare `NOLINT` is a review rejection.
 ## State of the tree
 
 Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
-`render-mesh`, `sim` (tick, pools, hashing, replay —
+`render-mesh` (static and skinned), `animation` and `gltf` (rigged models
+posed by clips, for the few characters that are not sprites —
+[docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (held
 actions to a quantised `PlayerInput`), `physics` (a first slice: cylinder
 against boxes); game `player` and `world` (players moving on the tick and

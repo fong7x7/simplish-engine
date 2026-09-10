@@ -713,3 +713,73 @@ TEST_CASE("a light and a player start refuse collides") {
           R"({"target": "player_start", "index": 0, "field": "collides", "value": 0})")
           .status == AgentStatus::BAD_PARAMS);
 }
+
+namespace {
+
+/// A project whose third asset is a loaded rigged model with two clips.
+EditorShellState stateWithRiggedAsset() {
+  EditorShellState state = stateWithAssets();
+  EditorAsset knight{.name = "knight",
+                     .path = "/project/assets/knight.glb",
+                     .relative_path = "knight.glb"};
+  auto rig = std::make_shared<animation::Rig>();
+  rig->clips = {animation::AnimationClip{"idle", 1.0f, {}},
+                animation::AnimationClip{"walk", 1.0f, {}}};
+  knight.rig = rig;
+  state.assets.push_back(knight);
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("a rigged asset reports that it is, and names its clips") {
+  EditorShellState state = stateWithRiggedAsset();
+  const json asset = call(state, "get_asset", R"({"asset": "knight"})");
+  REQUIRE(asset.at("rigged") == true);
+  REQUIRE(asset.at("clips") == json::array({"idle", "walk"}));
+  const json crate = call(state, "get_asset", R"({"asset": "crate"})");
+  REQUIRE(crate.at("rigged") == false);
+  REQUIRE(crate.at("clips").empty());
+}
+
+TEST_CASE("a placement's clip is set by name, reported, and undone") {
+  EditorShellState state = stateWithRiggedAsset();
+  const json placed =
+      call(state, "place_asset", R"({"asset": "knight", "x": 0, "y": 0})");
+  REQUIRE(placed.at("animation").get<std::string>().empty());
+
+  const json changed =
+      call(state, "set_animation",
+           R"({"target": "placement", "index": 0, "clip": "walk"})");
+  REQUIRE(changed.at("animation") == "walk");
+  REQUIRE(state.document.placements[0].animation == "walk");
+  (void)call(state, "undo", "");
+  REQUIRE(state.document.placements[0].animation.empty());
+}
+
+TEST_CASE("a clip the model does not have is not found, and lists its clips") {
+  EditorShellState state = stateWithRiggedAsset();
+  (void)call(state, "place_asset", R"({"asset": "knight", "x": 0, "y": 0})");
+  const AgentResult result =
+      runAgentTool(state, "set_animation",
+                   R"({"target": "placement", "index": 0, "clip": "dance"})");
+  REQUIRE(result.status == AgentStatus::NOT_FOUND);
+  REQUIRE(result.json.contains("idle, walk"));
+}
+
+TEST_CASE("a static model, a light, and an unloaded rig refuse a clip") {
+  EditorShellState state = stateWithRiggedAsset();
+  (void)call(state, "place_asset", R"({"asset": "crate", "x": 0, "y": 0})");
+  (void)call(state, "add_light", R"({"kind": "point", "x": 0, "y": 0})");
+  REQUIRE(runAgentTool(state, "set_animation",
+                       R"({"target": "placement", "index": 0, "clip": "walk"})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(runAgentTool(state, "set_animation",
+                       R"({"target": "light", "index": 0, "clip": "walk"})")
+              .status == AgentStatus::BAD_PARAMS);
+  state.assets[2].rig.reset();
+  (void)call(state, "place_asset", R"({"asset": "knight", "x": 1, "y": 0})");
+  REQUIRE(runAgentTool(state, "set_animation",
+                       R"({"target": "placement", "index": 1, "clip": "walk"})")
+              .status == AgentStatus::UNAVAILABLE);
+}

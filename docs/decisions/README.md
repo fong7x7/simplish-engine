@@ -31,7 +31,7 @@ An ADR is *not* required for implementation detail with one obvious answer, or f
 |-----|-------|--------|------|
 | [ADR-001](ADR-001-no-exceptions.md) | No C++ exceptions or RTTI | Accepted | 2026-08-22 |
 | [ADR-002](ADR-002-fixed-timestep-determinism.md) | Fixed-timestep deterministic simulation | Accepted | 2026-08-22 |
-| [ADR-003](ADR-003-hybrid-iso-render-model.md) | Hybrid 3D geometry and billboarded sprites under one depth buffer | Accepted | 2026-08-22 |
+| [ADR-003](ADR-003-hybrid-iso-render-model.md) | Hybrid 3D geometry and billboarded sprites under one depth buffer (amended 2026-09-10: skinned meshes for a handful of characters) | Accepted | 2026-08-22 |
 | [ADR-004](ADR-004-soa-pools-over-ecs.md) | SoA pools with generational handles over an ECS framework | Accepted | 2026-08-22 |
 | [ADR-005](ADR-005-deterministic-lockstep-coop.md) | Deterministic lockstep for co-op | Accepted | 2026-08-22 |
 | [ADR-006](ADR-006-headless-deterministic-ci.md) | Stub RHI backend as the determinism CI path | Accepted | 2026-08-22 |

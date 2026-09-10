@@ -93,6 +93,7 @@ public:
 
   bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
@@ -218,6 +219,7 @@ private:
   void copyPassDepth();
 
   void executeCommand(const GlCmdSetVertexStageBytes& cmd);
+  void executeCommand(const GlCmdSetVertexStageBlock& cmd);
   void executeCommand(const GlCmdSetFragmentStageBytes& cmd);
   void executeCommand(const GlCmdBindFragmentTexture& cmd);
   void executeCommand(const GlCmdBindDescriptorSet& cmd);

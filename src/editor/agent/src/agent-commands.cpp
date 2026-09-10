@@ -7,10 +7,12 @@
 #include <editor/agent/agent-names.h>
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <engine/input/input-action.h>
@@ -637,6 +639,84 @@ AgentResult runAgentSetProperty(EditorShellState& state, const json& params) {
     return named;
   }
   return setEntryField(state, entry, field, value);
+}
+
+namespace {
+
+  /// @p names written as a list a person reads: `idle, walk, run`.
+  std::string joinNames(const std::vector<std::string>& names) {
+    std::string out;
+    for (const std::string& name : names) {
+      out += (out.empty() ? "" : ", ") + name;
+    }
+    return out;
+  }
+
+  /// The rig of @p placement's model when that model is a rigged file, or
+  /// null for a static model and a placement naming no asset.
+  const EditorAsset* riggedAsset(const EditorShellState& state,
+                                 const EditorPlacement& placement) {
+    if (placement.asset >= state.assets.size()) {
+      return nullptr;
+    }
+    const EditorAsset& asset = state.assets[placement.asset];
+    return !asset.shape && isRiggedModelFile(asset.path) ? &asset : nullptr;
+  }
+
+  /// A failure naming @p names when @p clip is not among them. An empty
+  /// clip is the model's first, which is always among them.
+  std::optional<AgentResult> unknownClip(const std::vector<std::string>& names,
+                                         const std::string& clip) {
+    if (clip.empty() || std::ranges::find(names, clip) != names.end()) {
+      return std::nullopt;
+    }
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        "no clip is called that; the model has: " +
+                            joinNames(names));
+  }
+
+  /// Why @p placement cannot play @p clip, or nothing when it can.
+  std::optional<AgentResult> clipProblem(const EditorShellState& state,
+                                         const EditorPlacement& placement,
+                                         const std::string& clip) {
+    const EditorAsset* asset = riggedAsset(state, placement);
+    if (asset == nullptr) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "that placement's model is not rigged; only a glTF "
+                          "model has clips to play");
+    }
+    const std::vector<std::string> names = editorClipNames(asset->rig.get());
+    if (names.empty()) {
+      return agentFailure(AgentStatus::UNAVAILABLE,
+                          "that model has no clips loaded — it has none, or "
+                          "it failed to load; get_asset says which");
+    }
+    return unknownClip(names, clip);
+  }
+
+}  // namespace
+
+AgentResult runAgentSetAnimation(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  if (entry.kind != EditorSelectionKind::PLACEMENT) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "only a placement plays clips");
+  }
+  const EditorPlacement prior = state.document.placements[entry.index];
+  const std::string clip = agentStringParam(params, "clip").value_or("");
+  if (const auto problem = clipProblem(state, prior, clip)) {
+    return *problem;
+  }
+  if (prior.animation == clip) {
+    return agentOk(placementPayload(state, entry.index));
+  }
+  EditorPlacement next = prior;
+  next.animation = clip;
+  return recordPlacement(state, entry.index, prior, next);
 }
 
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {

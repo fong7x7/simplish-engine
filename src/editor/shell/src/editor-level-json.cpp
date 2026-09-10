@@ -95,6 +95,11 @@ namespace {
     out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
                                  placement.rotation.z);
     out["collides"] = placement.collides;
+    // Only when it names one: empty means the model's first clip, and a
+    // static prop, which is most of them, has no business carrying the key.
+    if (!placement.animation.empty()) {
+      out["animation"] = placement.animation;
+    }
     return out;
   }
 
@@ -186,6 +191,7 @@ namespace {
     // A prop written before collision existed has no flag, and reads as
     // solid — the default a dropped one gets.
     placement.collides = readBool(entry, "collides").value_or(true);
+    placement.animation = readString(entry, "animation");
     placement.id = readString(entry, "id");
     if (placement.id.empty()) {
       placement.id = mintEditorPlacementId(document, assets[index]);

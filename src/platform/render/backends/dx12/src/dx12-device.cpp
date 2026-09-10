@@ -920,6 +920,18 @@ bool Dx12Device::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
   return true;
 }
 
+bool Dx12Device::tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline) {
+  auto* state = createDx12SkinnedMeshPipelineState(
+      impl_->device, impl_->graphics_root_signature,
+      impl_->swapchain_rtv_format);
+  if (state == nullptr) {
+    return false;
+  }
+  out_pipeline =
+      insertBuiltinPipeline(*impl_, state, dx12SkinnedMeshVertexStride());
+  return true;
+}
+
 bool Dx12Device::tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) {
   auto* state = createDx12OutlinePipelineState(impl_->device,
                                                impl_->graphics_root_signature,

@@ -40,10 +40,15 @@ void OpenGlCommandList::setVertexStageBytes(const void* data, size_t size,
   if (data == nullptr || size == 0) {
     return;
   }
+  if (size > sizeof(GlCmdSetVertexStageBytes::data)) {
+    const auto* bytes = static_cast<const uint8_t*>(data);
+    commands_.emplace_back(GlCmdSetVertexStageBlock{
+        slot, std::vector<uint8_t>(bytes, bytes + size)});
+    return;
+  }
   GlCmdSetVertexStageBytes cmd{};
   cmd.slot = slot;
-  cmd.size = static_cast<uint32_t>(
-      std::min(size, sizeof(GlCmdSetVertexStageBytes::data)));
+  cmd.size = static_cast<uint32_t>(size);
   std::memcpy(cmd.data, data, cmd.size);
   commands_.emplace_back(cmd);
 }
