@@ -15,7 +15,7 @@ namespace eng::editor {
 /// The sort of number a property holds.
 ///
 /// Stepping, scrubbing, formatting and clamping are decided from this
-/// rather than from the field itself: there are seven kinds and fifteen
+/// rather than from the field itself: there are eight kinds and sixteen
 /// fields, and a rule written per kind cannot disagree with itself about
 /// two fields that hold the same sort of number.
 /// @thread_safety Immutable value type.
@@ -35,6 +35,9 @@ enum class EditorPropertyKind : uint8_t {
   UNIT,
   /// A player, a whole number from 1 to `EDITOR_PLAYER_SLOTS`.
   SLOT,
+  /// On or off, held as 1 or 0: the panel draws a checkbox for it, and a
+  /// click flips it rather than stepping it.
+  TOGGLE,
 };
 
 /// One property's fixed description.
@@ -50,8 +53,8 @@ struct EditorPropertyTraits {
 
 /// Every field's traits, indexed by the field's own value.
 ///
-/// A table rather than a switch: fifteen arms of two lines each says no
-/// more than fifteen rows of one, and the assertion below catches the
+/// A table rather than a switch: sixteen arms of two lines each says no
+/// more than sixteen rows of one, and the assertion below catches the
 /// field added to the enum without an entry here.
 inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Position X", EditorPropertyKind::DISTANCE},
@@ -69,6 +72,7 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Intensity", EditorPropertyKind::FACTOR},
     {"Range", EditorPropertyKind::EXTENT},
     {"Player", EditorPropertyKind::SLOT},
+    {"Collides", EditorPropertyKind::TOGGLE},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==
@@ -91,6 +95,12 @@ editorPropertyFieldLabel(EditorPropertyField field) {
 [[nodiscard]] constexpr EditorPropertyKind
 editorPropertyFieldKind(EditorPropertyField field) {
   return editorPropertyTraits(field).kind;
+}
+
+/// Whether a field is on or off, which the panel draws as a checkbox.
+[[nodiscard]] constexpr bool
+editorPropertyFieldIsToggle(EditorPropertyField field) {
+  return editorPropertyFieldKind(field) == EditorPropertyKind::TOGGLE;
 }
 
 /// Whether a field is an angle, which decides how it is written out and

@@ -37,6 +37,10 @@ struct EditorPlacement {
   /// place (`makePlacementTransform`), which is where the axis order is
   /// defined.
   Vec3 rotation{};
+  /// Whether a player can walk through it. Solid by default: most of what
+  /// is dropped into a level is a crate or a wall, and the few that are not
+  /// — grass, a rug, a decal — are ticked off in the properties panel.
+  bool collides = true;
 };
 
 }  // namespace eng::editor

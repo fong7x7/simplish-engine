@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <engine/input/player-input-builder.h>
 #include <game/player/player-system.h>
+#include <span>
 
 using Catch::Approx;
 using eng::Vec3;
@@ -46,7 +47,7 @@ TEST_CASE("a full stick moves a player one tick's worth of speed") {
   PlayerPool pool;
   (void)eng::game::spawnPlayer(pool, 0, {});
 
-  eng::game::movePlayers(pool, stick(0, INPUT_AXIS_MAX, -INPUT_AXIS_MAX));
+  eng::game::movePlayers(pool, stick(0, INPUT_AXIS_MAX, -INPUT_AXIS_MAX), {});
 
   REQUIRE(pool.position[0].x == Approx(PLAYER_SPEED_TILES_PER_TICK));
   REQUIRE(pool.position[0].y == Approx(-PLAYER_SPEED_TILES_PER_TICK));
@@ -58,7 +59,7 @@ TEST_CASE("each player follows its own input slot") {
   (void)eng::game::spawnPlayer(pool, 0, {});
   (void)eng::game::spawnPlayer(pool, 2, {});
 
-  eng::game::movePlayers(pool, stick(2, INPUT_AXIS_MAX, 0));
+  eng::game::movePlayers(pool, stick(2, INPUT_AXIS_MAX, 0), {});
 
   REQUIRE(pool.position[0].x == 0.0F);
   REQUIRE(pool.position[1].x == Approx(PLAYER_SPEED_TILES_PER_TICK));
@@ -70,9 +71,9 @@ TEST_CASE("a player keeps its aim while no aim is given") {
   TickInput aiming;
   aiming.players[0].aim_y = INPUT_AXIS_MAX;
 
-  eng::game::movePlayers(pool, aiming);
+  eng::game::movePlayers(pool, aiming, {});
   REQUIRE(pool.aim[0].y == Approx(1.0F));
-  eng::game::movePlayers(pool, TickInput{});
+  eng::game::movePlayers(pool, TickInput{}, {});
   REQUIRE(pool.aim[0].y == Approx(1.0F));
   REQUIRE(pool.aim[0].x == Approx(0.0F));
 }
@@ -101,6 +102,50 @@ TEST_CASE("players hash differently once one has moved") {
     return hasher.value();
   };
   REQUIRE(hashOf(a) == hashOf(b));
-  eng::game::movePlayers(a, stick(0, 1, 0));
+  eng::game::movePlayers(a, stick(0, 1, 0), {});
   REQUIRE(hashOf(a) != hashOf(b));
+}
+
+namespace {
+
+/// A wall two tiles right of the origin, one tile thick and tall.
+constexpr eng::physics::CollisionBox WALL{{2.0F, -5.0F, 0.0F},
+                                          {3.0F, 5.0F, 1.0F}};
+
+}  // namespace
+
+TEST_CASE("a player walking into a wall stops against it") {
+  PlayerPool pool;
+  (void)eng::game::spawnPlayer(pool, 0, {1.5F, 0.0F, 0.0F});
+
+  for (int tick = 0; tick < 60; ++tick) {
+    eng::game::movePlayers(pool, stick(0, INPUT_AXIS_MAX, 0),
+                           std::span(&WALL, 1));
+  }
+
+  REQUIRE(pool.position[0].x == Approx(2.0F - eng::game::PLAYER_RADIUS_TILES));
+}
+
+TEST_CASE("a player walking into a wall at an angle slides along it") {
+  PlayerPool pool;
+  (void)eng::game::spawnPlayer(pool, 0, {1.5F, 0.0F, 0.0F});
+  const int16_t diagonal = 23170;
+
+  for (int tick = 0; tick < 12; ++tick) {
+    eng::game::movePlayers(pool, stick(0, diagonal, diagonal),
+                           std::span(&WALL, 1));
+  }
+
+  // Held at the wall in X, and still covering ground in Y.
+  REQUIRE(pool.position[0].x == Approx(2.0F - eng::game::PLAYER_RADIUS_TILES));
+  REQUIRE(pool.position[0].y > 0.5F);
+}
+
+TEST_CASE("a player spawned inside an obstacle is out of it after a tick") {
+  PlayerPool pool;
+  (void)eng::game::spawnPlayer(pool, 0, {2.9F, 0.0F, 0.0F});
+
+  eng::game::movePlayers(pool, TickInput{}, std::span(&WALL, 1));
+
+  REQUIRE(pool.position[0].x == Approx(3.0F + eng::game::PLAYER_RADIUS_TILES));
 }

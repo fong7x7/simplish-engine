@@ -67,7 +67,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
-| Testing | Catch2 v3 | All | 965 tests green on macOS/Metal, 917 on the headless stub |
+| Testing | Catch2 v3 | All | 993 tests green on macOS/Metal, 945 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
 
 ---
@@ -175,7 +175,7 @@ Legibility is a rendering requirement, not an art note:
 | Effects (GPU particles, decals, trails, screen shake) | `rendering/fx.md` | M5 |
 | Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | `spatial.md` | M2 |
 | Projectile simulation (integration, swept collision, penetration, homing) | `physics/projectiles.md` | M2 |
-| Collision and queries (character sweep, overlap, line-of-sight) | `physics/collision.md` | M2 |
+| Collision and queries (character sweep, overlap, line-of-sight) | `physics/collision.md` | M2 — first slice built: `engine/physics` resolves an upright cylinder out of axis-aligned boxes, deterministically, every box every tick. Sweeps, line of sight and a spatial index are not written |
 | Audio (`IAudioBackend`, spatialisation, voice stealing, ducking) | `audio.md` | M3 |
 | Input (action maps, rebinding, gamepad, deterministic capture) | `input.md` | M0 — first slice built: `engine/input` holds actions, turns screen-relative movement into world directions through the camera's `MoveBasis`, and quantises them into a `PlayerInput`; key binding lives with whoever reads keys (the editor's playtest today). Rebinding and gamepads are not written |
 | GUI framework (retained-mode, layout, text, theming, docking, markdown) | [gui/README.md](gui/README.md) | **Built** |

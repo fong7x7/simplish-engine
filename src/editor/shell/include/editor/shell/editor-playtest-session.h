@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-scripted-input.h>
@@ -38,9 +39,18 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 /// What a playtest of @p document starts from: one player, standing on the
 /// first start for player 1 in the document, or on @p fallback — the tile
 /// under the camera — when it has none (Editor REQUIREMENTS §7: "starting at
-/// the camera position or a chosen spawn point").
+/// the camera position or a chosen spawn point"); and a collision box for
+/// every placement that collides, measured against @p assets.
+///
+/// The box is the one the viewport outlines and picks: the placement's
+/// asset, turned and set where it stands, enclosed in an axis-aligned box.
+/// A prop turned 45° therefore blocks a little more than its mesh covers;
+/// that is the price of boxes, and what a collision shape authored per
+/// asset would fix.
 [[nodiscard]] game::GameSetup
-makeEditorPlaytestSetup(const EditorDocument& document, WorldPoint fallback);
+makeEditorPlaytestSetup(const EditorDocument& document,
+                        const std::vector<EditorAsset>& assets,
+                        WorldPoint fallback);
 
 /// Where the replay of the last playtest of @p level_id is kept:
 /// `<root>/data/playtests/<level_id>.replay`. Editor scratch rather than

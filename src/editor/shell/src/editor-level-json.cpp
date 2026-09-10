@@ -61,6 +61,15 @@ namespace {
                                                       : fallback;
   }
 
+  /// One boolean under @p key, or nothing when it is absent or is not one.
+  std::optional<bool> readBool(const json& entry, const char* key) {
+    const auto found = entry.find(key);
+    if (found == entry.end() || !found->is_boolean()) {
+      return std::nullopt;
+    }
+    return found->get<bool>();
+  }
+
   /// One string under @p key, or empty when it is absent or is not one.
   std::string readString(const json& entry, const char* key) {
     const auto found = entry.find(key);
@@ -85,6 +94,7 @@ namespace {
                            placement.position.z);
     out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
                                  placement.rotation.z);
+    out["collides"] = placement.collides;
     return out;
   }
 
@@ -173,6 +183,9 @@ namespace {
     placement.asset = index;
     placement.position = {at[0], at[1], at[2]};
     placement.rotation = {turn[0], turn[1], turn[2]};
+    // A prop written before collision existed has no flag, and reads as
+    // solid — the default a dropped one gets.
+    placement.collides = readBool(entry, "collides").value_or(true);
     placement.id = readString(entry, "id");
     if (placement.id.empty()) {
       placement.id = mintEditorPlacementId(document, assets[index]);

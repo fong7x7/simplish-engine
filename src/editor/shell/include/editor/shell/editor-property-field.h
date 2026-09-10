@@ -53,6 +53,8 @@ enum class EditorPropertyField : uint8_t {
   RANGE,
   /// Which player a start is for, 1 to `EDITOR_PLAYER_SLOTS`.
   PLAYER,
+  /// Whether a placed prop blocks players: 1 for solid, 0 for not.
+  COLLIDES,
 };
 
 /// Every field there is, in the enum's own order.
@@ -68,7 +70,7 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::DIRECTION_Z, EditorPropertyField::COLOR_R,
     EditorPropertyField::COLOR_G,     EditorPropertyField::COLOR_B,
     EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
-    EditorPropertyField::PLAYER,
+    EditorPropertyField::PLAYER,      EditorPropertyField::COLLIDES,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -76,6 +78,7 @@ inline constexpr EditorPropertyField EDITOR_PLACEMENT_FIELDS[] = {
     EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
     EditorPropertyField::POSITION_Z, EditorPropertyField::ROTATION_X,
     EditorPropertyField::ROTATION_Y, EditorPropertyField::ROTATION_Z,
+    EditorPropertyField::COLLIDES,
 };
 
 /// What the panel lists for a directional light.

@@ -16,6 +16,8 @@ namespace {
   /// Text baseline inset within a row, from its top.
   constexpr float TEXT_BASELINE = 4.0f;
   constexpr float TEXT_INSET = 6.0f;
+  /// How far a checkbox's tick sits inside its box.
+  constexpr float CHECK_INSET = 5.0f;
 
   /// Vertically centred draw position for a line of text in @p rect.
   DrawPos textPos(const Rect& rect, float inset_x) {
@@ -146,6 +148,23 @@ void EditorPropertiesWidget::renderStep(const GuiDrawContext& ctx,
   ctx.drawCenteredText(box, GuiColor::applyOpacity(THEME_TEXT, opacity), sign);
 }
 
+void EditorPropertiesWidget::renderToggle(const GuiDrawContext& ctx,
+                                          const Rect& row, size_t index) const {
+  const Rect box = propertyCheckboxRect(row);
+  ctx.drawRoundedRect(box, GuiColor::applyOpacity(VALUE_BG, opacity),
+                      THEME_BTN_RADIUS);
+  if (values_[index] == 0.0f) {
+    return;
+  }
+  // Ticked: the box filled in the accent colour, inset so the unticked
+  // well still frames it.
+  const Rect tick =
+      makeRect(box.x + CHECK_INSET, box.y + CHECK_INSET,
+               box.w - CHECK_INSET * 2.0f, box.h - CHECK_INSET * 2.0f);
+  ctx.drawRoundedRect(tick, GuiColor::applyOpacity(THEME_ACCENT, opacity),
+                      THEME_BTN_RADIUS);
+}
+
 void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
                                        size_t index) const {
   const EditorPropertyField field = fields_[index];
@@ -153,9 +172,19 @@ void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
                textPos(propertyLabelRect(row), 0.0f),
                editorPropertyFieldLabel(field));
+  if (editorPropertyFieldIsToggle(field)) {
+    renderToggle(ctx, row, index);
+    return;
+  }
   renderStep(ctx, propertyDecrementRect(row), "-");
   renderStep(ctx, propertyIncrementRect(row), "+");
+  renderValueBox(ctx, row, index);
+}
 
+void EditorPropertiesWidget::renderValueBox(const GuiDrawContext& ctx,
+                                            const Rect& row,
+                                            size_t index) const {
+  const EditorPropertyField field = fields_[index];
   const Rect value = propertyValueRect(row);
   const bool active = dragging_ && drag_field_ == field;
   ctx.drawRoundedRect(
@@ -227,6 +256,13 @@ void EditorPropertiesWidget::beginDrag(EditorPropertyField field,
 bool EditorPropertiesWidget::pressRow(size_t index,
                                       const GuiMouseEvent& event) {
   const EditorPropertyField field = fields_[index];
+  // A toggle flips on a press anywhere in its row, label included, and is
+  // done at once: there is no gesture to capture.
+  if (editorPropertyFieldIsToggle(field)) {
+    applyValue(field, values_[index] == 0.0f ? 1.0f : 0.0f,
+               EditorPropertyEdit::COMMIT);
+    return false;
+  }
   const Rect row = propertyRowRect(layout().body, index);
   // A step is done the moment it is pressed, so it never takes capture.
   if (pressStep(field, row, event) ||

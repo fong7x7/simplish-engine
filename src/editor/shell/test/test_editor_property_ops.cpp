@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-property-traits.h>
 
 using Catch::Approx;
 using namespace eng::editor;
@@ -9,6 +10,10 @@ TEST_CASE("every property reads back what was written to it") {
   EditorPlacement placement;
   float written = 1.0f;
   for (EditorPropertyField field : EDITOR_PLACEMENT_FIELDS) {
+    // A toggle holds on or off, not a number; it has its own test below.
+    if (editorPropertyFieldIsToggle(field)) {
+      continue;
+    }
     setEditorPropertyValue(placement, field, written);
     REQUIRE(editorPropertyValue(placement, field) == Approx(written));
     written += 1.0f;
@@ -90,4 +95,30 @@ TEST_CASE("each field's traits are the ones its own name promises") {
           EditorPropertyKind::FACTOR);
   REQUIRE(editorPropertyFieldKind(EditorPropertyField::RANGE) ==
           EditorPropertyKind::EXTENT);
+}
+
+TEST_CASE("a prop collides until told not to, and reads as 1 or 0") {
+  EditorPlacement placement;
+  REQUIRE(placement.collides);
+  REQUIRE(editorPropertyValue(placement, EditorPropertyField::COLLIDES) ==
+          1.0f);
+
+  setEditorPropertyValue(placement, EditorPropertyField::COLLIDES, 0.0f);
+  REQUIRE_FALSE(placement.collides);
+  REQUIRE(editorPropertyValue(placement, EditorPropertyField::COLLIDES) ==
+          0.0f);
+}
+
+TEST_CASE("a toggle is on at a half and above, and written as on or off") {
+  REQUIRE(normalizeEditorPropertyValue(EditorPropertyField::COLLIDES, 0.4f) ==
+          0.0f);
+  REQUIRE(normalizeEditorPropertyValue(EditorPropertyField::COLLIDES, 0.5f) ==
+          1.0f);
+  REQUIRE(normalizeEditorPropertyValue(EditorPropertyField::COLLIDES, 7.0f) ==
+          1.0f);
+  REQUIRE(formatEditorPropertyValue(1.0f, EditorPropertyField::COLLIDES) ==
+          "on");
+  REQUIRE(formatEditorPropertyValue(0.0f, EditorPropertyField::COLLIDES) ==
+          "off");
+  REQUIRE(editorPropertyDragPerPixel(EditorPropertyField::COLLIDES) == 0.0f);
 }

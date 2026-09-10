@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <iterator>
 
 namespace eng::editor {
 
@@ -27,6 +28,10 @@ namespace {
   /// what snprintf returns.
   int writeValue(std::array<char, VALUE_TEXT_CAPACITY>& text, float value,
                  EditorPropertyField field) {
+    if (editorPropertyFieldIsToggle(field)) {
+      return std::snprintf(text.data(), text.size(), "%s",
+                           value != 0.0f ? "on" : "off");
+    }
     if (editorPropertyFieldKind(field) == EditorPropertyKind::SLOT) {
       return std::snprintf(text.data(), text.size(), "%.0f", value);
     }
@@ -34,6 +39,33 @@ namespace {
       return std::snprintf(text.data(), text.size(), "%.1f", value);
     }
     return std::snprintf(text.data(), text.size(), "%.2f", value);
+  }
+
+  /// How one kind of number moves under a step button and a drag.
+  struct KindTuning {
+    float step;
+    float drag_per_pixel;
+  };
+
+  /// Every kind's tuning, indexed by `EditorPropertyKind`. A toggle has
+  /// nothing to scrub — it is clicked, never dragged — so it drags nowhere.
+  constexpr KindTuning KIND_TUNING[] = {
+      {EDITOR_POSITION_STEP, EDITOR_POSITION_DRAG_PER_PIXEL},  // DISTANCE
+      {EDITOR_POSITION_STEP, EDITOR_POSITION_DRAG_PER_PIXEL},  // EXTENT
+      {EDITOR_ROTATION_STEP, EDITOR_ROTATION_DRAG_PER_PIXEL},  // ANGLE
+      {EDITOR_AXIS_STEP, EDITOR_AXIS_DRAG_PER_PIXEL},          // AXIS
+      {EDITOR_FACTOR_STEP, EDITOR_FACTOR_DRAG_PER_PIXEL},      // FACTOR
+      {EDITOR_UNIT_STEP, EDITOR_UNIT_DRAG_PER_PIXEL},          // UNIT
+      {EDITOR_SLOT_STEP, EDITOR_SLOT_DRAG_PER_PIXEL},          // SLOT
+      {EDITOR_SLOT_STEP, 0.0f},                                // TOGGLE
+  };
+
+  static_assert(std::size(KIND_TUNING) ==
+                    static_cast<size_t>(EditorPropertyKind::TOGGLE) + 1,
+                "every property kind needs a step and a drag rate");
+
+  const KindTuning& kindTuning(EditorPropertyKind kind) {
+    return KIND_TUNING[static_cast<size_t>(kind)];
   }
 
   /// Whether a field names one of a placement's position components.
@@ -61,6 +93,8 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return std::clamp(value, 0.0f, 1.0f);
     case EditorPropertyKind::SLOT:
       return static_cast<float>(clampEditorPlayerSlot(value));
+    case EditorPropertyKind::TOGGLE:
+      return value >= 0.5f ? 1.0f : 0.0f;
     case EditorPropertyKind::DISTANCE:
       return value;
   }
@@ -79,6 +113,9 @@ float editorPropertyValue(const EditorPlacement& placement,
         placement.rotation,
         editorFieldAxis(field, EditorPropertyField::ROTATION_X));
   }
+  if (field == EditorPropertyField::COLLIDES) {
+    return placement.collides ? 1.0f : 0.0f;
+  }
   return 0.0f;
 }
 
@@ -93,45 +130,17 @@ void setEditorPropertyValue(EditorPlacement& placement,
     editorVectorAxis(placement.rotation,
                      editorFieldAxis(field, EditorPropertyField::ROTATION_X)) =
         written;
+  } else if (field == EditorPropertyField::COLLIDES) {
+    placement.collides = written != 0.0f;
   }
 }
 
 float editorPropertyStep(EditorPropertyField field) {
-  switch (editorPropertyFieldKind(field)) {
-    case EditorPropertyKind::DISTANCE:
-    case EditorPropertyKind::EXTENT:
-      return EDITOR_POSITION_STEP;
-    case EditorPropertyKind::ANGLE:
-      return EDITOR_ROTATION_STEP;
-    case EditorPropertyKind::AXIS:
-      return EDITOR_AXIS_STEP;
-    case EditorPropertyKind::FACTOR:
-      return EDITOR_FACTOR_STEP;
-    case EditorPropertyKind::UNIT:
-      return EDITOR_UNIT_STEP;
-    case EditorPropertyKind::SLOT:
-      return EDITOR_SLOT_STEP;
-  }
-  return EDITOR_POSITION_STEP;
+  return kindTuning(editorPropertyFieldKind(field)).step;
 }
 
 float editorPropertyDragPerPixel(EditorPropertyField field) {
-  switch (editorPropertyFieldKind(field)) {
-    case EditorPropertyKind::DISTANCE:
-    case EditorPropertyKind::EXTENT:
-      return EDITOR_POSITION_DRAG_PER_PIXEL;
-    case EditorPropertyKind::ANGLE:
-      return EDITOR_ROTATION_DRAG_PER_PIXEL;
-    case EditorPropertyKind::AXIS:
-      return EDITOR_AXIS_DRAG_PER_PIXEL;
-    case EditorPropertyKind::FACTOR:
-      return EDITOR_FACTOR_DRAG_PER_PIXEL;
-    case EditorPropertyKind::UNIT:
-      return EDITOR_UNIT_DRAG_PER_PIXEL;
-    case EditorPropertyKind::SLOT:
-      return EDITOR_SLOT_DRAG_PER_PIXEL;
-  }
-  return EDITOR_POSITION_DRAG_PER_PIXEL;
+  return kindTuning(editorPropertyFieldKind(field)).drag_per_pixel;
 }
 
 std::string formatEditorPropertyValue(float value, EditorPropertyField field) {

@@ -48,10 +48,11 @@ namespace {
            field <= EditorPropertyField::ROTATION_Z;
   }
 
-  /// Whether @p field is one a placement stores: its position or its
-  /// rotation, and nothing a light or a player start carries.
+  /// Whether @p field is one a placement stores: its position, its
+  /// rotation, and whether it collides.
   bool isPlacementField(EditorPropertyField field) {
-    return field <= EditorPropertyField::ROTATION_Z;
+    return field <= EditorPropertyField::ROTATION_Z ||
+           field == EditorPropertyField::COLLIDES;
   }
 
   /// Select @p selection, dropping it when it names an entry that is not
@@ -203,8 +204,8 @@ namespace {
                                 EditorPropertyField field, float value) {
     if (!isPlacementField(field)) {
       return agentFailure(AgentStatus::BAD_PARAMS,
-                          "a placement holds a position and a rotation, and "
-                          "nothing else");
+                          "a placement holds a position, a rotation and "
+                          "whether it collides, and nothing else");
     }
     const EditorPlacement prior = state.document.placements[index];
     EditorPlacement next = prior;
@@ -218,10 +219,12 @@ namespace {
   /// Write one field of a light.
   AgentResult setLightField(EditorShellState& state, size_t index,
                             EditorPropertyField field, float value) {
-    if (isRotationField(field) || field == EditorPropertyField::PLAYER) {
+    if (isRotationField(field) || field == EditorPropertyField::PLAYER ||
+        field == EditorPropertyField::COLLIDES) {
       return agentFailure(AgentStatus::BAD_PARAMS,
                           "a light is aimed by its direction, not turned by "
-                          "a rotation, and belongs to no player");
+                          "a rotation, and neither belongs to a player nor "
+                          "collides");
     }
     const EditorLight prior = state.document.lights[index];
     EditorLight next = prior;

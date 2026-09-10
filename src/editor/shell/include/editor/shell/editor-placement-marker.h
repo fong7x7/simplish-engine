@@ -18,6 +18,9 @@ namespace eng::editor {
 enum class EditorMarkerStyle : uint8_t {
   /// The outline of the box's footprint on the ground: a prop, a light.
   FOOTPRINT,
+  /// The same footprint, dimmed: a prop players walk through, so a level
+  /// shows at a glance which of its props will stop somebody.
+  PASSABLE,
   /// The whole box, always, in the colour of the player it starts — a
   /// player start, which has nothing else in the scene to see it by.
   PLAYER_START,

@@ -235,3 +235,24 @@ TEST_CASE("a hand-written player start gets an id and a player it lacks") {
   // Out of range reads as the nearest player a session has.
   REQUIRE(read->document.player_starts[1].player == 4);
 }
+
+TEST_CASE("whether a prop collides round-trips, and a missing flag is solid") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[1].collides = false;
+
+  const auto read =
+      parseEditorLevel(serializeEditorLevel(written, assets, "main"), assets);
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].collides);
+  REQUIRE_FALSE(read->document.placements[1].collides);
+
+  // A level saved before collision existed carries no flag at all.
+  const std::string older = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {"props": [{"id": "cube_01", "asset": "shape:cube",
+                           "at": [0, 0, 0]}]}})";
+  const auto old_read = parseEditorLevel(older, assets);
+  REQUIRE(old_read.has_value());
+  REQUIRE(old_read->document.placements[0].collides);
+}

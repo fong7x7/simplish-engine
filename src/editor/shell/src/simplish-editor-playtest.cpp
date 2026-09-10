@@ -87,7 +87,8 @@ void SimplishEditor::startPlaytest() {
   commitPendingEdit();
   select({});
   playtest_ = std::make_unique<EditorPlaytestSession>(
-      makeEditorPlaytestSetup(state_.document, playtestFallback()),
+      makeEditorPlaytestSetup(state_.document, state_.assets,
+                              playtestFallback()),
       state_.level_id);
   beginPlaytestState();
   (void)avatarAsset();

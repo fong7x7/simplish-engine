@@ -7,6 +7,7 @@
 #         render ─────┴────────┘
 #            └──► render-mesh ──┘
 #   math ──► core ──► sim ──► input
+#   math ──► physics
 #
 # Concrete RHI backends, the desktop client, and distributor services are NOT
 # here — they are src/platform/, which links this library. That split is what
@@ -17,6 +18,7 @@ add_subdirectory(math)
 add_subdirectory(core)
 add_subdirectory(sim)
 add_subdirectory(input)
+add_subdirectory(physics)
 add_subdirectory(image)
 add_subdirectory(render)
 add_subdirectory(render-mesh)
@@ -29,6 +31,7 @@ simplish_add_library(simplish-engine
             simplish-engine-core
             simplish-engine-sim
             simplish-engine-input
+            simplish-engine-physics
             simplish-engine-image
             simplish-engine-render
             simplish-engine-render-mesh

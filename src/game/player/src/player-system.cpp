@@ -1,4 +1,5 @@
 #include <engine/input/player-input-builder.h>
+#include <engine/physics/cylinder-collision.h>
 #include <engine/sim/slot-move.h>
 #include <game/player/player-system.h>
 #include <span>
@@ -23,6 +24,17 @@ namespace {
     }
   }
 
+  /// Push the player at dense index @p i out of every obstacle they are in.
+  void collideOne(PlayerPool& pool, uint32_t i,
+                  std::span<const physics::CollisionBox> obstacles) {
+    Vec3& at = pool.position[i];
+    const Vec2 clear = physics::resolveCylinderAgainstBoxes(
+        {{at.x, at.y}, PLAYER_RADIUS_TILES, at.z, PLAYER_HEIGHT_TILES},
+        obstacles);
+    at.x = clear.x;
+    at.y = clear.y;
+  }
+
 }  // namespace
 
 std::optional<sim::EntityHandle> spawnPlayer(PlayerPool& pool,
@@ -39,12 +51,14 @@ std::optional<sim::EntityHandle> spawnPlayer(PlayerPool& pool,
   return handle;
 }
 
-void movePlayers(PlayerPool& pool, const sim::TickInput& input) {
+void movePlayers(PlayerPool& pool, const sim::TickInput& input,
+                 std::span<const physics::CollisionBox> obstacles) {
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const uint8_t slot = pool.input_slot[i];
     if (slot < input.players.size()) {
       moveOne(pool, i, input.players[slot]);
     }
+    collideOne(pool, i, obstacles);
   }
 }
 

@@ -19,6 +19,8 @@ namespace {
   constexpr GuiColor HOVER_FILL{0, 122, 204, 90};
   constexpr GuiColor PLACEMENT_OUTLINE{210, 170, 90, 200};
   constexpr GuiColor SELECTION_OUTLINE{0, 170, 255, 255};
+  /// A prop that does not collide: the prop tan, faded most of the way out.
+  constexpr GuiColor PASSABLE_OUTLINE{210, 170, 90, 80};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -128,6 +130,9 @@ namespace {
   GuiColor markerColor(const EditorPlacementMarker& marker) {
     if (marker.selected) {
       return SELECTION_OUTLINE;
+    }
+    if (marker.style == EditorMarkerStyle::PASSABLE) {
+      return PASSABLE_OUTLINE;
     }
     if (marker.style != EditorMarkerStyle::PLAYER_START) {
       return PLACEMENT_OUTLINE;

@@ -68,3 +68,20 @@ TEST_CASE("a world's tick hash names its players section") {
   REQUIRE(hash->section_count == 1);
   REQUIRE(hash->sections[0].name == "players");
 }
+
+TEST_CASE("a world keeps its players out of the setup's obstacles") {
+  GameSetup setup = twoPlayers();
+  // A crate one tile right of player 1's spawn.
+  setup.obstacles.push_back({{2.5F, 2.0F, 0.0F}, {3.5F, 3.0F, 1.0F}});
+  GameWorld world(setup);
+  Simulation simulation(world, TickHashing::ON);
+  TickInput input;
+  input.players[0].move_x = eng::input::INPUT_AXIS_MAX;
+
+  for (int tick = 0; tick < 60; ++tick) {
+    (void)simulation.step(input);
+  }
+
+  REQUIRE(world.players().position[0].x ==
+          Approx(2.5F - eng::game::PLAYER_RADIUS_TILES));
+}

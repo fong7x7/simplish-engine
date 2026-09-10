@@ -233,7 +233,8 @@ each one's parameters; this table is the map.
   asked for.
 - **Fields follow what a kind stores, not what the panel shows.** A light
   stores everything but a rotation and a player; a placement stores a
-  position and a rotation; a player start stores a position and a player. A directional light's position is only where its marker sits, so
+  position, a rotation and whether it collides (`collides`, 1 or 0); a
+  player start stores a position and a player. A directional light's position is only where its marker sits, so
   the panel hides it — but it is real, and this API will move it.
 
 ### The worked example

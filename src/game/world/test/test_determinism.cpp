@@ -29,6 +29,12 @@ GameSetup fourPlayers() {
   for (uint8_t slot = 0; slot < 4; ++slot) {
     setup.spawns[slot] = {static_cast<float>(slot) * 2.0F + 0.5F, 0.5F, 0.0F};
   }
+  // Props for them to run into, so collision is part of what is proved
+  // deterministic.
+  for (int i = 0; i < 6; ++i) {
+    const auto x = static_cast<float>(i) * 1.5F - 2.0F;
+    setup.obstacles.push_back({{x, 2.0F, 0.0F}, {x + 1.0F, 3.0F, 1.0F}});
+  }
   return setup;
 }
 

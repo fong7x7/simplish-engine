@@ -64,6 +64,12 @@ Rect propertyValueRect(const Rect& row) {
   return makeRect(x, row.y, std::max(0.0f, increment.x - x), row.h);
 }
 
+Rect propertyCheckboxRect(const Rect& row) {
+  const Rect label = propertyLabelRect(row);
+  const float side = std::min(row.h, std::max(0.0f, row.w - label.w));
+  return makeRect(label.x + label.w, row.y, side, row.h);
+}
+
 int hitTestPropertyRow(const Rect& body, size_t rows, float x, float y) {
   for (size_t i = 0; i < rows; ++i) {
     if (containsPoint(propertyRowRect(body, i), x, y)) {

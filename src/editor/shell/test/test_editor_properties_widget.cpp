@@ -2,8 +2,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
+#include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-property-traits.h>
 #include <iterator>
 #include <vector>
 
@@ -388,4 +390,28 @@ TEST_CASE("stepping a start's player moves to the next player and stops at 4") {
   (void)fixture.press(midX(decrement), midY(decrement));
   REQUIRE(fixture.changes.back().value == Approx(3.0f));
   REQUIRE(fixture.changes.back().edit == EditorPropertyEdit::COMMIT);
+}
+
+TEST_CASE("a placement lists Collides as its last row, ticked") {
+  PanelFixture fixture;
+  REQUIRE(fixture.panel.fields().back() == EditorPropertyField::COLLIDES);
+  REQUIRE(fixture.panel.value(EditorPropertyField::COLLIDES) == Approx(1.0f));
+}
+
+TEST_CASE("clicking anywhere on the Collides row flips it and commits") {
+  PanelFixture fixture;
+  const eng::Rect row = fixture.rowOf(EditorPropertyField::COLLIDES);
+
+  // On the label: a checkbox's label is part of what can be clicked.
+  REQUIRE_FALSE(fixture.press(row.x + 2.0f, midY(row)));
+  REQUIRE(fixture.changes.size() == 1);
+  REQUIRE(fixture.changes[0].field == EditorPropertyField::COLLIDES);
+  REQUIRE(fixture.changes[0].value == Approx(0.0f));
+  REQUIRE(fixture.changes[0].edit == EditorPropertyEdit::COMMIT);
+
+  // On the box: back on again.
+  const eng::Rect box = propertyCheckboxRect(row);
+  REQUIRE_FALSE(fixture.press(midX(box), midY(box)));
+  REQUIRE(fixture.changes.back().value == Approx(1.0f));
+  REQUIRE_FALSE(fixture.panel.dragging());
 }

@@ -5,7 +5,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-properties-widget.h>
+#include <editor/shell/editor-property-traits.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-renderer.h>
@@ -182,9 +184,13 @@ TEST_CASE("a value box paints against the panel behind it") {
   REQUIRE_FALSE(matches(sample, eng::THEME_PANEL));
 }
 
-TEST_CASE("both step buttons paint on every row") {
+TEST_CASE("both step buttons paint on every numeric row") {
   const PropertiesCapture capture;
   for (EditorPropertyField field : EDITOR_PLACEMENT_FIELDS) {
+    // A toggle draws a checkbox instead; the test below looks at that.
+    if (editorPropertyFieldIsToggle(field)) {
+      continue;
+    }
     const eng::Rect row = capture.panel().fieldRowRect(field);
     const eng::Rect decrement = propertyDecrementRect(row);
     const eng::Rect increment = propertyIncrementRect(row);
@@ -196,6 +202,26 @@ TEST_CASE("both step buttons paint on every row") {
     REQUIRE_FALSE(matches(left, eng::THEME_PANEL));
     REQUIRE_FALSE(matches(right, eng::THEME_PANEL));
   }
+}
+
+TEST_CASE("the Collides row paints a ticked checkbox for a solid prop") {
+  PropertiesCapture capture;
+  const eng::Rect row =
+      capture.panel().fieldRowRect(EditorPropertyField::COLLIDES);
+  const eng::Rect box = propertyCheckboxRect(row);
+
+  // The tick fills the middle of the box in the accent colour...
+  REQUIRE(matches(capture.pixel(box.x + box.w * 0.5f, box.y + box.h * 0.5f),
+                  eng::THEME_ACCENT));
+
+  // ...and is gone once the prop is passable.
+  EditorPlacement passable = PropertiesCapture::placement();
+  passable.collides = false;
+  capture.panelMutable().setSelection("crate", passable);
+  capture.recapture();
+  REQUIRE_FALSE(
+      matches(capture.pixel(box.x + box.w * 0.5f, box.y + box.h * 0.5f),
+              eng::THEME_ACCENT));
 }
 
 TEST_CASE("a panel with nothing selected paints nothing at all") {

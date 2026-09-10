@@ -128,15 +128,16 @@ above. A bare `NOLINT` is a review rejection.
 Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
 `render-mesh`, `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (held
-actions to a quantised `PlayerInput`); game `player` and `world` (players
-moving on the tick, and the `SimulationSystems` composing them); platform
+actions to a quantised `PlayerInput`), `physics` (a first slice: cylinder
+against boxes); game `player` and `world` (players moving on the tick and
+stopped by props, and the `SimulationSystems` composing them); platform
 `render` (five backends), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest) and `agent`; `bin/editor`.
 
 Not written yet: `engine/spatial`, `render-iso`, `render-sprite`,
-`render-fx`, `physics`, `audio`, `content`, `net`, `debug`, and everything
-in `src/game/` past moving a player — weapons, enemies, the director. The
-isometric renderer is ahead, not behind — check
+`render-fx`, `audio`, `content`, `net`, `debug`, the rest of `physics`,
+and everything in `src/game/` past moving a player — weapons, enemies, the
+director. The isometric renderer is ahead, not behind — check
 [REQUIREMENTS.md §6](REQUIREMENTS.md#6-repository--project-structure-target)
 before assuming a system exists.
 

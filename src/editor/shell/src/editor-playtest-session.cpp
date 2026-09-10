@@ -1,4 +1,5 @@
 #include <editor/project/project-paths.h>
+#include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <engine/sim/replay-codec.h>
@@ -39,6 +40,28 @@ namespace {
     return input;
   }
 
+  /// A stand-in for an asset a placement names but the list no longer has,
+  /// which `placementWorldBounds` measures as the unit box on its tile.
+  const EditorAsset MISSING_ASSET{};
+
+  /// The collision box of every placement that collides, in document order.
+  std::vector<physics::CollisionBox>
+  obstaclesOf(const EditorDocument& document,
+              const std::vector<EditorAsset>& assets) {
+    std::vector<physics::CollisionBox> boxes;
+    for (const EditorPlacement& placement : document.placements) {
+      if (!placement.collides) {
+        continue;
+      }
+      const EditorAsset& asset = placement.asset < assets.size()
+                                     ? assets[placement.asset]
+                                     : MISSING_ASSET;
+      const PlacementBounds bounds = placementWorldBounds(asset, placement);
+      boxes.push_back({bounds.min, bounds.max});
+    }
+    return boxes;
+  }
+
   /// A replay header for a playtest of @p level_id set up as @p setup.
   sim::ReplayHeader replayHeader(const game::GameSetup& setup,
                                  const std::string& level_id) {
@@ -57,6 +80,7 @@ namespace {
 }  // namespace
 
 game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
+                                        const std::vector<EditorAsset>& assets,
                                         WorldPoint fallback) {
   const EditorPlayerStart* start = firstStartForPlayerOne(document);
   const WorldPoint at = start != nullptr ? start->position : fallback;
@@ -64,6 +88,7 @@ game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
   setup.seed = EDITOR_PLAYTEST_SEED;
   setup.player_count = 1;
   setup.spawns[0] = {at.x, at.y, at.z};
+  setup.obstacles = obstaclesOf(document, assets);
   return setup;
 }
 

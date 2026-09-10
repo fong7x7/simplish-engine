@@ -78,7 +78,7 @@ namespace {
     return status;
   }
 
-  /// Whether two placements sit and face exactly the same way.
+  /// Whether two placements sit, face and collide exactly the same way.
   ///
   /// A gesture that ended where it began is not an edit, and an undo entry
   /// that changes nothing is worse than no entry at all. Exact comparison
@@ -87,7 +87,8 @@ namespace {
   bool sameTransform(const EditorPlacement& a, const EditorPlacement& b) {
     return a.position.x == b.position.x && a.position.y == b.position.y &&
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
-           a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z;
+           a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
+           a.collides == b.collides;
   }
 
   /// Whether two lights shine exactly alike, for the same reason
@@ -1170,7 +1171,9 @@ EditorPlacementMarker SimplishEditor::placementMarker(size_t index) {
                                  ? state_.assets[placement.asset]
                                  : UNKNOWN_ASSET;
   return {placementWorldBounds(asset, placement),
-          isSelected(EditorSelectionKind::PLACEMENT, index)};
+          isSelected(EditorSelectionKind::PLACEMENT, index),
+          placement.collides ? EditorMarkerStyle::FOOTPRINT
+                             : EditorMarkerStyle::PASSABLE};
 }
 
 EditorPlacementMarker SimplishEditor::lightMarker(size_t index) {

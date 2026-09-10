@@ -680,3 +680,36 @@ TEST_CASE("the level cannot be edited through the API while it is played") {
   REQUIRE(runAgentTool(state, "list_placements", "{}").status ==
           AgentStatus::OK);
 }
+
+TEST_CASE("a placement's collision is set like any property, and undone") {
+  EditorShellState state = stateWithAssets();
+  const json placed =
+      call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+  REQUIRE(placed.at("collides") == true);
+
+  const json changed = call(
+      state, "set_property",
+      R"({"target": "placement", "index": 0, "field": "collides", "value": 0})");
+
+  REQUIRE(changed.at("collides") == false);
+  REQUIRE_FALSE(state.document.placements[0].collides);
+  (void)call(state, "undo", "");
+  REQUIRE(state.document.placements[0].collides);
+}
+
+TEST_CASE("a light and a player start refuse collides") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_light", R"({"kind": "point", "x": 0, "y": 0})");
+  (void)call(state, "add_player_start", R"({"x": 0, "y": 0})");
+
+  REQUIRE(
+      runAgentTool(
+          state, "set_property",
+          R"({"target": "light", "index": 0, "field": "collides", "value": 0})")
+          .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(
+      runAgentTool(
+          state, "set_property",
+          R"({"target": "player_start", "index": 0, "field": "collides", "value": 0})")
+          .status == AgentStatus::BAD_PARAMS);
+}

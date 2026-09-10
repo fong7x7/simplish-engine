@@ -11,7 +11,7 @@
 
 The game layer (`simplish-game`) is everything that makes Simplish a specific game rather than an engine: the player, the weapons, the enemies, the director that decides what comes next, and the rules of a run. It links `src/engine/` and is platform-agnostic — no SDL3, no graphics API, no distributor SDK. Platform-specific concerns reach it through engine interfaces.
 
-**Current state:** `src/game/player` and `src/game/world` exist, and nothing else of the game does. Players spawn from a `GameSetup`, move at five tiles a second by their stick on the deterministic tick, and keep the aim they are given; the world composes them into the `SimulationSystems` the tick steps, and the editor's Play button runs it. There is no collision, no weapon — the fire button is recorded and read by nothing — and no enemy.
+**Current state:** `src/game/player` and `src/game/world` exist, and nothing else of the game does. Players spawn from a `GameSetup`, move at five tiles a second by their stick on the deterministic tick, and keep the aim they are given; the world composes them into the `SimulationSystems` the tick steps, and the editor's Play button runs it. Players collide with the level's solid props — an upright cylinder pushed out of axis-aligned boxes, sliding along them — but not with each other, and the ground has no height to follow. There is no weapon — the fire button is recorded and read by nothing — and no enemy.
 
 **The game:** an isometric horde shooter set in a collapsed modern world. One to four players hold hand-authored ground against escalating waves. The fantasy is *overwhelming volume, narrowly survived* — hundreds of enemies converging, thousands of projectiles in the air, and a build that turns that pressure into a body count.
 
@@ -39,7 +39,7 @@ Twin-stick-style movement decoupled from aim: eight-way analogue movement on the
 | Base speed | Tuned so crossing a standard room takes ~2 s; exact value data-driven |
 | Acceleration | Short ramp (≤ 100 ms to full speed) — responsive, but with enough weight that direction changes cost something |
 | Dodge | Short burst with i-frames on a cooldown; the primary defensive verb |
-| Collision | Capsule swept against terrain and structures; enemies push but do not hard-block |
+| Collision | Capsule swept against terrain and structures; enemies push but do not hard-block. Built so far: an upright cylinder resolved against props' boxes each tick (`engine/physics`); no terrain, no enemies, no sweep |
 | Slowdown | Aiming and firing may apply a data-driven movement penalty per weapon |
 
 ### 3.2 Aiming and Firing

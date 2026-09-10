@@ -240,6 +240,7 @@ src/
 │   ├── core/{include,src,test}
 │   ├── sim/{include,src,test}      # tick, entity slots, hashing, replay
 │   ├── input/{include,src,test}    # held actions → PlayerInput
+│   ├── physics/{include,src,test}  # cylinder vs box collision
 │   ├── image/{include,src,test}    # stb implementation TUs
 │   ├── render/include/             # RHI interface — headers only
 │   ├── gui/{include,src,test}

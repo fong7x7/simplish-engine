@@ -4,7 +4,7 @@
 
 namespace eng::game {
 
-GameWorld::GameWorld(const GameSetup& setup) {
+GameWorld::GameWorld(const GameSetup& setup) : obstacles_(setup.obstacles) {
   const auto count = static_cast<uint8_t>(
       std::clamp<size_t>(setup.player_count, 1, sim::MAX_PLAYERS));
   for (uint8_t slot = 0; slot < count; ++slot) {
@@ -13,7 +13,7 @@ GameWorld::GameWorld(const GameSetup& setup) {
 }
 
 void GameWorld::playerControl(const sim::TickContext& context) {
-  movePlayers(players_, context.input);
+  movePlayers(players_, context.input, obstacles_);
 }
 
 void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {

@@ -9,6 +9,7 @@ simplish_add_module(simplish-game-player
     DEPENDENCIES simplish-engine-math
                  simplish-engine-sim
                  simplish-engine-input
+                 simplish-engine-physics
 )
 
 if(ENGINE_BUILD_TESTS)

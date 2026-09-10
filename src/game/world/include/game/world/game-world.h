@@ -10,6 +10,7 @@
 #include <engine/sim/tick-hash-builder.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
+#include <vector>
 
 namespace eng::game {
 
@@ -24,7 +25,8 @@ public:
   /// spawn.
   explicit GameWorld(const GameSetup& setup);
 
-  /// Moves every player by its stick.
+  /// Moves every player by its stick, and keeps them out of the level's
+  /// solid geometry.
   void playerControl(const sim::TickContext& context) override;
   /// Destroys what the tick marked for destruction.
   void compaction(const sim::TickContext& context) override;
@@ -38,6 +40,8 @@ public:
 private:
   /// Every player in the session.
   PlayerPool players_;
+  /// The level's solid geometry, from the setup; never changed by a tick.
+  std::vector<physics::CollisionBox> obstacles_;
 };
 
 }  // namespace eng::game

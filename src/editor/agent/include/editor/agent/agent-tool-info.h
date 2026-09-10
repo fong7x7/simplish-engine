@@ -90,12 +90,14 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "Property name as `get_selection` reports it: position_x, position_y, "
      "position_z, rotation_x, rotation_y, rotation_z, direction_x, "
      "direction_y, direction_z, color_r, color_g, color_b, intensity, "
-     "range, or player. A player start takes the position and player "
-     "only."},
+     "range, player, or collides. A player start takes the position and "
+     "player only; collides is a placement's, 1 for solid and 0 to let "
+     "players walk through it."},
     {"value", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
      "The value to write. Angles wrap into [-180, 180), colour channels "
      "and direction components are clamped, a player is rounded into 1 to "
-     "4, and the response reports what was actually stored."},
+     "4, collides is 1 at 0.5 and above, and the response reports what was "
+     "actually stored."},
 };
 
 /// `translate` moves an entry by a delta rather than to a position.
@@ -250,7 +252,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::LIST_PLACEMENTS,
      "list_placements",
      "Every asset placed in the level, with its index, the asset it "
-     "instances, its position in tiles, and its rotation in degrees.",
+     "instances, its position in tiles, its rotation in degrees, and "
+     "whether players collide with it in a playtest.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::LIST_LIGHTS,

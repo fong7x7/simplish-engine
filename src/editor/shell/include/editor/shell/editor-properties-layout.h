@@ -72,6 +72,10 @@ struct EditorPropertiesLayout {
 /// drag scrubs.
 [[nodiscard]] Rect propertyValueRect(const Rect& row);
 
+/// The checkbox an on-or-off row draws in place of its steps and value: a
+/// square the row's height, just after the label.
+[[nodiscard]] Rect propertyCheckboxRect(const Rect& row);
+
 /// Index of the row under a point, or -1, among the first @p rows of them.
 ///
 /// Rows are separated by a gap that belongs to neither of them, so a press

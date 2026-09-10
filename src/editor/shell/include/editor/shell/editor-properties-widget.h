@@ -6,7 +6,8 @@
 //   - Column down the right of the viewport listing what the editor has
 //     selected: its name, its `kind:id` reference, and one row per
 //     editable number
-//   - A placed asset lists position X, Y, Z and rotation X, Y, Z; a light
+//   - A placed asset lists position X, Y, Z, rotation X, Y, Z, and a
+//     Collides checkbox that a click anywhere on its row flips; a light
 //     lists the direction, colour, intensity and range its own kind uses;
 //     a player start lists its player and its position
 //   - Each row is a label, a step-down button, a value box, and a step-up
@@ -144,6 +145,12 @@ private:
   void renderRows(const GuiDrawContext& ctx) const;
   /// Draw one row's label, buttons, and value.
   void renderRow(const GuiDrawContext& ctx, size_t index) const;
+  /// Draw the value box a numeric row @p index shows, in @p row.
+  void renderValueBox(const GuiDrawContext& ctx, const Rect& row,
+                      size_t index) const;
+  /// Draw the checkbox an on-or-off row @p index shows, in @p row.
+  void renderToggle(const GuiDrawContext& ctx, const Rect& row,
+                    size_t index) const;
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;

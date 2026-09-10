@@ -11,6 +11,7 @@ simplish_add_module(simplish-game-world
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-world.cpp
     DEPENDENCIES simplish-game-player
+                 simplish-engine-physics
                  simplish-engine-sim
 )
 

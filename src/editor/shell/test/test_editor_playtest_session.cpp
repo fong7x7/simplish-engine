@@ -52,14 +52,14 @@ std::vector<std::byte> readBytes(const std::filesystem::path& path) {
 EditorPlaytestSession sessionAt(WorldPoint spawn) {
   EditorDocument document;
   document.player_starts.push_back(makeEditorPlayerStart(1, spawn));
-  return {makeEditorPlaytestSetup(document, {}), "main"};
+  return {makeEditorPlaytestSetup(document, {}, {}), "main"};
 }
 
 }  // namespace
 
 TEST_CASE("a playtest spawns player 1 on the first start for player 1") {
   const game::GameSetup setup =
-      makeEditorPlaytestSetup(documentWithStarts(), {0.5F, 0.5F, 0});
+      makeEditorPlaytestSetup(documentWithStarts(), {}, {0.5F, 0.5F, 0});
 
   REQUIRE(setup.player_count == 1);
   REQUIRE(setup.seed == EDITOR_PLAYTEST_SEED);
@@ -72,7 +72,7 @@ TEST_CASE("a level with no start for player 1 spawns under the camera") {
   document.player_starts.push_back(makeEditorPlayerStart(3, {9.5F, 9.5F, 0}));
 
   const game::GameSetup setup =
-      makeEditorPlaytestSetup(document, {7.5F, -1.5F, 0});
+      makeEditorPlaytestSetup(document, {}, {7.5F, -1.5F, 0});
 
   REQUIRE(setup.spawns[0].x == 7.5F);
   REQUIRE(setup.spawns[0].y == -1.5F);
@@ -157,7 +157,7 @@ TEST_CASE("a player is drawn between where the last tick found and left it") {
 
 TEST_CASE("a playtest's replay reproduces it in a fresh world") {
   EditorDocument document = documentWithStarts();
-  const game::GameSetup setup = makeEditorPlaytestSetup(document, {});
+  const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
   EditorPlaytestSession session(setup, "main");
   std::vector<EditorScriptedInput> none;
   for (uint64_t tick = 0; tick < 200; ++tick) {
@@ -190,4 +190,41 @@ TEST_CASE("a playtest's replay is written where the project keeps scratch") {
   REQUIRE(read.has_value());
   REQUIRE(read->inputs.size() == 1);
   std::filesystem::remove_all(root);
+}
+
+TEST_CASE("a playtest collides with the props that collide, and no others") {
+  EditorDocument document = documentWithStarts();
+  // Asset 0 is missing, so each prop is measured as the unit box on its
+  // tile: one at (6, 2), which is solid, and one at (8, 2), which is not.
+  EditorPlacement solid;
+  solid.position = {6.0F, 2.0F, 0.0F};
+  EditorPlacement passable = solid;
+  passable.position = {8.0F, 2.0F, 0.0F};
+  passable.collides = false;
+  document.placements = {solid, passable};
+
+  const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+
+  REQUIRE(setup.obstacles.size() == 1);
+  REQUIRE(setup.obstacles[0].min.x == Approx(6.0F));
+  REQUIRE(setup.obstacles[0].max.x == Approx(7.0F));
+  REQUIRE(setup.obstacles[0].max.z == Approx(1.0F));
+}
+
+TEST_CASE("walking right in a playtest stops at the first solid prop") {
+  EditorDocument document = documentWithStarts();
+  EditorPlacement crate;
+  crate.position = {6.0F, 2.0F, 0.0F};
+  document.placements.push_back(crate);
+  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}),
+                                "main");
+  std::vector<EditorScriptedInput> none;
+
+  for (int tick = 0; tick < 120; ++tick) {
+    session.step(pushingRight(), none);
+  }
+
+  // Player 1 starts at x 4.5 on row 2.5, in line with the crate.
+  REQUIRE(session.players().position[0].x ==
+          Approx(6.0F - game::PLAYER_RADIUS_TILES));
 }
