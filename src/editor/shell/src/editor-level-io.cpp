@@ -4,22 +4,19 @@
 #include <editor/shell/editor-level-json.h>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 namespace eng::editor {
 
-namespace {
+std::filesystem::path editorLevelPath(const std::filesystem::path& root,
+                                      std::string_view id) {
+  return projectLevelsPath(root) /
+         (std::string(id) + std::string(EDITOR_LEVEL_FILE_SUFFIX));
+}
 
-  /// File name of the one level a project has, as the format spells it:
-  /// `<id>.level.json` ([project-format.md §4]).
-  std::string levelFileName() {
-    return std::string(EDITOR_LEVEL_ID) + ".level.json";
-  }
-
-}  // namespace
-
-std::filesystem::path editorLevelPath(const std::filesystem::path& root) {
-  return projectLevelsPath(root) / levelFileName();
+std::filesystem::path editorLevelPath(const EditorShellState& state) {
+  return editorLevelPath(state.project.root, state.level_id);
 }
 
 bool editorLevelExists(const EditorShellState& state) {
@@ -28,7 +25,7 @@ bool editorLevelExists(const EditorShellState& state) {
   }
   std::error_code ec;
   const bool present =
-      std::filesystem::is_regular_file(editorLevelPath(state.project.root), ec);
+      std::filesystem::is_regular_file(editorLevelPath(state), ec);
   return present && !ec;
 }
 
@@ -37,9 +34,16 @@ bool saveEditorLevel(const EditorShellState& state) {
     return false;
   }
   return writeProjectTextFile(
-      editorLevelPath(state.project.root),
-      serializeEditorLevel(state.document, state.assets,
-                           state.project.metadata.name));
+      editorLevelPath(state),
+      serializeEditorLevel(state.document, state.assets, state.level_id));
+}
+
+bool createEditorLevelFile(const std::filesystem::path& root,
+                           std::string_view id) {
+  // An empty asset list, because an empty level names no asset: the props
+  // that would need one are exactly what this file does not have yet.
+  return writeProjectTextFile(editorLevelPath(root, id),
+                              serializeEditorLevel({}, {}, id));
 }
 
 std::optional<EditorLevelLoad> loadEditorLevel(const EditorShellState& state) {
@@ -47,7 +51,7 @@ std::optional<EditorLevelLoad> loadEditorLevel(const EditorShellState& state) {
     return std::nullopt;
   }
   const std::optional<std::string> text =
-      readProjectTextFile(editorLevelPath(state.project.root));
+      readProjectTextFile(editorLevelPath(state));
   if (!text) {
     return std::nullopt;
   }

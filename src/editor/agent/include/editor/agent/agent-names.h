@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <editor/shell/editor-action-kind.h>
 #include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-property-field.h>
@@ -45,6 +46,7 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "open_project",
     "save",
     "save_as",
+    "new_level",
     "close_project",
     "exit",
     "undo",
@@ -144,6 +146,24 @@ agentThumbnailStateName(EditorAssetThumbnailState state) {
       return "failed";
   }
   return "pending";
+}
+
+/// Wire name of what a level switch does about unwritten edits.
+[[nodiscard]] constexpr std::string_view
+agentLevelUnsavedName(EditorLevelUnsaved unsaved) {
+  return unsaved == EditorLevelUnsaved::REFUSE ? "refuse" : "discard";
+}
+
+/// The unsaved-edit policy called @p name, or nothing when none is.
+[[nodiscard]] constexpr std::optional<EditorLevelUnsaved>
+findAgentLevelUnsaved(std::string_view name) {
+  if (name == agentLevelUnsavedName(EditorLevelUnsaved::REFUSE)) {
+    return EditorLevelUnsaved::REFUSE;
+  }
+  if (name == agentLevelUnsavedName(EditorLevelUnsaved::DISCARD)) {
+    return EditorLevelUnsaved::DISCARD;
+  }
+  return std::nullopt;
 }
 
 /// The property field called @p name, or nothing when none is.

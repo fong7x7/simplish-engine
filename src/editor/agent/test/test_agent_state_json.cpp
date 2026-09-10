@@ -234,3 +234,28 @@ TEST_CASE("the level of a closed project names no path") {
   REQUIRE(level.at("project_open") == false);
   REQUIRE(level.at("path") == "");
 }
+
+TEST_CASE("list_levels names every level and which one is open") {
+  EditorShellState state;
+  state.project.loaded = true;
+  state.level_id = "roof";
+  state.levels.push_back({"main", true});
+  state.levels.push_back({"roof", false});
+
+  const json levels = json::parse(agentLevelsJson(state));
+
+  REQUIRE(levels.at("open") == "roof");
+  REQUIRE(levels.at("levels").size() == 2);
+  REQUIRE(levels.at("levels")[0].at("id") == "main");
+  REQUIRE(levels.at("levels")[0].at("on_disk") == true);
+  REQUIRE(levels.at("levels")[0].at("open") == false);
+  REQUIRE(levels.at("levels")[1].at("open") == true);
+}
+
+TEST_CASE("get_level reports the level being edited, not a fixed one") {
+  EditorShellState state;
+  state.project.loaded = true;
+  state.level_id = "transit_station";
+
+  REQUIRE(json::parse(agentLevelJson(state)).at("id") == "transit_station");
+}

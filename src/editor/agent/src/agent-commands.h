@@ -59,4 +59,12 @@ namespace eng::editor {
 /// Ask the editor to rescan the open project's assets.
 [[nodiscard]] AgentResult runAgentRescanAssets(const EditorShellState& state);
 
+/// Ask the editor to add a level to the open project and edit it.
+[[nodiscard]] AgentResult runAgentCreateLevel(const EditorShellState& state,
+                                              const nlohmann::json& params);
+
+/// Ask the editor to edit another of the project's levels.
+[[nodiscard]] AgentResult runAgentOpenLevel(const EditorShellState& state,
+                                            const nlohmann::json& params);
+
 }  // namespace eng::editor

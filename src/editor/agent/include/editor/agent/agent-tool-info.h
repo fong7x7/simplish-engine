@@ -127,6 +127,28 @@ inline constexpr AgentParam AGENT_PARAMS_RUN_COMMAND[] = {
      "list marks disabled is refused rather than run."},
 };
 
+/// `create_level` and `open_level` share what they take, because the
+/// second question — what happens to unwritten edits — is the same one.
+inline constexpr AgentParam AGENT_PARAMS_CREATE_LEVEL[] = {
+    {"id", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "Level id: lowercase letters, digits and underscores, starting with a "
+     "letter. It becomes the file name and the name generated code uses, "
+     "so it is fixed once created."},
+    {"unsaved", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"refuse\" (the default) to be told no when the open level has "
+     "edits that are not in its file, or \"discard\" to throw those edits "
+     "away and switch anyway. Save first with run_command and \"save\" to "
+     "keep them."},
+};
+
+/// `open_level` names a level the project already holds.
+inline constexpr AgentParam AGENT_PARAMS_OPEN_LEVEL[] = {
+    {"id", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "Level id as `list_levels` reports it."},
+    {"unsaved", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"refuse\" (the default) or \"discard\", as create_level takes."},
+};
+
 /// `open_project` points the editor at a directory.
 inline constexpr AgentParam AGENT_PARAMS_OPEN_PROJECT[] = {
     {"path", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -221,6 +243,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "the command \"save\", which is the same thing File > Save does.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_LEVELS,
+     "list_levels",
+     "Every level the open project holds, by id, with which one is being "
+     "edited and whether each has a file on disk yet. A level is a whole "
+     "document: opening another replaces the placements, the lights, the "
+     "selection and the undo history.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::LIST_COMMANDS,
      "list_commands",
      "Every menu command, its label, its keyboard shortcut, and whether it "
@@ -284,6 +314,18 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "every placement and every action names.",
      AgentToolEffect::HOST,
      {}},
+    {AgentTool::CREATE_LEVEL, "create_level",
+     "Add an empty level to the open project and start editing it, as "
+     "Level > New Level does. The level's file is written before the "
+     "switch, so it is one list_levels reports even if nothing is placed "
+     "in it.",
+     AgentToolEffect::HOST, AGENT_PARAMS_CREATE_LEVEL},
+    {AgentTool::OPEN_LEVEL, "open_level",
+     "Edit another of the open project's levels. Everything the editor "
+     "holds belongs to the level being closed — placements, lights, "
+     "selection, undo history — so all of it is replaced by what the new "
+     "level's file holds.",
+     AgentToolEffect::HOST, AGENT_PARAMS_OPEN_LEVEL},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

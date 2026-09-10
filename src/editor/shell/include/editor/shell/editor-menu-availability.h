@@ -20,6 +20,7 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::NEW_PROJECT,
     EditorMenuCommand::OPEN_PROJECT,
     EditorMenuCommand::SAVE,
+    EditorMenuCommand::NEW_LEVEL,
     EditorMenuCommand::CLOSE_PROJECT,
     EditorMenuCommand::EXIT,
     EditorMenuCommand::UNDO,

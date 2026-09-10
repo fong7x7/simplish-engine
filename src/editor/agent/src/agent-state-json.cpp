@@ -237,7 +237,7 @@ std::string agentStateJson(const EditorShellState& state) {
 
 std::string agentLevelJson(const EditorShellState& state) {
   const bool loaded = state.project.loaded;
-  json out = {{"id", EDITOR_LEVEL_ID},
+  json out = {{"id", state.level_id},
               {"project_open", loaded},
               {"on_disk", editorLevelExists(state)},
               {"readable", state.level_readable},
@@ -246,9 +246,18 @@ std::string agentLevelJson(const EditorShellState& state) {
               {"light_count", state.document.lights.size()}};
   // Only where there is a project to be relative to; an absolute path made
   // from an empty root would name the working directory, not a level.
-  out["path"] =
-      loaded ? editorLevelPath(state.project.root).generic_string() : "";
+  out["path"] = loaded ? editorLevelPath(state).generic_string() : "";
   return out.dump(2);
+}
+
+std::string agentLevelsJson(const EditorShellState& state) {
+  json levels = json::array();
+  for (const EditorLevelEntry& level : state.levels) {
+    levels.push_back({{"id", level.id},
+                      {"on_disk", level.on_disk},
+                      {"open", level.id == state.level_id}});
+  }
+  return json{{"levels", std::move(levels)}, {"open", state.level_id}}.dump(2);
 }
 
 std::string agentAssetsJson(const EditorShellState& state) {

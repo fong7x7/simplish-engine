@@ -44,11 +44,22 @@ puzzled over.
 | Close a project | ✅ | `run_command` (`close_project`) | |
 | Recent projects list | ✅ | ❌ | Reachable from the menu, not from the API. Add `list_recent` when something needs it |
 | Read the open project | ✅ | `get_state` | Name, root, and whether one is open |
-| Save a level | 🚧 | `run_command` (`save`) | Props and lights only, to `content/levels/main.level.json`; `Ctrl`/`Cmd`+S runs the same command. Tiles, entities and regions wait on the tools that author them — [project-format.md §4.1](project-format.md#41-what-the-editor-writes-today) |
+| Save a level | 🚧 | `run_command` (`save`) | Props and lights only, to `content/levels/<id>.level.json`; `Ctrl`/`Cmd`+S runs the same command. Tiles, entities and regions wait on the tools that author them — [project-format.md §4.1](project-format.md#41-what-the-editor-writes-today) |
 | Load a level when a project opens | 🚧 | `open_project`, `list_placements`, `list_lights` | Read after the assets are scanned, so a prop binds by asset id; a prop whose asset is gone is dropped and counted |
 | See whether the level has unsaved changes | ✅ | `get_level`, `get_state` | The project's name carries a trailing asterisk in the title bar and toolbar while it does |
 | See where the level is written, and whether one is there | ✅ | `get_level` | Also whether the file could be read; a file that would not parse is not saved over |
-| Save under another name | ❌ | ❌ | One level per project, so there is nothing to name. Listed in the menu, disabled |
+| Save under another name | ❌ | ❌ | Nothing writes a level to a chosen path; a new level is created and edited instead. Listed in the menu, disabled |
+
+## 2.1 Levels
+
+| Capability | In the editor | Agent | Notes |
+|---|---|---|---|
+| List the project's levels | ✅ | `list_levels` | The Level menu lists them in id order and marks the one being edited. A level exists once its file does, so a level nothing has saved into is listed only while it is the open one |
+| Create a level | ✅ | `create_level` | Level > New Level asks for a name and turns it into an id (`Transit Station` → `transit_station`); the file is written before the switch, so a level that could not be written is not one the editor is left in |
+| Switch level | ✅ | `open_level` | Replaces the document, the selection and the undo history together — they all describe the level being closed |
+| Keep unwritten edits from being lost | ✅ | `create_level`, `open_level` (`unsaved`) | The menu refuses the switch and says so; an agent has to pass `"unsaved": "discard"` in as many words |
+| See which level is open | ✅ | `get_level`, `list_levels` | Also on the title bar and the toolbar, after the project's name |
+| Rename or delete a level | ❌ | ❌ | An id is a reference every other content file will use ([project-format.md §3](project-format.md#3-conventions-common-to-every-file)), so renaming is a refactor across the project rather than a file move. Deleting is a filesystem operation with no undo behind it yet |
 
 ## 3. Assets
 

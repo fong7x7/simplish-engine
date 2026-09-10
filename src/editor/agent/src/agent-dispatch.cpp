@@ -57,6 +57,10 @@ namespace {
     return agentOk(agentLevelJson(state));
   }
 
+  AgentResult toolListLevels(EditorShellState& state, const json&) {
+    return agentOk(agentLevelsJson(state));
+  }
+
   AgentResult toolListCommands(EditorShellState& state, const json&) {
     return agentOk(agentCommandsJson(state));
   }
@@ -81,6 +85,14 @@ namespace {
     return runAgentRescanAssets(state);
   }
 
+  AgentResult toolCreateLevel(EditorShellState& state, const json& params) {
+    return runAgentCreateLevel(state, params);
+  }
+
+  AgentResult toolOpenLevel(EditorShellState& state, const json& params) {
+    return runAgentOpenLevel(state, params);
+  }
+
   /// What answers each tool, in `AgentTool` order.
   ///
   /// A table rather than a switch, for the reason `EDITOR_PROPERTY_TRAITS`
@@ -88,18 +100,15 @@ namespace {
   /// the assertion below catches the tool added to the enum without an
   /// answer here.
   constexpr AgentToolFn AGENT_TOOL_FNS[] = {
-      toolDescribe,      toolGetState,
-      toolListAssets,    runAgentGetAsset,
-      toolListFolders,   toolListPlacements,
-      toolListLights,    toolGetSelection,
-      toolGetHistory,    toolGetLevel,
-      toolListCommands,  runAgentPlaceAsset,
-      runAgentAddLight,  runAgentSetProperty,
-      runAgentTranslate, runAgentDelete,
-      runAgentSelect,    runAgentSetTool,
-      toolRunCommand,    toolUndo,
-      toolRedo,          toolOpenProject,
-      toolRescanAssets,
+      toolDescribe,       toolGetState,     toolListAssets,
+      runAgentGetAsset,   toolListFolders,  toolListPlacements,
+      toolListLights,     toolGetSelection, toolGetHistory,
+      toolGetLevel,       toolListLevels,   toolListCommands,
+      runAgentPlaceAsset, runAgentAddLight, runAgentSetProperty,
+      runAgentTranslate,  runAgentDelete,   runAgentSelect,
+      runAgentSetTool,    toolRunCommand,   toolUndo,
+      toolRedo,           toolOpenProject,  toolRescanAssets,
+      toolCreateLevel,    toolOpenLevel,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

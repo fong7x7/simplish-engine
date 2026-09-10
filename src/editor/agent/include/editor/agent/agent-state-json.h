@@ -40,6 +40,9 @@ namespace eng::editor {
 /// The level file behind the document, and whether the two agree.
 [[nodiscard]] std::string agentLevelJson(const EditorShellState& state);
 
+/// Every level the open project holds, and which one is being edited.
+[[nodiscard]] std::string agentLevelsJson(const EditorShellState& state);
+
 /// Every menu command, and whether it would do anything right now.
 [[nodiscard]] std::string agentCommandsJson(const EditorShellState& state);
 

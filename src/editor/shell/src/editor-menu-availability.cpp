@@ -4,6 +4,20 @@
 
 namespace eng::editor {
 
+namespace {
+
+  /// The rows that write into the open project's own directory, and so
+  /// have nowhere to go until one is open.
+  bool needsOpenProject(EditorMenuCommand command) {
+    return command == EditorMenuCommand::CLOSE_PROJECT ||
+           command == EditorMenuCommand::SAVE ||
+           command == EditorMenuCommand::NEW_LEVEL ||
+           command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
+           command == EditorMenuCommand::SET_VIEW_ISOMETRIC;
+  }
+
+}  // namespace
+
 bool editorMenuCommandImplemented(EditorMenuCommand command) {
   return std::find(std::begin(EDITOR_IMPLEMENTED_COMMANDS),
                    std::end(EDITOR_IMPLEMENTED_COMMANDS),
@@ -14,12 +28,7 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
                               EditorMenuCommand command) {
   // The state-dependent rows first: each is built, and each would still do
   // nothing if it were live right now.
-  if (command == EditorMenuCommand::CLOSE_PROJECT ||
-      command == EditorMenuCommand::SAVE ||
-      command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
-      command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
-    // Saving and switching projection both write into the project's own
-    // directory, so with no project open there is nowhere for either to go.
+  if (needsOpenProject(command)) {
     return state.project.loaded;
   }
   if (command == EditorMenuCommand::UNDO) {

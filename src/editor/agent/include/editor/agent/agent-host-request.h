@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <editor/agent/agent-host-request-kind.h>
+#include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-command.h>
 #include <string>
 
@@ -24,6 +25,13 @@ struct AgentHostRequest {
   EditorMenuCommand command = EditorMenuCommand::SEPARATOR;
   /// The project directory to open, meaningful only for `OPEN_PROJECT`.
   std::string path;
+  /// The level id to create or open, meaningful only for `CREATE_LEVEL`
+  /// and `OPEN_LEVEL`.
+  std::string level;
+  /// What those two do about edits the open level has not written. The
+  /// tool has already refused the call when this is `REFUSE` and there are
+  /// any, so by the time the editor reads it the answer is settled.
+  EditorLevelUnsaved unsaved = EditorLevelUnsaved::REFUSE;
 };
 
 }  // namespace eng::editor

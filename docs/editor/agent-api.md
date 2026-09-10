@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Twenty-three, in three groups. `GET /tools` is authoritative and carries
+Twenty-six, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -164,6 +164,7 @@ each one's parameters; this table is the map.
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
+| `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
 
 ### Editing
@@ -186,9 +187,16 @@ each one's parameters; this table is the map.
 | `run_command` | Runs a menu command — camera, grid, close project, quit |
 | `open_project` | Opens the project in a directory |
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
+| `create_level` | Adds an empty level to the project and starts editing it |
+| `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
 
 ### Conventions worth knowing before calling one
 
+- **Levels.** A level is a whole document. `create_level` and `open_level`
+  replace the placements, the lights, the selection and the undo history in
+  one go, and both refuse outright while the open level holds edits its file
+  does not have. Pass `"unsaved": "discard"` to lose them deliberately, or
+  `run_command` with `save` first to keep them.
 - **Axes.** Zero yaw, so **+X is right across the screen**, +Y runs away
   from the camera (down-screen), +Z is straight up. One unit is one tile.
   The manifest repeats this under `axes`.

@@ -24,8 +24,15 @@ inline constexpr std::string_view EDITOR_APP_TITLE = "Simplish Editor";
 /// `Demo*` reads as a project called that.
 inline constexpr std::string_view EDITOR_UNSAVED_MARK = " *";
 
-/// The open project's name as the toolbar shows it, or
-/// `EDITOR_NO_PROJECT_NAME` when none is open.
+/// What separates the project's name from the level being edited.
+///
+/// The level is on the name rather than beside it because there is one
+/// strip to put it in: a project holding several levels makes "which one am
+/// I in" a question the chrome has to answer without being asked.
+inline constexpr std::string_view EDITOR_LEVEL_SEPARATOR = " / ";
+
+/// The open project and level as the toolbar shows them, or
+/// `EDITOR_NO_PROJECT_NAME` when no project is open.
 [[nodiscard]] std::string
 editorProjectDisplayName(const EditorShellState& state);
 

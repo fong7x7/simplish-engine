@@ -16,6 +16,8 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-json.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-list.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-light-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"

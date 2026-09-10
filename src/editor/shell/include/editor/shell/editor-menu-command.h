@@ -11,10 +11,10 @@ namespace eng::editor {
 
 /// Every command reachable from the menu bar.
 ///
-/// Some of these name work that does not exist yet (there is one level per
-/// project, so nothing to save *as*; no clipboard, so nothing to paste).
-/// They are listed anyway and rendered disabled, so the menu shows the
-/// shape of the editor rather than only the parts that happen to be built.
+/// Some of these name work that does not exist yet — no clipboard, so
+/// nothing to paste. They are listed anyway and rendered disabled, so the
+/// menu shows the shape of the editor rather than only the parts that
+/// happen to be built.
 /// @thread_safety Immutable value type.
 enum class EditorMenuCommand : uint8_t {
   /// Layout marker: draws a divider row and is never dispatched.
@@ -27,6 +27,8 @@ enum class EditorMenuCommand : uint8_t {
   SAVE,
   /// Write the open document to a new path.
   SAVE_AS,
+  /// Create a level in the open project and open it.
+  NEW_LEVEL,
   /// Close the open project, leaving the editor with none.
   CLOSE_PROJECT,
   /// Quit the editor.
@@ -89,6 +91,7 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SAVE, "Save", "Ctrl+S"},
 #endif
     {EditorMenuCommand::SAVE_AS, "Save As...", ""},
+    {EditorMenuCommand::NEW_LEVEL, "New Level...", ""},
     {EditorMenuCommand::CLOSE_PROJECT, "Close Project", ""},
     {EditorMenuCommand::EXIT, "Exit", ""},
 // Both Control and Command work on every platform — the handler accepts

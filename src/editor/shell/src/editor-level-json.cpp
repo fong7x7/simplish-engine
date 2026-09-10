@@ -222,14 +222,14 @@ namespace {
 
 std::string serializeEditorLevel(const EditorDocument& document,
                                  const std::vector<EditorAsset>& assets,
-                                 std::string_view name) {
+                                 std::string_view id) {
   json content;
   content["props"] = propsJson(document, assets);
   content["lights"] = lightsJson(document);
   json out;
   out["schema"] = EDITOR_LEVEL_SCHEMA;
-  out["id"] = EDITOR_LEVEL_ID;
-  out["name"] = std::string(name);
+  out["id"] = std::string(id);
+  out["name"] = std::string(id);
   out["content"] = std::move(content);
   return out.dump(2);
 }

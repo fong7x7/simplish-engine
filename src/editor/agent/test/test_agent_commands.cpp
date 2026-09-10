@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/agent/agent-dispatch.h>
 #include <editor/agent/agent-state-json.h>
+#include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -374,4 +375,77 @@ TEST_CASE("a removal is reported in the history under its own name") {
 
   REQUIRE(history.at("actions").size() == 2);
   REQUIRE(history.at("actions")[1].at("kind") == "remove_light");
+}
+
+TEST_CASE("creating a level queues the work and names the level") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const AgentResult result =
+      runAgentTool(state, "create_level", R"({"id": "roof"})");
+
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.kind == AgentHostRequestKind::CREATE_LEVEL);
+  REQUIRE(result.host.level == "roof");
+  // The default is the careful one: an agent that wants the open level's
+  // unwritten edits thrown away has to say so.
+  REQUIRE(result.host.unsaved == EditorLevelUnsaved::REFUSE);
+}
+
+TEST_CASE("a level id the format would not take is a bad parameter") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const AgentResult result =
+      runAgentTool(state, "create_level", R"({"id": "Roof Top"})");
+
+  REQUIRE(result.status == AgentStatus::BAD_PARAMS);
+  REQUIRE(result.host.kind == AgentHostRequestKind::NONE);
+}
+
+TEST_CASE("opening a level the project has not got is not found") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  REQUIRE(runAgentTool(state, "open_level", R"({"id": "roof"})").status ==
+          AgentStatus::NOT_FOUND);
+}
+
+TEST_CASE("a level tool with no project open is unavailable") {
+  EditorShellState state;
+
+  REQUIRE(runAgentTool(state, "create_level", R"({"id": "roof"})").status ==
+          AgentStatus::UNAVAILABLE);
+  REQUIRE(runAgentTool(state, "open_level", R"({"id": "main"})").status ==
+          AgentStatus::UNAVAILABLE);
+}
+
+TEST_CASE("the unsaved policy is a word, and only the two it may be") {
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const AgentResult discard = runAgentTool(
+      state, "create_level", R"({"id": "roof", "unsaved": "discard"})");
+  REQUIRE(discard.status == AgentStatus::OK);
+  REQUIRE(discard.host.unsaved == EditorLevelUnsaved::DISCARD);
+
+  REQUIRE(runAgentTool(state, "create_level",
+                       R"({"id": "roof", "unsaved": "maybe"})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(runAgentTool(state, "create_level", R"({"id": "roof", "unsaved": 1})")
+              .status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("unwritten edits stop a level switch before it is queued") {
+  EditorShellState state;
+  state.project.loaded = true;
+  state.levels.push_back({"roof", true});
+  performEditorAction(state.history, state.document,
+                      {.kind = EditorActionKind::PLACE_ASSET, .index = 0});
+
+  const AgentResult refused =
+      runAgentTool(state, "create_level", R"({"id": "roof"})");
+
+  REQUIRE(refused.status == AgentStatus::UNAVAILABLE);
+  REQUIRE(refused.host.kind == AgentHostRequestKind::NONE);
 }

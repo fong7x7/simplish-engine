@@ -3,7 +3,8 @@
 // Design Summary -- EditorMenuBarWidget
 //
 // Behaviours:
-//   - Strip of menu titles (File, Edit, View, Help) below the title bar
+//   - Strip of menu titles (File, Edit, Level, View, Help) below the title
+//     bar
 //   - Clicking a title opens its dropdown; clicking it again closes it
 //   - With a menu open, moving onto another title switches to that menu
 //   - Choosing a row raises on_command and closes the menu; rows whose
@@ -11,6 +12,8 @@
 //   - Undo and Redo are enabled only while the action history has something
 //     for them to do, which the editor pushes in with setHistory()
 //   - The File menu lists recent projects, which raise on_open_recent
+//   - The Level menu lists the open project's levels, with a mark on the
+//     one being edited; choosing another raises on_open_level
 //   - The View menu's two projection rows carry a mark on whichever one the
 //     open project is using, and are disabled until one is open
 //
@@ -21,6 +24,10 @@
 //     scrim that is only visible while a menu is open
 //   - Empty recent-projects list: the recent rows and their separator are
 //     omitted rather than shown empty
+//   - No project open: there are no level rows, so the Level menu is its
+//     one disabled New Level row
+//   - A project holding more levels than the menu shows lists the first
+//     LEVEL_MENU_MAX of them; a level browser panel is what removes the cap
 //
 // Invariants:
 //   - Dropdowns and the scrim are siblings of this widget, not children.
@@ -38,6 +45,7 @@
 #include <editor/project/project-projection.h>
 #include <editor/project/recent-projects-list.h>
 #include <editor/shell/editor-action-history.h>
+#include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-menu-command.h>
 #include <engine/gui/gui-dropdown.h>
 #include <engine/gui/gui-panel.h>
@@ -110,6 +118,14 @@ public:
   /// Replace the recent-projects rows in the File menu.
   void setRecentProjects(const RecentProjectsList& recent);
 
+  /// Replace the Level menu's rows with @p levels, marking @p current.
+  ///
+  /// A no-op when neither has changed: this is called after every edit, on
+  /// the same path that pushes the undo history in, and rebuilding the
+  /// menus each time would throw away a hovered row for nothing.
+  void setLevels(const std::vector<EditorLevelEntry>& levels,
+                 std::string_view current);
+
   /// Enable or disable the rows that need an open project.
   void setProjectPresence(EditorProjectPresence presence);
 
@@ -128,6 +144,10 @@ public:
 
   /// Raised when a recent-project row is chosen, with that project's path.
   std::function<void(std::string_view)> on_open_recent{};
+
+  /// Raised when a level row is chosen, with that level's id. Never called
+  /// for the level already being edited.
+  std::function<void(std::string_view)> on_open_level{};
 
 private:
   /// One title and the dropdown it opens.
@@ -154,12 +174,19 @@ private:
   void rebuildItems(GuiWidgetTree& tree);
   /// Fill the dropdown for the menu at @p index with its rows.
   void buildItems(GuiWidgetTree& tree, size_t index);
+  /// Append the menu at @p index's rows, dynamic blocks included, to an
+  /// already-emptied @p menu.
+  void buildRows(GuiDropdown& menu, size_t index);
   /// Append one command row to @p menu, disabled when unimplemented.
   void appendCommand(GuiDropdown& menu, EditorMenuCommand command);
   /// Append the recent-project rows to the File menu's dropdown.
   void appendRecentItems(GuiDropdown& menu);
   /// Append one recent-project row.
   void appendRecentItem(GuiDropdown& menu, const RecentProjectEntry& entry);
+  /// Append the level rows to the Level menu's dropdown.
+  void appendLevelItems(GuiDropdown& menu);
+  /// Append one level row, marked when it is the one being edited.
+  void appendLevelItem(GuiDropdown& menu, const EditorLevelEntry& level);
   /// Size and place the dropdown at @p index under its title button.
   void placeDropdown(GuiWidgetTree& tree, size_t index);
   /// Ask for @p index to be open after the next tick. Click handlers cannot
@@ -185,6 +212,10 @@ private:
   bool request_pending_ = false;
   /// Recent projects mirrored into the File menu.
   RecentProjectsList recent_{};
+  /// The open project's levels, mirrored into the Level menu.
+  std::vector<EditorLevelEntry> levels_{};
+  /// Id of the level being edited, which is the marked row.
+  std::string current_level_{};
   /// Whether a project is open, which gates some rows.
   EditorProjectPresence project_ = EditorProjectPresence::NONE;
   /// The open project's projection, mirrored so its row shows a mark.

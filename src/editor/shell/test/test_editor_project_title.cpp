@@ -25,16 +25,26 @@ void placeSomething(EditorShellState& state) {
 TEST_CASE("a project with nothing to save is named plainly") {
   const EditorShellState state = openProjectState();
 
-  REQUIRE(editorProjectDisplayName(state) == "Transit Station");
-  REQUIRE(editorProjectTitle(state) == "Simplish Editor — Transit Station");
+  REQUIRE(editorProjectDisplayName(state) == "Transit Station / main");
+  REQUIRE(editorProjectTitle(state) ==
+          "Simplish Editor — Transit Station / main");
+}
+
+TEST_CASE("the name says which level is being edited") {
+  EditorShellState state = openProjectState();
+  state.level_id = "transit_station";
+
+  REQUIRE(editorProjectDisplayName(state) ==
+          "Transit Station / transit_station");
 }
 
 TEST_CASE("an unwritten edit marks the name with an asterisk") {
   EditorShellState state = openProjectState();
   placeSomething(state);
 
-  REQUIRE(editorProjectDisplayName(state) == "Transit Station *");
-  REQUIRE(editorProjectTitle(state) == "Simplish Editor — Transit Station *");
+  REQUIRE(editorProjectDisplayName(state) == "Transit Station / main *");
+  REQUIRE(editorProjectTitle(state) ==
+          "Simplish Editor — Transit Station / main *");
 }
 
 TEST_CASE("saving takes the asterisk away again") {
@@ -42,7 +52,7 @@ TEST_CASE("saving takes the asterisk away again") {
   placeSomething(state);
   markEditorChangesSaved(state.history);
 
-  REQUIRE(editorProjectDisplayName(state) == "Transit Station");
+  REQUIRE(editorProjectDisplayName(state) == "Transit Station / main");
 }
 
 TEST_CASE("with no project open there is no name to mark") {

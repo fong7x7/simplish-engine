@@ -11,10 +11,10 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - [docs/editor/REQUIREMENTS.md](../../docs/editor/REQUIREMENTS.md) — what the
   editor must do, and its §1 *Current State* for what is actually built.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
-  on-disk format. Two files exist today: `.simplish/project.json`, and
-  `content/levels/main.level.json`, which carries the props and lights the
-  editor authors (§4.1 — it differs from §4's sketch in two documented
-  ways). Tiles, entities, regions, encounters, scenarios, and data tables
+  on-disk format. Two kinds of file exist today: `.simplish/project.json`,
+  and `content/levels/<id>.level.json` — one per level, carrying the props
+  and lights the editor authors (§4.1 — it differs from §4's sketch in two
+  documented ways). Tiles, entities, regions, encounters, scenarios, and data tables
   are specified but unwritten.
 - [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,
   and §6's checklist. **Read it before adding a tool, a panel, or a menu
@@ -78,9 +78,14 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - **`applyProjectToChrome` reloads the project's assets** — and so drops the
   document and re-reads the level. Never call it to refresh something small;
   `applyProjectNameToChrome` is the narrow one.
-- **The editor authors one level per project**, `main`, so its id is a
-  constant rather than a setting. A level browser is what makes that a
-  choice; until then Save As stays disabled rather than pretending.
+- **A project holds many levels, and the open one is `EditorShellState::level_id`.**
+  `main` is where a new project starts and the fallback an opened one takes,
+  not a constant. A level exists once its file does, so New Level writes the
+  file before switching to it. Switching level replaces the document, the
+  selection and the undo history together — all three describe the level
+  being closed — and is refused outright when the open level holds unwritten
+  edits, unless the caller asks for `EditorLevelUnsaved::DISCARD`. Save As
+  stays disabled: nothing writes a level to a chosen path.
 - **The recent-projects list is written outside the checkout** when the
   platform offers a user data directory. `data/editor/recent-projects.json` is
   gitignored on purpose — it belongs to whoever runs the editor.

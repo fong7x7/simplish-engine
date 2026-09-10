@@ -7,7 +7,9 @@
 #include <engine/gui/gui-color.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace eng::editor {
 
@@ -31,9 +33,12 @@ namespace {
   constexpr size_t RECENT_MENU_MAX = 5;
   /// Longest recent-project name shown before it is elided.
   constexpr size_t RECENT_LABEL_MAX = 26;
+  /// Levels offered in the Level menu. A project with more of them than
+  /// this wants the browser panel, not a dropdown reaching off the screen.
+  constexpr size_t LEVEL_MENU_MAX = 12;
 
-  /// Sentinel for "this menu has no recent-projects block".
-  constexpr size_t NO_RECENT_BLOCK = static_cast<size_t>(-1);
+  /// Sentinel for "this menu has no block of that kind spliced in".
+  constexpr size_t NO_BLOCK = static_cast<size_t>(-1);
 
   /// One menu's title and the rows under it.
   struct MenuSpec {
@@ -45,6 +50,8 @@ namespace {
     size_t count;
     /// Row index after which the recent-projects block is spliced in.
     size_t recent_after;
+    /// Row index after which the level rows are spliced in.
+    size_t levels_after;
   };
 
   constexpr EditorMenuCommand FILE_ROWS[] = {
@@ -78,15 +85,19 @@ namespace {
       EditorMenuCommand::SET_VIEW_ISOMETRIC,
   };
 
+  constexpr EditorMenuCommand LEVEL_ROWS[] = {EditorMenuCommand::NEW_LEVEL};
+
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
 
   /// The menu bar, left to right. Recent projects follow "Open Project..."
-  /// in the File menu, which is where every editor puts them.
+  /// in the File menu, which is where every editor puts them, and the
+  /// project's levels follow "New Level..." for the same reason.
   constexpr MenuSpec MENU_SPECS[] = {
-      {"File", FILE_ROWS, std::size(FILE_ROWS), 1},
-      {"Edit", EDIT_ROWS, std::size(EDIT_ROWS), NO_RECENT_BLOCK},
-      {"View", VIEW_ROWS, std::size(VIEW_ROWS), NO_RECENT_BLOCK},
-      {"Help", HELP_ROWS, std::size(HELP_ROWS), NO_RECENT_BLOCK},
+      {"File", FILE_ROWS, std::size(FILE_ROWS), 1, NO_BLOCK},
+      {"Edit", EDIT_ROWS, std::size(EDIT_ROWS), NO_BLOCK, NO_BLOCK},
+      {"Level", LEVEL_ROWS, std::size(LEVEL_ROWS), NO_BLOCK, 0},
+      {"View", VIEW_ROWS, std::size(VIEW_ROWS), NO_BLOCK, NO_BLOCK},
+      {"Help", HELP_ROWS, std::size(HELP_ROWS), NO_BLOCK, NO_BLOCK},
   };
 
   GuiButtonStyle titleStyle() {
@@ -96,6 +107,15 @@ namespace {
   GuiDropdownStyle menuStyle() {
     return {THEME_PANEL, THEME_TEXT, THEME_ACCENT, MENU_WIDTH,
             MENU_ITEM_HEIGHT};
+  }
+
+  /// Whether two level lists name the same levels in the same order.
+  bool sameLevelIds(const std::vector<EditorLevelEntry>& a,
+                    const std::vector<EditorLevelEntry>& b) {
+    return std::equal(a.begin(), a.end(), b.begin(), b.end(),
+                      [](const EditorLevelEntry& x, const EditorLevelEntry& y) {
+                        return x.id == y.id;
+                      });
   }
 
   /// Shorten a project name that would overrun the menu width.
@@ -246,22 +266,55 @@ void EditorMenuBarWidget::appendRecentItem(GuiDropdown& menu,
        }});
 }
 
+void EditorMenuBarWidget::appendLevelItems(GuiDropdown& menu) {
+  if (levels_.empty()) {
+    return;
+  }
+  menu.items.push_back({.separator = true});
+  const size_t shown = std::min(levels_.size(), LEVEL_MENU_MAX);
+  for (size_t i = 0; i < shown; ++i) {
+    appendLevelItem(menu, levels_[i]);
+  }
+}
+
+void EditorMenuBarWidget::appendLevelItem(GuiDropdown& menu,
+                                          const EditorLevelEntry& level) {
+  // The open one is marked and does nothing when chosen: reopening it
+  // would drop the edits in it to read the same file back.
+  const bool current = level.id == current_level_;
+  menu.items.push_back({.label = elide(level.id),
+                        .on_select =
+                            [this, id = level.id, current]() {
+                              if (on_open_level && !current) {
+                                on_open_level(id);
+                              }
+                            },
+                        .checked = current});
+}
+
 void EditorMenuBarWidget::buildItems(GuiWidgetTree& tree, size_t index) {
   auto* menu =
       dynamic_cast<GuiDropdown*>(tree.findWidget(menus_[index].dropdown));
   if (menu == nullptr) {
     return;
   }
-  const MenuSpec& spec = MENU_SPECS[index];
   menu->items.clear();
   menu->hovered_item = -1;
+  buildRows(*menu, index);
+  placeDropdown(tree, index);
+}
+
+void EditorMenuBarWidget::buildRows(GuiDropdown& menu, size_t index) {
+  const MenuSpec& spec = MENU_SPECS[index];
   for (size_t row = 0; row < spec.count; ++row) {
-    appendCommand(*menu, spec.commands[row]);
+    appendCommand(menu, spec.commands[row]);
     if (row == spec.recent_after) {
-      appendRecentItems(*menu);
+      appendRecentItems(menu);
+    }
+    if (row == spec.levels_after) {
+      appendLevelItems(menu);
     }
   }
-  placeDropdown(tree, index);
 }
 
 void EditorMenuBarWidget::rebuildItems(GuiWidgetTree& tree) {
@@ -276,6 +329,7 @@ bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   // nothing if it were live right now.
   if (command == EditorMenuCommand::CLOSE_PROJECT ||
       command == EditorMenuCommand::SAVE ||
+      command == EditorMenuCommand::NEW_LEVEL ||
       command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
       command == EditorMenuCommand::SET_VIEW_ISOMETRIC) {
     return project_ == EditorProjectPresence::OPEN;
@@ -427,6 +481,16 @@ GuiWidgetId EditorMenuBarWidget::titleButtonId(size_t index) const {
 
 void EditorMenuBarWidget::setRecentProjects(const RecentProjectsList& recent) {
   recent_ = recent;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setLevels(const std::vector<EditorLevelEntry>& levels,
+                                    std::string_view current) {
+  if (current_level_ == current && sameLevelIds(levels, levels_)) {
+    return;
+  }
+  levels_ = levels;
+  current_level_ = std::string(current);
   items_dirty_ = true;
 }
 

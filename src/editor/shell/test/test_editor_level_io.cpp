@@ -83,9 +83,9 @@ TEST_CASE("saveEditorLevel writes where the project format says") {
   REQUIRE(!editorLevelExists(state));
   REQUIRE(saveEditorLevel(state));
   REQUIRE(editorLevelExists(state));
-  REQUIRE(editorLevelPath(root) ==
+  REQUIRE(editorLevelPath(root, "main") ==
           root / "content" / "levels" / "main.level.json");
-  REQUIRE(fs::is_regular_file(editorLevelPath(root)));
+  REQUIRE(fs::is_regular_file(editorLevelPath(state)));
 }
 
 TEST_CASE("a saved prop comes back where it stood") {
@@ -140,7 +140,7 @@ TEST_CASE("an unreadable level is refused rather than half-read") {
   const EditorShellState state = stateWithProject(root);
   REQUIRE(saveEditorLevel(state));
 
-  std::ofstream out(editorLevelPath(root), std::ios::trunc);
+  std::ofstream out(editorLevelPath(state), std::ios::trunc);
   out << "{ this is not json";
   out.close();
 

@@ -43,6 +43,8 @@ enum class AgentTool : uint8_t {
   /// The level file behind the document: where it is, and whether what is
   /// on screen has been written to it.
   GET_LEVEL,
+  /// Every level the open project holds, and which one is being edited.
+  LIST_LEVELS,
   /// Every menu command, and whether it would do anything right now.
   LIST_COMMANDS,
   /// Place an asset on a tile, as dragging it from the browser would.
@@ -73,6 +75,10 @@ enum class AgentTool : uint8_t {
   OPEN_PROJECT,
   /// Rescan the open project's assets from disk.
   RESCAN_ASSETS,
+  /// Add a level to the open project and edit it.
+  CREATE_LEVEL,
+  /// Edit another of the open project's levels.
+  OPEN_LEVEL,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -81,18 +87,19 @@ enum class AgentTool : uint8_t {
 /// reading the manifest wants them in: what can be asked, then what can be
 /// changed.
 inline constexpr AgentTool AGENT_TOOLS[] = {
-    AgentTool::DESCRIBE,      AgentTool::GET_STATE,
-    AgentTool::LIST_ASSETS,   AgentTool::GET_ASSET,
-    AgentTool::LIST_FOLDERS,  AgentTool::LIST_PLACEMENTS,
-    AgentTool::LIST_LIGHTS,   AgentTool::GET_SELECTION,
-    AgentTool::GET_HISTORY,   AgentTool::GET_LEVEL,
-    AgentTool::LIST_COMMANDS, AgentTool::PLACE_ASSET,
-    AgentTool::ADD_LIGHT,     AgentTool::SET_PROPERTY,
-    AgentTool::TRANSLATE,     AgentTool::DELETE_ENTRY,
-    AgentTool::SELECT,        AgentTool::SET_TOOL,
-    AgentTool::RUN_COMMAND,   AgentTool::UNDO,
-    AgentTool::REDO,          AgentTool::OPEN_PROJECT,
-    AgentTool::RESCAN_ASSETS,
+    AgentTool::DESCRIBE,     AgentTool::GET_STATE,
+    AgentTool::LIST_ASSETS,  AgentTool::GET_ASSET,
+    AgentTool::LIST_FOLDERS, AgentTool::LIST_PLACEMENTS,
+    AgentTool::LIST_LIGHTS,  AgentTool::GET_SELECTION,
+    AgentTool::GET_HISTORY,  AgentTool::GET_LEVEL,
+    AgentTool::LIST_LEVELS,  AgentTool::LIST_COMMANDS,
+    AgentTool::PLACE_ASSET,  AgentTool::ADD_LIGHT,
+    AgentTool::SET_PROPERTY, AgentTool::TRANSLATE,
+    AgentTool::DELETE_ENTRY, AgentTool::SELECT,
+    AgentTool::SET_TOOL,     AgentTool::RUN_COMMAND,
+    AgentTool::UNDO,         AgentTool::REDO,
+    AgentTool::OPEN_PROJECT, AgentTool::RESCAN_ASSETS,
+    AgentTool::CREATE_LEVEL, AgentTool::OPEN_LEVEL,
 };
 
 }  // namespace eng::editor

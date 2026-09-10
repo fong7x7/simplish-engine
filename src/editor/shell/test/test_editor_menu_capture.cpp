@@ -101,6 +101,9 @@ struct MenuCapture {
     recent.entries.push_back({"/p/transit", "Transit Station", "2026-08-27"});
     bar()->setRecentProjects(recent);
     bar()->setProjection(projection_);
+    bar()->setLevels(
+        {{"main", true}, {"transit_station", true}, {"roof", true}},
+        "transit_station");
     bar()->layout(tree,
                   eng::makeRect(0.0f, TITLE_H, static_cast<float>(CAPTURE_W),
                                 MENU_BAR_HEIGHT),
@@ -142,8 +145,9 @@ bool matches(const std::array<uint8_t, 3>& pixel, const eng::GuiColor& color,
          near(pixel[2], color.b);
 }
 
-/// Index of the View menu, and the rows the projections sit on.
-constexpr size_t VIEW_MENU = 2;
+/// Index of the Level menu, and of the View menu after it.
+constexpr size_t LEVEL_MENU = 2;
+constexpr size_t VIEW_MENU = 3;
 
 /// Row index of the item labelled @p label in the open menu.
 int rowOf(MenuCapture& capture, std::string_view label) {
@@ -217,6 +221,21 @@ TEST_CASE("switching projection moves the mark") {
   MenuCapture capture(VIEW_MENU, ProjectProjection::DIMETRIC);
   REQUIRE(gutterMarked(capture, "Dimetric View"));
   REQUIRE_FALSE(gutterMarked(capture, "Isometric View"));
+}
+
+TEST_CASE("the Level menu marks the level being edited") {
+  MenuCapture capture(LEVEL_MENU, ProjectProjection::DIMETRIC);
+
+  REQUIRE(gutterMarked(capture, "transit_station"));
+  REQUIRE_FALSE(gutterMarked(capture, "roof"));
+}
+
+TEST_CASE("the Level menu capture can be written to PNG for inspection") {
+  MenuCapture capture(LEVEL_MENU, ProjectProjection::DIMETRIC);
+  const bool written = eng::GuiSoftwareRasterizer::writePng(
+      capture.image, "editor-level-menu-capture.png");
+  INFO("wrote editor-level-menu-capture.png: " << written);
+  SUCCEED();
 }
 
 TEST_CASE("the View menu capture can be written to PNG for inspection") {

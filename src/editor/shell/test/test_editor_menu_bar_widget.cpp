@@ -21,7 +21,8 @@ constexpr eng::Rect BAR_RECT{0.0f, 28.0f, 1280.0f, MENU_BAR_HEIGHT};
 /// Menu indices, in the order `MENU_SPECS` declares them.
 constexpr size_t FILE_MENU = 0;
 constexpr size_t EDIT_MENU = 1;
-constexpr size_t VIEW_MENU = 2;
+constexpr size_t LEVEL_MENU = 2;
+constexpr size_t VIEW_MENU = 3;
 
 /// A tree holding a window-sized root and an initialised, laid-out menu bar.
 /// No window and no GPU — this is pure widget-tree manipulation.
@@ -100,7 +101,7 @@ EditorActionHistory historyWithOnePlacement(EditorDocument& document) {
 
 TEST_CASE("the bar creates one dropdown per title, all hidden") {
   MenuFixture fx;
-  REQUIRE(fx.bar()->menuCount() == 4);
+  REQUIRE(fx.bar()->menuCount() == 5);
   REQUIRE(fx.bar()->openMenuIndex() == -1);
   for (size_t i = 0; i < fx.bar()->menuCount(); ++i) {
     REQUIRE(fx.menu(i) != nullptr);
@@ -283,6 +284,52 @@ TEST_CASE("Close Project is disabled until a project is open") {
   fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
   fx.bar()->tick(fx.tree);
   REQUIRE(closeRow());
+}
+
+TEST_CASE("the Level menu lists the project's levels and marks the open one") {
+  MenuFixture fx;
+  fx.bar()->setLevels({{"main", true}, {"transit_station", true}}, "main");
+  fx.bar()->tick(fx.tree);
+
+  const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
+  REQUIRE(rowWithLabel(levels, "New Level...") == 0);
+  REQUIRE(rowWithLabel(levels, "main") > 0);
+  REQUIRE(
+      levels.items[static_cast<size_t>(rowWithLabel(levels, "main"))].checked);
+  REQUIRE(
+      !levels
+           .items[static_cast<size_t>(rowWithLabel(levels, "transit_station"))]
+           .checked);
+}
+
+TEST_CASE(
+    "choosing another level raises its id, and the open one raises none") {
+  MenuFixture fx;
+  fx.bar()->setLevels({{"main", true}, {"transit_station", true}}, "main");
+  fx.bar()->tick(fx.tree);
+  std::string opened;
+  fx.bar()->on_open_level = [&opened](std::string_view id) {
+    opened = std::string(id);
+  };
+
+  clickTitle(fx, LEVEL_MENU);
+  clickRow(fx, LEVEL_MENU,
+           rowWithLabel(*fx.menu(LEVEL_MENU), "transit_station"));
+  REQUIRE(opened == "transit_station");
+
+  opened.clear();
+  clickTitle(fx, LEVEL_MENU);
+  clickRow(fx, LEVEL_MENU, rowWithLabel(*fx.menu(LEVEL_MENU), "main"));
+  REQUIRE(opened.empty());
+}
+
+TEST_CASE("with no project open the Level menu is its one disabled row") {
+  MenuFixture fx;
+  fx.bar()->tick(fx.tree);
+
+  const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
+  REQUIRE(levels.items.size() == 1);
+  REQUIRE(!levels.items[0].enabled);
 }
 
 TEST_CASE("the View menu offers both projections") {

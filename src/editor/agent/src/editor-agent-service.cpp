@@ -76,13 +76,19 @@ uint16_t EditorAgentService::port() const {
   return server_.port();
 }
 
-void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
-  if (editor_ == nullptr) {
-    return;
+bool EditorAgentService::runLevelRequest(const AgentHostRequest& request) {
+  if (request.kind == AgentHostRequestKind::CREATE_LEVEL) {
+    editor_->createLevel(request.level, request.unsaved);
+  } else if (request.kind == AgentHostRequestKind::OPEN_LEVEL) {
+    editor_->openLevel(request.level, request.unsaved);
+  } else {
+    return false;
   }
+  return true;
+}
+
+void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
   switch (request.kind) {
-    case AgentHostRequestKind::NONE:
-      break;
     case AgentHostRequestKind::RUN_COMMAND:
       editor_->runMenuCommand(request.command);
       break;
@@ -92,7 +98,20 @@ void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
     case AgentHostRequestKind::RESCAN_ASSETS:
       editor_->rescanAssets();
       break;
+    // Nothing to do, or already done by `runLevelRequest`. Listed rather
+    // than defaulted, so a kind added to the enum fails the build here.
+    case AgentHostRequestKind::NONE:
+    case AgentHostRequestKind::CREATE_LEVEL:
+    case AgentHostRequestKind::OPEN_LEVEL:
+      break;
   }
+}
+
+void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
+  if (editor_ == nullptr || runLevelRequest(request)) {
+    return;
+  }
+  runProjectRequest(request);
 }
 
 agent::AgentHttpResponse EditorAgentService::finish(const AgentResult& result) {

@@ -9,6 +9,8 @@ std::string editorProjectDisplayName(const EditorShellState& state) {
     return std::string(EDITOR_NO_PROJECT_NAME);
   }
   std::string name = state.project.metadata.name;
+  name += EDITOR_LEVEL_SEPARATOR;
+  name += state.level_id;
   if (hasUnsavedEditorChanges(state.history)) {
     name += EDITOR_UNSAVED_MARK;
   }

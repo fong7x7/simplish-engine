@@ -11,9 +11,11 @@ namespace eng::editor {
 /// The work a tool cannot finish against shell state alone.
 ///
 /// Most of the agent API is a pure function over `EditorShellState`, which
-/// is what makes it testable with no window and no GPU. Three things are
+/// is what makes it testable with no window and no GPU. A few things are
 /// not: the camera lives in a widget, opening a project touches the disk
-/// and the window title, and a rescan destroys and rebuilds GPU textures.
+/// and the window title, a rescan destroys and rebuilds GPU textures, and
+/// switching level uploads the new level's meshes and re-reads the panels
+/// from a document that has been replaced wholesale.
 /// Rather than drag the whole editor into the dispatcher, a tool that needs
 /// one of those leaves this behind and the editor runs it on the tick that
 /// drained the request.
@@ -27,6 +29,10 @@ enum class AgentHostRequestKind : uint8_t {
   OPEN_PROJECT,
   /// Rescan the open project's assets.
   RESCAN_ASSETS,
+  /// Create the level `AgentHostRequest::level` and edit it.
+  CREATE_LEVEL,
+  /// Edit the level `AgentHostRequest::level`.
+  OPEN_LEVEL,
 };
 
 }  // namespace eng::editor

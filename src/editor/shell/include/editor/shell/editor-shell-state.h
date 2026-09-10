@@ -10,10 +10,13 @@
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-document.h>
+#include <editor/shell/editor-level-entry.h>
+#include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
 #include <editor/shell/editor-view-state.h>
 #include <filesystem>
+#include <string>
 #include <vector>
 
 namespace eng::editor {
@@ -36,8 +39,15 @@ struct EditorShellState {
   /// those assets sit in. Both hold entry numbers, of which the assets are
   /// the first `assets.size()`.
   EditorAssetTree asset_tree;
-  /// What has been placed and what lights it. Written to the project's
-  /// level file on save and read back when one is opened — see
+  /// Which of the project's levels is open, by id. The file it is written
+  /// to is `<root>/content/levels/<level_id>.level.json`.
+  std::string level_id{EDITOR_LEVEL_ID};
+  /// Every level the project holds, by id, in id order. Refreshed from
+  /// disk when a project is opened and when a level is created, so the
+  /// menu and the agent API both read it rather than the filesystem.
+  std::vector<EditorLevelEntry> levels;
+  /// What has been placed in the open level and what lights it. Written to
+  /// that level's file on save and read back when one is opened — see
   /// `editor-level-io.h`.
   EditorDocument document;
   /// The one entry of that document the properties panel edits, or nothing.

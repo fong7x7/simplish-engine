@@ -33,6 +33,11 @@
 //   - File > New Project asks the OS for a location and name, then creates
 //     and opens a project there; File > Open Project asks for a folder and
 //     opens the project in it
+//   - The Level menu lists the project's levels and marks the one being
+//     edited; choosing another writes nothing, reads that level's file, and
+//     replaces the document, the selection and the undo history with it.
+//     Level > New Level asks for a name, turns it into an id, and writes an
+//     empty level file before switching to it
 //   - Runs an installed state hook once a tick with mutable shell state,
 //     and rebuilds the chrome from it when the hook says it changed
 //     something. This is how the agent API drives the editor without the
@@ -44,12 +49,17 @@
 //
 // Edge Cases:
 //   - No project on the command line: the editor opens with no project and
-//     the toolbar shows "No project". File > Close Project is the one
-//     project-gated command, and it is disabled until one is open
+//     the toolbar shows "No project". Close Project, Save and New Level are
+//     the project-gated commands, and each is disabled until one is open
 //   - Menu commands whose subsystem does not exist yet (save as, cut, copy,
 //     paste, settings) are listed but disabled; see editor-menu-command.h
 //   - A project with no level file yet — one nothing has been saved into —
 //     opens with an empty document rather than an error
+//   - A project holding no `main` level opens on the first level it does
+//     hold, rather than on an empty one it does not
+//   - Switching level with unwritten edits is refused with a status message
+//     rather than silently losing them; the agent API has to ask for
+//     "discard" in as many words
 //   - A saved prop whose asset the project no longer holds is dropped on
 //     load and counted in the log, for the reason a rescan drops one — and
 //     the level counts as unsaved afterwards, since it no longer matches
@@ -90,14 +100,18 @@
 // Integration Points:
 //   - src/bin/editor/src/main.cpp: constructs, initialises, and runs this
 //   - src/editor/agent/: installs the state hook and calls runMenuCommand,
-//     openProjectAt and rescanAssets on behalf of an agent
+//     openProjectAt, rescanAssets, createLevel and openLevel on behalf of
+//     an agent
 
 #include <cstddef>
 #include <cstdint>
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-general-item.h>
+#include <editor/shell/editor-level-result.h>
+#include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-properties-widget.h>
@@ -114,6 +128,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace eng::editor {
@@ -154,6 +169,16 @@ public:
   /// not check whether the command is enabled — `editorMenuCommandEnabled`
   /// is that question, and the menu bar asks it before it draws the row.
   void runMenuCommand(EditorMenuCommand command);
+
+  /// Create the level @p id in the open project and edit it.
+  ///
+  /// Public for the reason `openProjectAt` is: the Level menu is not the
+  /// only caller, and an agent has no other way in. @p unsaved decides what
+  /// happens to edits the open level has not written.
+  void createLevel(std::string_view id, EditorLevelUnsaved unsaved);
+
+  /// Edit the project's level @p id instead of the open one.
+  void openLevel(std::string_view id, EditorLevelUnsaved unsaved);
 
   /// Rescan the open project's assets from disk.
   ///
@@ -201,6 +226,12 @@ private:
   void reportLevelUnreadable();
   /// Say how many props the level lost because their asset is gone.
   void reportDroppedProps(size_t dropped);
+  /// Show what a level operation did, and rebuild the chrome when it
+  /// changed which level is open.
+  void applyLevelResult(const EditorLevelResult& result, std::string_view id);
+  /// Take a newly-opened level as the one on screen: its meshes, its
+  /// markers, its name, and the gestures the old one had in flight.
+  void adoptOpenedLevel(const EditorLevelResult& result);
   /// Read the open project's level back into the document, if it has one.
   /// Runs after the assets are scanned, because a prop names its asset by
   /// an id that only the scanned list can be searched for.
@@ -484,6 +515,9 @@ private:
   std::string status_override_{};
   /// Seconds `status_override_` still has to run.
   float status_override_left_ = 0.0f;
+  /// What the open save-location dialog was asked for, which is what its
+  /// answer is used as.
+  EditorDialogPurpose pending_dialog_ = EditorDialogPurpose::NEW_PROJECT;
   /// Set by File > Exit; onTick returns false once it is true.
   bool quit_requested_ = false;
   /// Last window size the chrome was laid out for.

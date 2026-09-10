@@ -8,6 +8,7 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-entity-id.h>
+#include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-property-ops.h>
@@ -358,6 +359,68 @@ namespace {
     return result;
   }
 
+  /// How a level refusal reads to a caller: a bad id is a parameter to
+  /// fix, a level that is not there is a name to re-read, and everything
+  /// else is a state to change first.
+  AgentStatus agentStatusForLevel(EditorLevelStatus status) {
+    switch (status) {
+      case EditorLevelStatus::INVALID_ID:
+        return AgentStatus::BAD_PARAMS;
+      case EditorLevelStatus::NOT_FOUND:
+        return AgentStatus::NOT_FOUND;
+      case EditorLevelStatus::OK:
+      case EditorLevelStatus::NO_PROJECT:
+      case EditorLevelStatus::ALREADY_EXISTS:
+      case EditorLevelStatus::UNSAVED_CHANGES:
+      case EditorLevelStatus::WRITE_FAILED:
+      case EditorLevelStatus::UNREADABLE:
+        return AgentStatus::UNAVAILABLE;
+    }
+    return AgentStatus::UNAVAILABLE;
+  }
+
+  /// What a call asked to happen to unwritten edits: refusing by default,
+  /// and nothing at all for a word that is neither.
+  std::optional<EditorLevelUnsaved> levelUnsavedParam(const json& params) {
+    const std::optional<std::string> word = agentStringParam(params, "unsaved");
+    if (word) {
+      return findAgentLevelUnsaved(*word);
+    }
+    return params.contains("unsaved")
+               ? std::nullopt
+               : std::optional{EditorLevelUnsaved::REFUSE};
+  }
+
+  /// Whether the editor would carry this request out, asked before it is
+  /// queued so the caller is told why rather than watching nothing happen.
+  EditorLevelStatus levelRequestCheck(const EditorShellState& state,
+                                      std::string_view id,
+                                      EditorLevelUnsaved unsaved,
+                                      AgentHostRequestKind kind) {
+    return kind == AgentHostRequestKind::CREATE_LEVEL
+               ? canCreateEditorLevel(state, id, unsaved)
+               : canOpenEditorLevel(state, id, unsaved);
+  }
+
+  /// Both level tools, which differ only in the question they ask.
+  AgentResult queueLevelRequest(const EditorShellState& state,
+                                const json& params, AgentHostRequestKind kind) {
+    const std::optional<std::string> id = agentStringParam(params, "id");
+    const std::optional<EditorLevelUnsaved> unsaved = levelUnsavedParam(params);
+    if (!id || !unsaved) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "id is required, and unsaved is \"refuse\" or "
+                          "\"discard\"");
+    }
+    const EditorLevelStatus check =
+        levelRequestCheck(state, *id, *unsaved, kind);
+    if (check != EditorLevelStatus::OK) {
+      return agentFailure(agentStatusForLevel(check),
+                          editorLevelStatusMessage(check));
+    }
+    return queued({kind, EditorMenuCommand::SEPARATOR, {}, *id, *unsaved}, *id);
+  }
+
 }  // namespace
 
 AgentResult runAgentGetAsset(EditorShellState& state, const json& params) {
@@ -513,7 +576,7 @@ AgentResult runAgentRunCommand(const EditorShellState& state,
                         "that command is disabled right now; list_commands "
                         "says which are live");
   }
-  return queued({AgentHostRequestKind::RUN_COMMAND, *command, {}}, *name);
+  return queued({AgentHostRequestKind::RUN_COMMAND, *command, {}, {}}, *name);
 }
 
 AgentResult runAgentOpenProject(const json& params) {
@@ -523,9 +586,11 @@ AgentResult runAgentOpenProject(const json& params) {
                         "path is required: the directory holding the "
                         "project");
   }
-  return queued(
-      {AgentHostRequestKind::OPEN_PROJECT, EditorMenuCommand::SEPARATOR, path},
-      "open_project");
+  return queued({AgentHostRequestKind::OPEN_PROJECT,
+                 EditorMenuCommand::SEPARATOR,
+                 path,
+                 {}},
+                "open_project");
 }
 
 AgentResult runAgentRescanAssets(const EditorShellState& state) {
@@ -533,9 +598,21 @@ AgentResult runAgentRescanAssets(const EditorShellState& state) {
     return agentFailure(AgentStatus::UNAVAILABLE,
                         "no project is open, so there is nothing to rescan");
   }
-  return queued(
-      {AgentHostRequestKind::RESCAN_ASSETS, EditorMenuCommand::SEPARATOR, {}},
-      "rescan_assets");
+  return queued({AgentHostRequestKind::RESCAN_ASSETS,
+                 EditorMenuCommand::SEPARATOR,
+                 {},
+                 {}},
+                "rescan_assets");
+}
+
+AgentResult runAgentCreateLevel(const EditorShellState& state,
+                                const json& params) {
+  return queueLevelRequest(state, params, AgentHostRequestKind::CREATE_LEVEL);
+}
+
+AgentResult runAgentOpenLevel(const EditorShellState& state,
+                              const json& params) {
+  return queueLevelRequest(state, params, AgentHostRequestKind::OPEN_LEVEL);
 }
 
 }  // namespace eng::editor

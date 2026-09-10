@@ -33,7 +33,8 @@ my-project/
 │   └── crate.obj
 ├── content/
 │   ├── levels/
-│   │   └── main.level.json   # props and lights — exists today
+│   │   ├── main.level.json   # props and lights — exists today
+│   │   └── roof.level.json   # a project holds as many as it is given
 │   ├── encounters/
 │   │   └── transit-station-waves.encounter.json
 │   ├── scenarios/
@@ -146,7 +147,7 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 
 ### 4.1 What the editor writes today
 
-File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/main.level.json`, and opening a project reads it back. The editor authors one level per project, so its id is the constant `main` rather than something to choose; a level browser is what turns that into a choice. Its `name` is the project's, rewritten on every save, because nothing in the editor shows or edits a level name yet.
+File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/<id>.level.json` for the level the Level menu has open, and opening a project reads one back. `main` is where a new project starts and where an opened one goes back to when it has such a level; every other id is authored, through Level > New Level, which turns a typed name into an id the rules above allow. Its `name` is its id, because nothing in the editor shows or edits a level name yet — writing the project's name there instead would put the same name in every level file of a project holding several.
 
 Two parts of §4 are written, and one of them differs from the shape above:
 

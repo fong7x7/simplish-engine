@@ -19,15 +19,20 @@ namespace eng::editor {
 /// read — see [project-format.md §10].
 inline constexpr std::string_view EDITOR_LEVEL_SCHEMA = "simplish/level/1.0";
 
-/// The id of the one level a project has today.
+/// The id of the level a project starts at.
 ///
-/// The editor authors a single level per project, so its id is a constant
-/// rather than something to choose. A level browser is what turns this into
-/// a choice, and until there is one, a name here would be a setting with no
-/// interface to change it.
+/// A project holds as many levels as it is given, and the Level menu
+/// chooses between them; this is the one a new project is created with and
+/// the one an opened project falls back to when it holds no level file at
+/// all. Every other id is authored.
 inline constexpr std::string_view EDITOR_LEVEL_ID = "main";
 
-/// Serialise what has been authored as a level file, named @p name.
+/// Serialise what has been authored as the level @p id's file.
+///
+/// The file's `name` is the id, because nothing in the editor authors a
+/// display name for a level yet. Writing the project's name there instead
+/// would put the same name in every level file of a project holding
+/// several, which is a worse answer than the id.
 ///
 /// Props reference their asset by the same `kind:id` string every other
 /// file in the project format uses (`mesh:props_crate`, `shape:cube`),
@@ -38,7 +43,7 @@ inline constexpr std::string_view EDITOR_LEVEL_ID = "main";
 [[nodiscard]] std::string
 serializeEditorLevel(const EditorDocument& document,
                      const std::vector<EditorAsset>& assets,
-                     std::string_view name);
+                     std::string_view id);
 
 /// Read a level file back, binding each prop to its asset in @p assets.
 ///

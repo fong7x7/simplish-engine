@@ -9,6 +9,8 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
 #include <editor/shell/editor-level-io.h>
+#include <editor/shell/editor-level-list.h>
+#include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-project-title.h>
@@ -257,6 +259,11 @@ void SimplishEditor::initMenuBar(GuiWidgetTree& tree) {
   menu_bar->on_open_recent = [this](std::string_view path) {
     (void)openProjectAt(std::filesystem::path(path));
   };
+  menu_bar->on_open_level = [this](std::string_view id) {
+    // REFUSE: a level row is one click away from a level's worth of work,
+    // and the status line is a cheaper answer than losing it.
+    openLevel(id, EditorLevelUnsaved::REFUSE);
+  };
   menu_bar_id_ = tree.insertExternalWidget(std::move(menu_bar), root_panel_);
   if (auto* bar =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
@@ -480,6 +487,9 @@ void SimplishEditor::refreshAssets() {
   // them behind would light the next project with them.
   clearDocument();
   reloadAssets();
+  // Which level, before what is in it: the previous project's level id is
+  // still in the state until this runs.
+  chooseEditorStartLevel(state_);
   loadDocument();
   // What is in memory is what is on disk, whether that was read from a
   // level file or is the empty document a project without one opens at.
@@ -504,8 +514,7 @@ bool SimplishEditor::writeLevelFile() {
   if (saveEditorLevel(state_)) {
     return true;
   }
-  LOG_ERROR("editor",
-            "Could not write " + editorLevelPath(state_.project.root).string());
+  LOG_ERROR("editor", "Could not write " + editorLevelPath(state_).string());
   showStatusMessage("Could not save the level");
   return false;
 }
@@ -525,9 +534,45 @@ void SimplishEditor::saveDocument() {
   // chrome would re-read the level that was just written and drop the undo
   // history describing it.
   applyProjectNameToChrome();
-  LOG_INFO("editor",
-           "Saved level: " + editorLevelPath(state_.project.root).string());
+  LOG_INFO("editor", "Saved level: " + editorLevelPath(state_).string());
   showStatusMessage("Saved " + state_.project.metadata.name);
+}
+
+void SimplishEditor::createLevel(std::string_view id,
+                                 EditorLevelUnsaved unsaved) {
+  commitPendingEdit();
+  applyLevelResult(createEditorLevel(state_, id, unsaved), id);
+}
+
+void SimplishEditor::openLevel(std::string_view id,
+                               EditorLevelUnsaved unsaved) {
+  commitPendingEdit();
+  applyLevelResult(openEditorLevel(state_, id, unsaved), id);
+}
+
+void SimplishEditor::applyLevelResult(const EditorLevelResult& result,
+                                      std::string_view id) {
+  // UNREADABLE as well as OK: the level was switched to and its file could
+  // not be parsed, so the chrome has to show the empty document that left
+  // behind rather than the previous level's.
+  if (result.status == EditorLevelStatus::OK ||
+      result.status == EditorLevelStatus::UNREADABLE) {
+    adoptOpenedLevel(result);
+    LOG_INFO("editor", "Editing level " + editorLevelPath(state_).string());
+  }
+  showStatusMessage(result.status == EditorLevelStatus::OK
+                        ? "Editing level " + std::string(id)
+                        : std::string(editorLevelStatusMessage(result.status)));
+}
+
+void SimplishEditor::adoptOpenedLevel(const EditorLevelResult& result) {
+  // A gesture in flight belongs to a document that is no longer here.
+  placement_prior_.reset();
+  light_prior_.reset();
+  reportDroppedProps(result.dropped_props);
+  ensurePlacedMeshes();
+  applyEditToChrome();
+  applyProjectNameToChrome();
 }
 
 void SimplishEditor::loadDocument() {
@@ -551,8 +596,7 @@ void SimplishEditor::reportLevelUnreadable() {
   // Remembered, not just logged: this is what stops the next save from
   // writing an empty level over the file that could not be parsed.
   state_.level_readable = false;
-  LOG_ERROR("editor",
-            "Could not read " + editorLevelPath(state_.project.root).string());
+  LOG_ERROR("editor", "Could not read " + editorLevelPath(state_).string());
   showStatusMessage("Could not read the project's level");
 }
 
@@ -992,6 +1036,9 @@ void SimplishEditor::applyEditToChrome() {
   if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
           guiWidgetTree().findWidget(menu_bar_id_))) {
     menu->setHistory(state_.history);
+    // Both are no-ops when nothing about them changed, which is every call
+    // but the ones that follow a level being opened or created.
+    menu->setLevels(state_.levels, state_.level_id);
   }
 }
 
@@ -1252,6 +1299,12 @@ bool SimplishEditor::onTick(float dt) {
 bool SimplishEditor::runDialogCommand(EditorMenuCommand command) {
   // Both answer later, on the main thread, through the on*Chosen overrides.
   if (command == EditorMenuCommand::NEW_PROJECT) {
+    pending_dialog_ = EditorDialogPurpose::NEW_PROJECT;
+    showSaveLocationDialog();
+    return true;
+  }
+  if (command == EditorMenuCommand::NEW_LEVEL) {
+    pending_dialog_ = EditorDialogPurpose::NEW_LEVEL;
     showSaveLocationDialog();
     return true;
   }
@@ -1419,6 +1472,14 @@ void SimplishEditor::applyProjectionToWidgets() {
 }
 
 void SimplishEditor::onSaveLocationChosen(const std::filesystem::path& path) {
+  if (pending_dialog_ == EditorDialogPurpose::NEW_LEVEL) {
+    // The name typed, not the folder it was typed into: a level file lives
+    // under the project's own content/levels wherever the dialog was
+    // pointed, and the id is what the format cares about.
+    createLevel(editorLevelIdFromText(path.stem().string()),
+                EditorLevelUnsaved::REFUSE);
+    return;
+  }
   (void)createProjectAt(path);
 }
 
