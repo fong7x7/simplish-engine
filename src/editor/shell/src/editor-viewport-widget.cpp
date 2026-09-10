@@ -294,6 +294,7 @@ void EditorViewportWidget::updateHover(float x, float y) {
   const IsoView view = makeIsoView(camera, rect);
   const WorldPoint world = screenToWorld(view, {x, y});
   hovered_tile_ = {std::floor(world.x), std::floor(world.y)};
+  hovered_screen_ = {x, y};
   has_hover_ = true;
 }
 

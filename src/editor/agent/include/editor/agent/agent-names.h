@@ -10,6 +10,7 @@
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
@@ -65,6 +66,7 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "set_shading_smooth",
     "set_shading_cel",
     "about",
+    "playtest",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==
@@ -138,6 +140,12 @@ static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
 [[nodiscard]] constexpr std::string_view
 agentActionKindName(EditorActionKind kind) {
   return AGENT_ACTION_KIND_NAMES[static_cast<size_t>(kind)];
+}
+
+/// Wire name of whether the level is being edited or played.
+[[nodiscard]] constexpr std::string_view
+agentPlayModeName(EditorPlayMode mode) {
+  return mode == EditorPlayMode::PLAYING ? "playing" : "editing";
 }
 
 /// Wire name of how far an asset's card picture has got.

@@ -7,6 +7,8 @@
 //   - Highlights the active tool and reports selection through onToolSelected
 //   - Shows the open project's name on the left and a status string on the
 //     right (hovered tile, zoom)
+//   - Ends the tool row with a Play button, which reads Stop and takes the
+//     accent colour while the level is being played
 //
 // Edge Cases:
 //   - init() without a valid parent: no children are created; tick is a no-op
@@ -22,6 +24,7 @@
 // Integration Points:
 //   - SimplishEditor: owns this widget, drives layout() and tick()
 
+#include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-tool.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-rect.h>
@@ -74,14 +77,29 @@ public:
   /// Set the active tool without invoking the selection callback.
   void setActiveTool(EditorTool tool);
 
+  /// Show whether the level is being played: the play button reads Play
+  /// or Stop, and is lit while playing.
+  void setPlayMode(EditorPlayMode mode) { play_mode_ = mode; }
+
   /// Called when the user clicks a tool button.
   std::function<void(EditorTool)> on_tool_selected{};
+
+  /// Called when the user clicks the play button, whichever it reads.
+  std::function<void()> on_play_toggled{};
 
 private:
   /// Create the child widgets under the toolbar panel.
   void wireChildren(GuiWidgetTree& tree);
   /// Apply active/inactive styling to each tool button.
   void styleButtons(GuiWidgetTree& tree);
+  /// Create one button per tool.
+  void wireToolButtons(GuiWidgetTree& tree);
+  /// Place the tool buttons and, after them, the play button.
+  void layoutButtons(GuiWidgetTree& tree, const Rect& bar_rect);
+  /// Create the play button at the end of the tool row.
+  void wirePlayButton(GuiWidgetTree& tree);
+  /// Label and light the play button for the current mode.
+  void stylePlayButton(GuiWidgetTree& tree);
 
   /// Root panel for the strip.
   GuiWidgetId bar_panel_ = GUI_WIDGET_ID_INVALID;
@@ -91,6 +109,10 @@ private:
   GuiWidgetId status_label_ = GUI_WIDGET_ID_INVALID;
   /// One button per entry in EDITOR_TOOLS, in the same order.
   std::vector<GuiWidgetId> tool_buttons_{};
+  /// The Play / Stop button, after the tools.
+  GuiWidgetId play_button_ = GUI_WIDGET_ID_INVALID;
+  /// Whether the level is being played, which is what the button reads.
+  EditorPlayMode play_mode_ = EditorPlayMode::EDITING;
   /// Active tool.
   EditorTool active_tool_ = EditorTool::SELECT;
   /// Backing store for the project label's string_view.

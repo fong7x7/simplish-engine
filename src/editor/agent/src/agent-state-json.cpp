@@ -239,6 +239,38 @@ namespace {
     return {{"target", agentSelectionKindName(EditorSelectionKind::NONE)}};
   }
 
+  /// A 64-bit hash as sixteen hex digits. As a JSON number it would be
+  /// rounded by any reader that holds numbers as doubles, which is most of
+  /// them, and a hash that is almost right is no hash at all.
+  std::string hashHex(uint64_t hash) {
+    constexpr std::string_view DIGITS = "0123456789abcdef";
+    std::string out(16, '0');
+    for (size_t i = 16; i > 0; --i) {
+      out[i - 1] = DIGITS[hash & 0xFU];
+      hash >>= 4U;
+    }
+    return out;
+  }
+
+  /// Every player in a playtest, as the agent API reports them.
+  json playtestPlayersJson(const EditorPlaytestState& playtest) {
+    json players = json::array();
+    for (const EditorPlaytestPlayer& player : playtest.players) {
+      players.push_back({{"player", player.player},
+                         {"position", agentPointJson(player.position)}});
+    }
+    return players;
+  }
+
+  /// Ticks of scripted input still waiting to run.
+  uint64_t queuedInputTicks(const EditorPlaytestState& playtest) {
+    uint64_t ticks = 0;
+    for (const EditorScriptedInput& input : playtest.scripted) {
+      ticks += input.ticks;
+    }
+    return ticks;
+  }
+
   /// One parameter of one tool, as the manifest publishes it.
   json paramValue(const AgentParam& param) {
     return {{"name", param.name},
@@ -272,7 +304,8 @@ std::string agentStateJson(const EditorShellState& state) {
               {"player_start_count", state.document.player_starts.size()},
               {"can_undo", canUndoEditorAction(state.history)},
               {"can_redo", canRedoEditorAction(state.history)},
-              {"unsaved_changes", hasUnsavedEditorChanges(state.history)}};
+              {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
+              {"playtest", agentPlayModeName(state.playtest.mode)}};
   out["selection"] = json::parse(agentSelectionJson(state));
   return out.dump(2);
 }
@@ -356,6 +389,17 @@ std::string agentPlayerStartsJson(const EditorShellState& state) {
   }
   return json{{"player_starts", starts}, {"player_slots", EDITOR_PLAYER_SLOTS}}
       .dump(2);
+}
+
+std::string agentPlaytestJson(const EditorShellState& state) {
+  const EditorPlaytestState& playtest = state.playtest;
+  json out = {{"mode", agentPlayModeName(playtest.mode)},
+              {"tick", playtest.tick},
+              {"dropped_ticks", playtest.dropped_ticks},
+              {"players", playtestPlayersJson(playtest)},
+              {"queued_input_ticks", queuedInputTicks(playtest)}};
+  out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
+  return out.dump(2);
 }
 
 std::string agentSelectionJson(const EditorShellState& state) {

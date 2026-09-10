@@ -11,6 +11,8 @@
 
 The game layer (`simplish-game`) is everything that makes Simplish a specific game rather than an engine: the player, the weapons, the enemies, the director that decides what comes next, and the rules of a run. It links `src/engine/` and is platform-agnostic — no SDL3, no graphics API, no distributor SDK. Platform-specific concerns reach it through engine interfaces.
 
+**Current state:** `src/game/player` and `src/game/world` exist, and nothing else of the game does. Players spawn from a `GameSetup`, move at five tiles a second by their stick on the deterministic tick, and keep the aim they are given; the world composes them into the `SimulationSystems` the tick steps, and the editor's Play button runs it. There is no collision, no weapon — the fire button is recorded and read by nothing — and no enemy.
+
 **The game:** an isometric horde shooter set in a collapsed modern world. One to four players hold hand-authored ground against escalating waves. The fantasy is *overwhelming volume, narrowly survived* — hundreds of enemies converging, thousands of projectiles in the air, and a build that turns that pressure into a body count.
 
 ---
@@ -33,6 +35,7 @@ Twin-stick-style movement decoupled from aim: eight-way analogue movement on the
 
 | Property | Requirement |
 |---|---|
+| Direction | Camera-relative: up on the stick or W moves up the screen, which under the isometric view is a diagonal across the grid. The turn into world axes happens where input is captured, so the simulation, the lockstep wire and replays carry world directions and none of them depends on the projection |
 | Base speed | Tuned so crossing a standard room takes ~2 s; exact value data-driven |
 | Acceleration | Short ramp (≤ 100 ms to full speed) — responsive, but with enough weight that direction changes cost something |
 | Dodge | Short burst with i-frames on a cooldown; the primary defensive verb |

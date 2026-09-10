@@ -28,6 +28,8 @@ enum class AgentParamType : uint8_t {
   /// an agent that has just read `list_assets` has the index, and one
   /// working from what a person said has the name.
   ASSET_REF,
+  /// True or false: whether a button is held.
+  BOOLEAN,
 };
 
 /// The word this type is published as, which the MCP bridge maps to a JSON
@@ -43,6 +45,8 @@ agentParamTypeName(AgentParamType type) {
       return "string";
     case AgentParamType::ASSET_REF:
       return "asset_ref";
+    case AgentParamType::BOOLEAN:
+      return "boolean";
   }
   return "string";
 }

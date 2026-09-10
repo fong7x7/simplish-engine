@@ -13,6 +13,8 @@
 #include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <engine/input/input-action.h>
+#include <engine/input/player-input-builder.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -23,6 +25,10 @@ namespace eng::editor {
 namespace {
 
   using nlohmann::json;
+
+  /// The most ticks one `send_input` call may queue: a minute. A bound so a
+  /// typo cannot queue a day of input nobody can see the end of.
+  constexpr uint64_t MAX_SEND_INPUT_TICKS = 60U * 60U;
 
   /// What `add_player_start` says when it is called wrongly.
   constexpr std::string_view ADD_PLAYER_START_USAGE =
@@ -458,6 +464,36 @@ namespace {
     return agentEdited(payload);
   }
 
+  /// The player input a `send_input` call describes: sticks quantised as
+  /// the keyboard's are, so scripted input is the same bits a person
+  /// pressing the same keys would send.
+  sim::PlayerInput sentInput(const json& params) {
+    sim::PlayerInput input;
+    input.move_x =
+        input::quantizeInputAxis(agentFloatParam(params, "move_x", 0));
+    input.move_y =
+        input::quantizeInputAxis(agentFloatParam(params, "move_y", 0));
+    input.aim_x = input::quantizeInputAxis(agentFloatParam(params, "aim_x", 0));
+    input.aim_y = input::quantizeInputAxis(agentFloatParam(params, "aim_y", 0));
+    input.buttons = agentBoolParam(params, "fire").value_or(false)
+                        ? input::INPUT_BUTTON_FIRE
+                        : 0U;
+    return input;
+  }
+
+  /// How many ticks a `send_input` call asks for, or nothing when it names
+  /// a number outside 1 to `MAX_SEND_INPUT_TICKS`.
+  std::optional<uint32_t> sentTicks(const json& params) {
+    if (!params.contains("ticks")) {
+      return 1U;
+    }
+    const std::optional<size_t> ticks = agentIndexParam(params, "ticks");
+    if (!ticks || *ticks == 0 || *ticks > MAX_SEND_INPUT_TICKS) {
+      return std::nullopt;
+    }
+    return static_cast<uint32_t>(*ticks);
+  }
+
   /// A tool that has left work for the editor: what was queued, and the
   /// request the editor drains on the tick that ran this.
   AgentResult queued(AgentHostRequest request, std::string_view what) {
@@ -732,6 +768,43 @@ AgentResult runAgentCreateLevel(const EditorShellState& state,
 AgentResult runAgentOpenLevel(const EditorShellState& state,
                               const json& params) {
   return queueLevelRequest(state, params, AgentHostRequestKind::OPEN_LEVEL);
+}
+
+AgentResult runAgentStartPlaytest(const EditorShellState& state) {
+  if (!state.project.loaded) {
+    return agentFailure(AgentStatus::UNAVAILABLE,
+                        "no project is open, so there is no level to play");
+  }
+  if (state.playtest.mode == EditorPlayMode::PLAYING) {
+    return agentFailure(AgentStatus::UNAVAILABLE,
+                        "a playtest is already running; stop_playtest ends it");
+  }
+  return queued(
+      {AgentHostRequestKind::RUN_COMMAND, EditorMenuCommand::PLAYTEST, {}, {}},
+      "start_playtest");
+}
+
+AgentResult runAgentStopPlaytest(const EditorShellState& state) {
+  if (state.playtest.mode != EditorPlayMode::PLAYING) {
+    return agentFailure(AgentStatus::UNAVAILABLE, "no playtest is running");
+  }
+  return queued(
+      {AgentHostRequestKind::RUN_COMMAND, EditorMenuCommand::PLAYTEST, {}, {}},
+      "stop_playtest");
+}
+
+AgentResult runAgentSendInput(EditorShellState& state, const json& params) {
+  if (state.playtest.mode != EditorPlayMode::PLAYING) {
+    return agentFailure(AgentStatus::UNAVAILABLE,
+                        "no playtest is running; start_playtest first");
+  }
+  const std::optional<uint32_t> ticks = sentTicks(params);
+  if (!ticks) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "ticks is a whole number from 1 to 3600");
+  }
+  state.playtest.scripted.push_back({sentInput(params), *ticks});
+  return agentEdited(agentPlaytestJson(state));
 }
 
 }  // namespace eng::editor

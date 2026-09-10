@@ -323,13 +323,33 @@ TEST_CASE(
   REQUIRE(opened.empty());
 }
 
-TEST_CASE("with no project open the Level menu is its one disabled row") {
+TEST_CASE("with no project open the Level menu offers nothing live") {
   MenuFixture fx;
   fx.bar()->tick(fx.tree);
 
+  // New Level, a divider, and Play Level: no levels to list, and neither
+  // command has a project to act on.
   const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
-  REQUIRE(levels.items.size() == 1);
+  REQUIRE(levels.items.size() == 3);
   REQUIRE(!levels.items[0].enabled);
+  REQUIRE(levels.items[1].separator);
+  REQUIRE(levels.items[2].label == "Play Level");
+  REQUIRE(!levels.items[2].enabled);
+}
+
+TEST_CASE("Play Level is live with a project and ticked while playing") {
+  MenuFixture fx;
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  const int row = rowWithLabel(*fx.menu(LEVEL_MENU), "Play Level");
+  REQUIRE(row >= 0);
+  const auto index = static_cast<size_t>(row);
+  REQUIRE(fx.menu(LEVEL_MENU)->items[index].enabled);
+  REQUIRE_FALSE(fx.menu(LEVEL_MENU)->items[index].checked);
+
+  fx.bar()->setPlayMode(EditorPlayMode::PLAYING);
+  fx.bar()->tick(fx.tree);
+  REQUIRE(fx.menu(LEVEL_MENU)->items[index].checked);
 }
 
 TEST_CASE("the View menu offers both projections") {

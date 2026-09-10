@@ -84,6 +84,14 @@ enum class AgentTool : uint8_t {
   CREATE_LEVEL,
   /// Edit another of the open project's levels.
   OPEN_LEVEL,
+  /// Whether the level is being played, and where the players are.
+  GET_PLAYTEST,
+  /// Start playing the open level, as the toolbar's Play button does.
+  START_PLAYTEST,
+  /// Stop playing, going back to the level as it was.
+  STOP_PLAYTEST,
+  /// Queue player 1's input for the next ticks of a running playtest.
+  SEND_INPUT,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -106,6 +114,8 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::UNDO,          AgentTool::REDO,
     AgentTool::OPEN_PROJECT,  AgentTool::RESCAN_ASSETS,
     AgentTool::CREATE_LEVEL,  AgentTool::OPEN_LEVEL,
+    AgentTool::GET_PLAYTEST,  AgentTool::START_PLAYTEST,
+    AgentTool::STOP_PLAYTEST, AgentTool::SEND_INPUT,
 };
 
 }  // namespace eng::editor

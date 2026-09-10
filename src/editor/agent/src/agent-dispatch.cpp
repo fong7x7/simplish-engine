@@ -1,6 +1,7 @@
 #include "agent-call.h"
 #include "agent-commands.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <editor/agent/agent-dispatch.h>
 #include <editor/agent/agent-state-json.h>
@@ -97,6 +98,39 @@ namespace {
     return runAgentOpenLevel(state, params);
   }
 
+  AgentResult toolGetPlaytest(EditorShellState& state, const json&) {
+    return agentOk(agentPlaytestJson(state));
+  }
+
+  AgentResult toolStartPlaytest(EditorShellState& state, const json&) {
+    return runAgentStartPlaytest(state);
+  }
+
+  AgentResult toolStopPlaytest(EditorShellState& state, const json&) {
+    return runAgentStopPlaytest(state);
+  }
+
+  /// The tools that change the document, or the selection that edits it,
+  /// and so are refused while the level is being played.
+  constexpr AgentTool DOCUMENT_EDIT_TOOLS[] = {
+      AgentTool::PLACE_ASSET,
+      AgentTool::ADD_LIGHT,
+      AgentTool::ADD_PLAYER_START,
+      AgentTool::SET_PROPERTY,
+      AgentTool::TRANSLATE,
+      AgentTool::DELETE_ENTRY,
+      AgentTool::SELECT,
+      AgentTool::UNDO,
+      AgentTool::REDO,
+  };
+
+  /// Whether @p tool may not run while @p state's level is being played.
+  bool refusedWhilePlaying(const EditorShellState& state, AgentTool tool) {
+    return state.playtest.mode == EditorPlayMode::PLAYING &&
+           std::ranges::find(DOCUMENT_EDIT_TOOLS, tool) !=
+               std::end(DOCUMENT_EDIT_TOOLS);
+  }
+
   /// What answers each tool, in `AgentTool` order.
   ///
   /// A table rather than a switch, for the reason `EDITOR_PROPERTY_TRAITS`
@@ -132,6 +166,10 @@ namespace {
       toolRescanAssets,
       toolCreateLevel,
       toolOpenLevel,
+      toolGetPlaytest,
+      toolStartPlaytest,
+      toolStopPlaytest,
+      runAgentSendInput,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),
@@ -157,6 +195,11 @@ namespace {
     if (!found) {
       return agentFailure(AgentStatus::UNKNOWN_TOOL,
                           "no tool is called that; describe lists every one");
+    }
+    if (refusedWhilePlaying(state, *found)) {
+      return agentFailure(AgentStatus::UNAVAILABLE,
+                          "the level is being played; stop_playtest first, "
+                          "then edit it");
     }
     return AGENT_TOOL_FNS[static_cast<size_t>(*found)](state, params);
   }

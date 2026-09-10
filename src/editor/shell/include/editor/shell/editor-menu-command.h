@@ -68,6 +68,8 @@ enum class EditorMenuCommand : uint8_t {
   SET_SHADING_CEL,
   /// Show build and version information.
   ABOUT,
+  /// Start playing the open level, or stop playing it.
+  PLAYTEST,
 };
 
 /// Display text for one command.
@@ -122,6 +124,7 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SET_SHADING_SMOOTH, "Smooth Shading", ""},
     {EditorMenuCommand::SET_SHADING_CEL, "Cel Shading", ""},
     {EditorMenuCommand::ABOUT, "About Simplish", ""},
+    {EditorMenuCommand::PLAYTEST, "Play Level", "F5"},
 };
 
 /// Look up the display text for @p command.

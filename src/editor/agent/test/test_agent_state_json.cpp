@@ -306,3 +306,35 @@ TEST_CASE("the tools folder lists the player start as a built-in entry") {
   }
   REQUIRE(found);
 }
+
+TEST_CASE("the playtest reads as editing until one runs") {
+  EditorShellState state;
+
+  const json playtest = json::parse(agentPlaytestJson(state));
+
+  REQUIRE(playtest.at("mode") == "editing");
+  REQUIRE(playtest.at("players").empty());
+  REQUIRE(playtest.at("hash").is_null());
+  REQUIRE(json::parse(agentStateJson(state)).at("playtest") == "editing");
+}
+
+TEST_CASE("a running playtest reports its tick, players and hash") {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.tick = 120;
+  state.playtest.hash = 0x00000000DEADBEEFULL;
+  state.playtest.players.push_back({1, {2.5F, 3.5F, 0.0F}});
+  state.playtest.scripted.push_back({{}, 5});
+  state.playtest.scripted.push_back({{}, 7});
+
+  const json playtest = json::parse(agentPlaytestJson(state));
+
+  REQUIRE(playtest.at("mode") == "playing");
+  REQUIRE(playtest.at("tick") == 120);
+  // Sixteen hex digits, so a reader holding numbers as doubles cannot
+  // round the hash into a different one.
+  REQUIRE(playtest.at("hash") == "00000000deadbeef");
+  REQUIRE(playtest.at("players").at(0).at("player") == 1);
+  REQUIRE(playtest.at("players").at(0).at("position").at("x") == Approx(2.5F));
+  REQUIRE(playtest.at("queued_input_ticks") == 12);
+}

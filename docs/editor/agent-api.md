@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Twenty-eight, in three groups. `GET /tools` is authoritative and carries
+Thirty-two, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -167,6 +167,7 @@ each one's parameters; this table is the map.
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
+| `get_playtest` | Whether the level is being played: the tick, where each player is, the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -180,6 +181,7 @@ each one's parameters; this table is the map.
 | `delete` | Removes a placement, a light or a player start, as the Delete key does |
 | `select` | Selects a placement, a light or a player start, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
+| `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
 
 ### Driving the editor
@@ -191,6 +193,8 @@ each one's parameters; this table is the map.
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
 | `create_level` | Adds an empty level to the project and starts editing it |
 | `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
+| `start_playtest` | Plays the open level in the real simulation, as the Play button does |
+| `stop_playtest` | Stops playing, writes the run's replay, and goes back to the level as it was |
 
 ### Conventions worth knowing before calling one
 
@@ -199,6 +203,14 @@ each one's parameters; this table is the map.
   one go, and both refuse outright while the open level holds edits its file
   does not have. Pass `"unsaved": "discard"` to lose them deliberately, or
   `run_command` with `save` first to keep them.
+- **Playing locks the document.** While a playtest runs, the tools that
+  edit the level or the selection are refused as unavailable; reading still
+  works. `send_input` is how an agent plays: queued input runs in place of
+  the keyboard, one tick at a time, and the same inputs from the same level
+  end on the same tick hash. Its stick is in world axes: the keyboard turns
+  up-the-screen into whatever that is for the project's projection, but a
+  script does not, so it means the same run under either — `get_playtest` reports it as hex, since a
+  64-bit number does not survive a JSON reader that holds doubles.
 - **Axes.** Zero yaw, so **+X is right across the screen**, +Y runs away
   from the camera (down-screen), +Z is straight up. One unit is one tile.
   The manifest repeats this under `axes`.

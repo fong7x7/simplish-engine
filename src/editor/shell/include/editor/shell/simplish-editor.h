@@ -106,6 +106,7 @@
 //     openProjectAt, rescanAssets, createLevel and openLevel on behalf of
 //     an agent
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <editor/project/project-open-error.h>
@@ -117,6 +118,7 @@
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
@@ -126,11 +128,15 @@
 #include <engine/client/desktop-game-client.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
+#include <engine/input/held-actions.h>
+#include <engine/math/vec2.h>
 #include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <engine/render-mesh/mesh-style.h>
+#include <engine/sim/player-input.h>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -203,8 +209,69 @@ protected:
   void onShutdown() override;
   void onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
                        ClientKeyModifiers modifiers) override;
+  void onClientKeyUp(uint32_t key) override;
+  void onClientFocusLost() override;
 
 private:
+  // -- Playtest (simplish-editor-playtest.cpp) ------------------------------
+  /// Whether the level is being played.
+  [[nodiscard]] bool isPlaying() const;
+  /// Start playing the open level, or stop playing it.
+  void togglePlaytest();
+  /// Build a playtest from the open level and start running it. Refused,
+  /// with the reason in the status line, when no project is open.
+  void startPlaytest();
+  /// Where player 1 spawns when the level has no start for them: the tile
+  /// under the middle of the viewport.
+  [[nodiscard]] WorldPoint playtestFallback();
+  /// Reset the shell's view of the playtest to the one that just started.
+  void beginPlaytestState();
+  /// Write the playtest's replay to the project's scratch data, logging
+  /// rather than failing when it cannot be written.
+  void saveLastPlaytestReplay();
+  /// Throw the running playtest away and go back to editing. A no-op when
+  /// nothing is being played, so every route that replaces the level can
+  /// call it first.
+  void stopPlaytest();
+  /// Run the ticks this frame's time pays for, and publish what they did.
+  void tickPlaytest();
+  /// Nanoseconds of real time since the last frame of play.
+  [[nodiscard]] uint64_t playtestElapsedNs();
+  /// Player 1's input on the next tick, from the held keys, the left button
+  /// and the cursor.
+  [[nodiscard]] sim::PlayerInput livePlayerInput();
+  /// The direction from player 1 to the world point under the cursor, or
+  /// zero when the cursor is not over the viewport.
+  [[nodiscard]] Vec2 cursorAim();
+  /// Centre the viewport on player 1, where the frame draws them.
+  void followPlayer();
+  /// Add a column in its player's colour for every player, drawn where the
+  /// frame puts them, after the level's own markers.
+  void appendPlaytestMarkers(std::vector<EditorPlacementMarker>& markers);
+  /// Add a mesh instance standing in for every player, until sprites
+  /// exist to draw one with.
+  void appendPlaytestInstances();
+  /// The built-in cylinder, which stands in for a player, uploaded; nothing
+  /// when it is not in the asset list or will not load.
+  [[nodiscard]] std::optional<size_t> avatarAsset();
+  /// Start, stop, and steer a playtest from the keyboard. Returns true when
+  /// @p key was one of the keys a playtest took.
+  bool handlePlaytestKey(uint32_t key, ClientKeyDownKind kind);
+  /// The keys a running playtest takes: Escape stops it, and the movement
+  /// keys are held. Returns true when @p key was one of them.
+  bool handlePlayingKey(uint32_t key);
+  /// Every accelerator the editor has while editing.
+  void handleEditingKey(uint32_t key, ClientKeyDownKind kind,
+                        ClientKeyModifiers modifiers);
+  /// Push the play mode into the toolbar's button and the Level menu.
+  void applyPlayModeToChrome();
+  /// The toolbar status line while playing: the tick, and any stutter.
+  [[nodiscard]] std::string playtestStatus() const;
+
+  /// Create the toolbar and wire its tool and play buttons.
+  void initToolbar(GuiWidgetTree& tree);
+  /// Let the menu bar open, close and rebuild its dropdowns for the frame.
+  void tickMenuBar();
   /// Create the title bar, menu bar, toolbar, and viewport under the root.
   void initChrome();
   /// Create the window-sized panel every other widget hangs from.
@@ -586,6 +653,15 @@ private:
   std::optional<EditorLight> light_prior_{};
   /// The same for a player start.
   std::optional<EditorPlayerStart> player_start_prior_{};
+  /// The level being played, or nothing while editing.
+  std::unique_ptr<EditorPlaytestSession> playtest_{};
+  /// When the last frame of play ran, for the playtest's clock.
+  std::chrono::steady_clock::time_point playtest_frame_{};
+  /// How far the last frame of play got between its two newest ticks,
+  /// which is where the players are drawn.
+  float playtest_alpha_ = 0.0f;
+  /// The movement and fire keys held right now.
+  input::HeldActions held_actions_{};
 };
 
 }  // namespace eng::editor

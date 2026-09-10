@@ -169,6 +169,22 @@ inline constexpr AgentParam AGENT_PARAMS_OPEN_LEVEL[] = {
      "\"refuse\" (the default) or \"discard\", as create_level takes."},
 };
 
+/// `send_input` queues what player 1 does for a run of ticks.
+inline constexpr AgentParam AGENT_PARAMS_SEND_INPUT[] = {
+    {"move_x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Stick along world X, -1 to 1. Defaults to 0."},
+    {"move_y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Stick along world Y, -1 to 1. Defaults to 0."},
+    {"aim_x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Aim X, -1 to 1. An aim of 0, 0 (the default) keeps the last aim."},
+    {"aim_y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Aim along world Y, -1 to 1. Defaults to 0."},
+    {"fire", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "Whether fire is held. Defaults to false; nothing fires yet."},
+    {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Ticks to hold this for, 1 to 3600 (60 is a second). Defaults to 1."},
+};
+
 /// `open_project` points the editor at a directory.
 inline constexpr AgentParam AGENT_PARAMS_OPEN_PROJECT[] = {
     {"path", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -361,6 +377,45 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "starts, selection, undo history — so all of it is replaced by what "
      "the new level's file holds.",
      AgentToolEffect::HOST, AGENT_PARAMS_OPEN_LEVEL},
+    {AgentTool::GET_PLAYTEST,
+     "get_playtest",
+     "Whether the open level is being played, and if so: the tick the "
+     "simulation is on, where each player is, the latest tick hash, how "
+     "many ticks the frame clock has dropped, and how many ticks of queued "
+     "input are left. Poll it after start_playtest or send_input to watch "
+     "the game run.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::START_PLAYTEST,
+     "start_playtest",
+     "Play the open level in the real simulation, as the toolbar's Play "
+     "button or F5 does. Player 1 spawns at the level's first start for "
+     "player 1, or under the camera when it has none. The document is not "
+     "changed by playing it, and every document edit is refused until "
+     "stop_playtest. The playtest is running by the time this answers, and "
+     "advances with the editor's frames — at 60 ticks a second of real "
+     "time — whether or not input is sent.",
+     AgentToolEffect::HOST,
+     {}},
+    {AgentTool::STOP_PLAYTEST,
+     "stop_playtest",
+     "Stop playing and go back to editing the level exactly as it was. The "
+     "run's replay is written to data/playtests/<level>.replay in the "
+     "project.",
+     AgentToolEffect::HOST,
+     {}},
+    {AgentTool::SEND_INPUT, "send_input",
+     "Queue player 1's input for the next ticks of a running playtest: a "
+     "stick, an aim and the fire button, held for a number of ticks. While "
+     "any is queued it runs in place of the keyboard, one tick at a time, "
+     "behind whatever was queued before it — so a scripted playthrough is "
+     "exact and repeatable: the same inputs from the same level give the "
+     "same tick hashes. The stick is in world axes, not the camera's: the "
+     "keyboard is camera-relative, but a script means the same run under "
+     "either projection. Under the isometric view, up the screen is -X and "
+     "-Y together. A full stick moves five tiles a second, and a value "
+     "outside -1 to 1 is full scale.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SEND_INPUT},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

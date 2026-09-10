@@ -48,6 +48,7 @@
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-play-mode.h>
 #include <engine/gui/gui-dropdown.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-rect.h>
@@ -143,6 +144,10 @@ public:
   /// the history is unbounded and this is called after every edit.
   void setHistory(const EditorActionHistory& history);
 
+  /// Tick Play Level while the level is being played, so the menu says
+  /// what the toolbar's Stop button says.
+  void setPlayMode(EditorPlayMode mode);
+
   /// Raised when a row is chosen. Never called with SEPARATOR.
   std::function<void(EditorMenuCommand)> on_command{};
 
@@ -230,6 +235,8 @@ private:
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.
   bool can_redo_ = false;
+  /// Whether the level is being played, which checks Play Level.
+  EditorPlayMode play_mode_ = EditorPlayMode::EDITING;
   /// Set when the rows are stale and tick() must rebuild them.
   bool items_dirty_ = true;
 };

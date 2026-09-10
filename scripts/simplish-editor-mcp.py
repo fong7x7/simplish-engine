@@ -30,12 +30,13 @@ SERVER_INFO = {"name": "simplish-editor", "version": "1"}
 TIMEOUT_SECONDS = 5
 
 # How the editor's own parameter vocabulary becomes JSON Schema. The editor
-# publishes one of these four words per parameter; anything else is a new
+# publishes one of these five words per parameter; anything else is a new
 # word on that side and is reported rather than guessed at.
 SCHEMA_TYPES = {
     "number": {"type": "number"},
     "integer": {"type": "integer", "minimum": 0},
     "string": {"type": "string"},
+    "boolean": {"type": "boolean"},
     # An asset is named either by its index or by its name, and the editor
     # accepts both, so the schema says both.
     "asset_ref": {"type": ["integer", "string"]},

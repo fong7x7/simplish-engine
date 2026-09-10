@@ -11,7 +11,8 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::SET_VIEW_DIMETRIC ||
          command == EditorMenuCommand::SET_VIEW_ISOMETRIC ||
          command == EditorMenuCommand::SET_SHADING_SMOOTH ||
-         command == EditorMenuCommand::SET_SHADING_CEL;
+         command == EditorMenuCommand::SET_SHADING_CEL ||
+         command == EditorMenuCommand::PLAYTEST;
 }
 
 bool editorMenuCommandImplemented(EditorMenuCommand command) {

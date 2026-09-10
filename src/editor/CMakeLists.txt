@@ -4,6 +4,7 @@
 # Desktop only; never built for consoles.
 #
 #   bin/editor ──► editor/ ──► platform/ ──► engine/
+#                        └──► game/ ──────────┘   (the playtest runs the game)
 
 add_subdirectory(project)
 add_subdirectory(shell)
@@ -16,4 +17,4 @@ simplish_add_library(simplish-editor
             simplish-editor-agent
 )
 
-target_link_libraries(simplish-editor PUBLIC simplish-platform)
+target_link_libraries(simplish-editor PUBLIC simplish-platform simplish-game)

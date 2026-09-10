@@ -4,6 +4,7 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-light-ops.h>
+#include <engine/input/input-action.h>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -588,4 +589,94 @@ TEST_CASE("a player start is selected by name, and reported as selected") {
   REQUIRE(selected.at("target") == "player_start");
   REQUIRE(selected.at("name") == "Player 1 Start");
   REQUIRE(selected.at("fields").at(0).at("name") == "player");
+}
+
+namespace {
+
+/// A state with a project open and a playtest running, as the editor
+/// leaves it once `start_playtest` has been carried out.
+EditorShellState playingState() {
+  EditorShellState state = stateWithAssets();
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("start_playtest needs a project, and queues the Play command") {
+  EditorShellState none;
+  REQUIRE(runAgentTool(none, "start_playtest", "{}").status ==
+          AgentStatus::UNAVAILABLE);
+
+  EditorShellState state = stateWithAssets();
+  const AgentResult result = runAgentTool(state, "start_playtest", "{}");
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.kind == AgentHostRequestKind::RUN_COMMAND);
+  REQUIRE(result.host.command == EditorMenuCommand::PLAYTEST);
+}
+
+TEST_CASE("start_playtest is refused while playing, stop_playtest while not") {
+  EditorShellState playing = playingState();
+  REQUIRE(runAgentTool(playing, "start_playtest", "{}").status ==
+          AgentStatus::UNAVAILABLE);
+  REQUIRE(runAgentTool(playing, "stop_playtest", "{}").host.command ==
+          EditorMenuCommand::PLAYTEST);
+
+  EditorShellState editing = stateWithAssets();
+  REQUIRE(runAgentTool(editing, "stop_playtest", "{}").status ==
+          AgentStatus::UNAVAILABLE);
+}
+
+TEST_CASE("send_input queues quantised input for player 1") {
+  EditorShellState state = playingState();
+
+  const json queued = call(
+      state, "send_input",
+      R"({"move_x": 1, "move_y": -0.5, "aim_x": 3, "fire": true, "ticks": 30})");
+
+  REQUIRE(state.playtest.scripted.size() == 1);
+  const EditorScriptedInput& input = state.playtest.scripted[0];
+  REQUIRE(input.ticks == 30);
+  REQUIRE(input.input.move_x == 32767);
+  REQUIRE(input.input.move_y == -16384);
+  // Out of range is full scale, as a stick pushed past its stop would be.
+  REQUIRE(input.input.aim_x == 32767);
+  REQUIRE(input.input.buttons == eng::input::INPUT_BUTTON_FIRE);
+  REQUIRE(queued.at("queued_input_ticks") == 30);
+}
+
+TEST_CASE("send_input defaults to one idle tick and bounds the tick count") {
+  EditorShellState state = playingState();
+  (void)call(state, "send_input", "{}");
+  REQUIRE(state.playtest.scripted[0].ticks == 1);
+  REQUIRE(state.playtest.scripted[0].input == eng::sim::PlayerInput{});
+
+  REQUIRE(runAgentTool(state, "send_input", R"({"ticks": 0})").status ==
+          AgentStatus::BAD_PARAMS);
+  REQUIRE(runAgentTool(state, "send_input", R"({"ticks": 3601})").status ==
+          AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("send_input is refused when nothing is being played") {
+  EditorShellState state = stateWithAssets();
+  REQUIRE(runAgentTool(state, "send_input", R"({"move_x": 1})").status ==
+          AgentStatus::UNAVAILABLE);
+  REQUIRE(state.playtest.scripted.empty());
+}
+
+TEST_CASE("the level cannot be edited through the API while it is played") {
+  EditorShellState state = playingState();
+
+  for (const char* tool :
+       {"place_asset", "add_light", "add_player_start", "set_property",
+        "translate", "delete", "select", "undo", "redo"}) {
+    INFO("tool " << tool);
+    REQUIRE(
+        runAgentTool(state, tool, R"({"asset": 0, "x": 0, "y": 0})").status ==
+        AgentStatus::UNAVAILABLE);
+  }
+  REQUIRE(state.document.placements.empty());
+  // Reading is still fine.
+  REQUIRE(runAgentTool(state, "list_placements", "{}").status ==
+          AgentStatus::OK);
 }

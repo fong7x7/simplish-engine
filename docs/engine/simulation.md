@@ -3,7 +3,7 @@
 **Parent document:** [Engine REQUIREMENTS](REQUIREMENTS.md) §4
 **Package:** `src/engine/sim/` (`eng::sim`), plus `Pcg32` and `FixedStepClock` in `src/engine/core/`
 **Governed by:** [ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md), [ADR-004](../decisions/ADR-004-soa-pools-over-ecs.md), [ADR-005](../decisions/ADR-005-deterministic-lockstep-coop.md)
-**Status:** Built and tested. Nothing drives it yet: `src/game/` and a client that steps it are the next consumers.
+**Status:** Built and tested, and driven: `src/game/world` implements `SimulationSystems`, and the editor's playtest steps it ([Editor §1](../editor/REQUIREMENTS.md#current-state)). A standalone client is the next consumer.
 
 The engine side of the deterministic simulation. It owns the tick order, entity handle bookkeeping, state hashing, and the replay format. The game owns everything that happens inside a tick, supplied through one interface.
 
@@ -150,7 +150,7 @@ A `Replay` is a `ReplayHeader` (level id, content hash, seed, player count), eve
 
 | Gap | Waiting on |
 |---|---|
-| Per-phase tick timing for the playtest overlay ([Editor §7](../editor/REQUIREMENTS.md#7-playtest)) | A consumer. The timing must be measured by the caller — the simulation cannot read a clock — so it arrives as an observer when the editor or client needs it |
+| Per-phase tick timing for the playtest overlay ([Editor §7](../editor/REQUIREMENTS.md#7-playtest)) | The overlay. The playtest exists now; the timing must be measured by the caller — the simulation cannot read a clock — so it arrives as an observer when the overlay does |
 | Replay corpus in CI | A game to record runs from |
 | Content hash in the replay header | The content pipeline ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)); callers pass whatever they have |
 | Pool growth "at explicit checkpoints" (§4.2) | A level-load path that sizes pools from metadata |

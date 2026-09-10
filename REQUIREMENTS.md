@@ -94,7 +94,8 @@ simplish/
 │   │   ├── render-mesh/        # OBJ+MTL loading, mesh upload, textured draw ✔ built
 │   │   ├── render-fx/          # GPU particles, decals, projectile trails
 │   │   ├── physics/            # Projectile integration, swept queries, collision
-│   │   ├── audio/  input/  content/  net/  debug/
+│   │   ├── input/              # Held actions → quantised PlayerInput           ✔ built (first slice)
+│   │   ├── audio/  content/  net/  debug/
 │   ├── platform/               # The only per-target / per-distribution rebuild
 │   │   ├── render/             # RhiDeviceFactory + backends/                   ✔ built
 │   │   │   └── backends/       #   metal, vulkan, dx12, opengl, stub            ✔ built
@@ -103,8 +104,10 @@ simplish/
 │   ├── editor/                 # Desktop editor — links platform + engine
 │   │   ├── project/            # Project format, open/create, recent list       ✔ built
 │   │   └── shell/              # Title bar, menu bar, toolbar, viewport, assets ✔ built
-│   ├── game/                   # Gameplay — links engine (to write)
-│   │   ├── player/  weapons/  projectiles/  enemies/  director/  run/  coop/
+│   ├── game/                   # Gameplay — links engine
+│   │   ├── player/             # Player pool and movement on the tick          ✔ built
+│   │   ├── world/              # The game's SimulationSystems                  ✔ built
+│   │   ├── weapons/  projectiles/  enemies/  director/  run/  coop/  — to write
 │   └── bin/                    # Executables
 │       ├── editor/             # The editor                                     ✔ built
 │       └── client/  server/  sandbox/  audit-viewer/            — to write
@@ -118,11 +121,12 @@ Package boundaries are where the dependency rules in §5 are enforced: `src/engi
 
 ## 7. Current State
 
-**The engine, the platform layer, and a first editor build and pass their tests** — 919 tests on macOS/Metal and 871 on the headless stub backend, with zero compiler warnings.
+**The engine, the platform layer, and a first editor build and pass their tests** — 965 tests on macOS/Metal and 917 on the headless stub backend, with zero compiler warnings.
 
 | Layer | Packages | State |
 |---|---|---|
-| Engine | `math`, `core`, `image`, `render`, `gui`, `client`, `render-mesh`, `sim` | Math, allocators, logging, event bus, engine init, expression evaluator, plugin host, audit system, PCG32 and the fixed-step clock; the deterministic tick, SoA entity slots with generational handles, per-subsystem tick hashing, and replay record/encode/verify ([simulation.md](docs/engine/simulation.md)); the abstract RHI interface (29 headers); a retained-mode GUI with layout, widgets, docking, theming, FreeType text, and a markdown renderer; `GameClient` / `RenderedGameClient` |
+| Engine | `math`, `core`, `image`, `render`, `gui`, `client`, `render-mesh`, `sim`, `input` | Math, allocators, logging, event bus, engine init, expression evaluator, plugin host, audit system, PCG32 and the fixed-step clock; the deterministic tick, SoA entity slots with generational handles, per-subsystem tick hashing, and replay record/encode/verify ([simulation.md](docs/engine/simulation.md)); held input actions quantised into the `PlayerInput` a tick runs on; the abstract RHI interface (29 headers); a retained-mode GUI with layout, widgets, docking, theming, FreeType text, and a markdown renderer; `GameClient` / `RenderedGameClient` |
+| Game | `player`, `world` | Players spawned from a `GameSetup`, moved by their stick on the deterministic tick, and hashed; a determinism test and a replay round-trip over the whole world. Nothing else of the game yet |
 | Platform | `render` (+ 5 backends), `client`, `distributor` | `RhiDeviceFactory`; Metal, Vulkan, DX12, OpenGL, and stub backends, one compiled in per binary; the SDL3 `DesktopGameClient`. Distributor packages are stubs, not yet wired into the build |
 | Editor | `project`, `shell` | Project open and create against `.simplish/project.json` through a native dialog, a recent-projects list, and the editor shell: title bar, menu bar with dropdown menus, tool toolbar, a pan-and-zoom dimetric viewport, an asset strip whose models drag into the world as depth-tested 3D meshes, and click-to-select with a properties panel that moves and turns what is selected |
 
@@ -136,7 +140,7 @@ cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 
 Dependencies are deliberately few — nlohmann_json, FreeType, stb, SDL3, and Catch2, all fetched by CMake. Nothing else is linked.
 
-**What does not exist yet:** every engine package marked *to write* in §6, and the whole of `src/game/`. The simulation tick exists but nothing drives it yet; the isometric renderer and the projectile system — the other systems this project is actually about — are M1 and M2 work that starts from the foundation above.
+**What does not exist yet:** every engine package marked *to write* in §6, and the game past a moving player. The editor's Play button now drives the simulation tick with the game's world; the isometric renderer and the projectile system — the other systems this project is actually about — are M1 and M2 work that starts from the foundation above.
 
 ## 8. Open Questions
 

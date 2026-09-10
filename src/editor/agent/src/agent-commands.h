@@ -72,4 +72,15 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentOpenLevel(const EditorShellState& state,
                                             const nlohmann::json& params);
 
+/// Queue starting a playtest, when there is a level to play and none is
+/// being played.
+[[nodiscard]] AgentResult runAgentStartPlaytest(const EditorShellState& state);
+
+/// Queue stopping the running playtest.
+[[nodiscard]] AgentResult runAgentStopPlaytest(const EditorShellState& state);
+
+/// Queue player 1's input for the next ticks of the running playtest.
+[[nodiscard]] AgentResult runAgentSendInput(EditorShellState& state,
+                                            const nlohmann::json& params);
+
 }  // namespace eng::editor

@@ -88,7 +88,13 @@ namespace {
       EditorMenuCommand::SET_SHADING_CEL,
   };
 
-  constexpr EditorMenuCommand LEVEL_ROWS[] = {EditorMenuCommand::NEW_LEVEL};
+  /// The project's levels are spliced in after New Level, so Play Level
+  /// sits under the list of what it would play.
+  constexpr EditorMenuCommand LEVEL_ROWS[] = {
+      EditorMenuCommand::NEW_LEVEL,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::PLAYTEST,
+  };
 
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
 
@@ -355,6 +361,9 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_SHADING_CEL) {
     return shading_ == ProjectShading::CEL;
   }
+  if (command == EditorMenuCommand::PLAYTEST) {
+    return play_mode_ == EditorPlayMode::PLAYING;
+  }
   return false;
 }
 
@@ -504,6 +513,14 @@ void EditorMenuBarWidget::setLevels(const std::vector<EditorLevelEntry>& levels,
   }
   levels_ = levels;
   current_level_ = std::string(current);
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setPlayMode(EditorPlayMode mode) {
+  if (play_mode_ == mode) {
+    return;
+  }
+  play_mode_ = mode;
   items_dirty_ = true;
 }
 

@@ -3,7 +3,7 @@
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
 **Status:** Living register — update it in the change that moves a row
-**Last Updated:** 2026-09-10
+**Last Updated:** 2026-09-10 (playtest)
 
 What the editor can do, and whether an agent can do it too. One row per
 capability, three states per row.
@@ -116,6 +116,19 @@ puzzled over.
 | Toolbar status line | ✅ | ❌ | An agent reads the state the line is derived from, not the line |
 | Dockable panels, workspaces | ❌ | ❌ | [REQUIREMENTS §3](REQUIREMENTS.md#3-editor-shell) |
 
+## 6.1 Playtest
+
+| Capability | In the editor | Agent | Notes |
+|---|---|---|---|
+| Play the open level, and stop | ✅ | `start_playtest`, `stop_playtest`, `run_command` (`playtest`) | The toolbar's Play button, Level › Play Level, or F5; Esc stops too. One player, spawning on the level's first start for player 1, or under the camera without one |
+| See the running game | ✅ | `get_playtest`, `get_state` (`playtest`) | Tick, where each player is, the latest tick hash, dropped ticks. The toolbar status line shows the tick while playing |
+| Control player 1 | ✅ | `send_input` | WASD or the arrows move relative to the camera (W is up the screen in either projection), the cursor aims, the left button fires (recorded; nothing fires yet). `send_input` queues exact input for a run of ticks, in place of the keyboard, so a playthrough can be scripted and checked by its hashes. Its stick is in world axes, not the camera's, so a script means the same run under either projection |
+| The level is untouched by playing it | ✅ | — | The game runs from a copy; every edit — browser drops, picks, the panel, Delete, undo — is ignored while playing, and the API's edit tools are refused |
+| Every playtest records a replay | 🚧 | `stop_playtest` | Written to `data/playtests/<level>.replay` when the playtest stops. Nothing plays one back in the editor yet |
+| Pause, single-step, speed multipliers | ❌ | ❌ | [REQUIREMENTS §7](REQUIREMENTS.md#7-playtest). The session steps one tick at a time already; the controls are what is missing |
+| Multi-player preview with stand-ins | ❌ | ❌ | Only player 1 spawns; the other starts are shown but empty |
+| Debug overlays during play | ❌ | ❌ | Collision, flow fields, budgets, per-phase timing |
+
 ## 7. Not built at all
 
 Nothing below has an interface, so nothing below has an API. They are here
@@ -129,7 +142,6 @@ exist, and so that whoever builds one knows the API is part of building it.
 | Flow-field and reachability overlays | [§4.3](REQUIREMENTS.md#43-navigation-and-flow) |
 | Encounter and wave authoring | [§5](REQUIREMENTS.md#5-encounter-and-wave-authoring) |
 | Data-table editing | [§6](REQUIREMENTS.md#6-data-editing) |
-| Playtest | [§7](REQUIREMENTS.md#7-playtest) |
 | Hot-reload of data files | [§3](REQUIREMENTS.md#3-editor-shell) |
 | Autosave and crash recovery | [§9](REQUIREMENTS.md#9-non-functional-requirements) |
 

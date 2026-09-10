@@ -5,6 +5,7 @@
 # REQUIREMENTS.md §5 for the dependency direction between layers.
 
 add_subdirectory(engine)
+add_subdirectory(game)
 add_subdirectory(platform)
 
 if(ENGINE_BUILD_EDITOR)

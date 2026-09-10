@@ -34,6 +34,9 @@ namespace eng::editor {
 /// Every player start in the level, and how many players a session holds.
 [[nodiscard]] std::string agentPlayerStartsJson(const EditorShellState& state);
 
+/// Whether the level is being played, and what the playtest has done.
+[[nodiscard]] std::string agentPlaytestJson(const EditorShellState& state);
+
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
 

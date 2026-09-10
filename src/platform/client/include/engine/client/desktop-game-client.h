@@ -108,6 +108,15 @@ protected:
                                [[maybe_unused]] ClientKeyDownKind kind,
                                [[maybe_unused]] ClientKeyModifiers modifiers) {}
 
+  /// A key was released; `key` is the platform key symbol. Paired with
+  /// `onClientKeyDown` for whatever tracks held keys — a playtest's
+  /// movement — rather than acting on presses alone.
+  virtual void onClientKeyUp([[maybe_unused]] uint32_t key) {}
+
+  /// The window lost keyboard focus. The releases of any keys held at that
+  /// moment will never arrive, so whatever tracks held keys drops them here.
+  virtual void onClientFocusLost() {}
+
   /// Resize and input dispatch; subclasses that override must call this base
   /// implementation (or replicate resize, `dispatchSdlInputToGui`, and
   /// `onClientKeyDown`) so hooks stay wired.
@@ -133,6 +142,10 @@ protected:
   virtual void onFolderChosen(const std::filesystem::path& /*path*/) {}
 
 private:
+  /// Raise `onClientKeyDown`, `onClientKeyUp` or `onClientFocusLost` for
+  /// whichever of them @p event is, after the GUI has had it.
+  void dispatchClientKey(const SDL_Event& event);
+
   /// Hand any pending dialog answer to the handler its purpose names.
   void drainDialogPath();
 

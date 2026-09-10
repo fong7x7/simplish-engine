@@ -110,6 +110,17 @@ public:
   /// Whether the cursor is currently over the viewport.
   [[nodiscard]] bool hasHover() const { return has_hover_; }
 
+  /// Where the cursor last was over the viewport, in screen pixels.
+  ///
+  /// The screen point rather than the world point under it: a playtest's
+  /// camera follows the player, so the world moves under a cursor that has
+  /// not, and whoever aims with it has to convert through the camera as it
+  /// is now.
+  [[nodiscard]] IsoPoint hoveredScreenPoint() const { return hovered_screen_; }
+
+  /// Whether a left press that began in the viewport is still held.
+  [[nodiscard]] bool leftHeld() const { return left_press_; }
+
   /// Camera state; mutable so the shell can reset or frame the view.
   IsoCamera camera{};
 
@@ -159,6 +170,8 @@ private:
   WorldPoint hovered_tile_{};
   /// Whether the cursor is inside the viewport rect.
   bool has_hover_ = false;
+  /// Screen position of the cursor when `has_hover_` last became true.
+  IsoPoint hovered_screen_{};
   /// Whether a pan drag is active.
   bool panning_ = false;
   /// Cursor X the current left press began at.

@@ -55,6 +55,15 @@ float agentFloatParam(const nlohmann::json& params, std::string_view key,
   return value ? static_cast<float>(*value) : fallback;
 }
 
+std::optional<bool> agentBoolParam(const nlohmann::json& params,
+                                   std::string_view key) {
+  const nlohmann::json& value = paramAt(params, key);
+  if (!value.is_boolean()) {
+    return std::nullopt;
+  }
+  return value.get<bool>();
+}
+
 AgentResult agentOk(std::string payload) {
   return {AgentStatus::OK, std::move(payload), {}, false};
 }

@@ -39,8 +39,8 @@ constexpr eng::Rect BAR_RECT{0.0f, 28.0f, 1280.0f, TOOLBAR_HEIGHT};
 
 TEST_CASE("the toolbar creates one button per tool") {
   ToolbarFixture fx;
-  // Buttons plus the project label and the status label.
-  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 2);
+  // A button per tool, the play button, and the two labels.
+  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 3);
 }
 
 TEST_CASE("the toolbar starts on the select tool") {
@@ -63,7 +63,7 @@ TEST_CASE("layout keeps every tool button inside the bar") {
     REQUIRE(button->rect.y >= BAR_RECT.y);
     REQUIRE(button->rect.y + button->rect.h <= BAR_RECT.y + BAR_RECT.h);
   }
-  REQUIRE(buttons_seen == std::size(EDITOR_TOOLS));
+  REQUIRE(buttons_seen == std::size(EDITOR_TOOLS) + 1);
 }
 
 TEST_CASE("tool buttons do not overlap") {
@@ -173,4 +173,65 @@ TEST_CASE("tick after shutdown is a no-op rather than a crash") {
   fx.bar()->shutdown(fx.tree);
   fx.bar()->tick(fx.tree);
   SUCCEED();
+}
+
+namespace {
+
+/// The toolbar's play button, found by its debug name.
+eng::GuiButton* playButton(ToolbarFixture& fx) {
+  for (eng::GuiWidgetId child : fx.tree.findWidget(fx.toolbar_id)->children) {
+    auto* button = dynamic_cast<eng::GuiButton*>(fx.tree.findWidget(child));
+    if (button != nullptr && button->debug_name == "play") {
+      return button;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("the play button reads Play, and Stop while playing") {
+  ToolbarFixture fx;
+  fx.bar()->tick(fx.tree);
+  eng::GuiButton* button = playButton(fx);
+  REQUIRE(button != nullptr);
+  REQUIRE(button->label == "Play");
+
+  fx.bar()->setPlayMode(EditorPlayMode::PLAYING);
+  fx.bar()->tick(fx.tree);
+  REQUIRE(button->label == "Stop");
+}
+
+TEST_CASE("the play button sits after the tools, apart from them") {
+  ToolbarFixture fx;
+  fx.bar()->layout(fx.tree, BAR_RECT);
+  const eng::GuiButton* button = playButton(fx);
+  REQUIRE(button != nullptr);
+  for (eng::GuiWidgetId child : fx.tree.findWidget(fx.toolbar_id)->children) {
+    const auto* other =
+        dynamic_cast<const eng::GuiButton*>(fx.tree.findWidget(child));
+    if (other != nullptr && other != button) {
+      REQUIRE(other->rect.x + other->rect.w < button->rect.x);
+    }
+  }
+}
+
+TEST_CASE("clicking the play button reports it, whichever it reads") {
+  ToolbarFixture fx;
+  int toggles = 0;
+  fx.bar()->on_play_toggled = [&toggles] {
+    ++toggles;
+  };
+  fx.bar()->layout(fx.tree, BAR_RECT);
+  eng::GuiButton* button = playButton(fx);
+  REQUIRE(button != nullptr);
+
+  eng::GuiMouseEvent click{};
+  click.x = button->rect.x + 1.0f;
+  click.y = button->rect.y + 1.0f;
+  button->handleClick(click);
+  fx.bar()->setPlayMode(EditorPlayMode::PLAYING);
+  button->handleClick(click);
+
+  REQUIRE(toggles == 2);
 }

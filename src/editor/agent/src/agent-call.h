@@ -34,6 +34,10 @@ agentStringParam(const nlohmann::json& params, std::string_view key);
 [[nodiscard]] float agentFloatParam(const nlohmann::json& params,
                                     std::string_view key, float fallback);
 
+/// The boolean at @p key, or nothing when it is absent or not one.
+[[nodiscard]] std::optional<bool> agentBoolParam(const nlohmann::json& params,
+                                                 std::string_view key);
+
 /// A successful read: @p payload, and nothing for the editor to do.
 [[nodiscard]] AgentResult agentOk(std::string payload);
 

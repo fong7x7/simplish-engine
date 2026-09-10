@@ -38,6 +38,15 @@ static_assert(static_cast<uint32_t>(SDLK_BACKSPACE) ==
               DesktopPlatformKeycode::BACKSPACE);
 static_assert(static_cast<uint32_t>(SDLK_DELETE) ==
               DesktopPlatformKeycode::DELETE_FORWARD);
+static_assert(static_cast<uint32_t>(SDLK_F5) == DesktopPlatformKeycode::F5);
+static_assert(static_cast<uint32_t>(SDLK_RIGHT) ==
+              DesktopPlatformKeycode::ARROW_RIGHT);
+static_assert(static_cast<uint32_t>(SDLK_LEFT) ==
+              DesktopPlatformKeycode::ARROW_LEFT);
+static_assert(static_cast<uint32_t>(SDLK_DOWN) ==
+              DesktopPlatformKeycode::ARROW_DOWN);
+static_assert(static_cast<uint32_t>(SDLK_UP) ==
+              DesktopPlatformKeycode::ARROW_UP);
 
 namespace {
 
@@ -157,12 +166,20 @@ void DesktopGameClient::onEvent(const SDL_Event& event) {
     return;
   }
   dispatchSdlInputToGui(event);
+  dispatchClientKey(event);
+}
+
+void DesktopGameClient::dispatchClientKey(const SDL_Event& event) {
   if (event.type == SDL_EVENT_KEY_DOWN) {
     const auto kind = event.key.repeat != 0U
                           ? DesktopGameClient::ClientKeyDownKind::REPEAT
                           : DesktopGameClient::ClientKeyDownKind::FIRST_PRESS;
     onClientKeyDown(static_cast<uint32_t>(event.key.key), kind,
                     buildKeyModifiers(event.key));
+  } else if (event.type == SDL_EVENT_KEY_UP) {
+    onClientKeyUp(static_cast<uint32_t>(event.key.key));
+  } else if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
+    onClientFocusLost();
   }
 }
 

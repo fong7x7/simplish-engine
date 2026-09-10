@@ -35,6 +35,7 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::SET_SHADING_SMOOTH,
     EditorMenuCommand::SET_SHADING_CEL,
     EditorMenuCommand::ABOUT,
+    EditorMenuCommand::PLAYTEST,
 };
 
 /// Whether @p command names work that exists at all.

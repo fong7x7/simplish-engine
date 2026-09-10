@@ -12,6 +12,7 @@
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
+#include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
 #include <editor/shell/editor-view-state.h>
@@ -66,6 +67,9 @@ struct EditorShellState {
   /// Where the viewport camera sits and what it is over, refreshed from
   /// the widget once a tick. Read-only — see `editor-view-state.h`.
   EditorViewState view;
+  /// Whether the level is being played, and what the playtest has done —
+  /// refreshed from the running game after every frame of play.
+  EditorPlaytestState playtest;
 };
 
 }  // namespace eng::editor

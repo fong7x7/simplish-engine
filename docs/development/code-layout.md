@@ -239,10 +239,14 @@ src/
 │   ├── math/{include,src,test}
 │   ├── core/{include,src,test}
 │   ├── sim/{include,src,test}      # tick, entity slots, hashing, replay
+│   ├── input/{include,src,test}    # held actions → PlayerInput
 │   ├── image/{include,src,test}    # stb implementation TUs
 │   ├── render/include/             # RHI interface — headers only
 │   ├── gui/{include,src,test}
 │   └── client/{include,src,test}   # GameClient, RenderedGameClient
+├── game/                           # gameplay — links the engine only
+│   ├── player/{include,src,test}   # player pool and movement
+│   └── world/{include,src,test}    # the game's SimulationSystems
 ├── platform/                       # the only per-target rebuild
 │   ├── render/
 │   │   ├── {include,src,test}      # RhiDeviceFactory

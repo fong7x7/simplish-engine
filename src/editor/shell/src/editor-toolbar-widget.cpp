@@ -15,6 +15,9 @@ namespace {
   constexpr float SIDE_PADDING = 10.0f;
   constexpr float PROJECT_LABEL_WIDTH = 220.0f;
   constexpr float STATUS_LABEL_WIDTH = 260.0f;
+  /// Space between the last tool and the play button, so the button reads
+  /// as a separate thing rather than a sixth tool.
+  constexpr float PLAY_BUTTON_GAP = 16.0f;
 
   GuiButtonStyle activeStyle() {
     return {THEME_ACCENT, THEME_TEXT, THEME_ACCENT_HOVER, THEME_BTN_RADIUS};
@@ -55,6 +58,18 @@ void EditorToolbarWidget::wireChildren(GuiWidgetTree& tree) {
     label->text = project_name_;
   }
 
+  wireToolButtons(tree);
+  wirePlayButton(tree);
+
+  status_label_ = tree.createWidget(GuiWidgetType::TEXT, bar_panel_);
+  if (auto* label = dynamic_cast<GuiLabel*>(tree.findWidget(status_label_))) {
+    label->color = THEME_DIM;
+    label->align = GuiLabelAlign::LEFT;
+    label->text = status_text_;
+  }
+}
+
+void EditorToolbarWidget::wireToolButtons(GuiWidgetTree& tree) {
   tool_buttons_.reserve(std::size(EDITOR_TOOLS));
   for (EditorTool tool : EDITOR_TOOLS) {
     GuiWidgetId id = tree.createWidget(GuiWidgetType::BUTTON, bar_panel_);
@@ -70,12 +85,18 @@ void EditorToolbarWidget::wireChildren(GuiWidgetTree& tree) {
     }
     tool_buttons_.push_back(id);
   }
+}
 
-  status_label_ = tree.createWidget(GuiWidgetType::TEXT, bar_panel_);
-  if (auto* label = dynamic_cast<GuiLabel*>(tree.findWidget(status_label_))) {
-    label->color = THEME_DIM;
-    label->align = GuiLabelAlign::LEFT;
-    label->text = status_text_;
+void EditorToolbarWidget::wirePlayButton(GuiWidgetTree& tree) {
+  play_button_ = tree.createWidget(GuiWidgetType::BUTTON, bar_panel_);
+  if (auto* button = dynamic_cast<GuiButton*>(tree.findWidget(play_button_))) {
+    button->label = "Play";
+    button->debug_name = "play";
+    button->onClick([this](const GuiMouseEvent&) {
+      if (on_play_toggled) {
+        on_play_toggled();
+      }
+    });
   }
 }
 
@@ -92,6 +113,17 @@ void EditorToolbarWidget::layout(GuiWidgetTree& tree, const Rect& bar_rect) {
                            PROJECT_LABEL_WIDTH, BUTTON_HEIGHT);
   }
 
+  layoutButtons(tree, bar_rect);
+
+  if (auto* label = tree.findWidget(status_label_)) {
+    const float status_x =
+        bar_rect.x + bar_rect.w - STATUS_LABEL_WIDTH - SIDE_PADDING;
+    label->rect = makeRect(status_x, text_y, STATUS_LABEL_WIDTH, BUTTON_HEIGHT);
+  }
+}
+
+void EditorToolbarWidget::layoutButtons(GuiWidgetTree& tree,
+                                        const Rect& bar_rect) {
   float cursor_x = bar_rect.x + SIDE_PADDING + PROJECT_LABEL_WIDTH;
   const float button_y = bar_rect.y + (bar_rect.h - BUTTON_HEIGHT) * 0.5f;
   for (GuiWidgetId id : tool_buttons_) {
@@ -100,11 +132,9 @@ void EditorToolbarWidget::layout(GuiWidgetTree& tree, const Rect& bar_rect) {
     }
     cursor_x += BUTTON_WIDTH + BUTTON_GAP;
   }
-
-  if (auto* label = tree.findWidget(status_label_)) {
-    const float status_x =
-        bar_rect.x + bar_rect.w - STATUS_LABEL_WIDTH - SIDE_PADDING;
-    label->rect = makeRect(status_x, text_y, STATUS_LABEL_WIDTH, BUTTON_HEIGHT);
+  if (auto* button = tree.findWidget(play_button_)) {
+    button->rect = makeRect(cursor_x + PLAY_BUTTON_GAP, button_y, BUTTON_WIDTH,
+                            BUTTON_HEIGHT);
   }
 }
 
@@ -126,6 +156,18 @@ void EditorToolbarWidget::tick(GuiWidgetTree& tree) {
     label->text = status_text_;
   }
   styleButtons(tree);
+  stylePlayButton(tree);
+}
+
+void EditorToolbarWidget::stylePlayButton(GuiWidgetTree& tree) {
+  auto* button = dynamic_cast<GuiButton*>(tree.findWidget(play_button_));
+  if (button == nullptr) {
+    return;
+  }
+  const bool playing = play_mode_ == EditorPlayMode::PLAYING;
+  button->label = playing ? "Stop" : "Play";
+  button->style = playing ? activeStyle() : inactiveStyle();
+  button->override_style = true;
 }
 
 void EditorToolbarWidget::styleButtons(GuiWidgetTree& tree) {
@@ -145,6 +187,8 @@ void EditorToolbarWidget::shutdown(GuiWidgetTree& tree) {
     tree.destroyWidget(id);
   }
   tool_buttons_.clear();
+  tree.destroyWidget(play_button_);
+  play_button_ = GUI_WIDGET_ID_INVALID;
   tree.destroyWidget(project_label_);
   tree.destroyWidget(status_label_);
   project_label_ = GUI_WIDGET_ID_INVALID;

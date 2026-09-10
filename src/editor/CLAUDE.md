@@ -86,6 +86,21 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   being closed — and is refused outright when the open level holds unwritten
   edits, unless the caller asks for `EditorLevelUnsaved::DISCARD`. Save As
   stays disabled: nothing writes a level to a chosen path.
+- **A playtest runs from a copy of the level, and locks it.** `SimplishEditor`
+  owns an `EditorPlaytestSession` (a `game::GameWorld`, a `sim::Simulation`,
+  the frame clock and a replay recorder) only while playing. It is built
+  from the document on Play and destroyed on Stop, so nothing is ever
+  restored; in between, every editing gesture checks `isPlaying()` and the
+  agent API refuses its edit tools. What agents see of it is the
+  `EditorPlaytestState` mirror in shell state, and `send_input` writes the
+  one thing that flows back — queued input. Anything that replaces the level
+  (opening another, a rescan, closing the project) calls `stopPlaytest()`
+  first. The game sees no editor types: player starts become a
+  `game::GameSetup` in `makeEditorPlaytestSetup`. Keyboard movement is
+  camera-relative — `editorMoveBasis` turns up-the-screen into a world
+  direction from the camera's axes before input is quantised — while
+  `send_input` stays in world axes, so a script means one run under either
+  projection.
 - **The recent-projects list is written outside the checkout** when the
   platform offers a user data directory. `data/editor/recent-projects.json` is
   gitignored on purpose — it belongs to whoever runs the editor.

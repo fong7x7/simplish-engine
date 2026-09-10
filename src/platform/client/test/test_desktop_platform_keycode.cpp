@@ -33,3 +33,14 @@ TEST_CASE("DesktopPlatformKeycode::DELETE_FORWARD matches SDL3 SDLK_DELETE",
   REQUIRE(DesktopPlatformKeycode::DELETE_FORWARD == 127U);
   STATIC_REQUIRE(DesktopPlatformKeycode::DELETE_FORWARD == 127U);
 }
+
+TEST_CASE("DesktopPlatformKeycode's playtest keys match SDL3's",
+          "[platform][client][keycode]") {
+  // The values SDL3 gives F5 and the arrow keys: scancode | (1 << 30).
+  // desktop-game-client.cpp also static_asserts them against SDL itself.
+  STATIC_REQUIRE(DesktopPlatformKeycode::F5 == 0x4000003EU);
+  STATIC_REQUIRE(DesktopPlatformKeycode::ARROW_RIGHT == 0x4000004FU);
+  STATIC_REQUIRE(DesktopPlatformKeycode::ARROW_LEFT == 0x40000050U);
+  STATIC_REQUIRE(DesktopPlatformKeycode::ARROW_DOWN == 0x40000051U);
+  STATIC_REQUIRE(DesktopPlatformKeycode::ARROW_UP == 0x40000052U);
+}

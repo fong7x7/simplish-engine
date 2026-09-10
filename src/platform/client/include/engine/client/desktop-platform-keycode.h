@@ -18,6 +18,16 @@ struct DesktopPlatformKeycode {
   /// Not `DELETE`: `<windows.h>` defines that as an access mask, and a
   /// macro is not scoped away by the struct this sits in.
   static constexpr uint32_t DELETE_FORWARD = 127U;
+  /// Matches `SDLK_F5`: start and stop a playtest, as most editors bind it.
+  static constexpr uint32_t F5 = 0x4000003EU;
+  /// Matches `SDLK_RIGHT`.
+  static constexpr uint32_t ARROW_RIGHT = 0x4000004FU;
+  /// Matches `SDLK_LEFT`.
+  static constexpr uint32_t ARROW_LEFT = 0x40000050U;
+  /// Matches `SDLK_DOWN`.
+  static constexpr uint32_t ARROW_DOWN = 0x40000051U;
+  /// Matches `SDLK_UP`.
+  static constexpr uint32_t ARROW_UP = 0x40000052U;
 };
 
 }  // namespace eng::client

@@ -328,16 +328,23 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
       tree.insertExternalWidget(std::move(panel), root_panel_);
 }
 
-void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
+void SimplishEditor::initToolbar(GuiWidgetTree& tree) {
   auto toolbar = std::make_unique<EditorToolbarWidget>();
   toolbar->on_tool_selected = [this](EditorTool tool) {
     state_.active_tool = tool;
+  };
+  toolbar->on_play_toggled = [this] {
+    togglePlaytest();
   };
   toolbar_id_ = tree.insertExternalWidget(std::move(toolbar), root_panel_);
   if (auto* bar =
           dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
     bar->init(tree);
   }
+}
+
+void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
+  initToolbar(tree);
   auto viewport = std::make_unique<EditorViewportWidget>();
   viewport->on_placement_picked = [this](int marker) {
     selectMarker(marker);
@@ -525,7 +532,9 @@ void SimplishEditor::reloadAssets() {
 void SimplishEditor::refreshAssets() {
   // A different project, so the document goes with the old one: the lights
   // name no asset, but they belong to the level being closed, and leaving
-  // them behind would light the next project with them.
+  // them behind would light the next project with them. A playtest of it
+  // goes first, for the same reason.
+  stopPlaytest();
   clearDocument();
   reloadAssets();
   // Which level, before what is in it: the previous project's level id is
@@ -581,12 +590,14 @@ void SimplishEditor::saveDocument() {
 
 void SimplishEditor::createLevel(std::string_view id,
                                  EditorLevelUnsaved unsaved) {
+  stopPlaytest();
   commitPendingEdit();
   applyLevelResult(createEditorLevel(state_, id, unsaved), id);
 }
 
 void SimplishEditor::openLevel(std::string_view id,
                                EditorLevelUnsaved unsaved) {
+  stopPlaytest();
   commitPendingEdit();
   applyLevelResult(openEditorLevel(state_, id, unsaved), id);
 }
@@ -850,8 +861,10 @@ bool SimplishEditor::ensureAssetMesh(size_t index) {
 
 void SimplishEditor::dropBrowserEntry(size_t entry, float x, float y) {
   EditorViewportWidget* viewport = viewportWidget();
-  // A drop anywhere but the viewport is not a placement.
-  if (viewport == nullptr || !containsPoint(viewport->rect, x, y)) {
+  // A drop anywhere but the viewport is not a placement, and nothing is
+  // placed in a level while it is being played.
+  if (viewport == nullptr || isPlaying() ||
+      !containsPoint(viewport->rect, x, y)) {
     return;
   }
   const IsoView view = makeIsoView(viewport->camera, viewport->rect);
@@ -953,6 +966,10 @@ void SimplishEditor::select(EditorSelection selection) {
 }
 
 void SimplishEditor::selectMarker(int marker) {
+  // A click while playing is the fire button, not a pick.
+  if (isPlaying()) {
+    return;
+  }
   if (marker < 0) {
     select({});
     return;
@@ -1001,7 +1018,7 @@ void SimplishEditor::applySelectionToChrome() {
 
 void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
                                        EditorPropertyEdit edit) {
-  if (state_.selection.index >= selectionCount()) {
+  if (isPlaying() || state_.selection.index >= selectionCount()) {
     return;
   }
   if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
@@ -1192,6 +1209,7 @@ void SimplishEditor::refreshPlacementMarkers() {
   for (size_t i = 0; i < state_.document.player_starts.size(); ++i) {
     markers.push_back(playerStartMarker(i));
   }
+  appendPlaytestMarkers(markers);
 }
 
 void SimplishEditor::buildSceneLights() {
@@ -1220,6 +1238,7 @@ void SimplishEditor::buildSceneInstances() {
     scene_instances_.push_back(
         {asset.mesh, makePlacementTransform(asset, placement), asset.texture});
   }
+  appendPlaytestInstances();
 }
 
 GuiColor SimplishEditor::frameClearColor() const {
@@ -1231,8 +1250,10 @@ GuiColor SimplishEditor::frameClearColor() const {
 RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   eng::RhiDevice* device = rhiDevice();
   // No placements means no scene pass at all, which leaves the frame
-  // exactly as it was before any of this existed.
-  if (device == nullptr || state_.document.placements.empty()) {
+  // exactly as it was before any of this existed. A playtest always has
+  // one: the players are drawn in it.
+  if (device == nullptr ||
+      (state_.document.placements.empty() && !isPlaying())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -1319,8 +1340,10 @@ void SimplishEditor::refreshToolbar() {
     return;
   }
   bar->setStatusText(status_override_left_ > 0.0f ? status_override_
+                     : isPlaying()                ? playtestStatus()
                                                   : formatStatus(*viewport));
   bar->setActiveTool(state_.active_tool);
+  bar->setPlayMode(state_.playtest.mode);
   bar->tick(tree);
 }
 
@@ -1423,20 +1446,25 @@ void SimplishEditor::runStateHook() {
 bool SimplishEditor::onTick(float dt) {
   syncViewState();
   runStateHook();
+  tickPlaytest();
   if (chromeNeedsLayout()) {
     layoutChrome();
   }
   if (status_override_left_ > 0.0f) {
     status_override_left_ -= dt;
   }
+  tickMenuBar();
+  refreshToolbar();
+  pumpThumbnails();
+  return !quit_requested_;
+}
+
+void SimplishEditor::tickMenuBar() {
   GuiWidgetTree& tree = guiWidgetTree();
   if (auto* menu =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     menu->tick(tree);
   }
-  refreshToolbar();
-  pumpThumbnails();
-  return !quit_requested_;
 }
 
 bool SimplishEditor::runDialogCommand(EditorMenuCommand command) {
@@ -1482,7 +1510,7 @@ void SimplishEditor::runUndo() {
   // recorded before the history is walked back — which makes it the thing
   // this undo reverts, rather than a change undo cannot reach.
   commitPendingEdit();
-  if (!canUndoEditorAction(state_.history)) {
+  if (isPlaying() || !canUndoEditorAction(state_.history)) {
     return;
   }
   // Read before the cursor moves: this is the action about to be undone,
@@ -1497,7 +1525,7 @@ void SimplishEditor::runUndo() {
 
 void SimplishEditor::runRedo() {
   commitPendingEdit();
-  if (!canRedoEditorAction(state_.history)) {
+  if (isPlaying() || !canRedoEditorAction(state_.history)) {
     return;
   }
   const EditorAction action = state_.history.actions[state_.history.applied];
@@ -1511,6 +1539,9 @@ void SimplishEditor::runDelete() {
   // A drag still in flight has already moved the entry that is about to
   // go, so it is recorded first: undo then walks back the removal and the
   // move it interrupted, in that order, rather than losing the move.
+  if (isPlaying()) {
+    return;
+  }
   commitPendingEdit();
   const std::optional<EditorAction> action =
       editorDeleteAction(state_.document, state_.selection);
@@ -1546,11 +1577,13 @@ void SimplishEditor::executeCommand(EditorMenuCommand command) {
   if (runEditCommand(command)) {
     return;
   }
-  if (command == EditorMenuCommand::ABOUT) {
+  if (command == EditorMenuCommand::PLAYTEST) {
+    togglePlaytest();
+  } else if (command == EditorMenuCommand::ABOUT) {
     showAbout();
-    return;
+  } else {
+    applyViewCommand(command);
   }
-  applyViewCommand(command);
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
@@ -1759,6 +1792,22 @@ bool SimplishEditor::handleSelectionKey(uint32_t key) {
 
 void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
                                      ClientKeyModifiers modifiers) {
+  if (handlePlaytestKey(key, kind)) {
+    return;
+  }
+  if (isPlaying()) {
+    // Only the view keys stay live while playing: zooming out to see more
+    // of the level is fair, and nothing may edit it.
+    if (kind == ClientKeyDownKind::FIRST_PRESS) {
+      (void)handleViewKey(key);
+    }
+    return;
+  }
+  handleEditingKey(key, kind, modifiers);
+}
+
+void SimplishEditor::handleEditingKey(uint32_t key, ClientKeyDownKind kind,
+                                      ClientKeyModifiers modifiers) {
   // Before the repeat guard: holding the accelerator to walk back through a
   // run of edits is most of what the gesture is for, and undo stops on its
   // own once the history runs out.
