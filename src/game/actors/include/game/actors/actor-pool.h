@@ -11,6 +11,7 @@
 #include <engine/sim/entity-handle.h>
 #include <engine/sim/entity-slots.h>
 #include <game/actors/actor-path.h>
+#include <game/actors/actor-target-kind.h>
 #include <game/content/faction.h>
 #include <vector>
 
@@ -48,8 +49,10 @@ struct ActorPool {
   std::vector<uint8_t> state;
   /// The tick each actor entered its state on.
   std::vector<uint64_t> state_since;
-  /// The player each actor last perceived; null when it has none.
+  /// Who each actor last perceived; null when it has none.
   std::vector<sim::EntityHandle> target;
+  /// Which pool each actor's `target` is in.
+  std::vector<ActorTargetKind> target_kind;
   /// Whether each actor sees its target this tick.
   std::vector<uint8_t> sees_target;
   /// Whether each actor hears its target this tick.

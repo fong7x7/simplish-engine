@@ -11,6 +11,7 @@ simplish_add_module(simplish-game-content
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/behavior-names.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/builtin-behaviors.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/character-lookup.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/enemy-lookup.cpp
     DEPENDENCIES simplish-engine-core
 )
 
@@ -19,6 +20,7 @@ if(ENGINE_BUILD_TESTS)
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_behavior_lookup.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_behavior_names.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_character_lookup.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_enemy_lookup.cpp
         DEPENDENCIES simplish-game-content
     )
 endif()

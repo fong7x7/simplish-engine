@@ -7,6 +7,7 @@
 
 #include <game/content/behavior-definition.h>
 #include <game/content/character-definition.h>
+#include <game/content/enemy-definition.h>
 #include <vector>
 
 namespace eng::game {
@@ -23,6 +24,9 @@ struct GameContent {
   /// The project's own behaviors, in the order the table lists them. The
   /// built-in presets are not here; `resolveBehavior` looks at both.
   std::vector<BehaviorDefinition> behaviors{};
+  /// The enemy archetypes the director spawns, in the order the table
+  /// lists them.
+  std::vector<EnemyDefinition> enemies{};
 };
 
 }  // namespace eng::game

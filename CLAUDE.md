@@ -63,6 +63,7 @@ private headers, and never a relative escape into another package.
 ./scripts/format.sh                 # clang-format — CI fails on a diff
 ./scripts/lint.sh                   # clang-tidy + invariants, changed files vs main by default
 ./scripts/check-invariants.sh src/editor   # invariant checks alone, scoped to a path
+./scripts/perf-gate.sh              # relwithdebinfo build, then the [perf] budget cases
 ```
 
 Raw presets work too: `cmake --preset debug && cmake --build --preset debug && ctest --preset debug`.
@@ -134,18 +135,19 @@ posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (held
 actions to a quantised `PlayerInput`), `physics` (a first slice: cylinder
-against boxes), `spatial` (a first slice: navigation grid, line of sight,
-A* — [docs/engine/spatial.md](docs/engine/spatial.md)); game `content`,
+against boxes, and a static-box broadphase), `spatial` (navigation grid,
+line of sight, A*, flow fields, a neighbour grid —
+[docs/engine/spatial.md](docs/engine/spatial.md)); game `content`,
 `player`, `actors` and `world` (character and behavior definitions, players
 moving on the tick at their character's speed and stopped by props, actors
-that perceive, plan paths and move by their behavior —
-[docs/game/actors.md](docs/game/actors.md) — and the `SimulationSystems`
-composing them); platform
+that perceive, plan paths and move by their behavior, 2,000 of them inside
+the AI budget — [docs/game/actors.md](docs/game/actors.md) — and the
+`SimulationSystems` composing them); platform
 `render` (five backends), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest) and `agent`; `bin/editor`.
 
-Not written yet: the rest of `engine/spatial` (flow fields, spatial hash),
-`render-iso`, `render-sprite`, `render-fx`, `audio`, `content`, `net`,
+Not written yet: the rest of `engine/spatial` (per-objective fields, the
+tile grid), `render-iso`, `render-sprite`, `render-fx`, `audio`, `content`, `net`,
 `debug`, the rest of `physics`, and everything in `src/game/` past
 characters, players and actors — weapons, damage, loadouts, the director. The isometric renderer is ahead, not behind — check
 [REQUIREMENTS.md §6](REQUIREMENTS.md#6-repository--project-structure-target)

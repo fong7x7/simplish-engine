@@ -46,21 +46,31 @@ namespace {
     return away * ((min_distance - d) / d);
   }
 
-  /// The push that eases actor @p i out of every other actor — half the
-  /// overlap each, since the other is pushed too — and wholly out of
-  /// every player, who does not yield.
-  Vec2 separation(const ActorPool& pool, const PlayerPool& players,
-                  uint32_t i) {
-    const Vec2 at = flat(pool.position[i]);
+  /// The push that eases actor @p i out of every actor near it — half the
+  /// overlap each, since the other is pushed too — in the order the
+  /// neighbour grid visits them.
+  Vec2 actorPush(const ActorPool& pool, const ActorWorkspace& workspace,
+                 uint32_t i) {
+    const Vec2 at = workspace.positions[i];
     Vec2 push{};
-    for (uint32_t j = 0; j < pool.slots.size(); ++j) {
+    const float reach = pool.radius[i] + workspace.largest_radius;
+    workspace.neighbors.forEachNear(at, reach, [&](uint32_t j) {
       if (j != i) {
         const float side = i < j ? -0.5F : 0.5F;
-        push = push + pushApart(at, flat(pool.position[j]),
+        push = push + pushApart(at, workspace.positions[j],
                                 pool.radius[i] + pool.radius[j], side) *
                           0.5F;
       }
-    }
+    });
+    return push;
+  }
+
+  /// The push that eases actor @p i out of the actors near it and wholly
+  /// out of every player, who does not yield.
+  Vec2 separation(const ActorPool& pool, const PlayerPool& players,
+                  const ActorWorkspace& workspace, uint32_t i) {
+    const Vec2 at = workspace.positions[i];
+    Vec2 push = actorPush(pool, workspace, i);
     for (uint32_t p = 0; p < players.slots.size(); ++p) {
       push = push + pushApart(at, flat(players.position[p]),
                               pool.radius[i] + PLAYER_RADIUS_TILES, -1.0F);
@@ -99,10 +109,23 @@ void steerActor(const ActorRef& a, const ActorTickContext& context,
   }
 }
 
+void gatherNeighbors(const ActorPool& pool, ActorWorkspace& workspace) {
+  const uint32_t count = pool.slots.size();
+  workspace.positions.resize(count);
+  workspace.largest_radius = 0.0F;
+  for (uint32_t i = 0; i < count; ++i) {
+    workspace.positions[i] = flat(pool.position[i]);
+    workspace.largest_radius =
+        std::max(workspace.largest_radius, pool.radius[i]);
+  }
+  workspace.neighbors.rebuild(workspace.positions);
+}
+
 void separateActors(const ActorPool& pool, const PlayerPool& players,
-                    std::span<ActorIntent> intents) {
+                    ActorWorkspace& workspace) {
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
-    intents[i].step = intents[i].step + separation(pool, players, i);
+    workspace.intents[i].step =
+        workspace.intents[i].step + separation(pool, players, workspace, i);
   }
 }
 

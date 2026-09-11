@@ -85,6 +85,45 @@ namespace {
     }
   }
 
+  /// The complete flow field toward the player actor @p a is chasing, when
+  /// it perceives them this tick and is no wider than the field allows;
+  /// null otherwise.
+  const spatial::FlowField* fieldFor(const ActorRef& a,
+                                     const ActorTickContext& context,
+                                     const ActorIntent& intent) {
+    const auto player = context.players.slots.denseIndex(a.pool.target[a.i]);
+    if (intent.chases == 0 || !player ||
+        a.pool.target_kind[a.i] != ActorTargetKind::PLAYER) {
+      return nullptr;
+    }
+    const uint8_t slot = context.players.input_slot[*player];
+    const spatial::FlowField& field =
+        context.flow.fields[slot % context.flow.fields.size()];
+    const bool fits = clearanceOf(a, context.grid) <= field.clearance();
+    return field.complete() && fits ? &field : nullptr;
+  }
+
+  /// Aim actor @p a a few cells down @p field: a path of one waypoint,
+  /// worked out again every tick, which costs a handful of lookups where a
+  /// search would cost thousands.
+  void walkField(const ActorRef& a, const ActorTickContext& context,
+                 const spatial::FlowField& field) {
+    const auto from = openCellNear(context.grid, flat(a.pool.position[a.i]),
+                                   field.clearance());
+    const auto ahead =
+        from ? field.descend(context.grid, *from, ACTOR_FLOW_LOOKAHEAD_CELLS)
+             : std::nullopt;
+    if (!ahead) {
+      markNoPath(a, field.goal(), context.tick);
+      return;
+    }
+    ActorPath& path = a.pool.path[a.i];
+    path = {.goal = field.goal(), .planned_tick = context.tick};
+    path.points[0] = context.grid.centre(*ahead);
+    path.count = 1;
+    a.pool.no_path[a.i] = 0;
+  }
+
   /// Whether actor @p a is going anywhere a path could take it: a charge
   /// runs straight whatever is ahead.
   bool travels(const ActorRef& a, const ActorTickContext& context,
@@ -97,17 +136,29 @@ namespace {
 
 void planActor(const ActorRef& a, const ActorTickContext& context,
                ActorWorkspace& workspace) {
-  if (!travels(a, context, workspace)) {
-    return;
+  if (travels(a, context, workspace)) {
+    planWith(a, context, workspace,
+             fieldFor(a, context, workspace.intents[a.i]));
   }
-  const uint8_t clearance = clearanceOf(a, context.grid);
+}
+
+void planWith(const ActorRef& a, const ActorTickContext& context,
+              ActorWorkspace& workspace, const spatial::FlowField* field) {
+  const Vec2 at = flat(a.pool.position[a.i]);
   const Vec2 goal = a.pool.goal[a.i];
-  if (spatial::hasLineOfSight(context.grid, flat(a.pool.position[a.i]), goal,
-                              clearance)) {
+  constexpr float DIRECT = ACTOR_FLOW_DIRECT_TILES * ACTOR_FLOW_DIRECT_TILES;
+  // Far from its quarry a pursuer keeps to the field without asking what
+  // it could see; near, a straight walk is closer to what it would do.
+  const bool far_off =
+      field != nullptr && Vec2::distanceSquared(at, goal) > DIRECT;
+  if (!far_off && spatial::hasLineOfSight(context.grid, at, goal,
+                                          clearanceOf(a, context.grid))) {
     walkStraight(a);
-    return;
+  } else if (field != nullptr) {
+    walkField(a, context, *field);
+  } else {
+    planToward(a, context, workspace, goal);
   }
-  planToward(a, context, workspace, goal);
 }
 
 }  // namespace eng::game

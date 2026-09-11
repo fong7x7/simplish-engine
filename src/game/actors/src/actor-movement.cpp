@@ -41,15 +41,18 @@ namespace {
 }  // namespace
 
 void moveActor(const ActorRef& a, const ActorTickContext& context,
-               ActorIntent& intent) {
+               ActorIntent& intent, std::vector<uint32_t>& boxes) {
   Vec3& at = a.pool.position[a.i];
   const Vec2 before = flat(at);
-  const Vec2 clear = physics::resolveCylinderAgainstBoxes(
-      {{at.x + intent.step.x, at.y + intent.step.y},
-       a.pool.radius[a.i],
-       at.z,
-       a.pool.height[a.i]},
-      context.obstacles);
+  const physics::CollisionCylinder body{
+      {at.x + intent.step.x, at.y + intent.step.y},
+      a.pool.radius[a.i],
+      at.z,
+      a.pool.height[a.i]};
+  context.broadphase.gather(body.center,
+                            body.radius + ACTOR_COLLISION_REACH_TILES, boxes);
+  const Vec2 clear =
+      physics::resolveCylinderAgainstBoxes(body, context.obstacles, boxes);
   at.x = clear.x;
   at.y = clear.y;
   intent.moved = clear - before;

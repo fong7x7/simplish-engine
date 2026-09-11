@@ -19,6 +19,12 @@ namespace {
   static_assert(ROUTE_MODE_NAMES.size() ==
                 static_cast<size_t>(BehaviorRouteMode::PING_PONG) + 1);
 
+  /// Whom an actor targets, by name, in enumerator order.
+  constexpr std::array<std::string_view, 2> TARGETS_NAMES{"players",
+                                                          "opponents"};
+  static_assert(TARGETS_NAMES.size() ==
+                static_cast<size_t>(BehaviorTargets::OPPONENTS) + 1);
+
   /// Conditions by name, in enumerator order.
   constexpr std::array<std::string_view, 12> CONDITION_NAMES{
       "always",        "sees_target",   "hears_target",  "lost_target_for",
@@ -82,6 +88,14 @@ std::string_view behaviorRouteModeName(BehaviorRouteMode mode) {
 
 std::optional<BehaviorRouteMode> parseBehaviorRouteMode(std::string_view name) {
   return parseName<BehaviorRouteMode>(ROUTE_MODE_NAMES, name);
+}
+
+std::string_view behaviorTargetsName(BehaviorTargets targets) {
+  return TARGETS_NAMES[static_cast<size_t>(targets)];
+}
+
+std::optional<BehaviorTargets> parseBehaviorTargets(std::string_view name) {
+  return parseName<BehaviorTargets>(TARGETS_NAMES, name);
 }
 
 std::string_view factionName(Faction faction) {

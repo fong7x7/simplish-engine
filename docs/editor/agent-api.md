@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Forty-two, in three groups. `GET /tools` is authoritative and carries
+Forty-three, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -164,7 +164,8 @@ each one's parameters; this table is the map.
 | `list_player_starts` | Every player start: the player it is for, its position, its default character, and how many players a session holds |
 | `list_waypoints` | Every waypoint: its route (1 to 9), its place in it, and its position; and every route in use, with its points in walking order and the actors that patrol it |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
-| `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states and its initial state; and the behaviors table's path and anything wrong with it |
+| `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states, its initial state and whom it targets (`players` or `opponents`); and the behaviors table's path and anything wrong with it |
+| `list_enemies` | Every enemy archetype in the project's enemies table — id, name, model, health, body radius and height, behavior and whether it resolves, faction — with the file's path and anything wrong with it |
 | `get_navigation` | The navigation grid a playtest would plan across — its size and cell, how many cells are solid, too narrow, walled off from every player start, and open — and which actors cannot reach a start or have no floor where they stand. What the Navigation Overlay draws |
 | `find_path` | The route an actor of a given radius would plan between two points, by the game's own A* and smoothing: how the search ended, the waypoints, and the length in tiles |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
@@ -172,7 +173,7 @@ each one's parameters; this table is the map.
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused: the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused: the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 

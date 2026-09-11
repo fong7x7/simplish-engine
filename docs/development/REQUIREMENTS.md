@@ -166,6 +166,8 @@ The budgets in [Engine §7](../engine/REQUIREMENTS.md#7-non-functional-requireme
 | Baseline | Updated deliberately on `main` when a change is accepted as a legitimate cost, with the reason recorded in the commit |
 | Reporting | Every run publishes a per-phase breakdown so a regression names its own subsystem |
 
+**Built so far:** the horde half of the scenario. `./scripts/perf-gate.sh` builds `relwithdebinfo` and runs the hidden `[perf]` Catch2 cases — today `test_horde_budget.cpp` in `src/game/world`: 2,000 swarmers in a pillared arena closing on four scripted players, 120 ticks of warm-up then 600 timed, reporting each phase's median, 99th percentile and worst tick, and failing when the actors' median exceeds Engine §7's 2.5 ms. The case sits beside the code it measures and is hidden because a debug build's number means nothing; a non-hidden companion proves the same scene deterministic and that the horde closes in, so the benchmark cannot pass by standing still. Projectiles, the pinned runner class, a stored baseline and the 5% regression rule wait on projectiles and CI.
+
 ---
 
 ## 7. CI Matrix

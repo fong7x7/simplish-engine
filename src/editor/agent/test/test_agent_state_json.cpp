@@ -393,3 +393,21 @@ TEST_CASE("get_playtest says whether the playtest is paused") {
   state.playtest.clock = EditorPlaytestClock::PAUSED;
   REQUIRE(json::parse(agentPlaytestJson(state)).at("paused") == true);
 }
+
+TEST_CASE(
+    "list_enemies reports every archetype and whether its behavior runs") {
+  EditorShellState state;
+  state.enemies.enemies.push_back(
+      {.id = "swarmer", .name = "Swarmer", .behavior = "chase"});
+  state.enemies.enemies.push_back({.id = "odd", .behavior = "nobody_has"});
+  state.enemies.problems.push_back("odd: something");
+
+  const nlohmann::json read = nlohmann::json::parse(agentEnemiesJson(state));
+
+  REQUIRE(read.at("enemies").size() == 2);
+  REQUIRE(read.at("enemies").at(0).at("behavior_ref") == "behavior:chase");
+  REQUIRE(read.at("enemies").at(0).at("behavior_known") == true);
+  REQUIRE(read.at("enemies").at(1).at("behavior_known") == false);
+  REQUIRE(read.at("enemies").at(0).at("faction") == "hostile");
+  REQUIRE(read.at("problems").size() == 1);
+}

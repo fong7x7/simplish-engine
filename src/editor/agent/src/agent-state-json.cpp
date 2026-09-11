@@ -330,6 +330,7 @@ namespace {
            {"state", actor.state},
            {"faction", game::factionName(actor.faction)},
            {"target_player", actor.target},
+           {"target_actor", actor.target_actor},
            {"sees_target", actor.sees_target},
            {"path_waypoints", actor.path_waypoints}});
     }
@@ -550,6 +551,24 @@ namespace {
     return false;
   }
 
+  /// One enemy archetype, as `list_enemies` reports it, with whether
+  /// anything @p state can run is the behavior it names.
+  json enemyJson(const EditorShellState& state,
+                 const game::EnemyDefinition& enemy) {
+    const std::string ref = editorBehaviorRef(enemy.behavior);
+    return {{"id", enemy.id},
+            {"name", enemy.name},
+            {"model", enemy.model},
+            {"health", enemy.health},
+            {"radius", enemy.radius},
+            {"height", enemy.height},
+            {"behavior", enemy.behavior},
+            {"behavior_ref", ref},
+            {"behavior_known",
+             findEditorBehavior(state.behaviors.behaviors, ref) != nullptr},
+            {"faction", game::factionName(enemy.faction)}};
+  }
+
   /// One behavior, as `list_behaviors` reports it.
   json behaviorJson(const game::BehaviorDefinition& behavior) {
     return {{"id", behavior.id},
@@ -557,10 +576,26 @@ namespace {
             {"name", behavior.name},
             {"built_in", builtIn(behavior)},
             {"states", stateIds(behavior)},
-            {"initial", behavior.states[behavior.initial].id}};
+            {"initial", behavior.states[behavior.initial].id},
+            {"targets", game::behaviorTargetsName(behavior.senses.targets)}};
   }
 
 }  // namespace
+
+std::string agentEnemiesJson(const EditorShellState& state) {
+  json enemies = json::array();
+  for (const game::EnemyDefinition& enemy : state.enemies.enemies) {
+    enemies.push_back(enemyJson(state, enemy));
+  }
+  const std::string path =
+      state.project.loaded
+          ? editorEnemyTablePath(state.project.root).generic_string()
+          : std::string{};
+  return json{{"file", path},
+              {"enemies", enemies},
+              {"problems", state.enemies.problems}}
+      .dump(2);
+}
 
 std::string agentBehaviorsJson(const EditorShellState& state) {
   json behaviors = json::array();

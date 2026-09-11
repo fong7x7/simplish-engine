@@ -63,6 +63,10 @@ namespace {
     return agentOk(agentBehaviorsJson(state));
   }
 
+  AgentResult toolListEnemies(EditorShellState& state, const json&) {
+    return agentOk(agentEnemiesJson(state));
+  }
+
   AgentResult toolGetNavigation(EditorShellState& state, const json&) {
     return agentOk(agentNavigationJson(state));
   }
@@ -174,6 +178,7 @@ namespace {
       toolListWaypoints,
       toolListCharacters,
       toolListBehaviors,
+      toolListEnemies,
       toolGetNavigation,
       runAgentFindPath,
       toolGetSelection,

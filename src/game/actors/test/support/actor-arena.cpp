@@ -17,7 +17,9 @@ namespace {
 
 ActorArena::ActorArena(std::vector<physics::CollisionBox> boxes)
   : obstacles(std::move(boxes)), grid(arenaSpec(), obstacles),
-    workspace(16, grid.cellCount()) {
+    broadphase(obstacles),
+    flow(grid, grid.requiredClearance(ACTOR_DEFAULT_RADIUS_TILES)),
+    workspace(16, grid, broadphase) {
   brains.reserve(16);
   routes.reserve(16);
 }
@@ -57,8 +59,10 @@ void ActorArena::step(uint32_t ticks) {
                                    .players = players,
                                    .grid = grid,
                                    .obstacles = obstacles,
+                                   .broadphase = broadphase,
                                    .brains = brains,
                                    .routes = routes,
+                                   .flow = flow,
                                    .rng = rng};
     stepActors(actors, context, workspace);
     ++tick;
@@ -76,6 +80,7 @@ const std::string& ActorArena::stateOf(uint32_t actor) const {
 uint64_t ActorArena::hash() const {
   sim::StateHasher hasher;
   hashActors(actors, hasher);
+  hashFlowFields(flow, hasher);
   hasher.add(rng.state());
   return hasher.value();
 }

@@ -14,6 +14,7 @@ simplish_add_module(simplish-game-actors
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-brain.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-conditions.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-decision.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-flow-fields.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-intents.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-movement.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-perception.cpp
@@ -23,6 +24,7 @@ simplish_add_module(simplish-game-actors
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-steering.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-system.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-workspace.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/enemy-spawn.cpp
     DEPENDENCIES simplish-engine-core
                  simplish-engine-input
                  simplish-engine-math
@@ -37,11 +39,14 @@ if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-game-actors-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/actor-arena.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_brain.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_flow.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_movement.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_patrol.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_perception.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_states.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_system.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_targets.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_enemy_spawn.cpp
         DEPENDENCIES simplish-game-actors
     )
     target_include_directories(simplish-game-actors-tests PRIVATE

@@ -27,8 +27,10 @@ namespace {
 
 GameWorld::GameWorld(const GameSetup& setup, const GameContent& content)
   : obstacles_(setup.obstacles), grid_(navGridFor(setup)),
+    broadphase_(obstacles_),
     actors_(static_cast<uint32_t>(setup.actors.size())),
-    workspace_(static_cast<uint32_t>(setup.actors.size()), grid_.cellCount()),
+    flow_(grid_, grid_.requiredClearance(ACTOR_DEFAULT_RADIUS_TILES)),
+    workspace_(static_cast<uint32_t>(setup.actors.size()), grid_, broadphase_),
     ai_rng_(setup.seed, AI_RNG_STREAM) {
   for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
     (void)spawnPlayer(players_, slot, setup.spawns[slot],
@@ -47,8 +49,10 @@ void GameWorld::enemyAi(const sim::TickContext& context) {
                               .players = players_,
                               .grid = grid_,
                               .obstacles = obstacles_,
+                              .broadphase = broadphase_,
                               .brains = brains_,
                               .routes = routes_,
+                              .flow = flow_,
                               .rng = ai_rng_};
   stepActors(actors_, view, workspace_);
 }
@@ -61,6 +65,7 @@ void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {
 void GameWorld::hashState(sim::TickHashBuilder& builder) const {
   hashPlayers(players_, builder.section("players"));
   hashActors(actors_, builder.section("actors"));
+  hashFlowFields(flow_, builder.section("flow"));
   builder.section("ai_rng").add(ai_rng_.state());
 }
 

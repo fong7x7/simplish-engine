@@ -597,8 +597,7 @@ void SimplishEditor::reloadAssets() {
   adoptAssetScan(state_.project.loaded
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
-  reloadCharacters();
-  reloadBehaviors();
+  reloadDataTables();
   refreshAssetPanel();
 }
 

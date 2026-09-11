@@ -7,6 +7,7 @@
 /// A value type.
 
 #include <cstdint>
+#include <game/content/behavior-targets.h>
 
 namespace eng::game {
 
@@ -22,6 +23,8 @@ struct BehaviorSenses {
   /// How long it remembers a target it has stopped perceiving, in ticks,
   /// before it forgets them.
   uint32_t memory_ticks = 300;
+  /// Whom it takes as a target.
+  BehaviorTargets targets = BehaviorTargets::PLAYERS;
 };
 
 }  // namespace eng::game

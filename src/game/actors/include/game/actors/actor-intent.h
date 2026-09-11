@@ -18,6 +18,9 @@ struct ActorIntent {
   uint8_t moves = 0;
   /// How close to its goal counts as there, in tiles.
   float stop_within = 0.0F;
+  /// Whether its goal is the player it perceives this tick — the goal that
+  /// player's flow field leads to.
+  uint8_t chases = 0;
   /// The displacement steering and separation want this tick, in tiles.
   Vec2 step{};
   /// The displacement it actually made, after collision.

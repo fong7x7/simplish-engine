@@ -10,6 +10,7 @@
 #include <game/content/behavior-condition.h>
 #include <game/content/behavior-facing.h>
 #include <game/content/behavior-route-mode.h>
+#include <game/content/behavior-targets.h>
 #include <game/content/faction.h>
 #include <optional>
 #include <string_view>
@@ -40,6 +41,12 @@ parseBehaviorFacing(std::string_view name);
 /// The route mode a behaviors file means by @p name, if any.
 [[nodiscard]] std::optional<BehaviorRouteMode>
 parseBehaviorRouteMode(std::string_view name);
+
+/// What a behaviors file calls @p targets: `players`.
+[[nodiscard]] std::string_view behaviorTargetsName(BehaviorTargets targets);
+/// The targets a behaviors file means by @p name, if any.
+[[nodiscard]] std::optional<BehaviorTargets>
+parseBehaviorTargets(std::string_view name);
 
 /// @p faction as a level file writes it: `hostile`.
 [[nodiscard]] std::string_view factionName(Faction faction);

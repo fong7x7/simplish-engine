@@ -2,6 +2,7 @@
 #include "actor-queries.h"
 #include "actor-tuning.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -66,12 +67,27 @@ namespace {
              [[maybe_unused]] const BehaviorState& state,
              [[maybe_unused]] ActorIntent& intent) {}
 
-  /// Toward where the target was seen, stopping `near_tiles` short.
+  /// How near actor @p a comes to its target before it is touching them:
+  /// both radii when the target is another actor, who yields to being
+  /// pushed as a player does not — stopping any closer would shove them
+  /// along ahead of it. Nothing for a player.
+  float touching(const ActorRef& a) {
+    if (a.pool.target_kind[a.i] != ActorTargetKind::ACTOR) {
+      return 0.0F;
+    }
+    const auto other = a.pool.slots.denseIndex(a.pool.target[a.i]);
+    return other ? a.pool.radius[a.i] + a.pool.radius[*other] : 0.0F;
+  }
+
+  /// Toward where the target was seen, stopping `near_tiles` short — or
+  /// where it would touch them, if that is further.
   void approach(const ActorRef& a,
                 [[maybe_unused]] const ActorTickContext& context,
                 const BehaviorState& state, ActorIntent& intent) {
     if (hasTarget(a)) {
-      goTo(a, intent, a.pool.last_seen[a.i], state.near_tiles);
+      goTo(a, intent, a.pool.last_seen[a.i],
+           std::max(state.near_tiles, touching(a)));
+      intent.chases = a.pool.sees_target[a.i] | a.pool.hears_target[a.i];
     }
   }
 

@@ -7,12 +7,14 @@
 
 #include <cstdint>
 #include <engine/core/pcg32.h>
+#include <engine/physics/box-broadphase.h>
 #include <engine/sim/entity-handle.h>
 #include <engine/sim/simulation-systems.h>
 #include <engine/sim/tick-context.h>
 #include <engine/sim/tick-hash-builder.h>
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
+#include <game/actors/actor-flow-fields.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-workspace.h>
@@ -55,7 +57,8 @@ public:
   void enemyAi(const sim::TickContext& context) override;
   /// Destroys what the tick marked for destruction.
   void compaction(const sim::TickContext& context) override;
-  /// The players, the actors, and the AI stream, one section each.
+  /// The players, the actors, the flow fields and the AI stream, one
+  /// section each.
   void hashState(sim::TickHashBuilder& builder) const override;
 
   /// The players, for whatever draws them. Read-only: nothing outside the
@@ -91,6 +94,8 @@ private:
   std::vector<physics::CollisionBox> obstacles_;
   /// Where actors can go; derived from `obstacles_`, fixed for the run.
   spatial::NavGrid grid_;
+  /// `obstacles_`, bucketed for actors to collide with; fixed for the run.
+  physics::BoxBroadphase broadphase_;
   /// The brains actors run, each behavior compiled once, in the order
   /// actors first named them.
   std::vector<ActorBrain> brains_;
@@ -101,6 +106,8 @@ private:
   std::vector<ActorRoute> routes_;
   /// Each setup actor's handle, in setup order.
   std::vector<sim::EntityHandle> actor_handles_;
+  /// The flow fields actors pursue players by.
+  ActorFlowFields flow_;
   /// Scratch the actor passes work in; not state.
   ActorWorkspace workspace_;
   /// The AI stream.

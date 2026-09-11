@@ -76,6 +76,20 @@ namespace {
     return moved;
   }
 
+  /// `resolvePass` over only the boxes at @p candidates.
+  bool resolvePassOver(CollisionCylinder& cylinder,
+                       std::span<const CollisionBox> boxes,
+                       std::span<const uint32_t> candidates) {
+    bool moved = false;
+    for (const uint32_t index : candidates) {
+      if (cylinderOverlapsBox(cylinder, boxes[index])) {
+        cylinder.center = pushOutOf(cylinder, boxes[index]);
+        moved = true;
+      }
+    }
+    return moved;
+  }
+
 }  // namespace
 
 bool cylinderOverlapsBox(const CollisionCylinder& cylinder,
@@ -94,6 +108,18 @@ Vec2 resolveCylinderAgainstBoxes(const CollisionCylinder& cylinder,
   CollisionCylinder moving = cylinder;
   for (int pass = 0; pass < COLLISION_RESOLVE_PASSES; ++pass) {
     if (!resolvePass(moving, boxes)) {
+      break;
+    }
+  }
+  return moving.center;
+}
+
+Vec2 resolveCylinderAgainstBoxes(const CollisionCylinder& cylinder,
+                                 std::span<const CollisionBox> boxes,
+                                 std::span<const uint32_t> candidates) {
+  CollisionCylinder moving = cylinder;
+  for (int pass = 0; pass < COLLISION_RESOLVE_PASSES; ++pass) {
+    if (!resolvePassOver(moving, boxes, candidates)) {
       break;
     }
   }

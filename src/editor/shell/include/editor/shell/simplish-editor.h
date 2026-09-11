@@ -264,6 +264,12 @@ private:
   /// Read the project's behaviors table into the state, logging what was
   /// wrong with it.
   void reloadBehaviors();
+  /// Read the project's enemies table into the state, logging what was
+  /// wrong with it.
+  void reloadEnemies();
+  /// Read every data table the project has — characters, behaviors,
+  /// enemies — into the state.
+  void reloadDataTables();
   /// What a playtest is played with: the project's characters and
   /// behaviors, as last read.
   [[nodiscard]] game::GameContent playtestContent() const;

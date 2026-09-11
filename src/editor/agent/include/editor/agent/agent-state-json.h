@@ -53,6 +53,10 @@ namespace eng::editor {
 /// with the behaviors table's path and what was wrong with it.
 [[nodiscard]] std::string agentBehaviorsJson(const EditorShellState& state);
 
+/// Every enemy archetype the project defines, with the enemies table's path
+/// and what was wrong with it.
+[[nodiscard]] std::string agentEnemiesJson(const EditorShellState& state);
+
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
 

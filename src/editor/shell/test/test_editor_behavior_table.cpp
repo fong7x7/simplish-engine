@@ -149,3 +149,20 @@ TEST_CASE("a project with no behaviors table has none, and no problems") {
   REQUIRE(read.problems.empty());
   REQUIRE(editorBehaviorTablePath(root).filename() == "behaviors.data.json");
 }
+
+TEST_CASE("whom a behavior targets is read, and a word for nobody is players") {
+  const EditorBehaviorTable read = parseEditorBehaviorTable(table(R"([
+    {"id": "defender", "senses": {"targets": "opponents"},
+     "states": [{"id": "a"}]},
+    {"id": "confused", "senses": {"targets": "everyone"},
+     "states": [{"id": "a"}]},
+    {"id": "plain", "states": [{"id": "a"}]}])"));
+
+  REQUIRE(read.behaviors.at(0).senses.targets ==
+          game::BehaviorTargets::OPPONENTS);
+  REQUIRE(read.behaviors.at(1).senses.targets ==
+          game::BehaviorTargets::PLAYERS);
+  REQUIRE(read.behaviors.at(2).senses.targets ==
+          game::BehaviorTargets::PLAYERS);
+  REQUIRE(mentions(read.problems, "\"everyone\" is not whom to target"));
+}

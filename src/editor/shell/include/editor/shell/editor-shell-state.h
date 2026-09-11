@@ -12,6 +12,7 @@
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-document.h>
+#include <editor/shell/editor-enemy-table.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-playtest-state.h>
@@ -78,6 +79,9 @@ struct EditorShellState {
   /// read when the characters are, for the same reason. The built-in
   /// behaviors are not here; `editorAvailableBehaviors` adds them.
   EditorBehaviorTable behaviors;
+  /// The project's enemy archetypes, from `content/data/enemies.data.json`
+  /// — read with the others. Nothing spawns them yet; the director will.
+  EditorEnemyTable enemies;
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;

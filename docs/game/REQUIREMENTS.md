@@ -105,7 +105,7 @@ Modifiers attach to weapons and change behaviour, not just numbers: chain, ricoc
 
 ### 5.2 Horde AI
 
-Built so far ([actors.md](actors.md)): perception, behaviors as data state machines over closed sets of actions and conditions, per-actor A* with a per-tick expansion budget, separation, and facing — sized for the handful of actors a hand-authored level holds. The horde's flow fields, spatial hash and tiers below are not written.
+Built so far ([actors.md](actors.md)): perception, behaviors as data state machines over closed sets of actions and conditions, a flow field per player built a budget of cells a tick and walked by every pursuer, per-actor A* with a per-tick expansion budget for everything else, separation against neighbours from a counting-sorted grid, a static-box broadphase, actors targeting actors, facing, and enemy archetypes as data — measured at 2,000 actors inside Engine §7's budget. The tiers are by distance to the nearest player alone, since screen presence is the client's and not the simulation's, and only perception runs at the reduced rate; per-objective fields, incremental recomputation and despawn culling wait on objectives and the director.
 
 At 2,000 active enemies, per-entity pathfinding is not affordable. Movement runs on **shared flow fields**: the level's tile grid carries a field per player and per objective, recomputed incrementally as the world changes. Each enemy samples the field, applies local avoidance against its spatial-hash neighbours, and integrates. Individual pathfinding is reserved for the small number of enemies that need it — bosses, elites, and any archetype whose behaviour depends on a specific route.
 

@@ -29,6 +29,14 @@ TEST_CASE("facings and factions read back by name") {
   }
 }
 
+TEST_CASE("route modes and targets read back by name") {
+  REQUIRE(parseBehaviorRouteMode("ping_pong") == BehaviorRouteMode::PING_PONG);
+  REQUIRE(behaviorRouteModeName(BehaviorRouteMode::LOOP) == "loop");
+  REQUIRE(parseBehaviorTargets("opponents") == BehaviorTargets::OPPONENTS);
+  REQUIRE(behaviorTargetsName(BehaviorTargets::PLAYERS) == "players");
+  REQUIRE_FALSE(parseBehaviorTargets("everyone").has_value());
+}
+
 TEST_CASE("a word that names nothing reads as nothing") {
   REQUIRE_FALSE(parseBehaviorAction("dance").has_value());
   REQUIRE_FALSE(parseBehaviorCondition("").has_value());

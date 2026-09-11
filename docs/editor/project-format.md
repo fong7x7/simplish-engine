@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — the manifest, the level file's props (their behaviors included), lights, player starts and waypoints, and the characters and behaviors data tables (§8.1, §8.2) are implemented; everything else is not
+**Status:** Specification — the manifest, the level file's props (their behaviors included), lights, player starts and waypoints, and the characters, behaviors and enemies data tables (§8.1–§8.3) are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -45,7 +45,7 @@ my-project/
 │       ├── characters.data.json   # read today (§8.1)
 │       ├── behaviors.data.json    # read today (§8.2)
 │       ├── weapons.data.json
-│       ├── enemies.data.json
+│       ├── enemies.data.json      # read today (§8.3)
 │       └── projectiles.data.json
 └── data/                     # editor-owned scratch: layouts, bookmarks
 ```
@@ -359,7 +359,7 @@ A golden test pins this: a corpus of expressions evaluated both ways, asserted e
 
 ### 8.1 What the editor reads today
 
-Two tables. This one is the characters a player can play as: `content/data/characters.data.json`, entry schema `simplish/character/1.0`. The other is the behaviors props run (§8.2).
+Three tables. This one is the characters a player can play as: `content/data/characters.data.json`, entry schema `simplish/character/1.0`. The others are the behaviors props run (§8.2) and the enemy archetypes the director will spawn (§8.3).
 
 ```json
 {
@@ -427,7 +427,7 @@ Reading is forgiving, as the level reader is, because the file is written by han
 |---|---|---|
 | `id` | What a prop names it by: `behavior:sentry` | The row is skipped |
 | `name` | What the Behavior row calls it | The id |
-| `senses` | `sight_range` and `hearing_range` in tiles, `view_degrees` (360 sees all round), `memory_ticks` | 10, 6, 180, 300 |
+| `senses` | `sight_range` and `hearing_range` in tiles, `view_degrees` (360 sees all round), `memory_ticks`, and `targets` — whom it takes as a target: `players`, or `opponents` (for a hostile actor the players and friendly actors, for a friendly one hostile actors; an unknown word is `players`) | 10, 6, 180, 300, `players` |
 | `movement` | `speed` in tiles a second, as a character's; `turn_degrees_per_second` | 3.5, 360 |
 | `initial` | The state an actor starts in | The first state |
 | `interrupts` | Exits tested before the current state's own, in every state | None |
@@ -440,6 +440,39 @@ An **exit** has a `when` and a `to` — a state of the same row, by id — and t
 Durations are ticks and chances permille, as in encounter files; speeds are tiles a second, as in the characters table.
 
 Reading is forgiving, as the characters reader is, but never so forgiving that a behavior it keeps could index past its own states: a row or state with no usable or a repeated id is skipped; an exit whose `when` is no condition or whose `to` names no state is skipped; an unknown `do` is `idle` and an unknown `face` is `movement`; a number that is not one takes its default and one out of range is held to it; a row left with no states is skipped. Each is logged and reported by `list_behaviors`. The editor writes nothing here: the table is authored by hand until the data-editing panel ([Editor §6](REQUIREMENTS.md#6-data-editing)) exists. At run time it becomes `game::GameContent::behaviors`, beside the characters.
+
+### 8.3 The enemies table
+
+`content/data/enemies.data.json`, entry schema `simplish/enemy/1.0` — the enemy archetypes of Game §5.1, as the director will spawn them ([actors.md](../game/actors.md)). Optional, and nothing spawns from it yet: the director reads it when it exists. Until then the editor reads and reports it, and a playtest carries it in its content.
+
+```json
+{
+  "schema": "simplish/data_table/1.0",
+  "id": "enemies",
+  "content": {
+    "entry_schema": "simplish/enemy/1.0",
+    "entries": [
+      { "id": "swarmer", "name": "Swarmer", "model": "mesh:enemies_swarmer",
+        "health": 1, "radius": 0.3, "height": 1.2, "behavior": "chase" },
+      { "id": "bloater", "name": "Bloater", "model": "mesh:enemies_bloater",
+        "health": 4, "radius": 0.6, "behavior": "behavior:chase",
+        "faction": "hostile" }
+    ]
+  }
+}
+```
+
+| Key | Means | Absent |
+|---|---|---|
+| `id` | Stable identifier: lowercase, digits and underscores, unique in the table | The row is skipped |
+| `name` | What the editor calls it | Its id |
+| `model` | The asset it is drawn as, by reference | The stand-in |
+| `health` | Health segments, 1–999. Kept, and used by nothing until actors take damage | 1 |
+| `radius`, `height` | Its body, in tiles: 0.05–2 and 0.1–8 | 0.3, 1.5 — an actor's default |
+| `behavior` | A behavior by id or `behavior:` reference: a built-in or a row of §8.2 | `idle`, and said |
+| `faction` | `hostile`, `neutral` or `friendly` | `hostile` |
+
+Reading is forgiving in the way §8.1 is: a row with no usable or a repeated id is skipped, a number that is not one takes its default and one out of range is held to it, and an unknown faction is hostile. A behavior nobody defines is kept as written — the behaviors are read separately and may be fixed — and `list_enemies` says whether each archetype's behavior resolves. At run time the table becomes `game::GameContent::enemies`; `makeEnemySpawn` turns a row into the same `ActorSpawn` a prop with that model, behavior and faction would have become.
 
 ---
 

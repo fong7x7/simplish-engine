@@ -9,10 +9,12 @@
 #include <cstdint>
 #include <engine/core/pcg32.h>
 #include <engine/math/vec2.h>
+#include <engine/physics/box-broadphase.h>
 #include <engine/physics/collision-box.h>
 #include <engine/sim/tick-input.h>
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
+#include <game/actors/actor-flow-fields.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-spawn.h>
@@ -57,6 +59,10 @@ public:
   std::vector<physics::CollisionBox> obstacles;
   /// Where actors can go.
   spatial::NavGrid grid;
+  /// The props, bucketed.
+  physics::BoxBroadphase broadphase;
+  /// The players' flow fields.
+  ActorFlowFields flow;
   /// The brains added actors run.
   std::vector<ActorBrain> brains;
   /// The routes added actors patrol.

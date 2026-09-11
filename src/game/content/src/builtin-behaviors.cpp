@@ -85,6 +85,18 @@ namespace {
          state("return_home", Act::RETURN_HOME, {on(Cond::ARRIVED, WATCH)})});
   }
 
+  /// A guard that stands up to its side's opponents rather than to the
+  /// players: made friendly, it takes on hostile actors that come near its
+  /// post; made hostile, friendly ones as well as the players.
+  BehaviorDefinition defender() {
+    BehaviorDefinition made = guard();
+    made.id = "defender";
+    made.name = "Defender";
+    made.senses.targets = BehaviorTargets::OPPONENTS;
+    made.senses.view_degrees = 240.0F;
+    return made;
+  }
+
   /// Runs at whoever it sees or hears, all round, and keeps coming: the
   /// swarmer of Game §5.1.
   BehaviorDefinition chase() {
@@ -219,9 +231,9 @@ namespace {
 }  // namespace
 
 std::span<const BehaviorDefinition> builtInBehaviors() {
-  static const std::array<BehaviorDefinition, 9> presets{
-      idle(),   wander(),   guard(),   chase(), skirmisher(),
-      coward(), follower(), charger(), patrol()};
+  static const std::array<BehaviorDefinition, 10> presets{
+      idle(),   wander(),   guard(),   chase(),  skirmisher(),
+      coward(), follower(), charger(), patrol(), defender()};
   return presets;
 }
 

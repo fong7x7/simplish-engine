@@ -92,20 +92,32 @@ namespace {
     return found != object.end() && found->is_array() ? *found : json::array();
   }
 
+  /// Whom @p senses' `targets` names, or the players, saying so, for a
+  /// word that names nobody.
+  game::BehaviorTargets readTargets(const json& senses, const RowRead& row) {
+    const std::string word = stringAt(senses, "targets");
+    const auto targets = game::parseBehaviorTargets(word);
+    if (!targets && !word.empty()) {
+      note(row,
+           "\"" + word + "\" is not whom to target, so it targets players");
+    }
+    return targets.value_or(game::BehaviorTargets::PLAYERS);
+  }
+
   /// A row's senses, from its `senses` object.
   game::BehaviorSenses readSenses(const json& entry, const RowRead& row) {
     const json senses = objectAt(entry, "senses");
     const game::BehaviorSenses base{};
-    return {
-        numberAt(senses, "sight_range",
-                 {base.sight_range, 0.0F, MAX_RANGE_TILES}, row),
-        numberAt(senses, "view_degrees", {base.view_degrees, 0.0F, 360.0F},
-                 row),
-        numberAt(senses, "hearing_range",
-                 {base.hearing_range, 0.0F, MAX_RANGE_TILES}, row),
-        static_cast<uint32_t>(numberAt(
-            senses, "memory_ticks",
-            {static_cast<float>(base.memory_ticks), 0.0F, MAX_TICKS}, row))};
+    return {numberAt(senses, "sight_range",
+                     {base.sight_range, 0.0F, MAX_RANGE_TILES}, row),
+            numberAt(senses, "view_degrees", {base.view_degrees, 0.0F, 360.0F},
+                     row),
+            numberAt(senses, "hearing_range",
+                     {base.hearing_range, 0.0F, MAX_RANGE_TILES}, row),
+            static_cast<uint32_t>(numberAt(
+                senses, "memory_ticks",
+                {static_cast<float>(base.memory_ticks), 0.0F, MAX_TICKS}, row)),
+            readTargets(senses, row)};
   }
 
   /// A row's movement, from its `movement` object.

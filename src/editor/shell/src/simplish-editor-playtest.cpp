@@ -74,10 +74,9 @@ void SimplishEditor::requestPlaytest() {
     showStatusMessage("Open a project to play a level");
     return;
   }
-  // Read again on every Play, so a hand edit to either table reaches this
+  // Read again on every Play, so a hand edit to a table reaches this
   // playtest without reopening the project.
-  reloadCharacters();
-  reloadBehaviors();
+  reloadDataTables();
   const auto& characters = state_.characters.characters;
   if (characters.size() >= 2) {
     openCharacterSelect();
@@ -102,6 +101,21 @@ void SimplishEditor::reloadBehaviors() {
   for (const std::string& problem : state_.behaviors.problems) {
     LOG_WARN("editor", "behaviors.data.json: " + problem);
   }
+}
+
+void SimplishEditor::reloadEnemies() {
+  state_.enemies = state_.project.loaded
+                       ? loadEditorEnemyTable(state_.project.root)
+                       : EditorEnemyTable{};
+  for (const std::string& problem : state_.enemies.problems) {
+    LOG_WARN("editor", "enemies.data.json: " + problem);
+  }
+}
+
+void SimplishEditor::reloadDataTables() {
+  reloadCharacters();
+  reloadBehaviors();
+  reloadEnemies();
 }
 
 EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
@@ -198,7 +212,8 @@ std::string SimplishEditor::playingMessage() const {
 }
 
 game::GameContent SimplishEditor::playtestContent() const {
-  return {state_.characters.characters, state_.behaviors.behaviors};
+  return {state_.characters.characters, state_.behaviors.behaviors,
+          state_.enemies.enemies};
 }
 
 void SimplishEditor::beginPlaytestState() {

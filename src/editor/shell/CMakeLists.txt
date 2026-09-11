@@ -24,6 +24,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-select-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-transform.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-enemy-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"

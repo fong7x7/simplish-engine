@@ -40,6 +40,7 @@ namespace {
     pool.state[i] = initial;
     pool.state_since[i] = 0;
     pool.target[i] = {};
+    pool.target_kind[i] = ActorTargetKind::PLAYER;
     pool.sees_target[i] = 0;
     pool.hears_target[i] = 0;
     pool.remembers_target[i] = 0;
@@ -77,6 +78,7 @@ namespace {
     sim::applySlotMoves(moves, pool.state);
     sim::applySlotMoves(moves, pool.state_since);
     sim::applySlotMoves(moves, pool.target);
+    sim::applySlotMoves(moves, pool.target_kind);
     sim::applySlotMoves(moves, pool.sees_target);
     sim::applySlotMoves(moves, pool.hears_target);
     sim::applySlotMoves(moves, pool.remembers_target);
@@ -119,6 +121,7 @@ namespace {
     hasher.addSpan(live(pool.state, n));
     hasher.addSpan(live(pool.state_since, n));
     hasher.addSpan(live(pool.target, n));
+    hasher.addSpan(live(pool.target_kind, n));
     hasher.addSpan(live(pool.sees_target, n));
     hasher.addSpan(live(pool.hears_target, n));
     hasher.addSpan(live(pool.remembers_target, n));
@@ -161,17 +164,32 @@ std::optional<sim::EntityHandle> spawnActor(ActorPool& pool,
 void stepActors(ActorPool& pool, const ActorTickContext& context,
                 ActorWorkspace& workspace) {
   workspace.path_budget = ACTOR_PATH_BUDGET_PER_TICK;
+  advanceFlowFields(context);
+  gatherNeighbors(pool, workspace);
+  thinkActors(pool, context, workspace);
+  moveActors(pool, context, workspace);
+}
+
+void thinkActors(ActorPool& pool, const ActorTickContext& context,
+                 ActorWorkspace& workspace) {
   std::span<ActorIntent> intents(workspace.intents);
-  eachActor(pool, [&](const ActorRef& a) { perceiveActor(a, context); });
+  eachActor(pool,
+            [&](const ActorRef& a) { perceiveActor(a, context, workspace); });
   eachActor(pool, [&](const ActorRef& a) { decideActor(a, context); });
   eachActor(pool,
             [&](const ActorRef& a) { intendActor(a, context, intents[a.i]); });
   eachActor(pool, [&](const ActorRef& a) { planActor(a, context, workspace); });
+}
+
+void moveActors(ActorPool& pool, const ActorTickContext& context,
+                ActorWorkspace& workspace) {
+  std::span<ActorIntent> intents(workspace.intents);
   eachActor(pool,
             [&](const ActorRef& a) { steerActor(a, context, intents[a.i]); });
-  separateActors(pool, context.players, intents);
-  eachActor(pool,
-            [&](const ActorRef& a) { moveActor(a, context, intents[a.i]); });
+  separateActors(pool, context.players, workspace);
+  eachActor(pool, [&](const ActorRef& a) {
+    moveActor(a, context, intents[a.i], workspace.boxes);
+  });
   eachActor(pool,
             [&](const ActorRef& a) { faceActor(a, context, intents[a.i]); });
 }

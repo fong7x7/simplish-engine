@@ -250,15 +250,29 @@ EditorPlaytestActor EditorPlaytestSession::actorReport(size_t actor,
   const game::ActorPool& pool = world_->actors();
   const Vec3& at = pool.position[index];
   const game::ActorPath& path = pool.path[index];
+  const bool on_actor = pool.target_kind[index] == game::ActorTargetKind::ACTOR;
   return {.id = actor < actor_ids_.size() ? actor_ids_[actor] : std::string{},
           .position = {at.x, at.y, at.z},
           .facing = pool.facing[index],
           .behavior = world_->brains()[pool.brain[index]].behavior.id,
           .state = actorState(index).id,
           .faction = pool.faction[index],
-          .target = playerNumber(world_->players(), pool.target[index]),
+          .target = on_actor
+                        ? uint8_t{0}
+                        : playerNumber(world_->players(), pool.target[index]),
+          .target_actor = on_actor ? actorIdOf(pool.target[index]) : "",
           .sees_target = pool.sees_target[index] != 0,
           .path_waypoints = path.count - std::min(path.next, path.count)};
+}
+
+std::string EditorPlaytestSession::actorIdOf(sim::EntityHandle handle) const {
+  const auto handles = world_->actorHandles();
+  for (size_t k = 0; k < handles.size() && k < actor_ids_.size(); ++k) {
+    if (handles[k] == handle) {
+      return actor_ids_[k];
+    }
+  }
+  return {};
 }
 
 Vec3 EditorPlaytestSession::renderPosition(size_t index, float alpha) const {

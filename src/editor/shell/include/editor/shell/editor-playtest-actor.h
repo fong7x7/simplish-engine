@@ -29,8 +29,12 @@ struct EditorPlaytestActor {
   std::string state{};
   /// Which side it is on.
   game::Faction faction = game::Faction::HOSTILE;
-  /// The player it has as its target, 1 to 4, or 0 for none.
+  /// The player it has as its target, 1 to 4, or 0 for none — and 0 when
+  /// its target is another actor.
   uint8_t target = 0;
+  /// The id of the actor it has as its target, empty when its target is a
+  /// player or it has none.
+  std::string target_actor{};
   /// Whether it sees its target this tick.
   bool sees_target = false;
   /// Waypoints left on the path it is following; 0 when it walks straight.

@@ -407,6 +407,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Play; to add or change a behavior, edit that file.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_ENEMIES,
+     "list_enemies",
+     "Every enemy archetype the project defines in its enemies data table — "
+     "id, name, model, health segments, body radius and height in tiles, "
+     "the behavior it runs and whether the project can run it, and its "
+     "faction — with the file's path and anything wrong with it. The "
+     "archetypes are what the director will spawn a horde from; nothing "
+     "spawns them yet. Read when the project opens, on a rescan, and on "
+     "every Play; to add or change one, edit that file.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::GET_NAVIGATION,
      "get_navigation",
      "The navigation grid a playtest of the level would plan across — "

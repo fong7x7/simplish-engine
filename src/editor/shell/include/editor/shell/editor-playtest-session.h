@@ -174,6 +174,8 @@ public:
 private:
   /// The actors' part of `publish`.
   void publishActors(EditorPlaytestState& state) const;
+  /// The id of the prop the actor @p handle names became, or empty.
+  [[nodiscard]] std::string actorIdOf(sim::EntityHandle handle) const;
   /// The report for the setup's @p actor-th actor, at dense index @p index.
   [[nodiscard]] EditorPlaytestActor actorReport(size_t actor,
                                                 uint32_t index) const;
