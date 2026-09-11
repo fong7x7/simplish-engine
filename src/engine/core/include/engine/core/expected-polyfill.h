@@ -1,12 +1,27 @@
 #pragma once
 
 // Polyfill for std::expected / std::unexpected (C++23).
-// AppleClang 14 ships libc++ without <expected>. This header provides a
-// minimal subset that covers all project uses until the toolchain catches up.
-// When __cpp_lib_expected is defined the real <expected> is used instead.
+// AppleClang 14 ships libc++ without <expected>, and so does libstdc++ before
+// GCC 12, which Clang uses on Linux. This header provides a minimal subset
+// that covers all project uses until the toolchain catches up. When
+// __cpp_lib_expected is defined the real <expected> is used instead.
+//
+// <version> comes first because it is what defines __cpp_lib_expected.
+// Without it the choice would depend on what the including file happened to
+// include before this header, and two files that chose differently would
+// define std::expected two ways — an ODR violation that crashes rather than
+// fails to link. test_expected_polyfill.cpp includes this header first to
+// hold that line.
+#include <version>
 
 #if __has_include(<expected>) && defined(__cpp_lib_expected)
 #include <expected>
+
+namespace eng {
+/// True: std::expected here is the standard library's own.
+inline constexpr bool USES_STD_EXPECTED = true;
+}  // namespace eng
+
 #else
 
 #include <type_traits>
@@ -93,5 +108,10 @@ private:
 
 }  // namespace std
 // NOLINTEND(bugprone-std-namespace-modification,cert-dcl58-cpp,readability-identifier-naming,hicpp-explicit-conversions,google-explicit-constructor)
+
+namespace eng {
+/// False: std::expected here is the polyfill above.
+inline constexpr bool USES_STD_EXPECTED = false;
+}  // namespace eng
 
 #endif
