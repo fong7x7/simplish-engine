@@ -232,6 +232,7 @@ The load-bearing feature.
 | Sprite atlasing | Offline packer producing atlas pages plus metadata (frame rects, pivots, per-direction sets). Runs as a build step and on demand from the editor |
 | Sprite import | Directory conventions map to animation clips and the eight facing directions automatically |
 | Mesh import | Static meshes for terrain and structures, with collision derived or authored. Rigged, animated characters come in as glTF 2.0 — built: `.gltf` and `.glb` with a skinned mesh are read by `engine/gltf`, clips and all ([animation.md §5](../engine/animation.md#5-loading-gltf)); static glTF and embedded images are not read yet |
+| Mesh generation | Built, outside the editor: `tools/image-to-mesh.py` turns one image into a textured OBJ + MTL + PNG with a local Hunyuan3D 2.1 (`--setup` installs it, ~30 GB, Apple Silicon only). Its output is a *source* asset, kept beside its input image and a `.generation.json` of the settings — generation is not reproducible across machines, so it sits before this pipeline rather than in it, and the Determinism row applies from the OBJ on |
 | Audio import | Format conversion, loudness normalisation, and bank assembly |
 | Validation | Every import validates against the runtime's expectations — atlas page limits, mesh vertex budgets, audio channel counts — and fails loudly at import rather than quietly at runtime |
 | Determinism | The pipeline is reproducible: identical sources produce byte-identical outputs, so content hashes stay stable across machines |
