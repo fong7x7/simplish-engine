@@ -4,6 +4,7 @@
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-scale-slider.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <utility>
@@ -103,9 +104,7 @@ void EditorPropertiesWidget::beginSelection(
   reference_ = std::move(reference);
   fields_.assign(fields.begin(), fields.end());
   values_.assign(fields_.size(), 0.0f);
-  choice_label_.clear();
-  choices_.clear();
-  choice_ = 0;
+  choice_rows_.clear();
   has_selection_ = true;
   visible = true;
 }
@@ -137,32 +136,74 @@ void EditorPropertiesWidget::setSelection(std::string name,
   }
 }
 
-void EditorPropertiesWidget::setChoices(std::string_view label,
-                                        std::vector<std::string> choices,
-                                        size_t current) {
-  choice_label_ = label;
-  choices_ = std::move(choices);
-  choice_ = current < choices_.size() ? current : 0;
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorWaypoint& waypoint) {
+  beginSelection(std::move(name), editorWaypointRef(waypoint),
+                 EDITOR_WAYPOINT_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorWaypointValue(waypoint, fields_[row]);
+  }
 }
 
-const std::string& EditorPropertiesWidget::choice() const {
+void EditorPropertiesWidget::addChoices(EditorChoiceKind kind,
+                                        std::vector<std::string> choices,
+                                        size_t current) {
+  const size_t at = choiceRowOf(kind);
+  if (choices.empty()) {
+    if (at < choice_rows_.size()) {
+      choice_rows_.erase(choice_rows_.begin() + static_cast<long>(at));
+    }
+    return;
+  }
+  const size_t shown = current < choices.size() ? current : 0;
+  EditorChoiceRow row{kind, std::move(choices), shown};
+  if (at < choice_rows_.size()) {
+    choice_rows_[at] = std::move(row);
+  } else {
+    choice_rows_.push_back(std::move(row));
+  }
+}
+
+size_t EditorPropertiesWidget::choiceRowOf(EditorChoiceKind kind) const {
+  size_t at = 0;
+  while (at < choice_rows_.size() && choice_rows_[at].kind != kind) {
+    ++at;
+  }
+  return at;
+}
+
+const std::string& EditorPropertiesWidget::choice(EditorChoiceKind kind) const {
   static const std::string none;
-  return choices_.empty() ? none : choices_[choice_];
+  const size_t at = choiceRowOf(kind);
+  return at < choice_rows_.size()
+             ? choice_rows_[at].names[choice_rows_[at].current]
+             : none;
+}
+
+size_t EditorPropertiesWidget::choiceIndex(EditorChoiceKind kind) const {
+  const size_t at = choiceRowOf(kind);
+  return at < choice_rows_.size() ? choice_rows_[at].current : 0;
+}
+
+bool EditorPropertiesWidget::hasChoiceRow(EditorChoiceKind kind) const {
+  return choiceRowOf(kind) < choice_rows_.size();
 }
 
 size_t EditorPropertiesWidget::rowCount() const {
-  return fields_.size() + (choices_.empty() ? 0 : 1);
+  return fields_.size() + choice_rows_.size();
 }
 
-Rect EditorPropertiesWidget::choiceRowRect() const {
-  return choices_.empty() ? Rect{}
-                          : propertyRowRect(layout().body, fields_.size());
+Rect EditorPropertiesWidget::choiceRowRectAt(size_t index) const {
+  return propertyRowRect(layout().body, fields_.size() + index);
+}
+
+Rect EditorPropertiesWidget::choiceRowRect(EditorChoiceKind kind) const {
+  const size_t at = choiceRowOf(kind);
+  return at < choice_rows_.size() ? choiceRowRectAt(at) : Rect{};
 }
 
 void EditorPropertiesWidget::clearSelection() {
-  choice_label_.clear();
-  choices_.clear();
-  choice_ = 0;
+  choice_rows_.clear();
   has_selection_ = false;
   visible = false;
   // A drag whose subject has gone has nothing left to commit.
@@ -277,23 +318,25 @@ void EditorPropertiesWidget::renderRows(const GuiDrawContext& ctx) const {
   for (size_t row = 0; row < fields_.size(); ++row) {
     renderRow(ctx, row);
   }
-  renderChoiceRow(ctx);
+  for (size_t row = 0; row < choice_rows_.size(); ++row) {
+    renderChoiceRow(ctx, row);
+  }
 }
 
-void EditorPropertiesWidget::renderChoiceRow(const GuiDrawContext& ctx) const {
-  if (choices_.empty()) {
-    return;
-  }
-  const Rect row = choiceRowRect();
+void EditorPropertiesWidget::renderChoiceRow(const GuiDrawContext& ctx,
+                                             size_t index) const {
+  const EditorChoiceRow& choices = choice_rows_[index];
+  const Rect row = choiceRowRectAt(index);
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
-               textPos(propertyLabelRect(row), 0.0f), choice_label_);
+               textPos(propertyLabelRect(row), 0.0f),
+               editorChoiceLabel(choices.kind));
   renderStep(ctx, propertyDecrementRect(row), "-");
   renderStep(ctx, propertyIncrementRect(row), "+");
   const Rect value = propertyValueRect(row);
   ctx.drawRoundedRect(value, GuiColor::applyOpacity(VALUE_BG, opacity),
                       THEME_BTN_RADIUS);
   ctx.drawCenteredText(value, GuiColor::applyOpacity(THEME_TEXT, opacity),
-                       choice());
+                       choices.names[choices.current]);
 }
 
 void EditorPropertiesWidget::render(const GuiDrawContext& ctx) const {
@@ -387,21 +430,23 @@ bool EditorPropertiesWidget::pressRow(size_t index,
   return true;
 }
 
-void EditorPropertiesWidget::pressChoiceRow(const GuiMouseEvent& event) {
-  const Rect row = choiceRowRect();
+void EditorPropertiesWidget::pressChoiceRow(size_t index,
+                                            const GuiMouseEvent& event) {
+  EditorChoiceRow& choices = choice_rows_[index];
+  const Rect row = choiceRowRectAt(index);
   int steps = 0;
   if (containsPoint(propertyDecrementRect(row), event.x, event.y)) {
     steps = -1;
   } else if (containsPoint(propertyIncrementRect(row), event.x, event.y)) {
     steps = 1;
   }
-  const size_t next = stepChoice(choices_.size(), choice_, steps);
-  if (steps == 0 || next == choice_) {
+  const size_t next = stepChoice(choices.names.size(), choices.current, steps);
+  if (steps == 0 || next == choices.current) {
     return;
   }
-  choice_ = next;
+  choices.current = next;
   if (on_choice_changed) {
-    on_choice_changed(choice_);
+    on_choice_changed(choices.kind, next);
   }
 }
 
@@ -414,10 +459,10 @@ bool EditorPropertiesWidget::handleMouseDown(const GuiMouseEvent& event) {
   if (row < 0) {
     return false;
   }
-  if (static_cast<size_t>(row) == fields_.size()) {
-    // The choice row: a step is done the moment it is pressed, so it never
+  if (static_cast<size_t>(row) >= fields_.size()) {
+    // A choice row: a step is done the moment it is pressed, so it never
     // takes capture.
-    pressChoiceRow(event);
+    pressChoiceRow(static_cast<size_t>(row) - fields_.size(), event);
     return false;
   }
   return pressRow(static_cast<size_t>(row), event);

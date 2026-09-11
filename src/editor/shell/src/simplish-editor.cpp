@@ -3,9 +3,11 @@
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
@@ -21,6 +23,7 @@
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-shape.h>
 #include <editor/shell/editor-thumbnail-cache.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <editor/shell/iso-view-matrix.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/client/desktop-platform-keycode.h>
@@ -83,8 +86,8 @@ namespace {
     return status;
   }
 
-  /// Whether two placements sit, face, collide and animate exactly the same
-  /// way.
+  /// Whether two placements sit, face, collide, animate and behave exactly
+  /// the same way.
   ///
   /// A gesture that ended where it began is not an edit, and an undo entry
   /// that changes nothing is worse than no entry at all. Exact comparison
@@ -95,7 +98,8 @@ namespace {
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
            a.scale == b.scale && a.collides == b.collides &&
-           a.animation == b.animation;
+           a.animation == b.animation && a.behavior == b.behavior &&
+           a.faction == b.faction && a.route == b.route;
   }
 
   /// Whether two lights shine exactly alike, for the same reason
@@ -131,7 +135,20 @@ namespace {
     if (light < document.lights.size()) {
       return {EditorSelectionKind::LIGHT, light};
     }
-    return {EditorSelectionKind::PLAYER_START, light - document.lights.size()};
+    const size_t start = light - document.lights.size();
+    if (start < document.player_starts.size()) {
+      return {EditorSelectionKind::PLAYER_START, start};
+    }
+    return {EditorSelectionKind::WAYPOINT,
+            start - document.player_starts.size()};
+  }
+
+  /// Whether two waypoints stand at the same place in the same route, for
+  /// the reason `sameTransform` compares placements exactly.
+  bool sameWaypoint(const EditorWaypoint& a, const EditorWaypoint& b) {
+    return a.route == b.route && a.order == b.order &&
+           a.position.x == b.position.x && a.position.y == b.position.y &&
+           a.position.z == b.position.z;
   }
 
   /// Stands in for an asset a placement names but the list no longer has.
@@ -353,8 +370,8 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
                                       EditorPropertyEdit edit) {
     applyPropertyEdit(field, value, edit);
   };
-  panel->on_choice_changed = [this](size_t index) {
-    applyChoiceEdit(index);
+  panel->on_choice_changed = [this](EditorChoiceKind kind, size_t index) {
+    applyChoiceEdit(kind, index);
   };
   properties_panel_id_ =
       tree.insertExternalWidget(std::move(panel), root_panel_);
@@ -580,7 +597,7 @@ void SimplishEditor::reloadAssets() {
   adoptAssetScan(state_.project.loaded
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
-  reloadCharacters();
+  reloadDataTables();
   refreshAssetPanel();
 }
 
@@ -975,9 +992,27 @@ void SimplishEditor::placeGeneralItem(EditorGeneralItem item, WorldPoint tile) {
   if (const std::optional<EditorLightKind> kind =
           editorGeneralItemLightKind(item)) {
     placeLight(*kind, tile);
-    return;
+  } else if (item == EditorGeneralItem::WAYPOINT) {
+    placeWaypoint(tile);
+  } else {
+    placePlayerStart(tile);
   }
-  placePlayerStart(tile);
+}
+
+void SimplishEditor::placeWaypoint(WorldPoint tile) {
+  const uint8_t route =
+      editSubjectSelected(EditorSelectionKind::WAYPOINT)
+          ? state_.document.waypoints[state_.selection.index].route
+          : uint8_t{1};
+  const size_t added = state_.document.waypoints.size();
+  EditorWaypoint waypoint =
+      makeEditorWaypoint(route, nextEditorWaypointOrder(state_.document, route),
+                         {tile.x + 0.5f, tile.y + 0.5f, 0.0f});
+  waypoint.id = mintEditorWaypointId(state_.document);
+  recordAction({.kind = EditorActionKind::ADD_WAYPOINT,
+                .index = added,
+                .waypoint = waypoint});
+  select({EditorSelectionKind::WAYPOINT, added});
 }
 
 void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
@@ -1073,7 +1108,26 @@ void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
     std::vector<std::string> clips =
         editorClipNames(state_.assets[placement.asset].rig.get());
     const size_t current = editorClipIndex(clips, placement.animation);
-    panel.setChoices("Animation", std::move(clips), current);
+    panel.addChoices(EditorChoiceKind::ANIMATION, std::move(clips), current);
+  }
+  showActorChoices(panel, placement);
+}
+
+void SimplishEditor::showActorChoices(EditorPropertiesWidget& panel,
+                                      const EditorPlacement& placement) const {
+  EditorBehaviorChoices behaviors =
+      editorBehaviorChoices(state_.behaviors.behaviors, placement.behavior);
+  panel.addChoices(EditorChoiceKind::BEHAVIOR, std::move(behaviors.names),
+                   behaviors.current);
+  // A faction is a side for an actor to be on, and a route a round for it
+  // to walk; scenery has neither to pick.
+  if (isEditorActor(placement)) {
+    panel.addChoices(EditorChoiceKind::FACTION, editorFactionNames(),
+                     static_cast<size_t>(placement.faction));
+    EditorRouteChoices routes =
+        editorRouteChoices(state_.document, placement.route);
+    panel.addChoices(EditorChoiceKind::ROUTE, std::move(routes.names),
+                     routes.current);
   }
 }
 
@@ -1088,7 +1142,14 @@ void SimplishEditor::showPlayerStartSelection(EditorPropertiesWidget& panel) {
   panel.setSelection(editorPlayerStartName(start), start);
   EditorCharacterChoices choices =
       editorCharacterChoices(state_.characters.characters, start.character);
-  panel.setChoices("Character", std::move(choices.names), choices.current);
+  panel.addChoices(EditorChoiceKind::CHARACTER, std::move(choices.names),
+                   choices.current);
+}
+
+void SimplishEditor::showWaypointSelection(EditorPropertiesWidget& panel) {
+  const EditorWaypoint& waypoint =
+      state_.document.waypoints[state_.selection.index];
+  panel.setSelection(editorWaypointName(waypoint), waypoint);
 }
 
 void SimplishEditor::applySelectionToChrome() {
@@ -1102,6 +1163,8 @@ void SimplishEditor::applySelectionToChrome() {
     showPlacementSelection(*panel);
   } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
     showLightSelection(*panel);
+  } else if (selectionIs(state_.selection, EditorSelectionKind::WAYPOINT)) {
+    showWaypointSelection(*panel);
   } else {
     showPlayerStartSelection(*panel);
   }
@@ -1117,6 +1180,8 @@ void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
     applyPlacementEdit(field, value, edit);
   } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
     applyLightEdit(field, value, edit);
+  } else if (selectionIs(state_.selection, EditorSelectionKind::WAYPOINT)) {
+    applyWaypointEdit(field, value, edit);
   } else {
     applyPlayerStartEdit(field, value, edit);
   }
@@ -1138,15 +1203,89 @@ void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
   }
 }
 
-void SimplishEditor::applyChoiceEdit(size_t index) {
-  if (editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
-    applyCharacterChoice(index);
-  } else if (editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
-    applyClipChoice(index);
+void SimplishEditor::applyChoiceEdit(EditorChoiceKind kind, size_t index) {
+  switch (kind) {
+    case EditorChoiceKind::ANIMATION:
+      applyClipChoice(index);
+      break;
+    case EditorChoiceKind::CHARACTER:
+      applyCharacterChoice(index);
+      break;
+    case EditorChoiceKind::BEHAVIOR:
+    case EditorChoiceKind::FACTION:
+    case EditorChoiceKind::ROUTE:
+      applyActorChoice(kind, index);
+      break;
   }
 }
 
+void SimplishEditor::applyActorChoice(EditorChoiceKind kind, size_t index) {
+  if (kind == EditorChoiceKind::BEHAVIOR) {
+    applyBehaviorChoice(index);
+  } else if (kind == EditorChoiceKind::FACTION) {
+    applyFactionChoice(index);
+  } else {
+    applyRouteChoice(index);
+  }
+}
+
+void SimplishEditor::applyBehaviorChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  const EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  // Worked out again, as the character choices are, rather than
+  // remembered from when the panel was shown.
+  const EditorBehaviorChoices choices =
+      editorBehaviorChoices(state_.behaviors.behaviors, placement.behavior);
+  if (index < choices.refs.size()) {
+    applyActorEdit(choices.refs[index], placement.faction);
+  }
+}
+
+void SimplishEditor::applyFactionChoice(size_t index) {
+  if (editSubjectSelected(EditorSelectionKind::PLACEMENT) &&
+      index < game::ALL_FACTIONS.size()) {
+    applyActorEdit(state_.document.placements[state_.selection.index].behavior,
+                   game::ALL_FACTIONS[index]);
+  }
+}
+
+void SimplishEditor::applyRouteChoice(size_t index) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  const EditorRouteChoices routes =
+      editorRouteChoices(state_.document, placement.route);
+  if (index < routes.routes.size()) {
+    placement_prior_ = placement;
+    placement.route = routes.routes[index];
+    commitPlacementEdit();
+  }
+}
+
+void SimplishEditor::applyActorEdit(const std::string& behavior,
+                                    game::Faction faction) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  if (!placement_prior_.has_value()) {
+    placement_prior_ = placement;
+  }
+  placement.behavior = behavior;
+  placement.faction = faction;
+  commitPlacementEdit();
+}
+
 void SimplishEditor::applyCharacterChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
+    return;
+  }
   // Worked out again rather than remembered from when the panel was shown:
   // the choices are a function of the assets and the start, and both are
   // right here.
@@ -1159,6 +1298,9 @@ void SimplishEditor::applyCharacterChoice(size_t index) {
 }
 
 void SimplishEditor::applyClipChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
   const size_t asset = state_.document.placements[state_.selection.index].asset;
   const std::vector<std::string> clips = editorClipNames(
       asset < state_.assets.size() ? state_.assets[asset].rig.get() : nullptr);
@@ -1226,6 +1368,37 @@ void SimplishEditor::commitPendingEdit() {
   commitPlacementEdit();
   commitLightEdit();
   commitPlayerStartEdit();
+  commitWaypointEdit();
+}
+
+void SimplishEditor::applyWaypointEdit(EditorPropertyField field, float value,
+                                       EditorPropertyEdit edit) {
+  EditorWaypoint& waypoint = state_.document.waypoints[state_.selection.index];
+  if (!waypoint_prior_.has_value()) {
+    waypoint_prior_ = waypoint;
+  }
+  setEditorWaypointValue(waypoint, field, value);
+  if (edit == EditorPropertyEdit::COMMIT) {
+    commitWaypointEdit();
+  }
+}
+
+void SimplishEditor::commitWaypointEdit() {
+  if (!waypoint_prior_.has_value()) {
+    return;
+  }
+  const auto prior = *std::exchange(waypoint_prior_, std::nullopt);
+  if (!editSubjectSelected(EditorSelectionKind::WAYPOINT)) {
+    return;
+  }
+  const auto& waypoint = state_.document.waypoints[state_.selection.index];
+  if (sameWaypoint(prior, waypoint)) {
+    return;
+  }
+  recordAction({.kind = EditorActionKind::TRANSFORM_WAYPOINT,
+                .index = state_.selection.index,
+                .waypoint = waypoint,
+                .waypoint_prior = prior});
 }
 
 bool SimplishEditor::editSubjectSelected(EditorSelectionKind kind) const {
@@ -1322,6 +1495,52 @@ EditorPlacementMarker SimplishEditor::placementMarker(size_t index) {
                              : EditorMarkerStyle::PASSABLE};
 }
 
+void SimplishEditor::appendPlacementMarkers(
+    std::vector<EditorPlacementMarker>& markers) {
+  size_t actor = 0;
+  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
+    markers.push_back(isEditorActor(state_.document.placements[i])
+                          ? actorMarker(i, actor++)
+                          : placementMarker(i));
+  }
+}
+
+EditorPlacementMarker SimplishEditor::actorMarker(size_t index, size_t actor) {
+  const EditorPlacement placement = posedActor(index, actor);
+  const EditorAsset& asset = placement.asset < state_.assets.size()
+                                 ? state_.assets[placement.asset]
+                                 : UNKNOWN_ASSET;
+  EditorPlacementMarker marker{
+      placementWorldBounds(asset, placement),
+      isSelected(EditorSelectionKind::PLACEMENT, index),
+      EditorMarkerStyle::ACTOR};
+  marker.faction = placement.faction;
+  marker.facing = editorActorFacing(placement);
+  return marker;
+}
+
+EditorPlacementMarker SimplishEditor::waypointMarker(size_t index) {
+  const EditorWaypoint& waypoint = state_.document.waypoints[index];
+  EditorPlacementMarker marker{editorWaypointBounds(waypoint),
+                               isSelected(EditorSelectionKind::WAYPOINT, index),
+                               EditorMarkerStyle::WAYPOINT};
+  marker.route = waypoint.route;
+  return marker;
+}
+
+std::vector<EditorRouteLine> SimplishEditor::routeLines() const {
+  std::vector<EditorRouteLine> lines;
+  for (const uint8_t route : editorRoutesInUse(state_.document)) {
+    const std::vector<Vec2> points = editorRoutePoints(state_.document, route);
+    for (size_t i = 1; i < points.size(); ++i) {
+      lines.push_back({{points[i - 1].x, points[i - 1].y, 0.0f},
+                       {points[i].x, points[i].y, 0.0f},
+                       route});
+    }
+  }
+  return lines;
+}
+
 EditorPlacementMarker SimplishEditor::lightMarker(size_t index) {
   const EditorLight& light = state_.document.lights[index];
   // A light has no geometry, so its marker is a small box about where it
@@ -1345,20 +1564,37 @@ void SimplishEditor::refreshPlacementMarkers() {
   if (viewport == nullptr) {
     return;
   }
-  // Placements, then lights, then player starts: the order
-  // `markerSelection` reads a pick back in.
+  // Placements, then lights, then player starts, then waypoints: the
+  // order `markerSelection` reads a pick back in.
   std::vector<EditorPlacementMarker>& markers = viewport->placement_markers;
   markers.clear();
-  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
-    markers.push_back(placementMarker(i));
-  }
+  appendPlacementMarkers(markers);
+  appendEntityMarkers(markers);
+  appendPlaytestMarkers(markers);
+  viewport->route_lines = routeLines();
+  refreshOverlays();
+}
+
+void SimplishEditor::appendEntityMarkers(
+    std::vector<EditorPlacementMarker>& markers) {
   for (size_t i = 0; i < state_.document.lights.size(); ++i) {
     markers.push_back(lightMarker(i));
   }
   for (size_t i = 0; i < state_.document.player_starts.size(); ++i) {
     markers.push_back(playerStartMarker(i));
   }
-  appendPlaytestMarkers(markers);
+  for (size_t i = 0; i < state_.document.waypoints.size(); ++i) {
+    markers.push_back(waypointMarker(i));
+  }
+}
+
+void SimplishEditor::refreshOverlays() {
+  // The level cannot change while it is played, so its grid is only
+  // measured again while it is being edited.
+  if (!isPlaying()) {
+    refreshNavigationOverlay();
+  }
+  refreshActorOverlays();
 }
 
 void SimplishEditor::buildSceneLights() {
@@ -1400,8 +1636,13 @@ void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
 void SimplishEditor::buildSceneInstances() {
   scene_instances_.clear();
   skinned_instances_.clear();
-  for (const auto& placement : state_.document.placements) {
-    appendPlacementInstance(placement);
+  size_t actor = 0;
+  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
+    if (isEditorActor(state_.document.placements[i])) {
+      appendActorInstance(i, actor++);
+    } else {
+      appendPlacementInstance(state_.document.placements[i]);
+    }
   }
   appendCharacterInstances();
   // Players for props deleted since the last frame go; a prop brought back
@@ -1605,8 +1846,9 @@ void SimplishEditor::syncViewState() {
   if (viewport == nullptr) {
     return;
   }
-  state_.view = {viewport->camera, viewport->hoveredTile(),
-                 viewport->hasHover(), viewport->show_grid};
+  state_.view = {viewport->camera,          viewport->hoveredTile(),
+                 viewport->hasHover(),      viewport->show_grid,
+                 viewport->show_navigation, viewport->show_ai};
 }
 
 void SimplishEditor::ensurePlacedMeshes() {
@@ -1763,13 +2005,38 @@ void SimplishEditor::executeCommand(EditorMenuCommand command) {
   if (runEditCommand(command)) {
     return;
   }
-  if (command == EditorMenuCommand::PLAYTEST) {
-    togglePlaytest();
-  } else if (command == EditorMenuCommand::ABOUT) {
+  if (runPlaytestCommand(command)) {
+    return;
+  }
+  if (command == EditorMenuCommand::ABOUT) {
     showAbout();
   } else {
     applyViewCommand(command);
   }
+}
+
+bool SimplishEditor::runPlaytestCommand(EditorMenuCommand command) {
+  if (command == EditorMenuCommand::PLAYTEST) {
+    togglePlaytest();
+  } else if (command == EditorMenuCommand::PAUSE_PLAYTEST) {
+    togglePlaytestPause();
+  } else if (command == EditorMenuCommand::STEP_PLAYTEST) {
+    stepPlaytest(1);
+  } else if (const int stand_ins = editorStandInsOf(command); stand_ins >= 0) {
+    setStandIns(static_cast<uint8_t>(stand_ins));
+  } else {
+    return false;
+  }
+  return true;
+}
+
+void SimplishEditor::setStandIns(uint8_t stand_ins) {
+  state_.playtest_stand_ins = stand_ins;
+  applyPlayModeToChrome();
+  showStatusMessage(
+      stand_ins == 0 ? "The next playtest is solo"
+                     : "The next playtest adds " + std::to_string(stand_ins) +
+                           " stand-in" + (stand_ins == 1 ? "" : "s"));
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {
@@ -1804,7 +2071,48 @@ void SimplishEditor::applyCameraCommand(EditorMenuCommand command) {
     zoomAtCentre(*viewport, -1.0f);
   } else if (command == EditorMenuCommand::TOGGLE_GRID) {
     viewport->show_grid = !viewport->show_grid;
+  } else {
+    toggleOverlay(*viewport, command);
   }
+}
+
+void SimplishEditor::toggleOverlay(EditorViewportWidget& viewport,
+                                   EditorMenuCommand command) {
+  if (command == EditorMenuCommand::TOGGLE_NAVIGATION) {
+    viewport.show_navigation = !viewport.show_navigation;
+    refreshNavigationOverlay();
+    reportNavigation();
+  } else if (command == EditorMenuCommand::TOGGLE_AI_OVERLAY) {
+    viewport.show_ai = !viewport.show_ai;
+    refreshActorOverlays();
+  }
+}
+
+void SimplishEditor::refreshNavigationOverlay() {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  viewport->nav_overlay = viewport->show_navigation
+                              ? editorNavOverlay(analyseEditorNavigation(
+                                    state_.document, state_.assets))
+                              : EditorNavOverlay{};
+}
+
+void SimplishEditor::reportNavigation() {
+  const EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr || !viewport->show_navigation) {
+    return;
+  }
+  const EditorNavigation navigation =
+      analyseEditorNavigation(state_.document, state_.assets);
+  const size_t stuck =
+      navigation.unreachable_actors.size() + navigation.stranded_actors.size();
+  showStatusMessage(stuck == 0
+                        ? "Navigation: every actor can reach a player start"
+                        : "Navigation: " + std::to_string(stuck) +
+                              " actor(s) cannot reach a player start — see "
+                              "get_navigation");
 }
 
 void SimplishEditor::applyProjection(ProjectProjection projection) {

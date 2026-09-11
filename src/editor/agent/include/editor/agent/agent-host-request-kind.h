@@ -35,6 +35,8 @@ enum class AgentHostRequestKind : uint8_t {
   OPEN_LEVEL,
   /// Play the open level as `AgentHostRequest::character`, with no selector.
   START_PLAYTEST,
+  /// Pause the running playtest and run `AgentHostRequest::ticks` ticks.
+  STEP_PLAYTEST,
 };
 
 }  // namespace eng::editor

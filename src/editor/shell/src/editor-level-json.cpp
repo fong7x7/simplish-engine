@@ -1,11 +1,14 @@
 #include <array>
 #include <cstddef>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-waypoint-ops.h>
+#include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -87,15 +90,8 @@ namespace {
                                  : std::string{};
   }
 
-  json propJson(const EditorPlacement& placement,
-                const std::vector<EditorAsset>& assets) {
-    json out;
-    out["id"] = placement.id;
-    out["asset"] = assetRefAt(assets, placement.asset);
-    out["at"] = tripleJson(placement.position.x, placement.position.y,
-                           placement.position.z);
-    out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
-                                 placement.rotation.z);
+  /// The keys a prop carries only when they say something, into @p out.
+  void addPropExtras(json& out, const EditorPlacement& placement) {
     // Only when it is not the size the prop was dropped at, so a level saved
     // before scale existed saves back byte for byte rather than every prop
     // in it gaining a line that says nothing.
@@ -108,6 +104,27 @@ namespace {
     if (!placement.animation.empty()) {
       out["animation"] = placement.animation;
     }
+    // Only for an actor: a prop with no behavior is scenery, and a faction
+    // on scenery would be a line saying nothing.
+    if (!placement.behavior.empty()) {
+      out["behavior"] = placement.behavior;
+      out["faction"] = game::factionName(placement.faction);
+    }
+    if (!placement.behavior.empty() && placement.route != 0) {
+      out["route"] = placement.route;
+    }
+  }
+
+  json propJson(const EditorPlacement& placement,
+                const std::vector<EditorAsset>& assets) {
+    json out;
+    out["id"] = placement.id;
+    out["asset"] = assetRefAt(assets, placement.asset);
+    out["at"] = tripleJson(placement.position.x, placement.position.y,
+                           placement.position.z);
+    out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
+                                 placement.rotation.z);
+    addPropExtras(out, placement);
     return out;
   }
 
@@ -143,10 +160,25 @@ namespace {
     return out;
   }
 
+  /// A waypoint, as the same entity shape: which route it belongs to and
+  /// its place in it.
+  json waypointJson(const EditorWaypoint& waypoint) {
+    json out;
+    out["id"] = waypoint.id;
+    out["definition"] = EDITOR_WAYPOINT_DEFINITION;
+    out["at"] = tripleJson(waypoint.position.x, waypoint.position.y,
+                           waypoint.position.z);
+    out["properties"] = {{"route", waypoint.route}, {"order", waypoint.order}};
+    return out;
+  }
+
   json entitiesJson(const EditorDocument& document) {
     json entities = json::array();
     for (const EditorPlayerStart& start : document.player_starts) {
       entities.push_back(playerStartJson(start));
+    }
+    for (const EditorWaypoint& waypoint : document.waypoints) {
+      entities.push_back(waypointJson(waypoint));
     }
     return entities;
   }
@@ -192,6 +224,26 @@ namespace {
   /// An id is minted when the file left one out, so that no route into the
   /// document can produce a placement nothing is able to name — the rule
   /// `addPlacement` follows on the agent side.
+  /// @p behavior as the qualified reference the editor holds and writes: a
+  /// hand-written bare id, `guard`, reads as `behavior:guard`. Anything
+  /// already qualified is kept as written, as a character is.
+  std::string behaviorRef(const std::string& behavior) {
+    return behavior.empty() || behavior.contains(':')
+               ? behavior
+               : editorBehaviorRef(behavior);
+  }
+
+  /// The behavior, faction and route of a prop, into @p placement. A
+  /// faction the format does not know reads as hostile, the side a prop
+  /// given a behavior starts on; a route below 1 reads as none.
+  void readActor(const json& entry, EditorPlacement& placement) {
+    placement.behavior = behaviorRef(readString(entry, "behavior"));
+    placement.faction = game::parseFaction(readString(entry, "faction"))
+                            .value_or(game::Faction::HOSTILE);
+    const float route = readNumber(entry, "route", 0.0f);
+    placement.route = route >= 0.5f ? clampEditorRoute(route) : uint8_t{0};
+  }
+
   EditorPlacement readProp(const json& entry, size_t index,
                            const EditorDocument& document,
                            const std::vector<EditorAsset>& assets) {
@@ -209,6 +261,7 @@ namespace {
     // solid — the default a dropped one gets.
     placement.collides = readBool(entry, "collides").value_or(true);
     placement.animation = readString(entry, "animation");
+    readActor(entry, placement);
     placement.id = readString(entry, "id");
     if (placement.id.empty()) {
       placement.id = mintEditorPlacementId(document, assets[index]);
@@ -272,6 +325,22 @@ namespace {
     return start;
   }
 
+  /// One waypoint, its route and place held to what a level can hold.
+  EditorWaypoint readWaypoint(const json& entry,
+                              const EditorDocument& document) {
+    const Triple at = readTriple(entry, "at", ZERO_TRIPLE);
+    const json properties = entry.value("properties", json::object());
+    EditorWaypoint waypoint = makeEditorWaypoint(
+        clampEditorRoute(readNumber(properties, "route", 1.0f)),
+        clampEditorWaypointOrder(readNumber(properties, "order", 1.0f)),
+        {at[0], at[1], at[2]});
+    waypoint.id = readString(entry, "id");
+    if (waypoint.id.empty()) {
+      waypoint.id = mintEditorWaypointId(document);
+    }
+    return waypoint;
+  }
+
   /// The array under @p key, or an empty one when the file has no such
   /// array. A level with no lights in it is an ordinary level.
   json arrayAt(const json& content, const char* key) {
@@ -296,18 +365,21 @@ namespace {
     }
   }
 
-  /// Every entity the editor has a definition for. Player starts are the
-  /// only one today; any other is dropped and counted, as a prop naming a
+  /// Every entity the editor has a definition for: player starts and
+  /// waypoints. Any other is dropped and counted, as a prop naming a
   /// missing asset is, rather than silently rewritten into something else.
   void readEntities(const json& content, EditorLevelLoad& load) {
     for (const json& entry : arrayAt(content, "entities")) {
-      if (!entry.is_object() ||
-          readString(entry, "definition") != EDITOR_PLAYER_START_DEFINITION) {
+      const std::string definition =
+          entry.is_object() ? readString(entry, "definition") : std::string{};
+      if (definition == EDITOR_PLAYER_START_DEFINITION) {
+        load.document.player_starts.push_back(
+            readPlayerStart(entry, load.document));
+      } else if (definition == EDITOR_WAYPOINT_DEFINITION) {
+        load.document.waypoints.push_back(readWaypoint(entry, load.document));
+      } else {
         ++load.dropped_entities;
-        continue;
       }
-      load.document.player_starts.push_back(
-          readPlayerStart(entry, load.document));
     }
   }
 

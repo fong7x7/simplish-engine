@@ -5,11 +5,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <engine/sim/replay-codec.h>
 #include <engine/sim/replay-recorder.h>
 #include <engine/sim/replay-verification.h>
 #include <engine/sim/simulation.h>
+#include <game/content/behavior-lookup.h>
 #include <game/world/game-world.h>
 #include <vector>
 
@@ -22,6 +24,24 @@ using eng::sim::TickInput;
 namespace {
 
 constexpr uint64_t RUN_TICKS = 600;
+
+/// Actors of every kind among the players — one wandering on the AI stream,
+/// one the content overrides, one naming nothing it has — so perceiving,
+/// planning round props and drawing random numbers are proved deterministic
+/// too.
+void addActors(GameSetup& setup) {
+  const char* behaviors[] = {"chase",   "wander",     "guard",  "coward",
+                             "charger", "skirmisher", "missing"};
+  float x = -3.0F;
+  for (const char* behavior : behaviors) {
+    setup.actors.push_back({.at = {x, 6.0F, 0.0F}, .behavior = behavior});
+    x += 1.75F;
+  }
+  setup.actors.push_back(
+      {.at = {9.0F, -2.0F, 0.0F},
+       .behavior = "patrol",
+       .route = {{9.0F, -2.0F}, {9.0F, 4.0F}, {3.0F, -2.0F}}});
+}
 
 GameSetup fourPlayers() {
   GameSetup setup;
@@ -38,6 +58,7 @@ GameSetup fourPlayers() {
   // Characters of different speeds, and one left to the default, so the
   // stats a player takes from content are part of it too.
   setup.characters = {"scout", "tank", "", "scout"};
+  addActors(setup);
   return setup;
 }
 
@@ -45,6 +66,9 @@ eng::game::GameContent twoCharacters() {
   eng::game::GameContent content;
   content.characters.push_back({"scout", "Scout", "", 7.25F, 3});
   content.characters.push_back({"tank", "Tank", "", 3.5F, 9});
+  // A project guard, faster than the built-in one, replacing it.
+  content.behaviors.push_back(eng::game::resolveBehavior({}, "guard"));
+  content.behaviors.back().movement.speed = 5.0F;
   return content;
 }
 
@@ -57,6 +81,8 @@ TickInput scripted(uint64_t tick) {
     input.players[slot].move_y =
         eng::input::quantizeInputAxis(tick % 90 < 45 ? 1.0F : -0.5F);
     input.players[slot].aim_x = eng::input::quantizeInputAxis(1.0F - phase);
+    input.players[slot].buttons =
+        tick % 200 < 20 ? eng::input::INPUT_BUTTON_FIRE : 0;
   }
   return input;
 }

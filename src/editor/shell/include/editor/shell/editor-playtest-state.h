@@ -6,6 +6,9 @@
 
 #include <cstdint>
 #include <editor/shell/editor-play-mode.h>
+#include <editor/shell/editor-playtest-actor.h>
+#include <editor/shell/editor-playtest-clock.h>
+#include <editor/shell/editor-playtest-hazard.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <optional>
@@ -24,6 +27,8 @@ namespace eng::editor {
 struct EditorPlaytestState {
   /// Editing, or playing.
   EditorPlayMode mode = EditorPlayMode::EDITING;
+  /// Whether a running playtest advances on its own or waits to be stepped.
+  EditorPlaytestClock clock = EditorPlaytestClock::RUNNING;
   /// Ticks simulated since the playtest started.
   uint64_t tick = 0;
   /// Ticks the frame clock dropped rather than ran — a frame that took
@@ -33,6 +38,14 @@ struct EditorPlaytestState {
   std::optional<uint64_t> hash;
   /// Every player, in the simulation's own order.
   std::vector<EditorPlaytestPlayer> players;
+  /// Every actor — every prop with a behavior — in the level's order.
+  std::vector<EditorPlaytestActor> actors;
+  /// Where every projectile in flight is.
+  std::vector<WorldPoint> projectiles;
+  /// Every hazard pool on the floor.
+  std::vector<EditorPlaytestHazard> hazards;
+  /// Whether the run is over: no player is up.
+  bool run_over = false;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

@@ -34,12 +34,28 @@ namespace eng::editor {
 /// Every player start in the level, and how many players a session holds.
 [[nodiscard]] std::string agentPlayerStartsJson(const EditorShellState& state);
 
+/// Every waypoint in the level, and every route they lay out: its points
+/// in walking order and the actors that patrol it.
+[[nodiscard]] std::string agentWaypointsJson(const EditorShellState& state);
+
 /// Whether the level is being played, and what the playtest has done.
 [[nodiscard]] std::string agentPlaytestJson(const EditorShellState& state);
 
 /// `list_characters`: every character in the project's table, and what was
 /// wrong with the file.
 [[nodiscard]] std::string agentCharactersJson(const EditorShellState& state);
+
+/// `get_navigation`: the level's navigation grid, what its cells are, and
+/// which actors cannot reach a player start.
+[[nodiscard]] std::string agentNavigationJson(const EditorShellState& state);
+
+/// Every behavior a prop can name — the built-in ones and the project's —
+/// with the behaviors table's path and what was wrong with it.
+[[nodiscard]] std::string agentBehaviorsJson(const EditorShellState& state);
+
+/// Every enemy archetype the project defines, with the enemies table's path
+/// and what was wrong with it.
+[[nodiscard]] std::string agentEnemiesJson(const EditorShellState& state);
 
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);

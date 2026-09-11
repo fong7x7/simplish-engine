@@ -44,7 +44,10 @@
 //   - SimplishEditor: inserts this widget and owns its rect via layout
 //   - EditorShellState: reads hoveredTile() for the status text
 
+#include <editor/shell/editor-actor-overlay.h>
+#include <editor/shell/editor-nav-overlay.h>
 #include <editor/shell/editor-placement-marker.h>
+#include <editor/shell/editor-route-line.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/iso-camera.h>
 #include <editor/shell/iso-projection.h>
@@ -73,6 +76,24 @@ inline constexpr GuiColor EDITOR_PLAYER_START_COLORS[] = {
     {240, 130, 60, 255},
     {180, 120, 240, 255},
     {240, 90, 170, 255},
+};
+
+/// The colour an actor is marked in, by faction: red for hostile, a pale
+/// stone for neutral, teal for friendly. None of them is a player's colour,
+/// the selection blue, or the prop tan.
+inline constexpr GuiColor EDITOR_FACTION_COLORS[] = {
+    {235, 75, 60, 255},
+    {200, 195, 170, 255},
+    {60, 205, 185, 255},
+};
+
+/// The colour a patrol route is drawn in, one per route from route 1:
+/// none of them a player's colour, a faction's, the selection blue, or the
+/// prop tan.
+inline constexpr GuiColor EDITOR_ROUTE_COLORS[] = {
+    {250, 220, 70, 255},  {120, 200, 255, 255}, {255, 160, 210, 255},
+    {170, 240, 120, 255}, {255, 190, 110, 255}, {200, 170, 255, 255},
+    {110, 230, 200, 255}, {240, 240, 240, 255}, {190, 150, 110, 255},
 };
 
 /// The level viewport: a dimetric tile grid with pan and zoom.
@@ -128,6 +149,20 @@ public:
   /// the grid is a drawing, not the source of tile coordinates.
   bool show_grid = true;
 
+  /// Whether the navigation overlay is drawn: where the floor is blocked,
+  /// too narrow for an actor, or out of reach of every player start.
+  bool show_navigation = false;
+
+  /// What the navigation overlay draws, set by the editor while it is on.
+  EditorNavOverlay nav_overlay{};
+
+  /// Whether the AI overlay is drawn during a playtest.
+  bool show_ai = false;
+
+  /// Every actor as the AI overlay draws it, set by the editor each frame
+  /// of a playtest while the overlay is on.
+  std::vector<EditorActorOverlay> actor_overlays{};
+
   /// What the level holds, as boxes to outline and to pick against: the
   /// placed assets, and then the lights, in the order the editor built them.
   ///
@@ -137,6 +172,10 @@ public:
   /// without a mesh pipeline. A light has no geometry to draw at all, so its
   /// box is the whole of what shows it.
   std::vector<EditorPlacementMarker> placement_markers{};
+
+  /// Every leg of every patrol route, drawn on the floor in its route's
+  /// colour so a route reads as the round it is.
+  std::vector<EditorRouteLine> route_lines{};
 
   /// Raised on a left click that did not pan, with the index of the marker
   /// under the cursor or `EDITOR_PLACEMENT_NONE` for bare ground.
@@ -149,6 +188,10 @@ private:
   /// Draw what lies on the ground plane: grid, axes, and placements.
   void renderGround(GuiRendererContext& renderer, const IsoView& view) const;
 
+  /// Draw every leg of every patrol route on the floor.
+  void renderRouteLines(GuiRendererContext& renderer,
+                        const IsoView& view) const;
+
   /// Outline the footprint of every placement.
   void renderPlacements(GuiRendererContext& renderer,
                         const IsoView& view) const;
@@ -159,6 +202,13 @@ private:
 
   /// Whether any marker is the selected one.
   [[nodiscard]] bool hasSelectedMarker() const;
+
+  /// Whether the AI overlay has anything to draw.
+  [[nodiscard]] bool showsActors() const;
+
+  /// Draw what belongs over the scene: the selection box, the AI overlay,
+  /// and the cursor's tile.
+  void renderOverScene(GuiRendererContext& renderer, const IsoView& view) const;
 
   /// Report what a click at (@p x, @p y) picked.
   void pickAt(float x, float y);

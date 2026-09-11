@@ -36,6 +36,14 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::SET_SHADING_CEL,
     EditorMenuCommand::ABOUT,
     EditorMenuCommand::PLAYTEST,
+    EditorMenuCommand::PAUSE_PLAYTEST,
+    EditorMenuCommand::STEP_PLAYTEST,
+    EditorMenuCommand::TOGGLE_NAVIGATION,
+    EditorMenuCommand::TOGGLE_AI_OVERLAY,
+    EditorMenuCommand::PLAY_SOLO,
+    EditorMenuCommand::PLAY_ONE_STAND_IN,
+    EditorMenuCommand::PLAY_TWO_STAND_INS,
+    EditorMenuCommand::PLAY_THREE_STAND_INS,
 };
 
 /// Whether @p command names work that exists at all.
@@ -45,6 +53,11 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
 /// go until one is open. The menu bar, which sees no `EditorShellState`,
 /// reads this directly; everything else asks `editorMenuCommandEnabled`.
 [[nodiscard]] bool editorMenuCommandNeedsProject(EditorMenuCommand command);
+
+/// Whether @p command acts on a running playtest, and so does nothing
+/// while the level is being edited. The menu bar reads this directly, as it
+/// does `editorMenuCommandNeedsProject`.
+[[nodiscard]] bool editorMenuCommandNeedsPlaytest(EditorMenuCommand command);
 
 /// Whether @p command would do anything against @p state right now.
 ///

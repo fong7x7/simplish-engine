@@ -33,8 +33,9 @@ enum class EditorPropertyKind : uint8_t {
   FACTOR,
   /// A fraction, clamped to [0, 1].
   UNIT,
-  /// A player, a whole number from 1 to `EDITOR_PLAYER_SLOTS`.
-  SLOT,
+  /// A whole number from 1 to the field's `maximum`: a player, a route, a
+  /// place in a route.
+  COUNT,
   /// On or off, held as 1 or 0: the panel draws a checkbox for it, and a
   /// click flips it rather than stepping it.
   TOGGLE,
@@ -53,6 +54,8 @@ struct EditorPropertyTraits {
   std::string_view label;
   /// What sort of number the row holds.
   EditorPropertyKind kind;
+  /// The most a `COUNT` row may hold; unused by every other kind.
+  float maximum = 0.0f;
 };
 
 /// Every field's traits, indexed by the field's own value.
@@ -75,9 +78,11 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Colour B", EditorPropertyKind::UNIT},
     {"Intensity", EditorPropertyKind::FACTOR},
     {"Range", EditorPropertyKind::EXTENT},
-    {"Player", EditorPropertyKind::SLOT},
+    {"Player", EditorPropertyKind::COUNT, 4.0f},
     {"Collides", EditorPropertyKind::TOGGLE},
     {"Scale", EditorPropertyKind::SCALE},
+    {"Route", EditorPropertyKind::COUNT, 9.0f},
+    {"Order", EditorPropertyKind::COUNT, 99.0f},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

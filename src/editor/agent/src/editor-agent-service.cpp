@@ -83,6 +83,10 @@ bool EditorAgentService::runLevelRequest(const AgentHostRequest& request) {
     editor_->openLevel(request.level, request.unsaved);
   } else if (request.kind == AgentHostRequestKind::START_PLAYTEST) {
     editor_->startPlaytestAs(request.character);
+  } else if (request.kind == AgentHostRequestKind::STEP_PLAYTEST) {
+    editor_->stepPlaytest(request.ticks);
+  } else if (request.kind == AgentHostRequestKind::OPEN_PROJECT) {
+    (void)editor_->openProjectAt(std::filesystem::path(request.path));
   } else {
     return false;
   }
@@ -94,18 +98,17 @@ void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
     case AgentHostRequestKind::RUN_COMMAND:
       editor_->runMenuCommand(request.command);
       break;
-    case AgentHostRequestKind::OPEN_PROJECT:
-      (void)editor_->openProjectAt(std::filesystem::path(request.path));
-      break;
     case AgentHostRequestKind::RESCAN_ASSETS:
       editor_->rescanAssets();
       break;
     // Nothing to do, or already done by `runLevelRequest`. Listed rather
     // than defaulted, so a kind added to the enum fails the build here.
     case AgentHostRequestKind::NONE:
+    case AgentHostRequestKind::OPEN_PROJECT:
     case AgentHostRequestKind::CREATE_LEVEL:
     case AgentHostRequestKind::OPEN_LEVEL:
     case AgentHostRequestKind::START_PLAYTEST:
+    case AgentHostRequestKind::STEP_PLAYTEST:
       break;
   }
 }

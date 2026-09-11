@@ -26,6 +26,8 @@ enum class EditorGeneralItem : uint8_t {
   POINT_LIGHT,
   /// The point a player enters the level at.
   PLAYER_START,
+  /// A point of a patrol route.
+  WAYPOINT,
 };
 
 /// Every built-in item, in the order the section numbers them: the lights,
@@ -35,6 +37,7 @@ inline constexpr EditorGeneralItem EDITOR_GENERAL_ITEMS[] = {
     EditorGeneralItem::DIRECTIONAL_LIGHT,
     EditorGeneralItem::POINT_LIGHT,
     EditorGeneralItem::PLAYER_START,
+    EditorGeneralItem::WAYPOINT,
 };
 
 /// How many built-in items there are.
@@ -60,6 +63,7 @@ editorGeneralItemLightKind(EditorGeneralItem item) {
     case EditorGeneralItem::POINT_LIGHT:
       return EditorLightKind::POINT;
     case EditorGeneralItem::PLAYER_START:
+    case EditorGeneralItem::WAYPOINT:
       return std::nullopt;
   }
   return std::nullopt;
@@ -75,6 +79,8 @@ editorGeneralItemName(EditorGeneralItem item) {
       return "Point Light";
     case EditorGeneralItem::PLAYER_START:
       return "Player Start";
+    case EditorGeneralItem::WAYPOINT:
+      return "Waypoint";
   }
   return {};
 }

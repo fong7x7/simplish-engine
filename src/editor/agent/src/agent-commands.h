@@ -7,6 +7,7 @@
 #include <editor/agent/agent-result.h>
 #include <editor/shell/editor-shell-state.h>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace eng::editor {
 
@@ -38,6 +39,18 @@ namespace eng::editor {
 /// Name the character one player start's player plays as by default.
 [[nodiscard]] AgentResult runAgentSetCharacter(EditorShellState& state,
                                                const nlohmann::json& params);
+
+/// The route an actor would plan between two points of the level.
+[[nodiscard]] AgentResult runAgentFindPath(EditorShellState& state,
+                                           const nlohmann::json& params);
+
+/// Pause the running playtest and run an exact number of ticks of it.
+[[nodiscard]] AgentResult runAgentStepPlaytest(const EditorShellState& state,
+                                               const nlohmann::json& params);
+
+/// Give one prop a behavior and a faction, or take its behavior away.
+[[nodiscard]] AgentResult runAgentSetBehavior(EditorShellState& state,
+                                              const nlohmann::json& params);
 
 /// Move one entry by a delta in tiles.
 [[nodiscard]] AgentResult runAgentTranslate(EditorShellState& state,
@@ -82,7 +95,13 @@ namespace eng::editor {
 
 /// Queue starting a playtest, when there is a level to play and none is
 /// being played.
-[[nodiscard]] AgentResult runAgentStartPlaytest(const EditorShellState& state,
+/// Take the `stand_ins` parameter, when there is one, as how many stand-in
+/// players the next playtest adds; the failure it is when it is not 0 to
+/// 3.
+[[nodiscard]] std::optional<AgentResult>
+applyStandIns(EditorShellState& state, const nlohmann::json& params);
+
+[[nodiscard]] AgentResult runAgentStartPlaytest(EditorShellState& state,
                                                 const nlohmann::json& params);
 
 /// Queue stopping the running playtest.

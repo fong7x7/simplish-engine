@@ -423,29 +423,33 @@ namespace {
 /// choice it reports.
 struct ClipFixture : PanelFixture {
   std::vector<size_t> picked;
+  std::vector<EditorChoiceKind> rows;
 
   ClipFixture() {
-    panel.setChoices("Animation", {"idle", "walk", "run"}, 0);
-    panel.on_choice_changed = [this](size_t index) {
+    panel.addChoices(EditorChoiceKind::ANIMATION, {"idle", "walk", "run"}, 0);
+    panel.on_choice_changed = [this](EditorChoiceKind kind, size_t index) {
+      rows.push_back(kind);
       picked.push_back(index);
     };
   }
 };
 
+constexpr EditorChoiceKind CLIPS = EditorChoiceKind::ANIMATION;
+
 }  // namespace
 
 TEST_CASE("a rigged placement lists an Animation row under its properties") {
   ClipFixture fixture;
-  const eng::Rect row = fixture.panel.choiceRowRect();
+  const eng::Rect row = fixture.panel.choiceRowRect(CLIPS);
   REQUIRE(row.h > 0.0f);
   REQUIRE(row.y > fixture.rowOf(EditorPropertyField::COLLIDES).y);
-  REQUIRE(fixture.panel.choiceLabel() == "Animation");
-  REQUIRE(fixture.panel.choice() == "idle");
+  REQUIRE(fixture.panel.hasChoiceRow(CLIPS));
+  REQUIRE(fixture.panel.choice(CLIPS) == "idle");
 }
 
 TEST_CASE("the choice row's buttons step through the names, wrapping") {
   ClipFixture fixture;
-  const eng::Rect row = fixture.panel.choiceRowRect();
+  const eng::Rect row = fixture.panel.choiceRowRect(CLIPS);
   const eng::Rect next = propertyIncrementRect(row);
   const eng::Rect back = propertyDecrementRect(row);
 
@@ -453,15 +457,15 @@ TEST_CASE("the choice row's buttons step through the names, wrapping") {
   REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
   REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
   REQUIRE(fixture.picked == std::vector<size_t>{1, 0, 2});
-  REQUIRE(fixture.panel.choice() == "run");
-  REQUIRE(fixture.panel.choiceIndex() == 2);
+  REQUIRE(fixture.panel.choice(CLIPS) == "run");
+  REQUIRE(fixture.panel.choiceIndex(CLIPS) == 2);
   // A choice is a name, not a property value: nothing numeric was reported.
   REQUIRE(fixture.changes.empty());
 }
 
 TEST_CASE("a press on the choice row's name changes nothing") {
   ClipFixture fixture;
-  const eng::Rect value = propertyValueRect(fixture.panel.choiceRowRect());
+  const eng::Rect value = propertyValueRect(fixture.panel.choiceRowRect(CLIPS));
   REQUIRE_FALSE(fixture.press(midX(value), midY(value)));
   REQUIRE(fixture.picked.empty());
   REQUIRE_FALSE(fixture.panel.dragging());
@@ -469,29 +473,56 @@ TEST_CASE("a press on the choice row's name changes nothing") {
 
 TEST_CASE("the choice row shows the name it is given") {
   ClipFixture fixture;
-  fixture.panel.setChoices("Animation", {"idle", "walk", "run"}, 1);
-  REQUIRE(fixture.panel.choice() == "walk");
+  fixture.panel.addChoices(CLIPS, {"idle", "walk", "run"}, 1);
+  REQUIRE(fixture.panel.choice(CLIPS) == "walk");
   // Out of range is the first, rather than past the end.
-  fixture.panel.setChoices("Animation", {"idle", "walk", "run"}, 9);
-  REQUIRE(fixture.panel.choice() == "idle");
+  fixture.panel.addChoices(CLIPS, {"idle", "walk", "run"}, 9);
+  REQUIRE(fixture.panel.choice(CLIPS) == "idle");
+  // Offered again, it replaced its row rather than adding another.
+  REQUIRE(fixture.panel.choiceRows().size() == 1);
 }
 
 TEST_CASE("a player start lists a Character row after its properties") {
   PanelFixture fixture;
   fixture.panel.setSelection("Player 1 Start", EditorPlayerStart{});
-  fixture.panel.setChoices("Character", {"Stand-in", "hero"}, 1);
-  REQUIRE(fixture.panel.choiceLabel() == "Character");
-  REQUIRE(fixture.panel.choice() == "hero");
-  REQUIRE(fixture.panel.choiceRowRect().y >
+  fixture.panel.addChoices(EditorChoiceKind::CHARACTER, {"Stand-in", "hero"},
+                           1);
+  REQUIRE(fixture.panel.choice(EditorChoiceKind::CHARACTER) == "hero");
+  REQUIRE(fixture.panel.choiceRowRect(EditorChoiceKind::CHARACTER).y >
           fixture.rowOf(fixture.panel.fields().back()).y);
+}
+
+TEST_CASE("choice rows stack in the order they are offered, each its own") {
+  ClipFixture fixture;
+  fixture.panel.addChoices(EditorChoiceKind::BEHAVIOR, {"None", "Guard"}, 1);
+  fixture.panel.addChoices(EditorChoiceKind::FACTION,
+                           {"Hostile", "Neutral", "Friendly"}, 0);
+  const eng::Rect behavior =
+      fixture.panel.choiceRowRect(EditorChoiceKind::BEHAVIOR);
+  const eng::Rect faction =
+      fixture.panel.choiceRowRect(EditorChoiceKind::FACTION);
+  REQUIRE(behavior.y > fixture.panel.choiceRowRect(CLIPS).y);
+  REQUIRE(faction.y > behavior.y);
+
+  const eng::Rect next = propertyIncrementRect(faction);
+  REQUIRE_FALSE(fixture.press(midX(next), midY(next)));
+  REQUIRE(fixture.rows == std::vector{EditorChoiceKind::FACTION});
+  REQUIRE(fixture.panel.choice(EditorChoiceKind::FACTION) == "Neutral");
+  REQUIRE(fixture.panel.choice(EditorChoiceKind::BEHAVIOR) == "Guard");
+}
+
+TEST_CASE("an empty list takes a choice row away") {
+  ClipFixture fixture;
+  fixture.panel.addChoices(CLIPS, {}, 0);
+  REQUIRE_FALSE(fixture.panel.hasChoiceRow(CLIPS));
 }
 
 TEST_CASE("a new selection drops the previous one's choices") {
   ClipFixture fixture;
   fixture.panel.setSelection("crate", EditorPlacement{});
-  REQUIRE(fixture.panel.choiceRowRect().h == 0.0f);
-  REQUIRE(fixture.panel.choice().empty());
-  REQUIRE(fixture.panel.choiceLabel().empty());
+  REQUIRE(fixture.panel.choiceRowRect(CLIPS).h == 0.0f);
+  REQUIRE(fixture.panel.choice(CLIPS).empty());
+  REQUIRE(fixture.panel.choiceRows().empty());
 }
 
 namespace {

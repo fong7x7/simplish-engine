@@ -15,7 +15,8 @@ simplish_add_module(simplish-game-player
 
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-game-player-tests
-        SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_player_system.cpp
+        SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_player_health.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_player_system.cpp
         DEPENDENCIES simplish-game-player
     )
 endif()

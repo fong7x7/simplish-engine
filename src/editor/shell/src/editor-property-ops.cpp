@@ -32,7 +32,7 @@ namespace {
       return std::snprintf(text.data(), text.size(), "%s",
                            value != 0.0f ? "on" : "off");
     }
-    if (editorPropertyFieldKind(field) == EditorPropertyKind::SLOT) {
+    if (editorPropertyFieldKind(field) == EditorPropertyKind::COUNT) {
       return std::snprintf(text.data(), text.size(), "%.0f", value);
     }
     if (editorPropertyFieldIsAngle(field)) {
@@ -56,7 +56,7 @@ namespace {
       {EDITOR_AXIS_STEP, EDITOR_AXIS_DRAG_PER_PIXEL},          // AXIS
       {EDITOR_FACTOR_STEP, EDITOR_FACTOR_DRAG_PER_PIXEL},      // FACTOR
       {EDITOR_UNIT_STEP, EDITOR_UNIT_DRAG_PER_PIXEL},          // UNIT
-      {EDITOR_SLOT_STEP, EDITOR_SLOT_DRAG_PER_PIXEL},          // SLOT
+      {EDITOR_SLOT_STEP, EDITOR_SLOT_DRAG_PER_PIXEL},          // COUNT
       {EDITOR_SLOT_STEP, 0.0f},                                // TOGGLE
       // A scale is set by where on its slider it is pressed, never stepped
       // or scrubbed — see `editor-scale-slider.h`.
@@ -107,8 +107,11 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return std::max(0.0f, value);
     case EditorPropertyKind::UNIT:
       return std::clamp(value, 0.0f, 1.0f);
-    case EditorPropertyKind::SLOT:
-      return static_cast<float>(clampEditorPlayerSlot(value));
+    case EditorPropertyKind::COUNT:
+      return std::isnan(value)
+                 ? 1.0f
+                 : std::clamp(std::round(value), 1.0f,
+                              editorPropertyTraits(field).maximum);
     case EditorPropertyKind::TOGGLE:
       return value >= 0.5f ? 1.0f : 0.0f;
     case EditorPropertyKind::SCALE:

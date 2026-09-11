@@ -49,6 +49,7 @@
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-play-mode.h>
+#include <editor/shell/editor-playtest-clock.h>
 #include <engine/gui/gui-dropdown.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-rect.h>
@@ -148,6 +149,12 @@ public:
   /// what the toolbar's Stop button says.
   void setPlayMode(EditorPlayMode mode);
 
+  /// Tick Pause Playtest while a playtest is paused.
+  void setPlaytestClock(EditorPlaytestClock clock);
+
+  /// Tick the stand-in row that plays with @p stand_ins stand-ins.
+  void setStandIns(uint8_t stand_ins);
+
   /// Raised when a row is chosen. Never called with SEPARATOR.
   std::function<void(EditorMenuCommand)> on_command{};
 
@@ -208,6 +215,8 @@ private:
   [[nodiscard]] bool commandEnabled(EditorMenuCommand command) const;
   /// Whether @p command names the setting the editor is currently in.
   [[nodiscard]] bool commandChecked(EditorMenuCommand command) const;
+  /// Whether a playtest row — Play Level, Pause Playtest — is ticked.
+  [[nodiscard]] bool playtestChecked(EditorMenuCommand command) const;
 
   /// Menus in left-to-right order.
   std::vector<Menu> menus_{};
@@ -237,6 +246,10 @@ private:
   bool can_redo_ = false;
   /// Whether the level is being played, which checks Play Level.
   EditorPlayMode play_mode_ = EditorPlayMode::EDITING;
+  /// Whether the playtest is paused, which ticks Pause Playtest.
+  EditorPlaytestClock clock_ = EditorPlaytestClock::RUNNING;
+  /// How many stand-ins the next playtest plays with, which ticks a row.
+  uint8_t stand_ins_ = 0;
   /// Set when the rows are stale and tick() must rebuild them.
   bool items_dirty_ = true;
 };

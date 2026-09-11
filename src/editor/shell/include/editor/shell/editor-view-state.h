@@ -29,6 +29,10 @@ struct EditorViewState {
   bool hovered = false;
   /// Whether the tile grid is being drawn.
   bool show_grid = true;
+  /// Whether the navigation overlay is being drawn.
+  bool show_navigation = false;
+  /// Whether the AI overlay is being drawn while playing.
+  bool show_ai = false;
 };
 
 }  // namespace eng::editor

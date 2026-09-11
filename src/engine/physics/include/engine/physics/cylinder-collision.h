@@ -5,6 +5,7 @@
 /// @par Threading
 /// Pure functions.
 
+#include <cstdint>
 #include <engine/math/vec2.h>
 #include <engine/physics/collision-box.h>
 #include <engine/physics/collision-cylinder.h>
@@ -44,11 +45,22 @@ inline constexpr int COLLISION_RESOLVE_PASSES = 3;
 /// standard requires to be correctly rounded. Two machines resolving the
 /// same cylinder against the same list agree to the bit.
 ///
-/// Every box is tested, every tick: fine for a level's props and a handful
-/// of players, and the thing a spatial index replaces when the horde needs
-/// it (Engine REQUIREMENTS §6, `spatial`).
+/// Every box is tested: fine for a level's props and a handful of players.
+/// A horde goes through the overload below, with a `BoxBroadphase`'s
+/// candidates.
 [[nodiscard]] Vec2
 resolveCylinderAgainstBoxes(const CollisionCylinder& cylinder,
                             std::span<const CollisionBox> boxes);
+
+/// The same, testing only the boxes at @p candidates — indices into
+/// @p boxes, ascending, as `BoxBroadphase::gather` gives them. Visiting
+/// the candidates in list order, it gives exactly what the full scan
+/// gives whenever the candidates hold every box the cylinder comes near
+/// while being pushed, which a gather reaching a tile past its radius
+/// does for any push shorter than that.
+[[nodiscard]] Vec2
+resolveCylinderAgainstBoxes(const CollisionCylinder& cylinder,
+                            std::span<const CollisionBox> boxes,
+                            std::span<const uint32_t> candidates);
 
 }  // namespace eng::physics

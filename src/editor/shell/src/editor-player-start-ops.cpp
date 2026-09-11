@@ -5,6 +5,7 @@
 #include <cmath>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-property-traits.h>
 
 namespace eng::editor {
 
@@ -14,6 +15,10 @@ namespace {
   bool isPositionField(EditorPropertyField field) {
     return editorFieldInTriple(field, EditorPropertyField::POSITION_X);
   }
+
+  static_assert(editorPropertyTraits(EditorPropertyField::PLAYER).maximum ==
+                    static_cast<float>(EDITOR_PLAYER_SLOTS),
+                "the Player row holds exactly the players a session has");
 
 }  // namespace
 

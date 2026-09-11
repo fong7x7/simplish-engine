@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-character-card.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-character-transform.h>
@@ -21,6 +22,7 @@
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <engine/math/mat4.h>
+#include <game/combat/combat-system.h>
 #include <string>
 
 namespace eng::editor {
@@ -73,9 +75,9 @@ void SimplishEditor::requestPlaytest() {
     showStatusMessage("Open a project to play a level");
     return;
   }
-  // Read again on every Play, so a hand edit to the table reaches this
+  // Read again on every Play, so a hand edit to a table reaches this
   // playtest without reopening the project.
-  reloadCharacters();
+  reloadDataTables();
   const auto& characters = state_.characters.characters;
   if (characters.size() >= 2) {
     openCharacterSelect();
@@ -91,6 +93,30 @@ void SimplishEditor::reloadCharacters() {
   for (const std::string& problem : state_.characters.problems) {
     LOG_WARN("editor", "characters.data.json: " + problem);
   }
+}
+
+void SimplishEditor::reloadBehaviors() {
+  state_.behaviors = state_.project.loaded
+                         ? loadEditorBehaviorTable(state_.project.root)
+                         : EditorBehaviorTable{};
+  for (const std::string& problem : state_.behaviors.problems) {
+    LOG_WARN("editor", "behaviors.data.json: " + problem);
+  }
+}
+
+void SimplishEditor::reloadEnemies() {
+  state_.enemies = state_.project.loaded
+                       ? loadEditorEnemyTable(state_.project.root)
+                       : EditorEnemyTable{};
+  for (const std::string& problem : state_.enemies.problems) {
+    LOG_WARN("editor", "enemies.data.json: " + problem);
+  }
+}
+
+void SimplishEditor::reloadDataTables() {
+  reloadCharacters();
+  reloadBehaviors();
+  reloadEnemies();
 }
 
 EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
@@ -172,8 +198,9 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   game::GameSetup setup = makeEditorPlaytestSetup(
       state_.document, state_.assets, playtestFallback());
   setup.characters[0] = character;
-  playtest_ = std::make_unique<EditorPlaytestSession>(
-      setup, game::GameContent{state_.characters.characters}, state_.level_id);
+  addEditorStandIns(setup, state_.document, state_.playtest_stand_ins);
+  playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
+                                                      state_.level_id);
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
@@ -186,7 +213,13 @@ std::string SimplishEditor::playingMessage() const {
          " — F5 or Esc to stop";
 }
 
+game::GameContent SimplishEditor::playtestContent() const {
+  return {state_.characters.characters, state_.behaviors.behaviors,
+          state_.enemies.enemies};
+}
+
 void SimplishEditor::beginPlaytestState() {
+  playtest_->setActorIds(editorActorIds(state_.document));
   state_.playtest = EditorPlaytestState{};
   state_.playtest.mode = EditorPlayMode::PLAYING;
   playtest_->publish(state_.playtest);
@@ -224,12 +257,49 @@ void SimplishEditor::tickPlaytest() {
   if (!isPlaying()) {
     return;
   }
-  const FixedStepAdvance due = playtest_->advance(
-      playtestElapsedNs(), livePlayerInput(), state_.playtest.scripted);
+  // Paused, the frame's time is spent rather than owed, so resuming does
+  // not arrive with a burst of ticks the pause saved up.
+  const uint64_t elapsed = playtestElapsedNs();
+  if (state_.playtest.clock == EditorPlaytestClock::PAUSED) {
+    return;
+  }
+  const FixedStepAdvance due =
+      playtest_->advance(elapsed, livePlayerInput(), state_.playtest.scripted);
   playtest_alpha_ = due.interpolation;
+  afterPlaytestTicks();
+}
+
+void SimplishEditor::afterPlaytestTicks() {
   playtest_->publish(state_.playtest);
   followPlayer();
   refreshPlacementMarkers();
+}
+
+void SimplishEditor::togglePlaytestPause() {
+  if (!isPlaying()) {
+    return;
+  }
+  const bool paused = state_.playtest.clock == EditorPlaytestClock::PAUSED;
+  state_.playtest.clock =
+      paused ? EditorPlaytestClock::RUNNING : EditorPlaytestClock::PAUSED;
+  applyPlayModeToChrome();
+  showStatusMessage(paused ? "Resumed"
+                           : "Paused — F7 steps one tick, F6 resumes");
+}
+
+void SimplishEditor::stepPlaytest(uint32_t ticks) {
+  if (!isPlaying()) {
+    return;
+  }
+  state_.playtest.clock = EditorPlaytestClock::PAUSED;
+  for (uint32_t i = 0; i < ticks; ++i) {
+    playtest_->step(livePlayerInput(), state_.playtest.scripted);
+  }
+  // Drawn where the last tick left everything, not partway to a next tick
+  // that is not coming.
+  playtest_alpha_ = 1.0f;
+  afterPlaytestTicks();
+  applyPlayModeToChrome();
 }
 
 uint64_t SimplishEditor::playtestElapsedNs() {
@@ -295,6 +365,25 @@ void SimplishEditor::appendPlaytestMarkers(
     const EditorPlayerStart standing{{}, player, {at.x, at.y, at.z}};
     markers.push_back({editorPlayerStartBounds(standing), false,
                        EditorMarkerStyle::PLAYER_START, player});
+  }
+  appendCombatMarkers(markers);
+}
+
+void SimplishEditor::appendCombatMarkers(
+    std::vector<EditorPlacementMarker>& markers) const {
+  constexpr float SHOT = game::PROJECTILE_RADIUS_TILES;
+  for (const WorldPoint& at : state_.playtest.projectiles) {
+    markers.push_back({{{at.x - SHOT, at.y - SHOT, at.z - SHOT},
+                        {at.x + SHOT, at.y + SHOT, at.z + SHOT}},
+                       false,
+                       EditorMarkerStyle::PROJECTILE});
+  }
+  for (const EditorPlaytestHazard& pool : state_.playtest.hazards) {
+    const WorldPoint& at = pool.position;
+    markers.push_back({{{at.x - pool.radius, at.y - pool.radius, at.z},
+                        {at.x + pool.radius, at.y + pool.radius, at.z}},
+                       false,
+                       EditorMarkerStyle::HAZARD});
   }
 }
 
@@ -363,6 +452,58 @@ void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
        placement_animator_.pose(posed, *model.rig, animation_clock_)});
 }
 
+void SimplishEditor::refreshActorOverlays() {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  viewport->actor_overlays.clear();
+  if (!viewport->show_ai || !isPlaying()) {
+    return;
+  }
+  for (size_t actor = 0; actor < playtest_->actorCount(); ++actor) {
+    if (const std::optional<uint32_t> index = playtest_->actorIndex(actor)) {
+      viewport->actor_overlays.push_back(
+          playtest_->actorOverlay(*index, playtest_alpha_));
+    }
+  }
+}
+
+EditorPlacement SimplishEditor::posedActor(size_t index, size_t actor) const {
+  const EditorPlacement& placement = state_.document.placements[index];
+  const std::optional<uint32_t> dense =
+      isPlaying() ? playtest_->actorIndex(actor) : std::nullopt;
+  if (!dense) {
+    return placement;
+  }
+  return editorActorPose(
+      placement, playtest_->actorRenderPosition(*dense, playtest_alpha_),
+      playtest_->actors().facing[*dense]);
+}
+
+std::string SimplishEditor::actorClip(const EditorPlacement& placement,
+                                      size_t actor) const {
+  const std::optional<uint32_t> dense = playtest_->actorIndex(actor);
+  if (!dense || placement.asset >= state_.assets.size()) {
+    return placement.animation;
+  }
+  const std::vector<std::string> clips =
+      editorClipNames(state_.assets[placement.asset].rig.get());
+  const std::string& wanted = playtest_->actorState(*dense).clip;
+  if (!wanted.empty() && std::ranges::find(clips, wanted) != clips.end()) {
+    return wanted;
+  }
+  return editorCharacterClip(clips, playtest_->actorGait(*dense));
+}
+
+void SimplishEditor::appendActorInstance(size_t index, size_t actor) {
+  EditorPlacement posed = posedActor(index, actor);
+  if (isPlaying()) {
+    posed.animation = actorClip(posed, actor);
+  }
+  appendPlacementInstance(posed);
+}
+
 std::optional<size_t> SimplishEditor::characterAsset(const std::string& model) {
   const std::optional<size_t> index =
       findEditorAssetByRef(state_.assets, model);
@@ -385,6 +526,9 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     }
     return true;
   }
+  if (handleClockKey(key, kind)) {
+    return true;
+  }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
     // Every key, taken or not: the selector is modal, and a stray Delete
     // must not reach the level behind it.
@@ -392,6 +536,20 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     return true;
   }
   return isPlaying() && handlePlayingKey(key);
+}
+
+bool SimplishEditor::handleClockKey(uint32_t key, ClientKeyDownKind kind) {
+  if (!isPlaying() || (key != Keycode::F6 && key != Keycode::F7)) {
+    return false;
+  }
+  // F7 repeats while held, which is how a run of ticks is walked through;
+  // F6 toggles, so it acts on the press alone.
+  if (key == Keycode::F7) {
+    stepPlaytest(1);
+  } else if (kind == ClientKeyDownKind::FIRST_PRESS) {
+    togglePlaytestPause();
+  }
+  return true;
 }
 
 bool SimplishEditor::handlePlayingKey(uint32_t key) {
@@ -428,15 +586,37 @@ void SimplishEditor::applyPlayModeToChrome() {
   if (auto* menu =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     menu->setPlayMode(state_.playtest.mode);
+    menu->setPlaytestClock(state_.playtest.clock);
+    menu->setStandIns(state_.playtest_stand_ins);
   }
 }
 
 std::string SimplishEditor::playtestStatus() const {
-  std::string status = "playing   tick " + std::to_string(state_.playtest.tick);
+  std::string status = (state_.playtest.clock == EditorPlaytestClock::PAUSED
+                            ? "paused    tick "
+                            : "playing   tick ") +
+                       std::to_string(state_.playtest.tick);
   if (state_.playtest.dropped_ticks > 0) {
     status += "   dropped " + std::to_string(state_.playtest.dropped_ticks);
   }
-  return status;
+  return status + "   " + playerOneHealth();
+}
+
+std::string SimplishEditor::playerOneHealth() const {
+  if (state_.playtest.run_over) {
+    return "run over — F5 or Esc to stop";
+  }
+  for (const EditorPlaytestPlayer& player : state_.playtest.players) {
+    if (player.player != 1) {
+      continue;
+    }
+    if (player.downed) {
+      return "down — a teammate can revive you";
+    }
+    return "health " + std::to_string(player.health) + "/" +
+           std::to_string(player.max_health);
+  }
+  return {};
 }
 
 }  // namespace eng::editor

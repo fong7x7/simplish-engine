@@ -2,6 +2,7 @@
 
 #include "agent-call.h"
 #include "agent-json-values.h"
+#include "agent-waypoints.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -9,17 +10,22 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-navigation.h>
+#include <editor/shell/editor-path-query.h>
 #include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
+#include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -51,6 +57,12 @@ namespace {
   bool isRotationField(EditorPropertyField field) {
     return field >= EditorPropertyField::ROTATION_X &&
            field <= EditorPropertyField::ROTATION_Z;
+  }
+
+  /// Whether @p field is one a light stores: everything before a player
+  /// start's player but the rotation it is aimed without.
+  bool isLightField(EditorPropertyField field) {
+    return !isRotationField(field) && field < EditorPropertyField::PLAYER;
   }
 
   /// Whether @p field is one a placement stores.
@@ -95,6 +107,9 @@ namespace {
     if (target == "player_start") {
       return EditorSelectionKind::PLAYER_START;
     }
+    if (target == "waypoint") {
+      return EditorSelectionKind::WAYPOINT;
+    }
     return std::nullopt;
   }
 
@@ -111,8 +126,9 @@ namespace {
     if (!kind || !index) {
       return agentFailure(
           AgentStatus::BAD_PARAMS,
-          "expected target \"placement\", \"light\", \"player_start\" or "
-          "\"selection\", with an index for all but the last");
+          "expected target \"placement\", \"light\", \"player_start\", "
+          "\"waypoint\" or \"selection\", with an index for all but the "
+          "last");
     }
     entry = {*kind, *index};
     return entryInRange(state, entry);
@@ -228,13 +244,12 @@ namespace {
   /// Write one field of a light.
   AgentResult setLightField(EditorShellState& state, size_t index,
                             EditorPropertyField field, float value) {
-    if (isRotationField(field) || field == EditorPropertyField::PLAYER ||
-        field == EditorPropertyField::COLLIDES ||
-        field == EditorPropertyField::SCALE) {
+    if (!isLightField(field)) {
       return agentFailure(AgentStatus::BAD_PARAMS,
                           "a light is aimed by its direction, not turned by "
                           "a rotation; it has a range rather than a scale, "
-                          "and neither belongs to a player nor collides");
+                          "and neither belongs to a player or a route nor "
+                          "collides");
     }
     const EditorLight prior = state.document.lights[index];
     EditorLight next = prior;
@@ -271,6 +286,9 @@ namespace {
     }
     if (entry.kind == EditorSelectionKind::PLAYER_START) {
       return setPlayerStartField(state, entry.index, field, value);
+    }
+    if (entry.kind == EditorSelectionKind::WAYPOINT) {
+      return setAgentWaypointField(state, entry.index, field, value);
     }
     return setLightField(state, entry.index, field, value);
   }
@@ -452,6 +470,9 @@ namespace {
   json removedValue(const EditorAction& action) {
     if (action.kind == EditorActionKind::REMOVE_PLACEMENT) {
       return agentPlacementValue(action.placement);
+    }
+    if (action.kind == EditorActionKind::REMOVE_WAYPOINT) {
+      return agentWaypointValue(action.waypoint);
     }
     return action.kind == EditorActionKind::REMOVE_LIGHT
                ? agentLightValue(action.light)
@@ -796,6 +817,140 @@ AgentResult runAgentSetCharacter(EditorShellState& state, const json& params) {
   return recordPlayerStart(state, entry.index, prior, next);
 }
 
+namespace {
+
+  /// Whether @p behavior is the one @p name refers to: its id, its
+  /// `behavior:` reference, or its display name.
+  bool behaviorMatches(const game::BehaviorDefinition& behavior,
+                       const std::string& name) {
+    return behavior.id == name || editorBehaviorRef(behavior.id) == name ||
+           behavior.name == name;
+  }
+
+  /// The reference the `behavior` parameter names — empty for an empty
+  /// one — or nothing when it names no behavior the project can run.
+  std::optional<std::string> behaviorRefNamed(const EditorShellState& state,
+                                              const std::string& name) {
+    if (name.empty()) {
+      return std::string{};
+    }
+    for (const game::BehaviorDefinition* behavior :
+         editorAvailableBehaviors(state.behaviors.behaviors)) {
+      if (behaviorMatches(*behavior, name)) {
+        return editorBehaviorRef(behavior->id);
+      }
+    }
+    return std::nullopt;
+  }
+
+  /// A failure listing the behaviors there are to name.
+  AgentResult unknownBehavior(const EditorShellState& state) {
+    const auto available = editorAvailableBehaviors(state.behaviors.behaviors);
+    std::vector<std::string> ids;
+    ids.reserve(available.size());
+    for (const game::BehaviorDefinition* behavior : available) {
+      ids.push_back(behavior->id);
+    }
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        "no behavior is called that; there are: " +
+                            joinNames(ids));
+  }
+
+  /// @p next with the `behavior` parameter applied, or the failure it is.
+  /// Left out, it keeps the behavior @p next has.
+  std::optional<AgentResult> applyBehaviorParam(const EditorShellState& state,
+                                                const json& params,
+                                                EditorPlacement& next) {
+    if (!params.contains("behavior")) {
+      return std::nullopt;
+    }
+    const auto ref = behaviorRefNamed(
+        state, agentStringParam(params, "behavior").value_or(""));
+    if (!ref) {
+      return unknownBehavior(state);
+    }
+    next.behavior = *ref;
+    return std::nullopt;
+  }
+
+  /// @p next with the `faction` parameter applied, or the failure it is.
+  /// Left out, it keeps the faction @p next has.
+  std::optional<AgentResult> applyFactionParam(const json& params,
+                                               EditorPlacement& next) {
+    if (!params.contains("faction")) {
+      return std::nullopt;
+    }
+    const auto faction =
+        game::parseFaction(agentStringParam(params, "faction").value_or(""));
+    if (!faction) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "faction is \"hostile\", \"neutral\" or "
+                          "\"friendly\"");
+    }
+    next.faction = *faction;
+    return std::nullopt;
+  }
+
+  /// @p next with the `route` parameter applied, or the failure it is.
+  /// Left out, it keeps the route @p next has; 0 takes it away.
+  std::optional<AgentResult> applyRouteParam(const json& params,
+                                             EditorPlacement& next) {
+    if (!params.contains("route")) {
+      return std::nullopt;
+    }
+    const std::optional<size_t> route = agentIndexParam(params, "route");
+    if (!route || *route > EDITOR_ROUTE_COUNT) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "route is a number from 1 to 9, or 0 for none");
+    }
+    next.route = static_cast<uint8_t>(*route);
+    return std::nullopt;
+  }
+
+  /// @p next with every `set_behavior` parameter applied, or the first
+  /// failure among them.
+  std::optional<AgentResult> applyActorParams(const EditorShellState& state,
+                                              const json& params,
+                                              EditorPlacement& next) {
+    if (auto problem = applyBehaviorParam(state, params, next)) {
+      return problem;
+    }
+    if (auto problem = applyFactionParam(params, next)) {
+      return problem;
+    }
+    return applyRouteParam(params, next);
+  }
+
+  /// Whether @p a and @p b run the same behavior, on the same side, along
+  /// the same route.
+  bool sameActor(const EditorPlacement& a, const EditorPlacement& b) {
+    return a.behavior == b.behavior && a.faction == b.faction &&
+           a.route == b.route;
+  }
+
+}  // namespace
+
+AgentResult runAgentSetBehavior(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  if (entry.kind != EditorSelectionKind::PLACEMENT) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "only a placed prop runs a behavior");
+  }
+  const EditorPlacement prior = state.document.placements[entry.index];
+  EditorPlacement next = prior;
+  if (auto problem = applyActorParams(state, params, next)) {
+    return *problem;
+  }
+  if (sameActor(prior, next)) {
+    return agentOk(placementPayload(state, entry.index));
+  }
+  return recordPlacement(state, entry.index, prior, next);
+}
+
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);
@@ -807,6 +962,9 @@ AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   }
   if (entry.kind == EditorSelectionKind::PLAYER_START) {
     return translatePlayerStart(state, entry.index, params);
+  }
+  if (entry.kind == EditorSelectionKind::WAYPOINT) {
+    return translateAgentWaypoint(state, entry.index, params);
   }
   return translateLight(state, entry.index, params);
 }
@@ -948,9 +1106,11 @@ namespace {
 
 }  // namespace
 
-AgentResult runAgentStartPlaytest(const EditorShellState& state,
-                                  const json& params) {
+AgentResult runAgentStartPlaytest(EditorShellState& state, const json& params) {
   if (const std::optional<AgentResult> problem = unplayable(state)) {
+    return *problem;
+  }
+  if (const std::optional<AgentResult> problem = applyStandIns(state, params)) {
     return *problem;
   }
   std::optional<std::string> character = characterParam(state, params);
@@ -965,6 +1125,20 @@ AgentResult runAgentStartPlaytest(const EditorShellState& state,
   request.kind = AgentHostRequestKind::START_PLAYTEST;
   request.character = *character;
   return queued(request, "start_playtest");
+}
+
+std::optional<AgentResult> applyStandIns(EditorShellState& state,
+                                         const json& params) {
+  if (!params.contains("stand_ins")) {
+    return std::nullopt;
+  }
+  const std::optional<size_t> count = agentIndexParam(params, "stand_ins");
+  if (!count || *count > 3) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "stand_ins is a number from 0 to 3");
+  }
+  state.playtest_stand_ins = static_cast<uint8_t>(*count);
+  return std::nullopt;
 }
 
 AgentResult runAgentStopPlaytest(const EditorShellState& state) {
@@ -988,6 +1162,87 @@ AgentResult runAgentSendInput(EditorShellState& state, const json& params) {
   }
   state.playtest.scripted.push_back({sentInput(params), *ticks});
   return agentEdited(agentPlaytestJson(state));
+}
+
+AgentResult runAgentStepPlaytest(const EditorShellState& state,
+                                 const json& params) {
+  if (state.playtest.mode != EditorPlayMode::PLAYING) {
+    return agentFailure(AgentStatus::UNAVAILABLE,
+                        "no playtest is running; start_playtest first");
+  }
+  const std::optional<uint32_t> ticks = sentTicks(params);
+  if (!ticks) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "ticks is a whole number from 1 to 3600");
+  }
+  AgentHostRequest request{};
+  request.kind = AgentHostRequestKind::STEP_PLAYTEST;
+  request.ticks = *ticks;
+  return queued(request, "step_playtest");
+}
+
+namespace {
+
+  /// Radii a path may be asked for, in tiles.
+  constexpr float PATH_MIN_RADIUS = 0.05F;
+  /// The largest radius a path may be asked for, in tiles.
+  constexpr float PATH_MAX_RADIUS = 2.0F;
+
+  /// How a search ended, as the agent API reports it.
+  std::string_view pathStatusName(spatial::PathStatus status) {
+    switch (status) {
+      case spatial::PathStatus::FOUND:
+        return "found";
+      case spatial::PathStatus::UNREACHABLE:
+        return "unreachable";
+      case spatial::PathStatus::OVER_BUDGET:
+        return "over_budget";
+      case spatial::PathStatus::BLOCKED_ENDPOINT:
+        return "blocked_endpoint";
+    }
+    return "unreachable";
+  }
+
+  /// The four coordinates of a `find_path` call, or nothing when one is
+  /// missing.
+  std::optional<EditorPathQuery> pathQuery(const json& params) {
+    const auto from_x = agentNumberParam(params, "from_x");
+    const auto from_y = agentNumberParam(params, "from_y");
+    const auto to_x = agentNumberParam(params, "to_x");
+    const auto to_y = agentNumberParam(params, "to_y");
+    if (!from_x || !from_y || !to_x || !to_y) {
+      return std::nullopt;
+    }
+    return EditorPathQuery{
+        {static_cast<float>(*from_x), static_cast<float>(*from_y)},
+        {static_cast<float>(*to_x), static_cast<float>(*to_y)},
+        std::clamp(agentFloatParam(params, "radius", 0.3F), PATH_MIN_RADIUS,
+                   PATH_MAX_RADIUS)};
+  }
+
+  /// @p answer as the agent API reports it.
+  json pathAnswerJson(const EditorPathAnswer& answer) {
+    json waypoints = json::array();
+    for (const Vec2 point : answer.waypoints) {
+      waypoints.push_back({{"x", point.x}, {"y", point.y}});
+    }
+    return {{"status", pathStatusName(answer.status)},
+            {"waypoints", waypoints},
+            {"length", answer.length_tiles},
+            {"expanded", answer.expanded}};
+  }
+
+}  // namespace
+
+AgentResult runAgentFindPath(EditorShellState& state, const json& params) {
+  const std::optional<EditorPathQuery> query = pathQuery(params);
+  if (!query) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "from_x, from_y, to_x and to_y are all numbers");
+  }
+  const EditorNavigation navigation =
+      analyseEditorNavigation(state.document, state.assets);
+  return agentOk(pathAnswerJson(findEditorPath(navigation, *query)).dump(2));
 }
 
 }  // namespace eng::editor

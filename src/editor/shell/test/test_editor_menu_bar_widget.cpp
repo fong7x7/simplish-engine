@@ -327,14 +327,48 @@ TEST_CASE("with no project open the Level menu offers nothing live") {
   MenuFixture fx;
   fx.bar()->tick(fx.tree);
 
-  // New Level, a divider, and Play Level: no levels to list, and neither
-  // command has a project to act on.
+  // New Level, a divider, Play Level, the two rows that act on a running
+  // playtest, a divider and the four stand-in rows: no levels to list, and
+  // no command has anything to act on.
   const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
-  REQUIRE(levels.items.size() == 3);
-  REQUIRE(!levels.items[0].enabled);
+  REQUIRE(levels.items.size() == 10);
   REQUIRE(levels.items[1].separator);
   REQUIRE(levels.items[2].label == "Play Level");
-  REQUIRE(!levels.items[2].enabled);
+  REQUIRE(levels.items[3].label == "Pause Playtest");
+  REQUIRE(levels.items[5].separator);
+  REQUIRE(levels.items[6].label == "Play Solo");
+  for (const auto& item : levels.items) {
+    REQUIRE((item.separator || !item.enabled));
+  }
+}
+
+TEST_CASE("the stand-in row the next playtest plays with is ticked") {
+  MenuFixture fx;
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->setStandIns(2);
+  fx.bar()->tick(fx.tree);
+  const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
+  REQUIRE(levels.items[8].label == "Play with 2 Stand-ins");
+  REQUIRE(levels.items[8].enabled);
+  REQUIRE(levels.items[8].checked);
+  REQUIRE(!levels.items[6].checked);
+}
+
+TEST_CASE("Pause and Step are live only while playing, and Pause ticks") {
+  MenuFixture fx;
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  const int pause = rowWithLabel(*fx.menu(LEVEL_MENU), "Pause Playtest");
+  const int step = rowWithLabel(*fx.menu(LEVEL_MENU), "Step One Tick");
+  REQUIRE(!fx.menu(LEVEL_MENU)->items[static_cast<size_t>(pause)].enabled);
+
+  fx.bar()->setPlayMode(EditorPlayMode::PLAYING);
+  fx.bar()->setPlaytestClock(EditorPlaytestClock::PAUSED);
+  fx.bar()->tick(fx.tree);
+  const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
+  REQUIRE(levels.items[static_cast<size_t>(pause)].enabled);
+  REQUIRE(levels.items[static_cast<size_t>(pause)].checked);
+  REQUIRE(levels.items[static_cast<size_t>(step)].enabled);
 }
 
 TEST_CASE("Play Level is live with a project and ticked while playing") {

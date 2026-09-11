@@ -80,6 +80,8 @@ namespace {
       EditorMenuCommand::ZOOM_OUT,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::TOGGLE_GRID,
+      EditorMenuCommand::TOGGLE_NAVIGATION,
+      EditorMenuCommand::TOGGLE_AI_OVERLAY,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SET_VIEW_DIMETRIC,
       EditorMenuCommand::SET_VIEW_ISOMETRIC,
@@ -94,6 +96,13 @@ namespace {
       EditorMenuCommand::NEW_LEVEL,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::PLAYTEST,
+      EditorMenuCommand::PAUSE_PLAYTEST,
+      EditorMenuCommand::STEP_PLAYTEST,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::PLAY_SOLO,
+      EditorMenuCommand::PLAY_ONE_STAND_IN,
+      EditorMenuCommand::PLAY_TWO_STAND_INS,
+      EditorMenuCommand::PLAY_THREE_STAND_INS,
   };
 
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
@@ -339,6 +348,9 @@ bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   if (editorMenuCommandNeedsProject(command)) {
     return project_ == EditorProjectPresence::OPEN;
   }
+  if (editorMenuCommandNeedsPlaytest(command)) {
+    return play_mode_ == EditorPlayMode::PLAYING;
+  }
   if (command == EditorMenuCommand::UNDO) {
     return can_undo_;
   }
@@ -361,10 +373,19 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_SHADING_CEL) {
     return shading_ == ProjectShading::CEL;
   }
-  if (command == EditorMenuCommand::PLAYTEST) {
-    return play_mode_ == EditorPlayMode::PLAYING;
+  return playtestChecked(command);
+}
+
+bool EditorMenuBarWidget::playtestChecked(EditorMenuCommand command) const {
+  if (const int stand_ins = editorStandInsOf(command); stand_ins >= 0) {
+    return stand_ins == stand_ins_;
   }
-  return false;
+  const bool playing = play_mode_ == EditorPlayMode::PLAYING;
+  if (command == EditorMenuCommand::PLAYTEST) {
+    return playing;
+  }
+  return command == EditorMenuCommand::PAUSE_PLAYTEST && playing &&
+         clock_ == EditorPlaytestClock::PAUSED;
 }
 
 void EditorMenuBarWidget::setProjection(ProjectProjection projection) {
@@ -521,6 +542,22 @@ void EditorMenuBarWidget::setPlayMode(EditorPlayMode mode) {
     return;
   }
   play_mode_ = mode;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setPlaytestClock(EditorPlaytestClock clock) {
+  if (clock_ == clock) {
+    return;
+  }
+  clock_ = clock;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setStandIns(uint8_t stand_ins) {
+  if (stand_ins_ == stand_ins) {
+    return;
+  }
+  stand_ins_ = stand_ins;
   items_dirty_ = true;
 }
 

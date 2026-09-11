@@ -126,6 +126,15 @@ namespace {
     return taken;
   }
 
+  /// Every id the document's waypoints hold.
+  std::unordered_set<std::string> waypointIds(const EditorDocument& document) {
+    std::unordered_set<std::string> taken;
+    for (const EditorWaypoint& waypoint : document.waypoints) {
+      taken.insert(waypoint.id);
+    }
+    return taken;
+  }
+
   /// Every id the document's lights hold.
   std::unordered_set<std::string> lightIds(const EditorDocument& document) {
     std::unordered_set<std::string> taken;
@@ -198,6 +207,10 @@ std::string editorPlayerStartRef(const EditorPlayerStart& start) {
   return editorQualifiedId(EditorIdKind::PLAYER_START, start.id);
 }
 
+std::string editorWaypointRef(const EditorWaypoint& waypoint) {
+  return editorQualifiedId(EditorIdKind::WAYPOINT, waypoint.id);
+}
+
 size_t rebindPlacementAssets(EditorDocument& document,
                              const std::vector<std::string>& previous_ids,
                              const std::vector<EditorAsset>& assets) {
@@ -232,6 +245,10 @@ std::string mintEditorLightId(const EditorDocument& document,
 
 std::string mintEditorPlayerStartId(const EditorDocument& document) {
   return firstFreeOrdinal("start", playerStartIds(document));
+}
+
+std::string mintEditorWaypointId(const EditorDocument& document) {
+  return firstFreeOrdinal("waypoint", waypointIds(document));
 }
 
 }  // namespace eng::editor

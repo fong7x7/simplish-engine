@@ -9,6 +9,7 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-waypoint.h>
 
 namespace eng::editor {
 
@@ -49,6 +50,10 @@ struct EditorAction {
   EditorPlayerStart player_start{};
   /// The start as it was before a transform, unused by every other kind.
   EditorPlayerStart player_start_prior{};
+  /// The waypoint the operation names, for the three kinds that name one.
+  EditorWaypoint waypoint{};
+  /// The waypoint as it was before a transform, unused by every other kind.
+  EditorWaypoint waypoint_prior{};
 };
 
 }  // namespace eng::editor

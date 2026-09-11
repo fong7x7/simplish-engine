@@ -57,6 +57,10 @@ enum class EditorPropertyField : uint8_t {
   COLLIDES,
   /// Uniform size multiplier of a placed prop; 1 is the one-tile fit.
   SCALE,
+  /// Which route a waypoint belongs to, 1 to `EDITOR_ROUTE_COUNT`.
+  ROUTE,
+  /// Where a waypoint comes in its route, 1 to `EDITOR_WAYPOINT_MAX_ORDER`.
+  ORDER,
 };
 
 /// Every field there is, in the enum's own order.
@@ -73,7 +77,8 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::COLOR_G,     EditorPropertyField::COLOR_B,
     EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
     EditorPropertyField::PLAYER,      EditorPropertyField::COLLIDES,
-    EditorPropertyField::SCALE,
+    EditorPropertyField::SCALE,       EditorPropertyField::ROUTE,
+    EditorPropertyField::ORDER,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -114,6 +119,14 @@ inline constexpr EditorPropertyField EDITOR_PLAYER_START_FIELDS[] = {
     EditorPropertyField::PLAYER,
     EditorPropertyField::POSITION_X,
     EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z,
+};
+
+/// What the panel lists for a waypoint: its route and its place in it,
+/// then where it stands.
+inline constexpr EditorPropertyField EDITOR_WAYPOINT_FIELDS[] = {
+    EditorPropertyField::ROUTE,      EditorPropertyField::ORDER,
+    EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
     EditorPropertyField::POSITION_Z,
 };
 

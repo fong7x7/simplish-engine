@@ -338,3 +338,97 @@ TEST_CASE("a running playtest reports its tick, players and hash") {
   REQUIRE(playtest.at("players").at(0).at("position").at("x") == Approx(2.5F));
   REQUIRE(playtest.at("queued_input_ticks") == 12);
 }
+
+namespace {
+
+/// A playtest mirror holding one knight, pursuing player 1.
+EditorShellState playingWithAKnight() {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.actors.push_back({.id = "knight_01",
+                                   .position = {6.0F, 1.5F, 0.0F},
+                                   .facing = {-1.0F, 0.0F},
+                                   .behavior = "guard",
+                                   .state = "pursue",
+                                   .faction = game::Faction::HOSTILE,
+                                   .target = 1,
+                                   .sees_target = true,
+                                   .path_waypoints = 3});
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("a running playtest reports what each actor is doing") {
+  const EditorShellState state = playingWithAKnight();
+  const json actor = json::parse(agentPlaytestJson(state)).at("actors").at(0);
+
+  REQUIRE(actor.at("id") == "knight_01");
+  REQUIRE(actor.at("position").at("x") == Approx(6.0F));
+  REQUIRE(actor.at("facing").at("x") == Approx(-1.0F));
+  REQUIRE(actor.at("state") == "pursue");
+  REQUIRE(actor.at("faction") == "hostile");
+  REQUIRE(actor.at("target_player") == 1);
+  REQUIRE(actor.at("sees_target") == true);
+  REQUIRE(actor.at("path_waypoints") == 3);
+}
+
+TEST_CASE("a placement reports its behavior and faction") {
+  EditorShellState state;
+  EditorPlacement placement;
+  placement.id = "knight_01";
+  placement.behavior = "behavior:guard";
+  placement.faction = game::Faction::FRIENDLY;
+  state.document.placements.push_back(placement);
+
+  const json listed = json::parse(agentPlacementsJson(state));
+  const json& first = listed.at("placements").at(0);
+  REQUIRE(first.at("behavior") == "behavior:guard");
+  REQUIRE(first.at("faction") == "friendly");
+}
+
+TEST_CASE("get_playtest says whether the playtest is paused") {
+  EditorShellState state = playingWithAKnight();
+  REQUIRE(json::parse(agentPlaytestJson(state)).at("paused") == false);
+  state.playtest.clock = EditorPlaytestClock::PAUSED;
+  REQUIRE(json::parse(agentPlaytestJson(state)).at("paused") == true);
+}
+
+TEST_CASE(
+    "list_enemies reports every archetype and whether its behavior runs") {
+  EditorShellState state;
+  state.enemies.enemies.push_back(
+      {.id = "swarmer", .name = "Swarmer", .behavior = "chase"});
+  state.enemies.enemies.push_back({.id = "odd", .behavior = "nobody_has"});
+  state.enemies.problems.push_back("odd: something");
+
+  const nlohmann::json read = nlohmann::json::parse(agentEnemiesJson(state));
+
+  REQUIRE(read.at("enemies").size() == 2);
+  REQUIRE(read.at("enemies").at(0).at("behavior_ref") == "behavior:chase");
+  REQUIRE(read.at("enemies").at(0).at("behavior_known") == true);
+  REQUIRE(read.at("enemies").at(1).at("behavior_known") == false);
+  REQUIRE(read.at("enemies").at(0).at("faction") == "hostile");
+  REQUIRE(read.at("problems").size() == 1);
+}
+
+TEST_CASE("get_playtest reports health, who is down, and what is flying") {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.players.push_back(
+      {.player = 1, .health = 0, .max_health = 5, .downed = true});
+  state.playtest.actors.push_back(
+      {.id = "crate_01", .health = 2, .max_health = 3});
+  state.playtest.projectiles.push_back({1.0F, 2.0F, 0.9F});
+  state.playtest.hazards.push_back({{4.0F, 4.0F, 0.0F}, 1.0F, 120});
+  state.playtest.run_over = true;
+
+  const nlohmann::json read = nlohmann::json::parse(agentPlaytestJson(state));
+
+  REQUIRE(read.at("players").at(0).at("downed") == true);
+  REQUIRE(read.at("players").at(0).at("max_health") == 5);
+  REQUIRE(read.at("actors").at(0).at("health") == 2);
+  REQUIRE(read.at("projectiles").size() == 1);
+  REQUIRE(read.at("hazards").at(0).at("ticks_left") == 120);
+  REQUIRE(read.at("run_over") == true);
+}

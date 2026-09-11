@@ -12,7 +12,13 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::SET_VIEW_ISOMETRIC ||
          command == EditorMenuCommand::SET_SHADING_SMOOTH ||
          command == EditorMenuCommand::SET_SHADING_CEL ||
-         command == EditorMenuCommand::PLAYTEST;
+         command == EditorMenuCommand::PLAYTEST ||
+         editorStandInsOf(command) >= 0;
+}
+
+bool editorMenuCommandNeedsPlaytest(EditorMenuCommand command) {
+  return command == EditorMenuCommand::PAUSE_PLAYTEST ||
+         command == EditorMenuCommand::STEP_PLAYTEST;
 }
 
 bool editorMenuCommandImplemented(EditorMenuCommand command) {
@@ -27,6 +33,9 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
   // nothing if it were live right now.
   if (editorMenuCommandNeedsProject(command)) {
     return state.project.loaded;
+  }
+  if (editorMenuCommandNeedsPlaytest(command)) {
+    return state.playtest.mode == EditorPlayMode::PLAYING;
   }
   if (command == EditorMenuCommand::UNDO) {
     return canUndoEditorAction(state.history);

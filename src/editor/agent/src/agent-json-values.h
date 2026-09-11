@@ -7,6 +7,7 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-waypoint.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
 #include <nlohmann/json.hpp>
@@ -36,5 +37,9 @@ agentPlacementValue(const EditorPlacement& placement);
 /// One player start: its id, which player it is for, and where.
 [[nodiscard]] nlohmann::json
 agentPlayerStartValue(const EditorPlayerStart& start);
+
+/// One waypoint: its id, the route it belongs to, its place in it, and
+/// where.
+[[nodiscard]] nlohmann::json agentWaypointValue(const EditorWaypoint& waypoint);
 
 }  // namespace eng::editor

@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <editor/shell/editor-actor-overlay.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-character-gait.h>
 #include <editor/shell/editor-document.h>
@@ -15,6 +16,7 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/core/fixed-step-advance.h>
 #include <engine/core/fixed-step-clock.h>
+#include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <engine/sim/player-input.h>
 #include <engine/sim/replay-recorder.h>
@@ -23,6 +25,8 @@
 #include <engine/sim/tick-hash.h>
 #include <engine/sim/tick-input.h>
 #include <filesystem>
+#include <game/actors/actor-pool.h>
+#include <game/content/behavior-state.h>
 #include <game/content/character-definition.h>
 #include <game/content/game-content.h>
 #include <game/player/player-pool.h>
@@ -46,8 +50,10 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 /// under the camera — when it has none (Editor REQUIREMENTS §7: "starting at
 /// the camera position or a chosen spawn point"); each player as the
 /// character their first start names, which the selector's pick then
-/// replaces for player 1; and a collision box for every placement that
-/// collides, measured against @p assets.
+/// replaces for player 1; a collision box for every placement that
+/// collides, measured against @p assets; and an actor for every placement
+/// with a behavior, in document order (`editorActorSpawn`). An actor is
+/// never also a collision box: its body is the actor's.
 ///
 /// The box is the one the viewport outlines and picks: the placement's
 /// asset, turned and set where it stands, enclosed in an axis-aligned box.
@@ -58,6 +64,12 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 makeEditorPlaytestSetup(const EditorDocument& document,
                         const std::vector<EditorAsset>& assets,
                         WorldPoint fallback);
+
+/// Add @p stand_ins players to @p setup after player 1 — up to three — for
+/// the multi-player preview (Editor §7): each at the first start for their
+/// player in @p document, or beside player 1 when there is none.
+void addEditorStandIns(game::GameSetup& setup, const EditorDocument& document,
+                       uint8_t stand_ins);
 
 /// Who player 1 plays as unless they pick someone else: the character the
 /// first start for player 1 names, when @p characters has it; otherwise the
@@ -109,7 +121,7 @@ public:
             std::vector<EditorScriptedInput>& scripted);
 
   /// Copies what the rest of the editor may know — tick, hash, where the
-  /// players are — into @p state.
+  /// players are and what every actor is doing — into @p state.
   void publish(EditorPlaytestState& state) const;
 
   /// Where the player at dense index @p index is drawn, @p alpha of the way
@@ -129,6 +141,35 @@ public:
   /// which is what picks the clip a rigged character plays.
   [[nodiscard]] EditorCharacterGait gait(size_t index) const;
 
+  /// Name the setup's actors, in its order: the prop each came from. What
+  /// `publish` reports each actor as.
+  void setActorIds(std::vector<std::string> ids);
+
+  /// Actors the setup asked for, whether or not each is still in the game.
+  [[nodiscard]] size_t actorCount() const;
+
+  /// The dense index of the setup's @p actor-th actor, or nothing when it
+  /// is not in the game.
+  [[nodiscard]] std::optional<uint32_t> actorIndex(size_t actor) const;
+
+  /// The actors, as the simulation holds them.
+  [[nodiscard]] const game::ActorPool& actors() const;
+
+  /// Where the actor at dense index @p index is drawn, @p alpha of the way
+  /// from the last tick's position to this one's. Render-side only.
+  [[nodiscard]] Vec3 actorRenderPosition(uint32_t index, float alpha) const;
+
+  /// Whether the actor at dense index @p index moved on the last tick.
+  [[nodiscard]] EditorCharacterGait actorGait(uint32_t index) const;
+
+  /// The state of its behavior the actor at dense index @p index is in.
+  [[nodiscard]] const game::BehaviorState& actorState(uint32_t index) const;
+
+  /// The actor at dense index @p index as the AI overlay draws it, @p alpha
+  /// of the way between the last two ticks.
+  [[nodiscard]] EditorActorOverlay actorOverlay(uint32_t index,
+                                                float alpha) const;
+
   /// Ticks simulated so far.
   [[nodiscard]] uint64_t tick() const { return simulation_.nextTick(); }
 
@@ -137,6 +178,26 @@ public:
   [[nodiscard]] sim::Replay replay() const { return recorder_.finish(); }
 
 private:
+  /// The actors' part of `publish`.
+  void publishActors(EditorPlaytestState& state) const;
+  /// The players' part of `publish`.
+  void publishPlayers(EditorPlaytestState& state) const;
+  /// Fill in whom the actor at dense index @p index targets, into
+  /// @p report: a player's number, or another actor's id.
+  void reportTarget(EditorPlaytestActor& report, uint32_t index) const;
+  /// What the AI overlay labels the actor at dense index @p index: its
+  /// state and its health.
+  [[nodiscard]] std::string overlayLabel(uint32_t index) const;
+  /// The projectiles', the hazards' and the run's part of `publish`.
+  void publishCombat(EditorPlaytestState& state) const;
+  /// Fill every stand-in's slot of @p input with what their stand-in does.
+  void addStandInInput(sim::TickInput& input) const;
+  /// The id of the prop the actor @p handle names became, or empty.
+  [[nodiscard]] std::string actorIdOf(sim::EntityHandle handle) const;
+  /// The report for the setup's @p actor-th actor, at dense index @p index.
+  [[nodiscard]] EditorPlaytestActor actorReport(size_t actor,
+                                                uint32_t index) const;
+
   /// The game being played. Held by pointer because `simulation_` holds
   /// its address, and the session must be movable without moving it.
   std::unique_ptr<game::GameWorld> world_;
@@ -152,6 +213,10 @@ private:
   std::array<std::string, sim::MAX_PLAYERS> characters_{};
   /// Each player's position before the last tick, for interpolation.
   std::vector<Vec3> previous_;
+  /// Each actor's position before the last tick, for interpolation.
+  std::vector<Vec3> previous_actors_;
+  /// The prop each of the setup's actors came from, in setup order.
+  std::vector<std::string> actor_ids_;
   /// Ticks the clock has dropped, summed over the playtest.
   uint64_t dropped_ticks_ = 0;
   /// The hash the last tick ended on.

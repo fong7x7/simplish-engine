@@ -78,11 +78,33 @@ inline constexpr AgentParam AGENT_PARAMS_ADD_PLAYER_START[] = {
      "response reports the player actually stored."},
 };
 
+/// `add_waypoint` adds a point to a patrol route.
+inline constexpr AgentParam AGENT_PARAMS_ADD_WAYPOINT[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X the waypoint stands at, in tiles. A whole number and a half "
+     "is the middle of a tile, which is where a drag from the browser puts "
+     "one."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y the waypoint stands at, in tiles."},
+    {"z", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Height above the ground plane, in tiles. Defaults to 0; patrols walk "
+     "the floor, so it only moves the marker."},
+    {"route", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Which route, 1 to 9. Defaults to the selected waypoint's route, or 1 "
+     "when no waypoint is selected — so adding several in a row lays one "
+     "route out. Out-of-range values are clamped."},
+    {"order", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Its place in the route, 1 to 99; an actor walks a route's waypoints "
+     "in this order, and in list order where two share one. Defaults to "
+     "after the route's last waypoint."},
+};
+
 /// `set_property` writes one number on one entry.
 inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", or \"selection\" for "
-     "whatever the properties panel is currently editing."},
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"selection\" for whatever the properties panel is currently "
+     "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Ignored, and not needed, when target is "
      "\"selection\"."},
@@ -90,15 +112,17 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "Property name as `get_selection` reports it: position_x, position_y, "
      "position_z, rotation_x, rotation_y, rotation_z, direction_x, "
      "direction_y, direction_z, color_r, color_g, color_b, intensity, "
-     "range, player, collides, or scale. A player start takes the position "
-     "and player only; collides and scale are a placement's — collides is 1 "
-     "for solid and 0 to let players walk through it, and scale is a "
-     "uniform size multiplier where 1 is the size the asset was dropped at, "
+     "range, player, collides, scale, route, or order. A player start takes "
+     "the position and player only, and a waypoint the position, route and "
+     "order; collides and scale are a placement's — collides is 1 for "
+     "solid and 0 to let players walk through it, and scale is a uniform "
+     "size multiplier where 1 is the size the asset was dropped at, "
      "clamped to 0.125 through 8."},
     {"value", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
      "The value to write. Angles wrap into [-180, 180), colour channels "
      "and direction components are clamped, a player is rounded into 1 to "
-     "4, collides is 1 at 0.5 and above, and the response reports what was "
+     "4, a route into 1 to 9 and an order into 1 to 99, collides is 1 at "
+     "0.5 and above, and the response reports what was "
      "actually stored."},
 };
 
@@ -128,6 +152,27 @@ inline constexpr AgentParam AGENT_PARAMS_SET_CHARACTER[] = {
      "or empty names none, leaving it to the selector."},
 };
 
+/// `set_behavior` gives a prop the intelligence it runs in a playtest.
+inline constexpr AgentParam AGENT_PARAMS_SET_BEHAVIOR[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"placement\", or \"selection\" when a placement is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the placement list. Not needed when target is "
+     "\"selection\"."},
+    {"behavior", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A behavior from list_behaviors, by id, reference or name. Omitted "
+     "keeps the prop's behavior; empty takes it away, leaving the prop "
+     "scenery again."},
+    {"faction", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"hostile\", \"neutral\" or \"friendly\". Omitted keeps the "
+     "prop's faction, which is hostile until one is chosen."},
+    {"route", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "The patrol route a behavior's patrol state walks, 1 to 9 — its "
+     "waypoints are what list_waypoints reports — or 0 for none. Omitted "
+     "keeps the prop's route. A patrolling actor with no route stands "
+     "where it is."},
+};
+
 /// `start_playtest` may name who player 1 plays as.
 inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
     {"character", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
@@ -135,12 +180,20 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
      "reference or name. Omitted, it is the one their start names, or the "
      "project's first character, or the default character when there are "
      "none."},
+    {"stand_ins", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Stand-in players to add beside player 1, 0 to 3 — the multi-player "
+     "preview: each spawns on its player's start, or beside player 1, and "
+     "is played by the game's stand-in, which revives teammates who are "
+     "down, backs away from hostiles and keeps up with the others. "
+     "Omitted, it is what Level › Play with N Stand-ins last chose, or "
+     "none. Remembered for later playtests."},
 };
 
 /// `translate` moves an entry by a delta rather than to a position.
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", or \"selection\"."},
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"selection\"."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"selection\"."},
     {"dx", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
@@ -155,8 +208,9 @@ inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
 /// `delete` takes an entry back out of the level.
 inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", or \"selection\" for "
-     "whatever the properties panel is currently editing."},
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"selection\" for whatever the properties panel is currently "
+     "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Ignored, and not needed, when target is "
      "\"selection\". Everything after it moves down one, so delete from "
@@ -166,8 +220,8 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 /// `select` names an entry, or clears the selection.
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", or \"none\" to clear "
-     "the selection."},
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"none\" to clear the selection."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"none\"."},
 };
@@ -222,6 +276,27 @@ inline constexpr AgentParam AGENT_PARAMS_SEND_INPUT[] = {
      "Whether fire is held. Defaults to false; nothing fires yet."},
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to hold this for, 1 to 3600 (60 is a second). Defaults to 1."},
+};
+
+/// `find_path` asks the navigation grid for a route.
+inline constexpr AgentParam AGENT_PARAMS_FIND_PATH[] = {
+    {"from_x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X the walk starts at, in tiles."},
+    {"from_y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y the walk starts at, in tiles."},
+    {"to_x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X the walk should end at, in tiles."},
+    {"to_y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y the walk should end at, in tiles."},
+    {"radius", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "The walker's radius in tiles, 0.05 to 2. Defaults to 0.3, a player's "
+     "— and an actor's unless its model is wider."},
+};
+
+/// `step_playtest` runs an exact number of ticks.
+inline constexpr AgentParam AGENT_PARAMS_STEP_PLAYTEST[] = {
+    {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Ticks to run, 1 to 3600 (60 is a second). Defaults to 1."},
 };
 
 /// `open_project` points the editor at a directory.
@@ -311,6 +386,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "reports how many players a session holds.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_WAYPOINTS,
+     "list_waypoints",
+     "Every waypoint in the level — the points patrol routes are laid out "
+     "with — with its index, id, route (1 to 9), order in that route, and "
+     "position; and every route in use, with its points in the order an "
+     "actor walks them and the ids of the actors that patrol it.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::LIST_CHARACTERS,
      "list_characters",
      "Every character the project defines — id, name, model, move speed "
@@ -320,6 +403,47 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "change a character, edit that file.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_BEHAVIORS,
+     "list_behaviors",
+     "Every behavior a prop can run in a playtest — the built-in presets "
+     "and the project's own from its behaviors data table, a project row "
+     "replacing the preset with its id — each with its id, reference, "
+     "name, whether it is built in, its states in order, and the state it "
+     "starts in; with the table's path and anything wrong with it. The "
+     "table is read when the project opens, on a rescan, and on every "
+     "Play; to add or change a behavior, edit that file.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::LIST_ENEMIES,
+     "list_enemies",
+     "Every enemy archetype the project defines in its enemies data table — "
+     "id, name, model, health segments, body radius and height in tiles, "
+     "the behavior it runs and whether the project can run it, and its "
+     "faction — with the file's path and anything wrong with it. The "
+     "archetypes are what the director will spawn a horde from; nothing "
+     "spawns them yet. Read when the project opens, on a rescan, and on "
+     "every Play; to add or change one, edit that file.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::GET_NAVIGATION,
+     "get_navigation",
+     "The navigation grid a playtest of the level would plan across — "
+     "built from the props that collide, a quarter tile a cell — and what "
+     "it says: how many cells are solid, too narrow for an actor a "
+     "player's width, walled off from every player start, and open; which "
+     "actors no path joins to a player start; and which have no floor "
+     "near where they stand. What the View menu's Navigation Overlay "
+     "draws.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::FIND_PATH, "find_path",
+     "The route an actor of the given radius would plan from one point of "
+     "the level to another, by the same A* and smoothing the game runs: "
+     "how the search ended (found, unreachable, over_budget, or "
+     "blocked_endpoint when an end has no floor near it), the smoothed "
+     "waypoints, and the length in tiles. Reads the level as it is now; "
+     "nothing changes.",
+     AgentToolEffect::READ, AGENT_PARAMS_FIND_PATH},
     {AgentTool::GET_SELECTION,
      "get_selection",
      "What the properties panel is editing, and the fields it lists for "
@@ -369,9 +493,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "the browser's general > tools section would, and select it. Recorded "
      "as one undoable edit, and saved with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_ADD_PLAYER_START},
+    {AgentTool::ADD_WAYPOINT, "add_waypoint",
+     "Add a waypoint to a patrol route, exactly as dragging the waypoint "
+     "from the browser's general > tools section would, and select it. An "
+     "actor whose behavior has a patrol state walks its route's waypoints "
+     "in order, looping or turning back as the state says. Recorded as one "
+     "undoable edit, and saved with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_ADD_WAYPOINT},
     {AgentTool::SET_PROPERTY, "set_property",
-     "Set one property of a placement, a light or a player start to an "
-     "absolute value, as typing it into the properties panel would. "
+     "Set one property of a placement, a light, a player start or a "
+     "waypoint to an absolute value, as typing it into the properties panel "
+     "would. "
      "Recorded as one undoable edit, and a write that changes nothing "
      "records nothing.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_PROPERTY},
@@ -387,20 +519,33 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "does: the character the selector opens on. Recorded as one undoable "
      "edit, and saved with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_CHARACTER},
+    {AgentTool::SET_BEHAVIOR, "set_behavior",
+     "Give a placed prop the behavior it runs in a playtest, the side it "
+     "is on, and the route it patrols, as the properties panel's Behavior, "
+     "Faction and Route rows do. A "
+     "prop with a behavior is an actor: when the level is played it sees "
+     "and hears the players, plans paths round the level's props, turns "
+     "and moves as its behavior's states say, and is no longer a "
+     "collision box for players. Recorded as one undoable edit, and saved "
+     "with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_BEHAVIOR},
     {AgentTool::TRANSLATE, "translate",
-     "Move a placement, a light or a player start by a delta in tiles — "
+     "Move a placement, a light, a player start or a waypoint by a delta in "
+     "tiles — "
      "the tool to reach for when asked to shift something in a direction "
      "rather than to a coordinate. Recorded as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_TRANSLATE},
     {AgentTool::DELETE_ENTRY, "delete",
-     "Remove a placement, a light or a player start from the level, as the "
+     "Remove a placement, a light, a player start or a waypoint from the "
+     "level, as the "
      "Delete key does to what is selected. Recorded as one undoable edit, so "
      "undo puts the "
      "entry back where it was; the selection is cleared, and everything "
      "after it in that list is renumbered down one.",
      AgentToolEffect::EDIT, AGENT_PARAMS_DELETE},
     {AgentTool::SELECT, "select",
-     "Select a placement, a light or a player start, which opens the "
+     "Select a placement, a light, a player start or a waypoint, which "
+     "opens the "
      "properties panel on it, or clear the selection.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SELECT},
     {AgentTool::SET_TOOL, "set_tool", "Choose the active toolbar tool.",
@@ -446,12 +591,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::GET_PLAYTEST,
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
-     "simulation is on, where each player is, who they play as and their "
-     "health, "
-     "the latest tick hash, how "
-     "many ticks the frame clock has dropped, and how many ticks of queued "
-     "input are left. Poll it after start_playtest or send_input to watch "
-     "the game run.",
+     "simulation is on, where each player is, who they play as, their "
+     "health, whether they are down or out and whether a stand-in plays "
+     "them; every actor with its state, target and health; every "
+     "projectile in flight and hazard pool on the floor; whether the run "
+     "is over (no player up); the latest tick hash, how many ticks the "
+     "frame clock has dropped, and how many ticks of queued input are "
+     "left. Poll it after start_playtest or send_input to watch the game "
+     "run.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::START_PLAYTEST, "start_playtest",
@@ -484,6 +631,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "-Y together. A full stick moves five tiles a second, and a value "
      "outside -1 to 1 is full scale.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SEND_INPUT},
+    {AgentTool::STEP_PLAYTEST, "step_playtest",
+     "Pause the running playtest and run exactly `ticks` ticks of it, on the "
+     "input send_input queued — or none — then report it as get_playtest "
+     "does. A paused playtest stays where it is until stepped again or "
+     "resumed with run_command pause_playtest, so an agent can walk an "
+     "actor's decisions tick by tick. Carried out by the running editor on "
+     "its next frame; get_playtest shows the result.",
+     AgentToolEffect::HOST, AGENT_PARAMS_STEP_PLAYTEST},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

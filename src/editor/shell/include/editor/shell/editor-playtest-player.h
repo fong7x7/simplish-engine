@@ -23,6 +23,14 @@ struct EditorPlaytestPlayer {
   std::string character{};
   /// Health segments the player has left.
   uint16_t health = 0;
+  /// Health segments a full bar holds: their character's health.
+  uint16_t max_health = 0;
+  /// Whether the player is down, waiting for a teammate to revive them.
+  bool downed = false;
+  /// Whether the player is out of the run.
+  bool out = false;
+  /// Whether a stand-in plays them rather than the keyboard or the agent.
+  bool stand_in = false;
 };
 
 }  // namespace eng::editor
