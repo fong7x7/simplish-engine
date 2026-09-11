@@ -72,6 +72,10 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "step_tick",
     "toggle_navigation",
     "toggle_ai_overlay",
+    "play_solo",
+    "play_with_1_stand_in",
+    "play_with_2_stand_ins",
+    "play_with_3_stand_ins",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==

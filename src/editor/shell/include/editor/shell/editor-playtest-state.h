@@ -8,6 +8,7 @@
 #include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-playtest-actor.h>
 #include <editor/shell/editor-playtest-clock.h>
+#include <editor/shell/editor-playtest-hazard.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <optional>
@@ -39,6 +40,12 @@ struct EditorPlaytestState {
   std::vector<EditorPlaytestPlayer> players;
   /// Every actor — every prop with a behavior — in the level's order.
   std::vector<EditorPlaytestActor> actors;
+  /// Where every projectile in flight is.
+  std::vector<WorldPoint> projectiles;
+  /// Every hazard pool on the floor.
+  std::vector<EditorPlaytestHazard> hazards;
+  /// Whether the run is over: no player is up.
+  bool run_over = false;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

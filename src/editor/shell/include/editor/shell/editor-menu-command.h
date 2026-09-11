@@ -80,7 +80,21 @@ enum class EditorMenuCommand : uint8_t {
   /// Show or hide the AI overlay: every actor's view, path, target and
   /// state, while playing.
   TOGGLE_AI_OVERLAY,
+  /// Play the next playtest alone.
+  PLAY_SOLO,
+  /// Play the next playtest with one stand-in player beside you.
+  PLAY_ONE_STAND_IN,
+  /// Play the next playtest with two stand-in players.
+  PLAY_TWO_STAND_INS,
+  /// Play the next playtest with three stand-in players: a full session.
+  PLAY_THREE_STAND_INS,
 };
+
+/// The stand-in rows, indexed by how many stand-ins each plays with.
+inline constexpr EditorMenuCommand EDITOR_STAND_IN_COMMANDS[] = {
+    EditorMenuCommand::PLAY_SOLO, EditorMenuCommand::PLAY_ONE_STAND_IN,
+    EditorMenuCommand::PLAY_TWO_STAND_INS,
+    EditorMenuCommand::PLAY_THREE_STAND_INS};
 
 /// Display text for one command.
 /// @thread_safety Immutable value type.
@@ -139,7 +153,22 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::STEP_PLAYTEST, "Step One Tick", "F7"},
     {EditorMenuCommand::TOGGLE_NAVIGATION, "Navigation Overlay", ""},
     {EditorMenuCommand::TOGGLE_AI_OVERLAY, "AI Overlay", ""},
+    {EditorMenuCommand::PLAY_SOLO, "Play Solo", ""},
+    {EditorMenuCommand::PLAY_ONE_STAND_IN, "Play with 1 Stand-in", ""},
+    {EditorMenuCommand::PLAY_TWO_STAND_INS, "Play with 2 Stand-ins", ""},
+    {EditorMenuCommand::PLAY_THREE_STAND_INS, "Play with 3 Stand-ins", ""},
 };
+
+/// How many stand-ins @p command plays with, or -1 for a command that is
+/// not a stand-in row.
+[[nodiscard]] constexpr int editorStandInsOf(EditorMenuCommand command) {
+  for (int count = 0; count < 4; ++count) {
+    if (EDITOR_STAND_IN_COMMANDS[count] == command) {
+      return count;
+    }
+  }
+  return -1;
+}
 
 /// Look up the display text for @p command.
 [[nodiscard]] constexpr const EditorMenuCommandInfo&

@@ -93,9 +93,16 @@ namespace {
   /// The project's levels are spliced in after New Level, so Play Level
   /// sits under the list of what it would play.
   constexpr EditorMenuCommand LEVEL_ROWS[] = {
-      EditorMenuCommand::NEW_LEVEL,     EditorMenuCommand::SEPARATOR,
-      EditorMenuCommand::PLAYTEST,      EditorMenuCommand::PAUSE_PLAYTEST,
+      EditorMenuCommand::NEW_LEVEL,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::PLAYTEST,
+      EditorMenuCommand::PAUSE_PLAYTEST,
       EditorMenuCommand::STEP_PLAYTEST,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::PLAY_SOLO,
+      EditorMenuCommand::PLAY_ONE_STAND_IN,
+      EditorMenuCommand::PLAY_TWO_STAND_INS,
+      EditorMenuCommand::PLAY_THREE_STAND_INS,
   };
 
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
@@ -370,6 +377,9 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
 }
 
 bool EditorMenuBarWidget::playtestChecked(EditorMenuCommand command) const {
+  if (const int stand_ins = editorStandInsOf(command); stand_ins >= 0) {
+    return stand_ins == stand_ins_;
+  }
   const bool playing = play_mode_ == EditorPlayMode::PLAYING;
   if (command == EditorMenuCommand::PLAYTEST) {
     return playing;
@@ -540,6 +550,14 @@ void EditorMenuBarWidget::setPlaytestClock(EditorPlaytestClock clock) {
     return;
   }
   clock_ = clock;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setStandIns(uint8_t stand_ins) {
+  if (stand_ins_ == stand_ins) {
+    return;
+  }
+  stand_ins_ = stand_ins;
   items_dirty_ = true;
 }
 

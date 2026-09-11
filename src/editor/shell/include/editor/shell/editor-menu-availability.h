@@ -40,6 +40,10 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::STEP_PLAYTEST,
     EditorMenuCommand::TOGGLE_NAVIGATION,
     EditorMenuCommand::TOGGLE_AI_OVERLAY,
+    EditorMenuCommand::PLAY_SOLO,
+    EditorMenuCommand::PLAY_ONE_STAND_IN,
+    EditorMenuCommand::PLAY_TWO_STAND_INS,
+    EditorMenuCommand::PLAY_THREE_STAND_INS,
 };
 
 /// Whether @p command names work that exists at all.

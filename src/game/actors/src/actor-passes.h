@@ -36,7 +36,8 @@ void perceiveActor(const ActorRef& a, const ActorTickContext& context,
 
 /// Take the first interrupt or exit of actor @p a's state whose condition
 /// holds, if any.
-void decideActor(const ActorRef& a, const ActorTickContext& context);
+void decideActor(const ActorRef& a, const ActorTickContext& context,
+                 const ActorWorkspace& workspace);
 
 /// Work out where actor @p a's action is taking it into @p intent.
 void intendActor(const ActorRef& a, const ActorTickContext& context,
@@ -51,6 +52,10 @@ void planActor(const ActorRef& a, const ActorTickContext& context,
 /// straight when it can walk straight, else by A*.
 void planWith(const ActorRef& a, const ActorTickContext& context,
               ActorWorkspace& workspace, const spatial::FlowField* field);
+
+/// Carry out actor @p a's state's attack, if it attacks and can: into the
+/// tick's effects buffer, never onto anyone directly.
+void attackActor(const ActorRef& a, const ActorTickContext& context);
 
 /// Work out the step actor @p a takes toward its goal into @p intent.
 void steerActor(const ActorRef& a, const ActorTickContext& context,

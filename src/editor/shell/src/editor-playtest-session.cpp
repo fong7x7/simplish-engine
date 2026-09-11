@@ -8,7 +8,9 @@
 #include <editor/shell/editor-waypoint-ops.h>
 #include <engine/sim/replay-codec.h>
 #include <fstream>
+#include <game/combat/combat-system.h>
 #include <game/content/character-lookup.h>
+#include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
 #include <utility>
@@ -140,6 +142,23 @@ namespace {
 
 }  // namespace
 
+void addEditorStandIns(game::GameSetup& setup, const EditorDocument& document,
+                       uint8_t stand_ins) {
+  const auto count =
+      static_cast<uint8_t>(std::min<size_t>(1U + stand_ins, sim::MAX_PLAYERS));
+  for (uint8_t slot = 1; slot < count; ++slot) {
+    const EditorPlayerStart* start =
+        firstStartFor(document, static_cast<uint8_t>(slot + 1U));
+    const Vec3 beside{setup.spawns[0].x + static_cast<float>(slot) * 1.5F,
+                      setup.spawns[0].y, setup.spawns[0].z};
+    setup.spawns[slot] =
+        start != nullptr
+            ? Vec3{start->position.x, start->position.y, start->position.z}
+            : beside;
+  }
+  setup.player_count = count;
+}
+
 game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
                                         const std::vector<EditorAsset>& assets,
                                         WorldPoint fallback) {
@@ -214,26 +233,66 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
                                  std::vector<EditorScriptedInput>& scripted) {
   previous_ = world_->players().position;
   previous_actors_ = world_->actors().position;
-  const sim::TickInput input = nextTickInput(live, scripted);
+  sim::TickInput input = nextTickInput(live, scripted);
+  addStandInInput(input);
   const sim::TickResult result = simulation_.step(input);
   recorder_.record(input, result);
   last_hash_ = result.hash;
 }
 
 void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
-  const game::PlayerPool& pool = world_->players();
   state.tick = tick();
   state.dropped_ticks = dropped_ticks_;
   state.hash = last_hash_ ? std::optional{last_hash_->combined} : std::nullopt;
+  publishPlayers(state);
+  publishActors(state);
+  publishCombat(state);
+}
+
+void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {
+  const game::PlayerPool& pool = world_->players();
   state.players.clear();
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const Vec3& at = pool.position[i];
-    state.players.push_back({static_cast<uint8_t>(pool.input_slot[i] + 1U),
-                             {at.x, at.y, at.z},
-                             character(i).id,
-                             pool.health[i]});
+    state.players.push_back(
+        {.player = static_cast<uint8_t>(pool.input_slot[i] + 1U),
+         .position = {at.x, at.y, at.z},
+         .character = character(i).id,
+         .health = pool.health[i],
+         .max_health = pool.max_health[i],
+         .downed = pool.downed[i] != 0,
+         .out = pool.out[i] != 0,
+         .stand_in = pool.input_slot[i] != 0});
   }
-  publishActors(state);
+}
+
+void EditorPlaytestSession::addStandInInput(sim::TickInput& input) const {
+  // Every player past the first is a stand-in: their input is worked out
+  // from the world as it stands, and recorded like anyone's.
+  const game::PlayerPool& players = world_->players();
+  for (uint32_t p = 0; p < players.slots.size(); ++p) {
+    const uint8_t slot = players.input_slot[p];
+    if (slot != 0) {
+      input.players[slot] = game::standInInput(*world_, slot);
+    }
+  }
+}
+
+void EditorPlaytestSession::publishCombat(EditorPlaytestState& state) const {
+  const game::ProjectilePool& shots = world_->projectilePool();
+  state.projectiles.clear();
+  for (uint32_t i = 0; i < shots.slots.size(); ++i) {
+    state.projectiles.push_back(
+        {shots.position[i].x, shots.position[i].y, game::PROJECTILE_Z_TILES});
+  }
+  const game::HazardPool& pools = world_->hazardPool();
+  state.hazards.clear();
+  for (uint32_t i = 0; i < pools.slots.size(); ++i) {
+    state.hazards.push_back({{pools.position[i].x, pools.position[i].y, 0.0F},
+                             pools.radius[i],
+                             pools.ticks_left[i]});
+  }
+  state.run_over = world_->runOver();
 }
 
 void EditorPlaytestSession::publishActors(EditorPlaytestState& state) const {
@@ -250,19 +309,29 @@ EditorPlaytestActor EditorPlaytestSession::actorReport(size_t actor,
   const game::ActorPool& pool = world_->actors();
   const Vec3& at = pool.position[index];
   const game::ActorPath& path = pool.path[index];
-  const bool on_actor = pool.target_kind[index] == game::ActorTargetKind::ACTOR;
-  return {.id = actor < actor_ids_.size() ? actor_ids_[actor] : std::string{},
-          .position = {at.x, at.y, at.z},
-          .facing = pool.facing[index],
-          .behavior = world_->brains()[pool.brain[index]].behavior.id,
-          .state = actorState(index).id,
-          .faction = pool.faction[index],
-          .target = on_actor
-                        ? uint8_t{0}
-                        : playerNumber(world_->players(), pool.target[index]),
-          .target_actor = on_actor ? actorIdOf(pool.target[index]) : "",
-          .sees_target = pool.sees_target[index] != 0,
-          .path_waypoints = path.count - std::min(path.next, path.count)};
+  EditorPlaytestActor report{
+      .id = actor < actor_ids_.size() ? actor_ids_[actor] : std::string{},
+      .position = {at.x, at.y, at.z},
+      .facing = pool.facing[index],
+      .behavior = world_->brains()[pool.brain[index]].behavior.id,
+      .state = actorState(index).id,
+      .faction = pool.faction[index],
+      .sees_target = pool.sees_target[index] != 0,
+      .path_waypoints = path.count - std::min(path.next, path.count),
+      .health = pool.health[index],
+      .max_health = pool.max_health[index]};
+  reportTarget(report, index);
+  return report;
+}
+
+void EditorPlaytestSession::reportTarget(EditorPlaytestActor& report,
+                                         uint32_t index) const {
+  const game::ActorPool& pool = world_->actors();
+  if (pool.target_kind[index] == game::CombatantKind::ACTOR) {
+    report.target_actor = actorIdOf(pool.target[index]);
+  } else {
+    report.target = playerNumber(world_->players(), pool.target[index]);
+  }
 }
 
 std::string EditorPlaytestSession::actorIdOf(sim::EntityHandle handle) const {
@@ -334,6 +403,12 @@ EditorPlaytestSession::actorState(uint32_t index) const {
   return world_->brains()[pool.brain[index]].behavior.states[pool.state[index]];
 }
 
+std::string EditorPlaytestSession::overlayLabel(uint32_t index) const {
+  const game::ActorPool& pool = world_->actors();
+  return actorState(index).id + "  " + std::to_string(pool.health[index]) +
+         "/" + std::to_string(pool.max_health[index]);
+}
+
 EditorActorOverlay EditorPlaytestSession::actorOverlay(uint32_t index,
                                                        float alpha) const {
   const game::ActorPool& pool = world_->actors();
@@ -349,7 +424,7 @@ EditorActorOverlay EditorPlaytestSession::actorOverlay(uint32_t index,
           .has_target = pool.remembers_target[index] != 0,
           .target = {pool.last_seen[index].x, pool.last_seen[index].y, at.z},
           .sees_target = pool.sees_target[index] != 0,
-          .label = actorState(index).id,
+          .label = overlayLabel(index),
           .faction = pool.faction[index]};
 }
 

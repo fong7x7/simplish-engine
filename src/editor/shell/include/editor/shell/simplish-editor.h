@@ -289,6 +289,8 @@ private:
   void stopPlaytest();
   /// Run the ticks this frame's time pays for, and publish what they did.
   void tickPlaytest();
+  /// Have the next playtest add @p stand_ins stand-in players, 0 to 3.
+  void setStandIns(uint8_t stand_ins);
   /// Publish what the last ticks did, follow the player, and move the
   /// markers: everything after ticks run, stepped or on time.
   void afterPlaytestTicks();
@@ -305,6 +307,9 @@ private:
   /// Add a column in its player's colour for every player, drawn where the
   /// frame puts them, after the level's own markers.
   void appendPlaytestMarkers(std::vector<EditorPlacementMarker>& markers);
+  /// Push a marker for every projectile in flight and every hazard pool on
+  /// the floor into @p markers, as the playtest last reported them.
+  void appendCombatMarkers(std::vector<EditorPlacementMarker>& markers) const;
   /// The characters the viewport draws this frame: every player while a
   /// playtest runs, and the ones standing on the level's starts otherwise.
   [[nodiscard]] std::vector<EditorCharacterFigure> characterFigures() const;
@@ -342,6 +347,9 @@ private:
   void applyPlayModeToChrome();
   /// The toolbar status line while playing: the tick, and any stutter.
   [[nodiscard]] std::string playtestStatus() const;
+  /// How player 1 is doing, for the status line: their health, that they
+  /// are down, or that the run is over.
+  [[nodiscard]] std::string playerOneHealth() const;
 
   /// Create the toolbar and wire its tool and play buttons.
   void initToolbar(GuiWidgetTree& tree);

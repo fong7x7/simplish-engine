@@ -68,6 +68,7 @@ GameSetup hordeSetup(uint32_t actors) {
   setup.player_count = 4;
   setup.spawns = {
       {{-1.5F, -1.5F, 0}, {1.5F, -1.5F, 0}, {-1.5F, 1.5F, 0}, {1.5F, 1.5F, 0}}};
+  setup.characters = {"sturdy", "sturdy", "sturdy", "sturdy"};
   addWalls(setup);
   addPillars(setup);
   const EnemyDefinition swarmer = hordeContent().enemies.front();
@@ -86,6 +87,10 @@ GameContent hordeContent() {
   content.behaviors.push_back(resolveBehavior({}, "chase"));
   content.behaviors.back().senses.sight_range = 64.0F;
   content.behaviors.back().senses.view_degrees = 360.0F;
+  // Players who outlast the whole run, so the horde keeps coming — and
+  // biting — for every timed tick rather than standing over four downed
+  // players.
+  content.characters.push_back({"sturdy", "Sturdy", "", 5.0F, 60000});
   content.enemies.push_back(
       {.id = "swarmer", .name = "Swarmer", .behavior = "chase"});
   return content;

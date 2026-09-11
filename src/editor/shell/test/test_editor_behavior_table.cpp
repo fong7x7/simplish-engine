@@ -166,3 +166,32 @@ TEST_CASE("whom a behavior targets is read, and a word for nobody is players") {
           game::BehaviorTargets::PLAYERS);
   REQUIRE(mentions(read.problems, "\"everyone\" is not whom to target"));
 }
+
+TEST_CASE("an attacking state reads its attack under its action's keys") {
+  const EditorBehaviorTable read = parseEditorBehaviorTable(table(R"([
+    {"id": "brute", "states": [
+      {"id": "bite", "do": "melee", "damage": 2, "reach": 0.5,
+       "cooldown_ticks": 30,
+       "exits": [{"when": "health_below", "permille": 300, "to": "shoot"}]},
+      {"id": "shoot", "do": "fire", "count": 5, "spread_degrees": 40,
+       "projectile_speed": 12,
+       "exits": [{"when": "damaged", "ticks": 10, "to": "spit"}]},
+      {"id": "spit", "do": "spit", "radius": 1.5, "duration_ticks": 90,
+       "exits": [{"when": "allies_within", "tiles": 3, "to": "burst"}]},
+      {"id": "burst", "do": "detonate", "radius": 3, "damage": 4}]}])"));
+
+  REQUIRE(read.problems.empty());
+  const auto& states = read.behaviors.at(0).states;
+  REQUIRE(states[0].attack.damage == 2);
+  REQUIRE(states[0].attack.reach_tiles == 0.5F);
+  REQUIRE(states[0].attack.cooldown_ticks == 30);
+  REQUIRE(states[0].exits[0].when == game::BehaviorCondition::HEALTH_BELOW);
+  REQUIRE(states[1].attack.count == 5);
+  REQUIRE(states[1].attack.speed == 12.0F);
+  REQUIRE(states[1].attack.damage == 1);
+  REQUIRE(states[1].exits[0].when == game::BehaviorCondition::DAMAGED);
+  REQUIRE(states[2].attack.duration_ticks == 90);
+  REQUIRE(states[2].exits[0].when == game::BehaviorCondition::ALLIES_WITHIN);
+  REQUIRE(states[3].attack.radius == 3.0F);
+  REQUIRE(states[3].attack.damage == 4);
+}

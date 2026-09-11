@@ -11,11 +11,14 @@
 #include <engine/sim/entity-handle.h>
 #include <engine/sim/entity-slots.h>
 #include <game/actors/actor-path.h>
-#include <game/actors/actor-target-kind.h>
+#include <game/combat/combatant-kind.h>
 #include <game/content/faction.h>
 #include <vector>
 
 namespace eng::game {
+
+/// What `ActorPool::damaged_tick` holds for an actor never hurt.
+inline constexpr uint64_t ACTOR_NEVER_DAMAGED = UINT64_MAX;
 
 /// The actor pool (ADR-004): the enemies and NPCs, one array per field,
 /// each indexed by dense index. Every field is simulation state and is
@@ -44,6 +47,20 @@ struct ActorPool {
   std::vector<uint16_t> brain;
   /// Which side each actor is on.
   std::vector<Faction> faction;
+  /// Health segments each actor has left; one at none is dead, and gone at
+  /// the end of the tick.
+  std::vector<uint16_t> health;
+  /// Health segments each actor spawned with.
+  std::vector<uint16_t> max_health;
+  /// The tick each actor was last hurt on, or `ACTOR_NEVER_DAMAGED`.
+  std::vector<uint64_t> damaged_tick;
+  /// The first tick each actor's attack can strike again.
+  std::vector<uint64_t> attack_ready_tick;
+  /// How far the blast each actor goes off in when it dies reaches; 0 for
+  /// none.
+  std::vector<float> death_blast_radius;
+  /// Segments that blast takes.
+  std::vector<uint16_t> death_blast_damage;
 
   /// The state of its behavior each actor is in.
   std::vector<uint8_t> state;
@@ -52,7 +69,7 @@ struct ActorPool {
   /// Who each actor last perceived; null when it has none.
   std::vector<sim::EntityHandle> target;
   /// Which pool each actor's `target` is in.
-  std::vector<ActorTargetKind> target_kind;
+  std::vector<CombatantKind> target_kind;
   /// Whether each actor sees its target this tick.
   std::vector<uint8_t> sees_target;
   /// Whether each actor hears its target this tick.

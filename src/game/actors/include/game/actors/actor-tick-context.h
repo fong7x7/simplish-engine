@@ -14,14 +14,16 @@
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-flow-fields.h>
 #include <game/actors/actor-route.h>
+#include <game/combat/combat-effects.h>
 #include <game/player/player-pool.h>
 #include <span>
 
 namespace eng::game {
 
 /// One tick's view of the world, as the actors see it: the clock, the
-/// players and their input, the level, the brains, the flow fields, and
-/// the AI stream. Built by the world for each tick and discarded with it.
+/// players and their input, the level, the brains, the flow fields, the
+/// effects buffer, and the AI stream. Built by the world for each tick and
+/// discarded with it.
 struct ActorTickContext {
   /// The tick being simulated.
   uint64_t tick = 0;
@@ -41,6 +43,9 @@ struct ActorTickContext {
   std::span<const ActorRoute> routes;
   /// The players' flow fields, which the tick advances and pursuers walk.
   ActorFlowFields& flow;
+  /// Where attacks put what they do, for later phases of the tick to carry
+  /// out.
+  CombatEffects& effects;
   /// The simulation's AI stream: wander spots and `chance` draws. Drawn
   /// from in dense order, so every peer draws the same numbers for the
   /// same actors.

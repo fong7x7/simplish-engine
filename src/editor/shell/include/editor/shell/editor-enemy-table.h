@@ -26,6 +26,9 @@ inline constexpr float EDITOR_ENEMY_MAX_RADIUS = 2.0F;
 /// The tallest body an archetype may have, in tiles.
 inline constexpr float EDITOR_ENEMY_MAX_HEIGHT = 8.0F;
 
+/// The furthest an archetype's death blast may reach, in tiles.
+inline constexpr float EDITOR_ENEMY_MAX_BLAST = 10.0F;
+
 /// The enemies table as the editor read it.
 /// @thread_safety Main-thread-only.
 struct EditorEnemyTable {

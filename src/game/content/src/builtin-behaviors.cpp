@@ -68,15 +68,15 @@ namespace {
     return made;
   }
 
-  /// Watches its post, gives chase within a leash, searches where it lost
-  /// sight of its quarry, then goes back.
+  /// Watches its post, gives chase within a leash and strikes whoever it
+  /// catches, searches where it lost sight of its quarry, then goes back.
   BehaviorDefinition guard() {
     enum : uint8_t { WATCH, PURSUE, SEARCH, RETURN };
     return behavior(
         "guard", "Guard",
         {state("watch", Act::IDLE,
                {on(Cond::SEES_TARGET, PURSUE), on(Cond::HEARS_TARGET, SEARCH)}),
-         state("pursue", Act::PURSUE,
+         state("pursue", Act::MELEE,
                {onTiles(Cond::FAR_FROM_HOME, 12.0F, RETURN),
                 onTicks(Cond::LOST_TARGET_FOR, 120, SEARCH)}),
          state("search", Act::SEARCH,
@@ -97,15 +97,15 @@ namespace {
     return made;
   }
 
-  /// Runs at whoever it sees or hears, all round, and keeps coming: the
-  /// swarmer of Game §5.1.
+  /// Runs at whoever it sees or hears, all round, keeps coming, and bites
+  /// what it reaches: the swarmer of Game §5.1.
   BehaviorDefinition chase() {
     enum : uint8_t { IDLE, PURSUE, SEARCH };
     BehaviorDefinition made = behavior(
         "chase", "Chase",
         {state("idle", Act::IDLE,
                {on(Cond::SEES_TARGET, PURSUE), on(Cond::HEARS_TARGET, PURSUE)}),
-         state("pursue", Act::PURSUE,
+         state("pursue", Act::MELEE,
                {onTicks(Cond::LOST_TARGET_FOR, 300, SEARCH)}),
          state("search", Act::SEARCH,
                {on(Cond::SEES_TARGET, PURSUE), on(Cond::HEARS_TARGET, PURSUE),
@@ -116,19 +116,75 @@ namespace {
     return made;
   }
 
-  /// Keeps its quarry at arm's length and watches them while it does: the
-  /// ranged enemy of Game §5.1, less the shooting.
+  /// Keeps its quarry at arm's length, watching them, and stops every so
+  /// often to loose a telegraphed volley: the ranged enemy of Game §5.1.
   BehaviorDefinition skirmisher() {
-    enum : uint8_t { IDLE, KEEP, SEARCH };
-    return behavior(
-        "skirmisher", "Skirmisher",
-        {state("idle", Act::IDLE, {on(Cond::SEES_TARGET, KEEP)}),
-         facing(state("keep_distance", Act::KEEP_DISTANCE,
-                      {onTicks(Cond::LOST_TARGET_FOR, 240, SEARCH)}),
-                BehaviorFacing::TARGET),
-         state("search", Act::SEARCH,
-               {on(Cond::SEES_TARGET, KEEP),
-                onTicks(Cond::IN_STATE_FOR, 240, IDLE)})});
+    enum : uint8_t { IDLE, KEEP, VOLLEY, SEARCH };
+    BehaviorState volley = facing(
+        state("volley", Act::FIRE, {onTicks(Cond::IN_STATE_FOR, 40, KEEP)}),
+        BehaviorFacing::TARGET);
+    volley.clip = "shoot";
+    return behavior("skirmisher", "Skirmisher",
+                    {state("idle", Act::IDLE, {on(Cond::SEES_TARGET, KEEP)}),
+                     facing(state("keep_distance", Act::KEEP_DISTANCE,
+                                  {onTicks(Cond::LOST_TARGET_FOR, 240, SEARCH),
+                                   onTicks(Cond::IN_STATE_FOR, 120, VOLLEY)}),
+                            BehaviorFacing::TARGET),
+                     volley,
+                     state("search", Act::SEARCH,
+                           {on(Cond::SEES_TARGET, KEEP),
+                            onTicks(Cond::IN_STATE_FOR, 240, IDLE)})});
+  }
+
+  /// The spitter's stand-off: five to nine tiles back, watching, until it
+  /// is time to lob another pool (@p spit) or it has lost its quarry
+  /// (@p search).
+  BehaviorState spitterKeep(uint8_t search, uint8_t spit) {
+    BehaviorState keep =
+        facing(state("keep_distance", Act::KEEP_DISTANCE,
+                     {onTicks(Cond::LOST_TARGET_FOR, 240, search),
+                      onTicks(Cond::IN_STATE_FOR, 90, spit)}),
+               BehaviorFacing::TARGET);
+    keep.near_tiles = 5.0F;
+    keep.far_tiles = 9.0F;
+    return keep;
+  }
+
+  /// Keeps well back and lobs pools of something nasty where its quarry
+  /// stands, to take the floor from them: the spitter of Game §5.1.
+  BehaviorDefinition spitter() {
+    enum : uint8_t { IDLE, KEEP, SPIT, SEARCH };
+    const BehaviorState keep = spitterKeep(SEARCH, SPIT);
+    return behavior("spitter", "Spitter",
+                    {state("idle", Act::IDLE, {on(Cond::SEES_TARGET, KEEP)}),
+                     keep,
+                     facing(state("spit", Act::SPIT,
+                                  {onTicks(Cond::IN_STATE_FOR, 30, KEEP)}),
+                            BehaviorFacing::TARGET),
+                     state("search", Act::SEARCH,
+                           {on(Cond::SEES_TARGET, KEEP),
+                            onTicks(Cond::IN_STATE_FOR, 240, IDLE)})});
+  }
+
+  /// Waddles at whoever it sees and, once close, swells for two thirds of
+  /// a second and bursts, hurting everyone near — its own side too: the
+  /// bloater of Game §5.1.
+  BehaviorDefinition bloater() {
+    enum : uint8_t { IDLE, CLOSE, SWELL, BURST };
+    BehaviorDefinition made = behavior(
+        "bloater", "Bloater",
+        {state("idle", Act::IDLE,
+               {on(Cond::SEES_TARGET, CLOSE), on(Cond::HEARS_TARGET, CLOSE)}),
+         state("close_in", Act::PURSUE,
+               {onTiles(Cond::TARGET_WITHIN, 1.4F, SWELL),
+                onTicks(Cond::LOST_TARGET_FOR, 300, IDLE)}),
+         facing(state("swell", Act::HOLD,
+                      {onTicks(Cond::IN_STATE_FOR, 40, BURST)}),
+                BehaviorFacing::LOCKED),
+         state("burst", Act::DETONATE, {})});
+    made.senses.view_degrees = 360.0F;
+    made.movement.speed = 2.0F;
+    return made;
   }
 
   /// Wanders until it sees someone, then runs until it has not for a while.
@@ -221,7 +277,7 @@ namespace {
     walk.speed_permille = 700;
     return behavior("patrol", "Patrol",
                     {walk,
-                     state("pursue", Act::PURSUE,
+                     state("pursue", Act::MELEE,
                            {onTicks(Cond::LOST_TARGET_FOR, 120, SEARCH)}),
                      state("search", Act::SEARCH,
                            {on(Cond::SEES_TARGET, PURSUE),
@@ -231,9 +287,9 @@ namespace {
 }  // namespace
 
 std::span<const BehaviorDefinition> builtInBehaviors() {
-  static const std::array<BehaviorDefinition, 10> presets{
-      idle(),   wander(),   guard(),   chase(),  skirmisher(),
-      coward(), follower(), charger(), patrol(), defender()};
+  static const std::array<BehaviorDefinition, 12> presets{
+      idle(),     wander(),  guard(),  chase(),    skirmisher(), coward(),
+      follower(), charger(), patrol(), defender(), spitter(),    bloater()};
   return presets;
 }
 

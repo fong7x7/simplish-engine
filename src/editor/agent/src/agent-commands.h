@@ -7,6 +7,7 @@
 #include <editor/agent/agent-result.h>
 #include <editor/shell/editor-shell-state.h>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace eng::editor {
 
@@ -94,7 +95,13 @@ namespace eng::editor {
 
 /// Queue starting a playtest, when there is a level to play and none is
 /// being played.
-[[nodiscard]] AgentResult runAgentStartPlaytest(const EditorShellState& state,
+/// Take the `stand_ins` parameter, when there is one, as how many stand-in
+/// players the next playtest adds; the failure it is when it is not 0 to
+/// 3.
+[[nodiscard]] std::optional<AgentResult>
+applyStandIns(EditorShellState& state, const nlohmann::json& params);
+
+[[nodiscard]] AgentResult runAgentStartPlaytest(EditorShellState& state,
                                                 const nlohmann::json& params);
 
 /// Queue stopping the running playtest.

@@ -39,6 +39,10 @@ struct EditorPlaytestActor {
   bool sees_target = false;
   /// Waypoints left on the path it is following; 0 when it walks straight.
   uint32_t path_waypoints = 0;
+  /// Health segments it has left.
+  uint16_t health = 0;
+  /// Health segments it spawned with.
+  uint16_t max_health = 0;
 };
 
 }  // namespace eng::editor

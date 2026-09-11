@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <engine/math/sin-cos.h>
 #include <game/actors/actor-route.h>
+#include <game/player/player-system.h>
 
 namespace eng::game {
 
@@ -72,7 +73,7 @@ namespace {
   /// pushed as a player does not — stopping any closer would shove them
   /// along ahead of it. Nothing for a player.
   float touching(const ActorRef& a) {
-    if (a.pool.target_kind[a.i] != ActorTargetKind::ACTOR) {
+    if (a.pool.target_kind[a.i] != CombatantKind::ACTOR) {
       return 0.0F;
     }
     const auto other = a.pool.slots.denseIndex(a.pool.target[a.i]);
@@ -87,6 +88,28 @@ namespace {
     if (hasTarget(a)) {
       goTo(a, intent, a.pool.last_seen[a.i],
            std::max(state.near_tiles, touching(a)));
+      intent.chases = a.pool.sees_target[a.i] | a.pool.hears_target[a.i];
+    }
+  }
+
+  /// How wide actor @p a's target is: a player's radius, another actor's
+  /// own, or nothing when it has no target still in the game.
+  float targetRadius(const ActorRef& a) {
+    if (a.pool.target_kind[a.i] == CombatantKind::PLAYER) {
+      return PLAYER_RADIUS_TILES;
+    }
+    const auto other = a.pool.slots.denseIndex(a.pool.target[a.i]);
+    return other ? a.pool.radius[*other] : 0.0F;
+  }
+
+  /// Toward where the target was seen, to touching them — or `near_tiles`
+  /// short, if that is further: a melee's approach.
+  void closeIn(const ActorRef& a,
+               [[maybe_unused]] const ActorTickContext& context,
+               const BehaviorState& state, ActorIntent& intent) {
+    if (hasTarget(a)) {
+      const float touch = a.pool.radius[a.i] + targetRadius(a);
+      goTo(a, intent, a.pool.last_seen[a.i], std::max(state.near_tiles, touch));
       intent.chases = a.pool.sees_target[a.i] | a.pool.hears_target[a.i];
     }
   }
@@ -224,12 +247,14 @@ namespace {
     goTo(a, intent, route->points[leg], ACTOR_ARRIVE_TILES);
   }
 
-  /// Each action's intent, in enumerator order.
-  constexpr std::array<IntentFn, 11> INTENTS{
-      stand,    stand,  wander,     approach, keepDistance, flee,
-      approach, search, returnHome, charge,   patrol};
+  /// Each action's intent, in enumerator order. Firing, spitting and
+  /// bursting are done standing; the attack pass does the rest.
+  constexpr std::array<IntentFn, 15> INTENTS{
+      stand,  stand,    wander, approach,   keepDistance,
+      flee,   approach, search, returnHome, charge,
+      patrol, closeIn,  stand,  stand,      stand};
   static_assert(INTENTS.size() ==
-                static_cast<size_t>(BehaviorAction::PATROL) + 1);
+                static_cast<size_t>(BehaviorAction::DETONATE) + 1);
 
 }  // namespace
 

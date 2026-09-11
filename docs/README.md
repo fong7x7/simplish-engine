@@ -14,7 +14,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [GUI](engine/gui/README.md) | Working on UI: widgets, layout, text, theming, docking, markdown |
 | [Animation](engine/animation.md) | Working on skeletons, animation clips, glTF rigs, or skinned drawing |
 | [Spatial](engine/spatial.md) | Working on the navigation grid, line of sight, or path planning |
-| [Actors](game/actors.md) | Working on enemies and NPCs: perception, behaviors, steering, facing, or the Behavior row in the editor |
+| [Actors](game/actors.md) | Working on enemies and NPCs: perception, behaviors, steering, facing, attacks, damage and death, stand-in players, or the Behavior row in the editor |
 | [Development](development/REQUIREMENTS.md) | Setting up a build, adding tests, touching CI, or hitting a lint gate |
 | [Editor agent API](editor/agent-api.md) | Driving the editor from an agent, over MCP or HTTP — and the rule for adding a tool to it |
 | [Editor capabilities](editor/capabilities.md) | What the editor can do today, and whether an agent can do it too |

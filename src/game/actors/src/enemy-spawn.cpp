@@ -13,7 +13,10 @@ ActorSpawn makeEnemySpawn(const EnemyDefinition& enemy, Vec3 at,
           .behavior = enemy.behavior,
           .faction = enemy.faction,
           .radius = enemy.radius,
-          .height = enemy.height};
+          .height = enemy.height,
+          .health = enemy.health,
+          .death_blast_radius = enemy.death_blast_radius,
+          .death_blast_damage = enemy.death_blast_damage};
 }
 
 }  // namespace eng::game

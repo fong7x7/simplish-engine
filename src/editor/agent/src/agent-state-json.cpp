@@ -313,28 +313,54 @@ namespace {
       players.push_back({{"player", player.player},
                          {"position", agentPointJson(player.position)},
                          {"character", player.character},
-                         {"health", player.health}});
+                         {"health", player.health},
+                         {"max_health", player.max_health},
+                         {"downed", player.downed},
+                         {"out", player.out},
+                         {"stand_in", player.stand_in}});
     }
     return players;
+  }
+
+  /// One actor in a playtest, as the agent API reports it.
+  json playtestActorJson(const EditorPlaytestActor& actor) {
+    return {{"id", actor.id},
+            {"position", agentPointJson(actor.position)},
+            {"facing", {{"x", actor.facing.x}, {"y", actor.facing.y}}},
+            {"behavior", actor.behavior},
+            {"state", actor.state},
+            {"faction", game::factionName(actor.faction)},
+            {"target_player", actor.target},
+            {"target_actor", actor.target_actor},
+            {"sees_target", actor.sees_target},
+            {"path_waypoints", actor.path_waypoints},
+            {"health", actor.health},
+            {"max_health", actor.max_health}};
   }
 
   /// Every actor in a playtest, as the agent API reports them.
   json playtestActorsJson(const EditorPlaytestState& playtest) {
     json actors = json::array();
     for (const EditorPlaytestActor& actor : playtest.actors) {
-      actors.push_back(
-          {{"id", actor.id},
-           {"position", agentPointJson(actor.position)},
-           {"facing", {{"x", actor.facing.x}, {"y", actor.facing.y}}},
-           {"behavior", actor.behavior},
-           {"state", actor.state},
-           {"faction", game::factionName(actor.faction)},
-           {"target_player", actor.target},
-           {"target_actor", actor.target_actor},
-           {"sees_target", actor.sees_target},
-           {"path_waypoints", actor.path_waypoints}});
+      actors.push_back(playtestActorJson(actor));
     }
     return actors;
+  }
+
+  /// Every projectile and hazard pool in a playtest, as the agent API
+  /// reports them.
+  json playtestCombatJson(const EditorPlaytestState& playtest) {
+    json projectiles = json::array();
+    for (const WorldPoint& at : playtest.projectiles) {
+      projectiles.push_back(agentPointJson(at));
+    }
+    json hazards = json::array();
+    for (const EditorPlaytestHazard& pool : playtest.hazards) {
+      hazards.push_back({{"position", agentPointJson(pool.position)},
+                         {"radius", pool.radius},
+                         {"ticks_left", pool.ticks_left}});
+    }
+    return {{"projectiles", projectiles}, {"hazards", hazards}};
   }
 
   /// Ticks of scripted input still waiting to run.
@@ -494,7 +520,10 @@ std::string agentPlaytestJson(const EditorShellState& state) {
               {"dropped_ticks", playtest.dropped_ticks},
               {"players", playtestPlayersJson(playtest)},
               {"actors", playtestActorsJson(playtest)},
-              {"queued_input_ticks", queuedInputTicks(playtest)}};
+              {"queued_input_ticks", queuedInputTicks(playtest)},
+              {"run_over", playtest.run_over},
+              {"stand_ins", state.playtest_stand_ins}};
+  out.update(playtestCombatJson(playtest));
   out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
   return out.dump(2);
 }

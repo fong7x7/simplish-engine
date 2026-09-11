@@ -1,6 +1,7 @@
 #include "editor-behavior-row.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <editor/shell/editor-entity-id.h>
 #include <game/content/behavior-lookup.h>
@@ -27,6 +28,12 @@ namespace {
   constexpr float MAX_TURN = 3600.0F;
   /// Fastest a state may move, in thousandths of its behavior's speed.
   constexpr float MAX_SPEED_PERMILLE = 5000.0F;
+  /// The most health segments one hit may take.
+  constexpr float MAX_DAMAGE = 99.0F;
+  /// The most shots one volley may fire.
+  constexpr float MAX_VOLLEY = 16.0F;
+  /// The fastest a projectile may fly, in tiles a second.
+  constexpr float MAX_PROJECTILE_SPEED = 60.0F;
 
   /// The row being read, and where its problems go.
   struct RowRead {
@@ -187,6 +194,63 @@ namespace {
     }
   }
 
+  /// A count of @p state under @p key, read as a number by @p rule and
+  /// rounded.
+  template <typename T>
+  T countAt(const json& state, const char* key, NumberRule rule,
+            const RowRead& row) {
+    return static_cast<T>(std::lround(numberAt(state, key, rule, row)));
+  }
+
+  /// The rule for a count whose default is @p fallback and whose most is
+  /// @p high.
+  NumberRule countRule(float fallback, float high) {
+    return {fallback, 0.0F, high};
+  }
+
+  /// A volley's `count`, `spread_degrees` and `projectile_speed`, into
+  /// @p attack.
+  void readVolley(const json& state, game::BehaviorAttack& attack,
+                  const RowRead& row) {
+    attack.count = std::max<uint8_t>(
+        countAt<uint8_t>(state, "count", countRule(attack.count, MAX_VOLLEY),
+                         row),
+        1);
+    attack.spread_degrees = numberAt(
+        state, "spread_degrees", {attack.spread_degrees, 0.0F, 360.0F}, row);
+    attack.speed = numberAt(state, "projectile_speed",
+                            {attack.speed, 0.0F, MAX_PROJECTILE_SPEED}, row);
+  }
+
+  /// @p made's attack, read under the keys its action names them by: a
+  /// strike's `damage`, `reach` and `cooldown_ticks`, a volley's `count`,
+  /// `spread_degrees` and `projectile_speed`, a pool's `radius` and
+  /// `duration_ticks`, a blast's `radius`.
+  void readAttack(const json& state, game::BehaviorState& made,
+                  const RowRead& row) {
+    game::BehaviorAttack& attack = made.attack;
+    attack.damage = countAt<uint16_t>(
+        state, "damage", countRule(attack.damage, MAX_DAMAGE), row);
+    attack.cooldown_ticks = countAt<uint32_t>(
+        state, "cooldown_ticks",
+        countRule(static_cast<float>(attack.cooldown_ticks), MAX_TICKS), row);
+    attack.reach_tiles = distanceAt(state, "reach", attack.reach_tiles, row);
+    readVolley(state, attack, row);
+    attack.radius = distanceAt(state, "radius", attack.radius, row);
+    attack.duration_ticks = countAt<uint32_t>(
+        state, "duration_ticks",
+        countRule(static_cast<float>(attack.duration_ticks), MAX_TICKS), row);
+  }
+
+
+  /// Whether @p action attacks, and so reads an attack's keys.
+  bool attacks(game::BehaviorAction action) {
+    using game::BehaviorAction;
+    return action == BehaviorAction::MELEE ||
+           action == BehaviorAction::CHARGE || action == BehaviorAction::FIRE ||
+           action == BehaviorAction::SPIT || action == BehaviorAction::DETONATE;
+  }
+
   /// One state, its exits not yet read.
   game::BehaviorState readState(const json& state, const std::string& id,
                                 const RowRead& row) {
@@ -201,6 +265,9 @@ namespace {
     made.clip = stringAt(state, "clip");
     made.route = readRouteMode(state, row);
     readDistances(state, made, row);
+    if (attacks(made.action)) {
+      readAttack(state, made, row);
+    }
     return made;
   }
 

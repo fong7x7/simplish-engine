@@ -411,3 +411,24 @@ TEST_CASE(
   REQUIRE(read.at("enemies").at(0).at("faction") == "hostile");
   REQUIRE(read.at("problems").size() == 1);
 }
+
+TEST_CASE("get_playtest reports health, who is down, and what is flying") {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.players.push_back(
+      {.player = 1, .health = 0, .max_health = 5, .downed = true});
+  state.playtest.actors.push_back(
+      {.id = "crate_01", .health = 2, .max_health = 3});
+  state.playtest.projectiles.push_back({1.0F, 2.0F, 0.9F});
+  state.playtest.hazards.push_back({{4.0F, 4.0F, 0.0F}, 1.0F, 120});
+  state.playtest.run_over = true;
+
+  const nlohmann::json read = nlohmann::json::parse(agentPlaytestJson(state));
+
+  REQUIRE(read.at("players").at(0).at("downed") == true);
+  REQUIRE(read.at("players").at(0).at("max_health") == 5);
+  REQUIRE(read.at("actors").at(0).at("health") == 2);
+  REQUIRE(read.at("projectiles").size() == 1);
+  REQUIRE(read.at("hazards").at(0).at("ticks_left") == 120);
+  REQUIRE(read.at("run_over") == true);
+}

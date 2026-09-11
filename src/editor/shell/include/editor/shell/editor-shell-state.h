@@ -85,6 +85,10 @@ struct EditorShellState {
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;
+  /// How many stand-in players the next playtest adds beside player 1, 0
+  /// to 3: the multi-player preview (Editor §7). Kept here rather than in
+  /// `playtest`, which every Play starts afresh.
+  uint8_t playtest_stand_ins = 0;
 };
 
 }  // namespace eng::editor

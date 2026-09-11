@@ -22,10 +22,10 @@ inline constexpr uint32_t HORDE_ACTOR_COUNT = 2000;
 /// middle. The same every time it is asked for.
 [[nodiscard]] GameSetup hordeSetup(uint32_t actors);
 
-/// The content the horde runs: a swarmer archetype running the built-in
-/// chase behavior, seeing far enough that every swarmer in the room is
-/// after a player — the worst case, and what a director spawning at a
-/// player's position produces.
+/// The content the horde runs: players too sturdy to go down in a run, and
+/// a swarmer archetype running the built-in chase behavior — biting — seeing
+/// far enough that every swarmer in the room is after a player — the worst
+/// case, and what a director spawning at a player's position produces.
 [[nodiscard]] GameContent hordeContent();
 
 /// The players' input on @p tick: each circling at their own pace, firing

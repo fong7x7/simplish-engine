@@ -173,7 +173,7 @@ each one's parameters; this table is the map.
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused: the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -203,7 +203,7 @@ each one's parameters; this table is the map.
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
 | `create_level` | Adds an empty level to the project and starts editing it |
 | `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
-| `start_playtest` | Plays the open level in the real simulation, as the Play button does — with no selector: as the `character` given, or the one the selector would open on |
+| `start_playtest` | Plays the open level in the real simulation, as the Play button does — with no selector: as the `character` given, or the one the selector would open on — and with `stand_ins` stand-in players beside player 1 when asked |
 | `step_playtest` | Pauses the running playtest and runs exactly `ticks` ticks of it (1 to 3,600), on input queued by `send_input` or held on the keyboard; it stays paused afterwards |
 | `stop_playtest` | Stops playing, writes the run's replay, and goes back to the level as it was; puts the character selector away while it is up |
 

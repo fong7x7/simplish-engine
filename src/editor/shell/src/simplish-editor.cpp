@@ -2022,10 +2022,21 @@ bool SimplishEditor::runPlaytestCommand(EditorMenuCommand command) {
     togglePlaytestPause();
   } else if (command == EditorMenuCommand::STEP_PLAYTEST) {
     stepPlaytest(1);
+  } else if (const int stand_ins = editorStandInsOf(command); stand_ins >= 0) {
+    setStandIns(static_cast<uint8_t>(stand_ins));
   } else {
     return false;
   }
   return true;
+}
+
+void SimplishEditor::setStandIns(uint8_t stand_ins) {
+  state_.playtest_stand_ins = stand_ins;
+  applyPlayModeToChrome();
+  showStatusMessage(
+      stand_ins == 0 ? "The next playtest is solo"
+                     : "The next playtest adds " + std::to_string(stand_ins) +
+                           " stand-in" + (stand_ins == 1 ? "" : "s"));
 }
 
 void SimplishEditor::applyViewCommand(EditorMenuCommand command) {

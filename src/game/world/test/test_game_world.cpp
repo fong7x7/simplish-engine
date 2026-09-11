@@ -59,19 +59,21 @@ TEST_CASE("stepping the world moves the player whose stick is pushed") {
   REQUIRE(world.players().position[0].x == 1.5F);
 }
 
-TEST_CASE("a world's tick hash names its players, actors, flow fields and "
-          "AI stream") {
+TEST_CASE("a world's tick hash names its players, actors, flow fields, "
+          "projectiles, hazards and AI stream") {
   GameWorld world(twoPlayers(), {});
   Simulation simulation(world, TickHashing::ON);
 
   const auto hash = simulation.step(TickInput{}).hash;
 
   REQUIRE(hash.has_value());
-  REQUIRE(hash->section_count == 4);
+  REQUIRE(hash->section_count == 6);
   REQUIRE(hash->sections[0].name == "players");
   REQUIRE(hash->sections[1].name == "actors");
   REQUIRE(hash->sections[2].name == "flow");
-  REQUIRE(hash->sections[3].name == "ai_rng");
+  REQUIRE(hash->sections[3].name == "projectiles");
+  REQUIRE(hash->sections[4].name == "hazards");
+  REQUIRE(hash->sections[5].name == "ai_rng");
 }
 
 TEST_CASE("a world keeps its players out of the setup's obstacles") {

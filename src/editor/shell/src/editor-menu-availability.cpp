@@ -12,7 +12,8 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::SET_VIEW_ISOMETRIC ||
          command == EditorMenuCommand::SET_SHADING_SMOOTH ||
          command == EditorMenuCommand::SET_SHADING_CEL ||
-         command == EditorMenuCommand::PLAYTEST;
+         command == EditorMenuCommand::PLAYTEST ||
+         editorStandInsOf(command) >= 0;
 }
 
 bool editorMenuCommandNeedsPlaytest(EditorMenuCommand command) {

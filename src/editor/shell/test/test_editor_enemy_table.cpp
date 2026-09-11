@@ -85,3 +85,14 @@ TEST_CASE("a project with no enemies table has none, and no problems") {
   REQUIRE(editorEnemyTablePath("/p").generic_string() ==
           "/p/content/data/enemies.data.json");
 }
+
+TEST_CASE("an archetype may go off in a blast when it dies") {
+  const EditorEnemyTable read = parseEditorEnemyTable(table(R"([
+    {"id": "bloater", "behavior": "bloater", "death_blast_radius": 2.5,
+     "death_blast_damage": 3},
+    {"id": "swarmer", "behavior": "chase"}])"));
+  REQUIRE(read.problems.empty());
+  REQUIRE(read.enemies[0].death_blast_radius == 2.5F);
+  REQUIRE(read.enemies[0].death_blast_damage == 3);
+  REQUIRE(read.enemies[1].death_blast_radius == 0.0F);
+}

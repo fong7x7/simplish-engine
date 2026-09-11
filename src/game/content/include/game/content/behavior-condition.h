@@ -41,6 +41,12 @@ enum class BehaviorCondition : uint8_t {
   /// A draw from the simulation's AI stream came in under `permille`: a
   /// chance per tick, the same on every peer.
   CHANCE,
+  /// The actor was hurt within the last `ticks` ticks (at least one).
+  DAMAGED,
+  /// The actor's health is below `permille` thousandths of its full health.
+  HEALTH_BELOW,
+  /// Another actor on its side stands within `tiles` of it.
+  ALLIES_WITHIN,
 };
 
 }  // namespace eng::game

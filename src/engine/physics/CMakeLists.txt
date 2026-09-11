@@ -11,6 +11,7 @@ simplish_add_module(simplish-engine-physics
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/box-broadphase.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/cylinder-collision.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/segment-queries.cpp
     DEPENDENCIES simplish-engine-math
 )
 
@@ -18,6 +19,7 @@ if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-engine-physics-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_box_broadphase.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_cylinder_collision.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_segment_queries.cpp
         DEPENDENCIES simplish-engine-physics
                      simplish-engine-core
     )

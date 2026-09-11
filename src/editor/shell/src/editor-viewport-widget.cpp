@@ -23,6 +23,10 @@ namespace {
   constexpr GuiColor SELECTION_OUTLINE{0, 170, 255, 255};
   /// A prop that does not collide: the prop tan, faded most of the way out.
   constexpr GuiColor PASSABLE_OUTLINE{210, 170, 90, 80};
+  /// A projectile in flight: hot, so it reads against any floor.
+  constexpr GuiColor PROJECTILE_OUTLINE{255, 140, 40, 255};
+  /// A hazard pool: an acid green nothing else in the level is drawn in.
+  constexpr GuiColor HAZARD_OUTLINE{150, 230, 60, 220};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -163,6 +167,21 @@ namespace {
                                  std::size(EDITOR_FACTION_COLORS)];
   }
 
+  /// The colour a marker of @p style is outlined in when nothing about the
+  /// marker itself picks one.
+  GuiColor styleColor(EditorMarkerStyle style) {
+    switch (style) {
+      case EditorMarkerStyle::PASSABLE:
+        return PASSABLE_OUTLINE;
+      case EditorMarkerStyle::PROJECTILE:
+        return PROJECTILE_OUTLINE;
+      case EditorMarkerStyle::HAZARD:
+        return HAZARD_OUTLINE;
+      default:
+        return PLACEMENT_OUTLINE;
+    }
+  }
+
   /// The colour @p marker is outlined in: the selection's when it is
   /// selected, and otherwise its style's — a start's player's, an actor's
   /// faction's, a waypoint's route's, the prop tan.
@@ -171,18 +190,15 @@ namespace {
       return SELECTION_OUTLINE;
     }
     switch (marker.style) {
-      case EditorMarkerStyle::PASSABLE:
-        return PASSABLE_OUTLINE;
       case EditorMarkerStyle::PLAYER_START:
         return playerColor(marker.player);
       case EditorMarkerStyle::ACTOR:
         return factionColor(marker.faction);
       case EditorMarkerStyle::WAYPOINT:
         return editorRouteColor(marker.route);
-      case EditorMarkerStyle::FOOTPRINT:
-        break;
+      default:
+        return styleColor(marker.style);
     }
-    return PLACEMENT_OUTLINE;
   }
 
 }  // namespace
@@ -204,7 +220,8 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
     // is drawn whole; everything else has its footprint drawn here and its
     // geometry drawn by the scene pass.
     if (marker.style == EditorMarkerStyle::PLAYER_START ||
-        marker.style == EditorMarkerStyle::WAYPOINT) {
+        marker.style == EditorMarkerStyle::WAYPOINT ||
+        marker.style == EditorMarkerStyle::PROJECTILE) {
       renderBoxOutline(renderer, view, marker.bounds, color);
     } else {
       renderFootprintOutline(renderer, view, marker.bounds, color);

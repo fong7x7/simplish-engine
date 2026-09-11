@@ -33,6 +33,12 @@ enum class EditorMarkerStyle : uint8_t {
   /// The whole box, in its route's colour — a patrol route's waypoint,
   /// a post with nothing else in the scene to see it by.
   WAYPOINT,
+  /// The whole box, in a hot orange — a projectile in flight in a
+  /// playtest, which has no model to see it by.
+  PROJECTILE,
+  /// The footprint, in an acid green — a hazard pool on the floor in a
+  /// playtest.
+  HAZARD,
 };
 
 /// One thing in the level, as much of it as the viewport needs.

@@ -13,9 +13,11 @@ namespace {
   /// lead to the state actor @p a is already in.
   std::optional<uint8_t> firstExit(const ActorRef& a,
                                    const ActorTickContext& context,
+                                   const ActorWorkspace& workspace,
                                    std::span<const BehaviorExit> exits) {
     for (const BehaviorExit& exit : exits) {
-      if (exit.to != a.pool.state[a.i] && conditionHolds(a, context, exit)) {
+      if (exit.to != a.pool.state[a.i] &&
+          conditionHolds(a, context, workspace, exit)) {
         return exit.to;
       }
     }
@@ -36,11 +38,13 @@ namespace {
 
 }  // namespace
 
-void decideActor(const ActorRef& a, const ActorTickContext& context) {
+void decideActor(const ActorRef& a, const ActorTickContext& context,
+                 const ActorWorkspace& workspace) {
   const BehaviorDefinition& behavior = brainOf(a, context).behavior;
-  std::optional<uint8_t> next = firstExit(a, context, behavior.interrupts);
+  std::optional<uint8_t> next =
+      firstExit(a, context, workspace, behavior.interrupts);
   if (!next) {
-    next = firstExit(a, context, stateOf(a, context).exits);
+    next = firstExit(a, context, workspace, stateOf(a, context).exits);
   }
   if (next) {
     enterState(a, *next, context.tick);

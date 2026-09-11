@@ -19,6 +19,7 @@
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-spawn.h>
 #include <game/actors/actor-workspace.h>
+#include <game/combat/combat-effects.h>
 #include <game/content/behavior-definition.h>
 #include <game/player/player-pool.h>
 #include <string>
@@ -63,6 +64,8 @@ public:
   physics::BoxBroadphase broadphase;
   /// The players' flow fields.
   ActorFlowFields flow;
+  /// What the actors' attacks did, since a test last cleared it.
+  CombatEffects effects;
   /// The brains added actors run.
   std::vector<ActorBrain> brains;
   /// The routes added actors patrol.

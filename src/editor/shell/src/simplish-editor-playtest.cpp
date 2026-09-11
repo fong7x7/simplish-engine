@@ -22,6 +22,7 @@
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <engine/math/mat4.h>
+#include <game/combat/combat-system.h>
 #include <string>
 
 namespace eng::editor {
@@ -197,6 +198,7 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   game::GameSetup setup = makeEditorPlaytestSetup(
       state_.document, state_.assets, playtestFallback());
   setup.characters[0] = character;
+  addEditorStandIns(setup, state_.document, state_.playtest_stand_ins);
   playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
                                                       state_.level_id);
   beginPlaytestState();
@@ -363,6 +365,25 @@ void SimplishEditor::appendPlaytestMarkers(
     const EditorPlayerStart standing{{}, player, {at.x, at.y, at.z}};
     markers.push_back({editorPlayerStartBounds(standing), false,
                        EditorMarkerStyle::PLAYER_START, player});
+  }
+  appendCombatMarkers(markers);
+}
+
+void SimplishEditor::appendCombatMarkers(
+    std::vector<EditorPlacementMarker>& markers) const {
+  constexpr float SHOT = game::PROJECTILE_RADIUS_TILES;
+  for (const WorldPoint& at : state_.playtest.projectiles) {
+    markers.push_back({{{at.x - SHOT, at.y - SHOT, at.z - SHOT},
+                        {at.x + SHOT, at.y + SHOT, at.z + SHOT}},
+                       false,
+                       EditorMarkerStyle::PROJECTILE});
+  }
+  for (const EditorPlaytestHazard& pool : state_.playtest.hazards) {
+    const WorldPoint& at = pool.position;
+    markers.push_back({{{at.x - pool.radius, at.y - pool.radius, at.z},
+                        {at.x + pool.radius, at.y + pool.radius, at.z}},
+                       false,
+                       EditorMarkerStyle::HAZARD});
   }
 }
 
@@ -566,6 +587,7 @@ void SimplishEditor::applyPlayModeToChrome() {
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     menu->setPlayMode(state_.playtest.mode);
     menu->setPlaytestClock(state_.playtest.clock);
+    menu->setStandIns(state_.playtest_stand_ins);
   }
 }
 
@@ -577,7 +599,24 @@ std::string SimplishEditor::playtestStatus() const {
   if (state_.playtest.dropped_ticks > 0) {
     status += "   dropped " + std::to_string(state_.playtest.dropped_ticks);
   }
-  return status;
+  return status + "   " + playerOneHealth();
+}
+
+std::string SimplishEditor::playerOneHealth() const {
+  if (state_.playtest.run_over) {
+    return "run over — F5 or Esc to stop";
+  }
+  for (const EditorPlaytestPlayer& player : state_.playtest.players) {
+    if (player.player != 1) {
+      continue;
+    }
+    if (player.downed) {
+      return "down — a teammate can revive you";
+    }
+    return "health " + std::to_string(player.health) + "/" +
+           std::to_string(player.max_health);
+  }
+  return {};
 }
 
 }  // namespace eng::editor

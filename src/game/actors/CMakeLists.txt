@@ -11,7 +11,8 @@
 
 simplish_add_module(simplish-game-actors
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
-    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-brain.cpp
+    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-attacks.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-brain.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-conditions.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-decision.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-flow-fields.cpp
@@ -31,6 +32,7 @@ simplish_add_module(simplish-game-actors
                  simplish-engine-physics
                  simplish-engine-sim
                  simplish-engine-spatial
+                 simplish-game-combat
                  simplish-game-content
                  simplish-game-player
 )
@@ -38,6 +40,7 @@ simplish_add_module(simplish-game-actors
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-game-actors-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/actor-arena.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_attacks.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_brain.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_flow.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_movement.cpp

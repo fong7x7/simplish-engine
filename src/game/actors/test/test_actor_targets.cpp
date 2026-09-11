@@ -7,10 +7,10 @@
 #include <game/actors/actor-system.h>
 #include <game/content/behavior-lookup.h>
 
-using eng::game::ActorTargetKind;
 using eng::game::BehaviorAction;
 using eng::game::BehaviorDefinition;
 using eng::game::BehaviorTargets;
+using eng::game::CombatantKind;
 using eng::game::defaultBehaviorState;
 using eng::game::Faction;
 using eng::game::test::ActorArena;
@@ -47,7 +47,7 @@ TEST_CASE("a friendly actor targeting opponents takes a hostile one") {
       arena.addActor(sentry(BehaviorTargets::PLAYERS), raiderAt(4.0F, 0.0F));
   arena.step();
 
-  REQUIRE(arena.actors.target_kind[guard] == ActorTargetKind::ACTOR);
+  REQUIRE(arena.actors.target_kind[guard] == CombatantKind::ACTOR);
   REQUIRE(arena.actors.target[guard] == arena.actors.slots.handleAt(raider));
   REQUIRE(arena.actors.sees_target[guard] == 1);
   REQUIRE(arena.actors.last_seen[guard].x == 4.0F);
@@ -62,7 +62,7 @@ TEST_CASE("a friendly actor targeting players keeps to them, whoever is near") {
   arena.addActor(sentry(BehaviorTargets::PLAYERS), raiderAt(2.0F, 0.0F));
   arena.step();
 
-  REQUIRE(arena.actors.target_kind[follower] == ActorTargetKind::PLAYER);
+  REQUIRE(arena.actors.target_kind[follower] == CombatantKind::PLAYER);
   REQUIRE(arena.actors.target[follower] ==
           arena.players.slots.handleAt(player));
 }
@@ -80,7 +80,7 @@ TEST_CASE("a hostile actor targeting opponents takes the nearer of a player "
                  {.at = {1.0F, 0.0F, 0.0F}, .faction = Faction::NEUTRAL});
   arena.step();
 
-  REQUIRE(arena.actors.target_kind[raider] == ActorTargetKind::ACTOR);
+  REQUIRE(arena.actors.target_kind[raider] == CombatantKind::ACTOR);
   REQUIRE(arena.actors.target[raider] == arena.actors.slots.handleAt(ally));
 }
 

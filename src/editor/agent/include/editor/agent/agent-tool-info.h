@@ -180,6 +180,13 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
      "reference or name. Omitted, it is the one their start names, or the "
      "project's first character, or the default character when there are "
      "none."},
+    {"stand_ins", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Stand-in players to add beside player 1, 0 to 3 — the multi-player "
+     "preview: each spawns on its player's start, or beside player 1, and "
+     "is played by the game's stand-in, which revives teammates who are "
+     "down, backs away from hostiles and keeps up with the others. "
+     "Omitted, it is what Level › Play with N Stand-ins last chose, or "
+     "none. Remembered for later playtests."},
 };
 
 /// `translate` moves an entry by a delta rather than to a position.
@@ -584,12 +591,14 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::GET_PLAYTEST,
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
-     "simulation is on, where each player is, who they play as and their "
-     "health, "
-     "the latest tick hash, how "
-     "many ticks the frame clock has dropped, and how many ticks of queued "
-     "input are left. Poll it after start_playtest or send_input to watch "
-     "the game run.",
+     "simulation is on, where each player is, who they play as, their "
+     "health, whether they are down or out and whether a stand-in plays "
+     "them; every actor with its state, target and health; every "
+     "projectile in flight and hazard pool on the floor; whether the run "
+     "is over (no player up); the latest tick hash, how many ticks the "
+     "frame clock has dropped, and how many ticks of queued input are "
+     "left. Poll it after start_playtest or send_input to watch the game "
+     "run.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::START_PLAYTEST, "start_playtest",

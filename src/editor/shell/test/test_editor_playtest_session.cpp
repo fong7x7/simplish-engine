@@ -394,3 +394,35 @@ TEST_CASE("an actor is drawn between the ticks it moved between") {
           Approx((before.x + after.x) * 0.5F));
   REQUIRE_FALSE(session.actorIndex(1).has_value());
 }
+
+TEST_CASE("stand-ins join player 1, each on their own start or beside them") {
+  EditorDocument document = documentWithStarts();
+  game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+  addEditorStandIns(setup, document, 3);
+
+  REQUIRE(setup.player_count == 4);
+  // Player 2 has a start of their own; 3 and 4 stand beside player 1.
+  REQUIRE(setup.spawns[1].x == document.player_starts[0].position.x);
+  REQUIRE(setup.spawns[2].x == setup.spawns[0].x + 3.0F);
+}
+
+TEST_CASE("a stand-in plays their player, and says so") {
+  EditorDocument document = documentWithStarts();
+  game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+  addEditorStandIns(setup, document, 1);
+  setup.spawns[1] = {setup.spawns[0].x + 8.0F, setup.spawns[0].y, 0.0F};
+  EditorPlaytestSession session(setup, {}, "main");
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 30; ++tick) {
+    session.step({}, none);
+  }
+  EditorPlaytestState state;
+  session.publish(state);
+
+  REQUIRE(state.players.size() == 2);
+  REQUIRE_FALSE(state.players[0].stand_in);
+  REQUIRE(state.players[1].stand_in);
+  // It came back toward player 1, who stood still.
+  REQUIRE(state.players[1].position.x < setup.spawns[1].x);
+  REQUIRE_FALSE(state.run_over);
+}

@@ -108,6 +108,17 @@ namespace {
         {game::ENEMY_DEFAULT_HEIGHT_TILES, 0.1F, EDITOR_ENEMY_MAX_HEIGHT}, row);
   }
 
+  /// The blast row @p entry goes off in when it dies, into @p enemy: a
+  /// `death_blast_radius` of 0 — the default — is none.
+  void readDeathBlast(const json& entry, game::EnemyDefinition& enemy,
+                      const RowRead& row) {
+    enemy.death_blast_radius = readStat(
+        entry, "death_blast_radius", {0.0F, 0.0F, EDITOR_ENEMY_MAX_BLAST}, row);
+    enemy.death_blast_damage = static_cast<uint16_t>(
+        std::lround(readStat(entry, "death_blast_damage",
+                             {0.0F, 0.0F, EDITOR_ENEMY_MAX_HEALTH}, row)));
+  }
+
   /// Whether @p id can name a new row of @p table; when it cannot, the
   /// reason is added to the table's problems.
   bool usableId(const std::string& id, EditorEnemyTable& table) {
@@ -142,6 +153,7 @@ namespace {
       enemy.name = id;
     }
     readBody(entry, enemy, row);
+    readDeathBlast(entry, enemy, row);
     enemy.behavior = readBehavior(entry, row);
     enemy.faction = readFaction(entry, row);
     return enemy;

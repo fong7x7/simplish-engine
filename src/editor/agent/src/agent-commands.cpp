@@ -1106,9 +1106,11 @@ namespace {
 
 }  // namespace
 
-AgentResult runAgentStartPlaytest(const EditorShellState& state,
-                                  const json& params) {
+AgentResult runAgentStartPlaytest(EditorShellState& state, const json& params) {
   if (const std::optional<AgentResult> problem = unplayable(state)) {
+    return *problem;
+  }
+  if (const std::optional<AgentResult> problem = applyStandIns(state, params)) {
     return *problem;
   }
   std::optional<std::string> character = characterParam(state, params);
@@ -1123,6 +1125,20 @@ AgentResult runAgentStartPlaytest(const EditorShellState& state,
   request.kind = AgentHostRequestKind::START_PLAYTEST;
   request.character = *character;
   return queued(request, "start_playtest");
+}
+
+std::optional<AgentResult> applyStandIns(EditorShellState& state,
+                                         const json& params) {
+  if (!params.contains("stand_ins")) {
+    return std::nullopt;
+  }
+  const std::optional<size_t> count = agentIndexParam(params, "stand_ins");
+  if (!count || *count > 3) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "stand_ins is a number from 0 to 3");
+  }
+  state.playtest_stand_ins = static_cast<uint8_t>(*count);
+  return std::nullopt;
 }
 
 AgentResult runAgentStopPlaytest(const EditorShellState& state) {

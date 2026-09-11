@@ -93,7 +93,7 @@ namespace {
                                      const ActorIntent& intent) {
     const auto player = context.players.slots.denseIndex(a.pool.target[a.i]);
     if (intent.chases == 0 || !player ||
-        a.pool.target_kind[a.i] != ActorTargetKind::PLAYER) {
+        a.pool.target_kind[a.i] != CombatantKind::PLAYER) {
       return nullptr;
     }
     const uint8_t slot = context.players.input_slot[*player];

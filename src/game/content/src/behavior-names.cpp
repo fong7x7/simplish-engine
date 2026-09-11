@@ -7,11 +7,12 @@ namespace eng::game {
 namespace {
 
   /// Actions by name, in enumerator order.
-  constexpr std::array<std::string_view, 11> ACTION_NAMES{
-      "idle",   "hold",   "wander",      "pursue", "keep_distance", "flee",
-      "follow", "search", "return_home", "charge", "patrol"};
+  constexpr std::array<std::string_view, 15> ACTION_NAMES{
+      "idle",   "hold",   "wander", "pursue",      "keep_distance",
+      "flee",   "follow", "search", "return_home", "charge",
+      "patrol", "melee",  "fire",   "spit",        "detonate"};
   static_assert(ACTION_NAMES.size() ==
-                static_cast<size_t>(BehaviorAction::PATROL) + 1);
+                static_cast<size_t>(BehaviorAction::DETONATE) + 1);
 
   /// Route modes by name, in enumerator order.
   constexpr std::array<std::string_view, 2> ROUTE_MODE_NAMES{"loop",
@@ -26,12 +27,13 @@ namespace {
                 static_cast<size_t>(BehaviorTargets::OPPONENTS) + 1);
 
   /// Conditions by name, in enumerator order.
-  constexpr std::array<std::string_view, 12> CONDITION_NAMES{
+  constexpr std::array<std::string_view, 15> CONDITION_NAMES{
       "always",        "sees_target",   "hears_target",  "lost_target_for",
       "target_within", "target_beyond", "in_state_for",  "arrived",
-      "no_path",       "blocked",       "far_from_home", "chance"};
+      "no_path",       "blocked",       "far_from_home", "chance",
+      "damaged",       "health_below",  "allies_within"};
   static_assert(CONDITION_NAMES.size() ==
-                static_cast<size_t>(BehaviorCondition::CHANCE) + 1);
+                static_cast<size_t>(BehaviorCondition::ALLIES_WITHIN) + 1);
 
   /// Facings by name, in enumerator order.
   constexpr std::array<std::string_view, 3> FACING_NAMES{"movement", "target",

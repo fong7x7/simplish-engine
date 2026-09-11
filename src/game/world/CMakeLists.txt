@@ -10,8 +10,11 @@
 simplish_add_module(simplish-game-world
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-world.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/stand-in-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/world-nav-grid.cpp
-    DEPENDENCIES simplish-game-actors
+    DEPENDENCIES simplish-engine-input
+                 simplish-game-actors
+                 simplish-game-combat
                  simplish-game-player
                  simplish-game-content
                  simplish-engine-physics
@@ -24,7 +27,9 @@ if(ENGINE_BUILD_TESTS)
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_determinism.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game_world.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_horde_budget.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_stand_in_input.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_actors.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_combat.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/horde-scenario.cpp
         DEPENDENCIES simplish-game-world
     )

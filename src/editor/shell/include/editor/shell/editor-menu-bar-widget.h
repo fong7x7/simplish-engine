@@ -152,6 +152,9 @@ public:
   /// Tick Pause Playtest while a playtest is paused.
   void setPlaytestClock(EditorPlaytestClock clock);
 
+  /// Tick the stand-in row that plays with @p stand_ins stand-ins.
+  void setStandIns(uint8_t stand_ins);
+
   /// Raised when a row is chosen. Never called with SEPARATOR.
   std::function<void(EditorMenuCommand)> on_command{};
 
@@ -245,6 +248,8 @@ private:
   EditorPlayMode play_mode_ = EditorPlayMode::EDITING;
   /// Whether the playtest is paused, which ticks Pause Playtest.
   EditorPlaytestClock clock_ = EditorPlaytestClock::RUNNING;
+  /// How many stand-ins the next playtest plays with, which ticks a row.
+  uint8_t stand_ins_ = 0;
   /// Set when the rows are stale and tick() must rebuild them.
   bool items_dirty_ = true;
 };

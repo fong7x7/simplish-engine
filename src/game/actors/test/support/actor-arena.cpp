@@ -63,6 +63,7 @@ void ActorArena::step(uint32_t ticks) {
                                    .brains = brains,
                                    .routes = routes,
                                    .flow = flow,
+                                   .effects = effects,
                                    .rng = rng};
     stepActors(actors, context, workspace);
     ++tick;

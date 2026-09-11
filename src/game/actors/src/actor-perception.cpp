@@ -6,6 +6,7 @@
 #include <cmath>
 #include <engine/input/input-action.h>
 #include <engine/spatial/line-of-sight.h>
+#include <game/player/player-system.h>
 #include <optional>
 
 namespace eng::game {
@@ -36,7 +37,7 @@ namespace {
   /// Whether @p who is a player who held fire this tick. Actors make no
   /// sound yet: nothing they do is loud.
   bool firing(const ActorTickContext& context, const ActorCandidate& who) {
-    if (who.kind != ActorTargetKind::PLAYER) {
+    if (who.kind != CombatantKind::PLAYER) {
       return false;
     }
     const uint8_t slot = context.players.input_slot[who.index];
@@ -48,7 +49,7 @@ namespace {
   /// Where @p who stands, on the floor.
   Vec2 whereIs(const ActorRef& a, const ActorTickContext& context,
                const ActorCandidate& who) {
-    return who.kind == ActorTargetKind::PLAYER
+    return who.kind == CombatantKind::PLAYER
                ? flat(context.players.position[who.index])
                : flat(a.pool.position[who.index]);
   }
@@ -99,15 +100,15 @@ namespace {
   void addPlayers(const ActorRef& a, const ActorTickContext& context,
                   float reach, std::vector<ActorCandidate>& out) {
     const Vec2 eye = flat(a.pool.position[a.i]);
-    const bool mine = a.pool.target_kind[a.i] == ActorTargetKind::PLAYER;
+    const bool mine = a.pool.target_kind[a.i] == CombatantKind::PLAYER;
     for (uint32_t p = 0; p < context.players.slots.size(); ++p) {
       const float d2 =
           Vec2::distanceSquared(eye, flat(context.players.position[p]));
-      if (d2 <= reach) {
+      if (d2 <= reach && playerIsUp(context.players, p)) {
         const bool current =
             mine && context.players.slots.handleAt(p) == a.pool.target[a.i];
         out.push_back(
-            {ActorTargetKind::PLAYER, p, static_cast<uint8_t>(current), d2});
+            {CombatantKind::PLAYER, p, static_cast<uint8_t>(current), d2});
       }
     }
   }
@@ -119,7 +120,7 @@ namespace {
                     std::vector<ActorCandidate>& out) {
     const ActorBrain& brain = brainOf(a, context);
     const Vec2 eye = workspace.positions[a.i];
-    const bool mine = a.pool.target_kind[a.i] == ActorTargetKind::ACTOR;
+    const bool mine = a.pool.target_kind[a.i] == CombatantKind::ACTOR;
     workspace.neighbors.forEachNear(
         eye, brain.behavior.senses.sight_range, [&](uint32_t j) {
           const float d2 = Vec2::distanceSquared(eye, workspace.positions[j]);
@@ -127,7 +128,7 @@ namespace {
             const bool current =
                 mine && a.pool.slots.handleAt(j) == a.pool.target[a.i];
             out.push_back(
-                {ActorTargetKind::ACTOR, j, static_cast<uint8_t>(current), d2});
+                {CombatantKind::ACTOR, j, static_cast<uint8_t>(current), d2});
           }
         });
   }
@@ -176,7 +177,7 @@ namespace {
   void remember(const ActorRef& a, const ActorTickContext& context,
                 const Sighting& sighting) {
     const ActorCandidate& who = sighting.who;
-    a.pool.target[a.i] = who.kind == ActorTargetKind::PLAYER
+    a.pool.target[a.i] = who.kind == CombatantKind::PLAYER
                              ? context.players.slots.handleAt(who.index)
                              : a.pool.slots.handleAt(who.index);
     a.pool.target_kind[a.i] = who.kind;
@@ -187,12 +188,15 @@ namespace {
     a.pool.hears_target[a.i] = sighting.heard;
   }
 
-  /// Whether actor @p a's target is still in the game.
+  /// Whether actor @p a's target is still in the game — and, a player, up:
+  /// one who is down is nobody's target.
   bool targetExists(const ActorRef& a, const ActorTickContext& context) {
     const sim::EntityHandle target = a.pool.target[a.i];
-    return a.pool.target_kind[a.i] == ActorTargetKind::PLAYER
-               ? context.players.slots.denseIndex(target).has_value()
-               : a.pool.slots.denseIndex(target).has_value();
+    if (a.pool.target_kind[a.i] == CombatantKind::ACTOR) {
+      return a.pool.slots.denseIndex(target).has_value();
+    }
+    const auto player = context.players.slots.denseIndex(target);
+    return player && playerIsUp(context.players, *player);
   }
 
   /// Whether actor @p a's memory of its target has lapsed: too long ago,

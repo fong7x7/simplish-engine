@@ -390,7 +390,7 @@ Reading is forgiving, as the level reader is, because the file is written by han
 
 ### 8.2 The behaviors table
 
-`content/data/behaviors.data.json`, entry schema `simplish/behavior/1.0` — the intelligence props run in a playtest ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [actors.md](../game/actors.md)). Optional: every project has the game's built-in behaviors — `idle`, `wander`, `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger`, `patrol` — and a row here with one of their ids replaces it.
+`content/data/behaviors.data.json`, entry schema `simplish/behavior/1.0` — the intelligence props run in a playtest ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [actors.md](../game/actors.md)). Optional: every project has the game's built-in behaviors — `idle`, `wander`, `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger`, `patrol`, `defender`, `spitter`, `bloater` — and a row here with one of their ids replaces it.
 
 ```json
 {
@@ -433,9 +433,9 @@ Reading is forgiving, as the level reader is, because the file is written by han
 | `interrupts` | Exits tested before the current state's own, in every state | None |
 | `states` | At least one, at most 32 | The row is skipped |
 
-A **state** has an `id` unique within its row, an action `do`, a `face` (`movement`, `target`, `locked`; absent is `movement`), a `speed_permille` (1000 is the behavior's speed), an optional `clip` — the animation a rigged actor plays in it, presentation only — and `exits`. Its distances are named by its action: `stop_within` for `pursue` and `follow`, `min` and `max` for `keep_distance`, `radius` for `wander`, `distance` for `flee`. A `patrol` state takes a `route` instead: `"loop"` (the default) walks from its last waypoint back to its first, and `"ping_pong"` turns round at either end; which route an actor walks is the prop's, not the behavior's (§4.1). The actions are `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge`, `patrol`.
+A **state** has an `id` unique within its row, an action `do`, a `face` (`movement`, `target`, `locked`; absent is `movement`), a `speed_permille` (1000 is the behavior's speed), an optional `clip` — the animation a rigged actor plays in it, presentation only — and `exits`. Its distances are named by its action: `stop_within` for `pursue` and `follow`, `min` and `max` for `keep_distance`, `radius` for `wander`, `distance` for `flee`. A `patrol` state takes a `route` instead: `"loop"` (the default) walks from its last waypoint back to its first, and `"ping_pong"` turns round at either end; which route an actor walks is the prop's, not the behavior's (§4.1). An attacking state — `melee`, `charge`, `fire`, `spit`, `detonate` — takes its attack's numbers: `damage` (health segments a hit takes, 0–99) and `cooldown_ticks` for all of them; `reach` (tiles past touching) for `melee` and `charge`; `count` (1–16), `spread_degrees` and `projectile_speed` (tiles a second) for a `fire` volley; `radius` and `duration_ticks` for a `spit` pool; `radius` for a `detonate` blast. Each has its own defaults ([actors.md §3](../game/actors.md#3-behaviors)). The actions are `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge`, `patrol`, `melee`, `fire`, `spit`, `detonate`.
 
-An **exit** has a `when` and a `to` — a state of the same row, by id — and the one number its condition reads: `tiles` for `target_within`, `target_beyond` and `far_from_home`; `ticks` for `lost_target_for` and `in_state_for`; `permille` for `chance`. The other conditions — `always`, `sees_target`, `hears_target`, `arrived`, `no_path`, `blocked` — read none. Exits are tested in the order written; the first that holds is taken.
+An **exit** has a `when` and a `to` — a state of the same row, by id — and the one number its condition reads: `tiles` for `target_within`, `target_beyond`, `far_from_home` and `allies_within`; `ticks` for `lost_target_for`, `in_state_for` and `damaged`; `permille` for `chance` and `health_below`. The other conditions — `always`, `sees_target`, `hears_target`, `arrived`, `no_path`, `blocked` — read none. Exits are tested in the order written; the first that holds is taken.
 
 Durations are ticks and chances permille, as in encounter files; speeds are tiles a second, as in the characters table.
 
@@ -467,10 +467,11 @@ Reading is forgiving, as the characters reader is, but never so forgiving that a
 | `id` | Stable identifier: lowercase, digits and underscores, unique in the table | The row is skipped |
 | `name` | What the editor calls it | Its id |
 | `model` | The asset it is drawn as, by reference | The stand-in |
-| `health` | Health segments, 1–999. Kept, and used by nothing until actors take damage | 1 |
+| `health` | Health segments, 1–999 | 1 |
 | `radius`, `height` | Its body, in tiles: 0.05–2 and 0.1–8 | 0.3, 1.5 — an actor's default |
 | `behavior` | A behavior by id or `behavior:` reference: a built-in or a row of §8.2 | `idle`, and said |
 | `faction` | `hostile`, `neutral` or `friendly` | `hostile` |
+| `death_blast_radius`, `death_blast_damage` | The blast it goes off in when it dies — tiles, 0–10, and segments — hurting everyone it reaches on every side: a bloater | 0: none |
 
 Reading is forgiving in the way §8.1 is: a row with no usable or a repeated id is skipped, a number that is not one takes its default and one out of range is held to it, and an unknown faction is hostile. A behavior nobody defines is kept as written — the behaviors are read separately and may be fixed — and `list_enemies` says whether each archetype's behavior resolves. At run time the table becomes `game::GameContent::enemies`; `makeEnemySpawn` turns a row into the same `ActorSpawn` a prop with that model, behavior and faction would have become.
 

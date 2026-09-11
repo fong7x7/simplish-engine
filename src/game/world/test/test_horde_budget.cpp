@@ -62,22 +62,31 @@ void report(PhaseTimes& phase) {
               phase.ms.back());
 }
 
+/// Run @p phase, adding its time to @p times.
+template <typename Phase> void timed(PhaseTimes& times, Phase phase) {
+  const auto start = Clock::now();
+  phase();
+  times.ms.push_back(millisecondsSince(start));
+}
+
 /// Run one tick of @p world's phases by hand, adding each one's time to
-/// @p times: players, actors, compaction, hashing.
+/// @p times: players, actors, combat — weapon fire, projectiles and
+/// damage — and compaction with hashing.
 void timedTick(GameWorld& world, uint64_t tick,
                std::vector<PhaseTimes>& times) {
   const sim::TickContext context{tick, test::hordeInput(tick)};
-  auto start = Clock::now();
-  world.playerControl(context);
-  times[0].ms.push_back(millisecondsSince(start));
-  start = Clock::now();
-  world.enemyAi(context);
-  times[1].ms.push_back(millisecondsSince(start));
-  start = Clock::now();
-  world.compaction(context);
-  sim::TickHashBuilder hashes;
-  world.hashState(hashes);
-  times[2].ms.push_back(millisecondsSince(start));
+  timed(times[0], [&] { world.playerControl(context); });
+  timed(times[1], [&] { world.enemyAi(context); });
+  timed(times[2], [&] {
+    world.weaponFire(context);
+    world.projectiles(context);
+    world.damage(context);
+  });
+  timed(times[3], [&] {
+    world.compaction(context);
+    sim::TickHashBuilder hashes;
+    world.hashState(hashes);
+  });
 }
 
 /// Each phase's time on every tick of @p world after the warm-up.
@@ -85,7 +94,7 @@ std::vector<PhaseTimes> timedRun(GameWorld& world) {
   std::vector<PhaseTimes> times;
   for (uint64_t tick = 0; tick < WARMUP_TICKS + TIMED_TICKS; ++tick) {
     if (tick == WARMUP_TICKS || tick == 0) {
-      times = {{"players"}, {"actors"}, {"compact+hash"}};
+      times = {{"players"}, {"actors"}, {"combat"}, {"compact+hash"}};
     }
     timedTick(world, tick, times);
   }

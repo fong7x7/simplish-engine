@@ -31,6 +31,12 @@ namespace {
     pool.radius[i] = std::max(spawn.radius, ACTOR_MIN_SIZE_TILES);
     pool.height[i] = std::max(spawn.height, ACTOR_MIN_SIZE_TILES);
     pool.faction[i] = spawn.faction;
+    pool.health[i] = std::max<uint16_t>(spawn.health, 1);
+    pool.max_health[i] = pool.health[i];
+    pool.damaged_tick[i] = ACTOR_NEVER_DAMAGED;
+    pool.attack_ready_tick[i] = 0;
+    pool.death_blast_radius[i] = spawn.death_blast_radius;
+    pool.death_blast_damage[i] = spawn.death_blast_damage;
   }
 
   /// Start the mind of the actor at dense index @p i: brain @p brain, in
@@ -40,7 +46,7 @@ namespace {
     pool.state[i] = initial;
     pool.state_since[i] = 0;
     pool.target[i] = {};
-    pool.target_kind[i] = ActorTargetKind::PLAYER;
+    pool.target_kind[i] = CombatantKind::PLAYER;
     pool.sees_target[i] = 0;
     pool.hears_target[i] = 0;
     pool.remembers_target[i] = 0;
@@ -62,6 +68,16 @@ namespace {
     pool.route_reverse[i] = 0;
   }
 
+  /// Apply @p moves to the health and attack fields.
+  void compactHealth(ActorPool& pool, std::span<const sim::SlotMove> moves) {
+    sim::applySlotMoves(moves, pool.health);
+    sim::applySlotMoves(moves, pool.max_health);
+    sim::applySlotMoves(moves, pool.damaged_tick);
+    sim::applySlotMoves(moves, pool.attack_ready_tick);
+    sim::applySlotMoves(moves, pool.death_blast_radius);
+    sim::applySlotMoves(moves, pool.death_blast_damage);
+  }
+
   /// Apply @p moves to the body fields.
   void compactBody(ActorPool& pool, std::span<const sim::SlotMove> moves) {
     sim::applySlotMoves(moves, pool.position);
@@ -71,6 +87,7 @@ namespace {
     sim::applySlotMoves(moves, pool.height);
     sim::applySlotMoves(moves, pool.brain);
     sim::applySlotMoves(moves, pool.faction);
+    compactHealth(pool, moves);
   }
 
   /// Apply @p moves to the mind fields.
@@ -105,6 +122,16 @@ namespace {
     return std::span<const T>(field).first(count);
   }
 
+  /// Fold the health and attack fields in.
+  void hashHealth(const ActorPool& pool, sim::StateHasher& hasher, uint32_t n) {
+    hasher.addSpan(live(pool.health, n));
+    hasher.addSpan(live(pool.max_health, n));
+    hasher.addSpan(live(pool.damaged_tick, n));
+    hasher.addSpan(live(pool.attack_ready_tick, n));
+    hasher.addSpan(live(pool.death_blast_radius, n));
+    hasher.addSpan(live(pool.death_blast_damage, n));
+  }
+
   /// Fold the body fields in.
   void hashBody(const ActorPool& pool, sim::StateHasher& hasher, uint32_t n) {
     hasher.addSpan(live(pool.position, n));
@@ -114,6 +141,7 @@ namespace {
     hasher.addSpan(live(pool.height, n));
     hasher.addSpan(live(pool.brain, n));
     hasher.addSpan(live(pool.faction, n));
+    hashHealth(pool, hasher, n);
   }
 
   /// Fold the mind fields in.
@@ -141,6 +169,20 @@ namespace {
     hasher.addSpan(live(pool.route, n));
     hasher.addSpan(live(pool.route_leg, n));
     hasher.addSpan(live(pool.route_reverse, n));
+  }
+
+  /// The actor at dense index @p index dies: marked for destruction, going
+  /// off in its blast, if it has one.
+  void die(ActorPool& pool, uint32_t index, CombatEffects& effects) {
+    const sim::EntityHandle handle = pool.slots.handleAt(index);
+    (void)pool.slots.destroy(handle);
+    if (pool.death_blast_radius[index] > 0.0F) {
+      const Vec3& at = pool.position[index];
+      effects.blasts.push_back({{at.x, at.y},
+                                pool.death_blast_radius[index],
+                                pool.death_blast_damage[index],
+                                {CombatantKind::ACTOR, handle}});
+    }
   }
 
 }  // namespace
@@ -175,10 +217,12 @@ void thinkActors(ActorPool& pool, const ActorTickContext& context,
   std::span<ActorIntent> intents(workspace.intents);
   eachActor(pool,
             [&](const ActorRef& a) { perceiveActor(a, context, workspace); });
-  eachActor(pool, [&](const ActorRef& a) { decideActor(a, context); });
+  eachActor(pool,
+            [&](const ActorRef& a) { decideActor(a, context, workspace); });
   eachActor(pool,
             [&](const ActorRef& a) { intendActor(a, context, intents[a.i]); });
   eachActor(pool, [&](const ActorRef& a) { planActor(a, context, workspace); });
+  eachActor(pool, [&](const ActorRef& a) { attackActor(a, context); });
 }
 
 void moveActors(ActorPool& pool, const ActorTickContext& context,
@@ -192,6 +236,18 @@ void moveActors(ActorPool& pool, const ActorTickContext& context,
   });
   eachActor(pool,
             [&](const ActorRef& a) { faceActor(a, context, intents[a.i]); });
+}
+
+void hurtActor(ActorPool& pool, uint32_t index, ActorHarm harm,
+               CombatEffects& effects) {
+  if (pool.health[index] == 0) {
+    return;
+  }
+  pool.health[index] -= std::min(harm.amount, pool.health[index]);
+  pool.damaged_tick[index] = harm.tick;
+  if (pool.health[index] == 0) {
+    die(pool, index, effects);
+  }
 }
 
 void compactActors(ActorPool& pool) {

@@ -6,7 +6,7 @@
 /// A value type.
 
 #include <cstdint>
-#include <game/actors/actor-target-kind.h>
+#include <game/combat/combatant-kind.h>
 
 namespace eng::game {
 
@@ -16,7 +16,7 @@ namespace eng::game {
 /// peer ranks the same list the same way.
 struct ActorCandidate {
   /// Which pool they are in.
-  ActorTargetKind kind = ActorTargetKind::PLAYER;
+  CombatantKind kind = CombatantKind::PLAYER;
   /// Their dense index in that pool.
   uint32_t index = 0;
   /// Whether they are the actor's target already.

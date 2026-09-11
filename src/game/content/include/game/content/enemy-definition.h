@@ -52,6 +52,11 @@ struct EnemyDefinition {
   std::string behavior{};
   /// The side it is on.
   Faction faction = Faction::HOSTILE;
+  /// How far the blast it goes off in when it dies reaches, in tiles; 0
+  /// for none. Game §5.1's bloater.
+  float death_blast_radius = 0.0F;
+  /// Segments that blast takes from everyone it reaches.
+  uint16_t death_blast_damage = 0;
 };
 
 }  // namespace eng::game

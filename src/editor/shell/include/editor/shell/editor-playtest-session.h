@@ -65,6 +65,12 @@ makeEditorPlaytestSetup(const EditorDocument& document,
                         const std::vector<EditorAsset>& assets,
                         WorldPoint fallback);
 
+/// Add @p stand_ins players to @p setup after player 1 — up to three — for
+/// the multi-player preview (Editor §7): each at the first start for their
+/// player in @p document, or beside player 1 when there is none.
+void addEditorStandIns(game::GameSetup& setup, const EditorDocument& document,
+                       uint8_t stand_ins);
+
 /// Who player 1 plays as unless they pick someone else: the character the
 /// first start for player 1 names, when @p characters has it; otherwise the
 /// first character; otherwise nobody — empty, the default character. What
@@ -174,6 +180,18 @@ public:
 private:
   /// The actors' part of `publish`.
   void publishActors(EditorPlaytestState& state) const;
+  /// The players' part of `publish`.
+  void publishPlayers(EditorPlaytestState& state) const;
+  /// Fill in whom the actor at dense index @p index targets, into
+  /// @p report: a player's number, or another actor's id.
+  void reportTarget(EditorPlaytestActor& report, uint32_t index) const;
+  /// What the AI overlay labels the actor at dense index @p index: its
+  /// state and its health.
+  [[nodiscard]] std::string overlayLabel(uint32_t index) const;
+  /// The projectiles', the hazards' and the run's part of `publish`.
+  void publishCombat(EditorPlaytestState& state) const;
+  /// Fill every stand-in's slot of @p input with what their stand-in does.
+  void addStandInInput(sim::TickInput& input) const;
   /// The id of the prop the actor @p handle names became, or empty.
   [[nodiscard]] std::string actorIdOf(sim::EntityHandle handle) const;
   /// The report for the setup's @p actor-th actor, at dense index @p index.

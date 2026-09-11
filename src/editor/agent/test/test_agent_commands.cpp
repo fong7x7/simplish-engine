@@ -1091,3 +1091,17 @@ TEST_CASE("find_path plans round a prop, and says when an end is walled in") {
   REQUIRE(runAgentTool(state, "find_path", R"({"from_x": 1})").status ==
           AgentStatus::BAD_PARAMS);
 }
+
+TEST_CASE("start_playtest takes how many stand-ins to add, and remembers it") {
+  EditorShellState state = stateWithAssets();
+  const AgentResult bad =
+      runAgentTool(state, "start_playtest", R"({"stand_ins": 4})");
+  REQUIRE(bad.status == AgentStatus::BAD_PARAMS);
+  REQUIRE(state.playtest_stand_ins == 0);
+
+  const AgentResult started =
+      runAgentTool(state, "start_playtest", R"({"stand_ins": 2})");
+  REQUIRE(started.status == AgentStatus::OK);
+  REQUIRE(state.playtest_stand_ins == 2);
+  REQUIRE(json::parse(agentPlaytestJson(state)).at("stand_ins") == 2);
+}

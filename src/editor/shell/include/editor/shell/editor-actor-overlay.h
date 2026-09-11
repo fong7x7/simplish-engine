@@ -38,7 +38,8 @@ struct EditorActorOverlay {
   WorldPoint target{};
   /// Whether it sees its target this tick.
   bool sees_target = false;
-  /// What its label says: the state it is in.
+  /// What its label says: the state it is in, and its health —
+  /// `pursue  2/3`.
   std::string label;
   /// Which side it is on, which colours it.
   game::Faction faction = game::Faction::HOSTILE;
