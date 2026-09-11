@@ -128,6 +128,22 @@ inline constexpr AgentParam AGENT_PARAMS_SET_CHARACTER[] = {
      "or empty names none, leaving it to the selector."},
 };
 
+/// `set_behavior` gives a prop the intelligence it runs in a playtest.
+inline constexpr AgentParam AGENT_PARAMS_SET_BEHAVIOR[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"placement\", or \"selection\" when a placement is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the placement list. Not needed when target is "
+     "\"selection\"."},
+    {"behavior", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A behavior from list_behaviors, by id, reference or name. Omitted "
+     "keeps the prop's behavior; empty takes it away, leaving the prop "
+     "scenery again."},
+    {"faction", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"hostile\", \"neutral\" or \"friendly\". Omitted keeps the "
+     "prop's faction, which is hostile until one is chosen."},
+};
+
 /// `start_playtest` may name who player 1 plays as.
 inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
     {"character", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
@@ -320,6 +336,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "change a character, edit that file.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_BEHAVIORS,
+     "list_behaviors",
+     "Every behavior a prop can run in a playtest — the built-in presets "
+     "and the project's own from its behaviors data table, a project row "
+     "replacing the preset with its id — each with its id, reference, "
+     "name, whether it is built in, its states in order, and the state it "
+     "starts in; with the table's path and anything wrong with it. The "
+     "table is read when the project opens, on a rescan, and on every "
+     "Play; to add or change a behavior, edit that file.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::GET_SELECTION,
      "get_selection",
      "What the properties panel is editing, and the fields it lists for "
@@ -387,6 +414,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "does: the character the selector opens on. Recorded as one undoable "
      "edit, and saved with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_CHARACTER},
+    {AgentTool::SET_BEHAVIOR, "set_behavior",
+     "Give a placed prop the behavior it runs in a playtest, and the side "
+     "it is on, as the properties panel's Behavior and Faction rows do. A "
+     "prop with a behavior is an actor: when the level is played it sees "
+     "and hears the players, plans paths round the level's props, turns "
+     "and moves as its behavior's states say, and is no longer a "
+     "collision box for players. Recorded as one undoable edit, and saved "
+     "with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_BEHAVIOR},
     {AgentTool::TRANSLATE, "translate",
      "Move a placement, a light or a player start by a delta in tiles — "
      "the tool to reach for when asked to shift something in a direction "

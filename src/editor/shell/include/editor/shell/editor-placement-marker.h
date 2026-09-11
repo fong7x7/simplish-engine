@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <editor/shell/editor-placement-bounds.h>
+#include <engine/math/vec2.h>
+#include <game/content/faction.h>
 
 namespace eng::editor {
 
@@ -24,6 +26,10 @@ enum class EditorMarkerStyle : uint8_t {
   /// The whole box, always, in the colour of the player it starts — a
   /// player start, which has nothing else in the scene to see it by.
   PLAYER_START,
+  /// The footprint in its faction's colour, with a tick from its middle the
+  /// way it faces — a prop with a behavior, so a level shows at a glance
+  /// which props will move, whose side they are on, and where they look.
+  ACTOR,
 };
 
 /// One thing in the level, as much of it as the viewport needs.
@@ -44,6 +50,10 @@ struct EditorPlacementMarker {
   /// The player a `PLAYER_START` marker starts, 1 to 4, which picks its
   /// colour. Unused by every other style.
   uint8_t player = 0;
+  /// The side an `ACTOR` marker is on, which picks its colour.
+  game::Faction faction = game::Faction::HOSTILE;
+  /// The unit direction an `ACTOR` marker faces, on the floor.
+  Vec2 facing{};
 };
 
 }  // namespace eng::editor

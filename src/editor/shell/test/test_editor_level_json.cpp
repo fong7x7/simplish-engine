@@ -355,3 +355,43 @@ TEST_CASE("a hand-edited scale out of range is clamped on load") {
   REQUIRE(read.has_value());
   REQUIRE(read->document.placements[0].scale == Approx(EDITOR_SCALE_MIN));
 }
+
+TEST_CASE("a prop's behavior and faction round-trip, and scenery writes none") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[1].behavior = "behavior:guard";
+  written.placements[1].faction = eng::game::Faction::FRIENDLY;
+  // Scenery's faction is meaningless, and not saved.
+  written.placements[0].faction = eng::game::Faction::NEUTRAL;
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const auto read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[1].behavior == "behavior:guard");
+  REQUIRE(read->document.placements[1].faction == eng::game::Faction::FRIENDLY);
+  REQUIRE(read->document.placements[0].behavior.empty());
+  REQUIRE(read->document.placements[0].faction == eng::game::Faction::HOSTILE);
+  REQUIRE(text.find("\"behavior\"") == text.rfind("\"behavior\""));
+  REQUIRE(text.find("\"friendly\"") != std::string::npos);
+}
+
+TEST_CASE("a hand-written behavior id reads as the behavior it names") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {"props": [
+      {"id": "props_crate_01", "asset": "mesh:props_crate", "at": [0, 0, 0],
+       "behavior": "chase", "faction": "mauve"},
+      {"id": "props_crate_02", "asset": "mesh:props_crate", "at": [1, 0, 0],
+       "behavior": "behavior:gone", "faction": "neutral"}]}})";
+
+  const auto read = parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].behavior == "behavior:chase");
+  // A faction the format does not know is hostile, the side one starts on.
+  REQUIRE(read->document.placements[0].faction == eng::game::Faction::HOSTILE);
+  // A behavior the project does not define is kept, not thrown away.
+  REQUIRE(read->document.placements[1].behavior == "behavior:gone");
+  REQUIRE(read->document.placements[1].faction == eng::game::Faction::NEUTRAL);
+}

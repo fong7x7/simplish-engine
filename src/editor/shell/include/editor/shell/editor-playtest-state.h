@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <editor/shell/editor-play-mode.h>
+#include <editor/shell/editor-playtest-actor.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <optional>
@@ -33,6 +34,8 @@ struct EditorPlaytestState {
   std::optional<uint64_t> hash;
   /// Every player, in the simulation's own order.
   std::vector<EditorPlaytestPlayer> players;
+  /// Every actor — every prop with a behavior — in the level's order.
+  std::vector<EditorPlaytestActor> actors;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

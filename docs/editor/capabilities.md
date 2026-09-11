@@ -3,7 +3,7 @@
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
 **Status:** Living register — update it in the change that moves a row
-**Last Updated:** 2026-09-10 (playtest)
+**Last Updated:** 2026-09-11 (actors)
 
 What the editor can do, and whether an agent can do it too. One row per
 capability, three states per row.
@@ -91,6 +91,9 @@ puzzled over.
 | Resize a prop | ✅ | `set_property` (`scale`), `list_placements` | A Scale slider in a prop's properties, 1 in its middle and logarithmic either side; pressing it jumps there and dragging follows the pointer, as one undoable edit, and its step buttons move between stops a quarter-doubling apart. One uniform size, held to 0.125–8. Picking and playtest collision use the scaled box. Saved with the prop, and only when it is not 1 |
 | Choose whether a prop blocks players | ✅ | `set_property` (`collides`), `list_placements` | A Collides checkbox, last in a prop's properties; a click anywhere on the row flips it, as one undoable edit. Props collide by default. One that does not has its footprint drawn faded in the viewport, and it is saved with the prop |
 | Choose which animation clip a rigged prop plays | ✅ | `set_animation`, `list_placements` | An Animation row, below a rigged prop's properties, names the clip; its step buttons move to the previous or next, wrapping round, as one undoable edit, and the prop crossfades to the new clip over a fifth of a second — `set_animation` fades the same way. A prop naming none plays the model's first clip, so a dropped model moves at once. Every placed clip loops on the viewport's own clock, in edit mode and in a playtest alike; it is presentation and never reaches the simulation. Saved with the prop |
+| Give a prop intelligence — make it an actor | ✅ | `set_behavior`, `list_placements` | A Behavior row, below a prop's properties, steps through None, the built-in behaviors and the project's own, as one undoable edit. A prop with a behavior is an actor in a playtest ([actors.md](../game/actors.md)) and is no longer a collision box for players. Its footprint is outlined in its faction's colour with a tick the way it faces. Saved with the prop; one naming a behavior the project no longer has is kept, and plays as idle |
+| Choose which side an actor is on | ✅ | `set_behavior` (`faction`), `list_placements` | A Faction row — Hostile, Neutral, Friendly — shown once the prop has a behavior. Hostile and friendly actors take players as targets; a neutral one takes nobody |
+| Define the behaviors props can run | 🚧 | `list_behaviors` | Eight built in; the project's own hand-written in `content/data/behaviors.data.json` ([project-format.md §8.2](project-format.md#82-the-behaviors-table)), a row with a built-in's id replacing it. Read when the project opens, on a rescan, and on every Play; problems are logged and reported by `list_behaviors`. Edited in the editor once the data-editing panel exists |
 | Select, and clear the selection | ✅ | `select`, `get_selection` | |
 | Delete a placement, a light or a player start | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
 | Duplicate an entry | ❌ | ❌ | The action kinds a removal needed are built now; a duplicate is an insert of a copy at the end |
@@ -134,8 +137,9 @@ puzzled over.
 | The level is untouched by playing it | ✅ | — | The game runs from a copy; every edit — browser drops, picks, the panel, Delete, undo — is ignored while playing, and the API's edit tools are refused |
 | Every playtest records a replay | 🚧 | `stop_playtest` | Written to `data/playtests/<level>.replay` when the playtest stops. Nothing plays one back in the editor yet |
 | Pause, single-step, speed multipliers | ❌ | ❌ | [REQUIREMENTS §7](REQUIREMENTS.md#7-playtest). The session steps one tick at a time already; the controls are what is missing |
+| Actors play their behaviors | ✅ | `get_playtest` (`actors`) | Every prop with a behavior perceives the players, plans a path round the props, turns and moves on the tick, and is drawn where the game has it — turned to face its way, playing its state's clip or its walk and idle clips. `get_playtest` reports each actor's position, facing, behavior, state, faction, target and path |
 | Multi-player preview with stand-ins | ❌ | ❌ | Only player 1 spawns; the other starts are shown but empty |
-| Debug overlays during play | ❌ | ❌ | Collision, flow fields, budgets, per-phase timing |
+| Debug overlays during play | ❌ | ❌ | Collision, flow fields, budgets, per-phase timing — and actors' paths, states and view cones, which `get_playtest` reports but nothing draws |
 
 ## 7. Not built at all
 

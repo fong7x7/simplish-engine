@@ -75,6 +75,15 @@ inline constexpr GuiColor EDITOR_PLAYER_START_COLORS[] = {
     {240, 90, 170, 255},
 };
 
+/// The colour an actor is marked in, by faction: red for hostile, a pale
+/// stone for neutral, teal for friendly. None of them is a player's colour,
+/// the selection blue, or the prop tan.
+inline constexpr GuiColor EDITOR_FACTION_COLORS[] = {
+    {235, 75, 60, 255},
+    {200, 195, 170, 255},
+    {60, 205, 185, 255},
+};
+
 /// The level viewport: a dimetric tile grid with pan and zoom.
 /// @thread_safety Main-thread only.
 class EditorViewportWidget : public GuiWidget {

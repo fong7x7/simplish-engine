@@ -19,13 +19,15 @@
 //     the middle and halving and doubling are equal distances either side.
 //     Its buttons step between fixed stops, a quarter-doubling apart, which
 //     is how a value dragged near 1 gets back to exactly 1
-//   - One more row may follow the property rows: a choice among names,
+//   - Choice rows may follow the property rows: each a choice among names,
 //     whose value box shows the one picked and whose buttons step to the
-//     previous or next, wrapping round. A rigged model's is Animation, its
-//     clips; a player start's is Character, the assets it can be drawn as.
-//     A name is not a number, so it is a row of its own rather than a
-//     property field, and reports the index picked through
-//     on_choice_changed; what the names mean is the editor's business
+//     previous or next, wrapping round. A rigged model's Animation row
+//     steps its clips, a prop's Behavior row the behaviors it can run and
+//     its Faction row the sides, a player start's Character row the
+//     characters. A name is not a number, so each is a row of its own
+//     rather than a property field, named by an `EditorChoiceKind`, and
+//     reports the index picked through on_choice_changed; what the names
+//     mean is the editor's business
 //   - A drag reports every intermediate value as a preview and one final
 //     value as a commit, so the editor moves the prop live and records one
 //     undo entry for the gesture
@@ -61,6 +63,8 @@
 //     on_property_changed and on_choice_changed to whatever is selected
 
 #include <cstddef>
+#include <editor/shell/editor-choice-kind.h>
+#include <editor/shell/editor-choice-row.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
@@ -108,24 +112,31 @@ public:
   /// Show a player start's properties: which player, and where.
   void setSelection(std::string name, const EditorPlayerStart& start);
 
-  /// Offer @p choices as a row labelled @p label below the property rows,
-  /// showing the one at @p current — or the first, when that is out of
-  /// range. Called after `setSelection`, which drops any choices a previous
-  /// selection had; an empty list shows no row.
-  void setChoices(std::string_view label, std::vector<std::string> choices,
+  /// Offer @p choices as the @p kind row, below the property rows and any
+  /// choice rows already offered, showing the one at @p current — or the
+  /// first, when that is out of range. Called after `setSelection`, which
+  /// drops every choice row a previous selection had; an empty list shows
+  /// no row, and offering a kind again replaces its row where it stands.
+  void addChoices(EditorChoiceKind kind, std::vector<std::string> choices,
                   size_t current);
 
-  /// The name the choice row shows, or empty when there is no such row.
-  [[nodiscard]] const std::string& choice() const;
+  /// The name the @p kind row shows, or empty when there is no such row.
+  [[nodiscard]] const std::string& choice(EditorChoiceKind kind) const;
 
-  /// Where the name the choice row shows is in its list.
-  [[nodiscard]] size_t choiceIndex() const { return choice_; }
+  /// Where the name the @p kind row shows is in its list; 0 when there is
+  /// no such row.
+  [[nodiscard]] size_t choiceIndex(EditorChoiceKind kind) const;
 
-  /// The choice row's label, or empty when there is no such row.
-  [[nodiscard]] const std::string& choiceLabel() const { return choice_label_; }
+  /// Whether the panel shows a @p kind row.
+  [[nodiscard]] bool hasChoiceRow(EditorChoiceKind kind) const;
 
-  /// Rect of the choice row, in layout pixels. Empty when there is none.
-  [[nodiscard]] Rect choiceRowRect() const;
+  /// The choice rows, in the order they are shown.
+  [[nodiscard]] const std::vector<EditorChoiceRow>& choiceRows() const {
+    return choice_rows_;
+  }
+
+  /// Rect of the @p kind row, in layout pixels. Empty when there is none.
+  [[nodiscard]] Rect choiceRowRect(EditorChoiceKind kind) const;
 
   /// Show nothing, and hide the panel.
   void clearSelection();
@@ -167,10 +178,10 @@ public:
   std::function<void(EditorPropertyField, float, EditorPropertyEdit)>
       on_property_changed{};
 
-  /// Raised when a step button on the choice row picks another name, with
-  /// where that name is in the list `setChoices` was given. Always a
-  /// finished edit: there is no gesture to preview.
-  std::function<void(size_t)> on_choice_changed{};
+  /// Raised when a step button on a choice row picks another name: which
+  /// row, and where that name is in the list `addChoices` was given. Always
+  /// a finished edit: there is no gesture to preview.
+  std::function<void(EditorChoiceKind, size_t)> on_choice_changed{};
 
 private:
   /// Draw the title strip.
@@ -195,8 +206,8 @@ private:
   /// Draw the checkbox an on-or-off row @p index shows, in @p row.
   void renderToggle(const GuiDrawContext& ctx, const Rect& row,
                     size_t index) const;
-  /// Draw the choice row, when there is one.
-  void renderChoiceRow(const GuiDrawContext& ctx) const;
+  /// Draw choice row @p index.
+  void renderChoiceRow(const GuiDrawContext& ctx, size_t index) const;
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;
@@ -215,11 +226,15 @@ private:
   void beginDrag(EditorPropertyField field, const GuiMouseEvent& event);
   /// Act on a press in row @p index. Returns true when a drag began.
   bool pressRow(size_t index, const GuiMouseEvent& event);
-  /// Act on a press in the choice row: step to the previous or next name
-  /// when it lands on a button.
-  void pressChoiceRow(const GuiMouseEvent& event);
-  /// Rows the panel lists: the property rows, and the choice row when
-  /// there are choices.
+  /// Act on a press in choice row @p index: step to the previous or next
+  /// name when it lands on a button.
+  void pressChoiceRow(size_t index, const GuiMouseEvent& event);
+  /// Where the @p kind row is among the choice rows, or their count when
+  /// there is none.
+  [[nodiscard]] size_t choiceRowOf(EditorChoiceKind kind) const;
+  /// Rect of choice row @p index, in layout pixels.
+  [[nodiscard]] Rect choiceRowRectAt(size_t index) const;
+  /// Rows the panel lists: the property rows, then the choice rows.
   [[nodiscard]] size_t rowCount() const;
   /// Move a value by one step and commit it.
   void stepField(EditorPropertyField field, float steps);
@@ -237,12 +252,8 @@ private:
   std::string name_{};
   /// Backing store for the id line's text: the qualified reference.
   std::string reference_{};
-  /// What the choice row is labelled: `Animation`, `Character`.
-  std::string choice_label_{};
-  /// Names the choice row steps through; empty for no such row.
-  std::vector<std::string> choices_{};
-  /// Which of them the choice row shows.
-  size_t choice_ = 0;
+  /// The choice rows, in the order they are shown.
+  std::vector<EditorChoiceRow> choice_rows_{};
   /// Whether a value is being scrubbed.
   bool dragging_ = false;
   /// Field the scrub is changing.

@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — the manifest, the level file's props, lights and player starts, and the characters data table (§8.1) are implemented; everything else is not
+**Status:** Specification — the manifest, the level file's props (their behaviors included), lights and player starts, and the characters and behaviors data tables (§8.1, §8.2) are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -42,6 +42,8 @@ my-project/
 │   ├── logic/
 │   │   └── transit-station.logic.json
 │   └── data/
+│       ├── characters.data.json   # read today (§8.1)
+│       ├── behaviors.data.json    # read today (§8.2)
 │       ├── weapons.data.json
 │       ├── enemies.data.json
 │       └── projectiles.data.json
@@ -166,7 +168,8 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
         "collides": true },
       { "id": "characters_knight_01", "asset": "mesh:characters_knight",
         "at": [5.0, 4.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": 1.5,
-        "collides": true, "animation": "walk" }
+        "collides": true, "animation": "walk",
+        "behavior": "behavior:guard", "faction": "hostile" }
     ],
     "lights": [
       { "id": "point_01", "kind": "point", "at": [1.0, 1.0, 3.0],
@@ -188,6 +191,8 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
 **A prop says whether it collides.** `collides` is `true` when players cannot walk through it, which is what every prop dropped starts as, and `false` for the ones they can — grass, a rug, a decal. A prop written before the key existed has none and reads as `true`, so a level saved earlier is as solid as its props look. What collides is the prop's box, the one the viewport outlines; a collision shape authored per asset would go in the asset pipeline, not here.
 
 **A rigged prop may name the clip it plays.** `animation` is the name of one of the model's animation clips, exactly as its glTF file names it, and is written only when a prop names one: a prop without it plays the model's first clip, which is what every rigged prop dropped does, and a static prop has no clips and never carries the key. A name the model does not have is kept rather than cleared, and plays the first clip too, so a clip renamed in the source file does not silently rewrite the level. The clip is presentation only — the simulation never reads a pose ([ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters)). A rigged model's asset reference is `mesh:` like any model on disk.
+
+**A prop may run a behavior.** `behavior` names the intelligence the prop runs in a playtest, by reference — `behavior:guard` for a built-in behavior or a row of the behaviors table (§8.2) — and `faction` which side it is on: `"hostile"`, `"neutral"` or `"friendly"`. A prop with a behavior is an *actor* ([actors.md](../game/actors.md)): in a playtest it is spawned into the simulation at the middle of its tile, facing its Z rotation less a quarter turn, as wide as half the narrower side of its unturned footprint, and it is not a collision box for players. Both keys are written only when the prop has a behavior, so scenery carries neither and a level saved before they existed saves back unchanged. A bare id — `"guard"` — reads as `behavior:guard`; a reference to a behavior the project no longer has is kept as written and plays as `idle`; a faction the format does not know reads as `hostile`. This is the one place a prop carries per-instance game state rather than only geometry, which §4's split between props and entities anticipated for entities: the prop already holds the model, transform and clip an actor needs, and an entity for it would duplicate them.
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 
@@ -348,7 +353,7 @@ A golden test pins this: a corpus of expressions evaluated both ways, asserted e
 
 ### 8.1 What the editor reads today
 
-One table, the characters a player can play as: `content/data/characters.data.json`, entry schema `simplish/character/1.0`.
+Two tables. This one is the characters a player can play as: `content/data/characters.data.json`, entry schema `simplish/character/1.0`. The other is the behaviors props run (§8.2).
 
 ```json
 {
@@ -376,6 +381,59 @@ One table, the characters a player can play as: `content/data/characters.data.js
 | `health` | Health segments it starts with, 1 to 99 | 5 |
 
 Reading is forgiving, as the level reader is, because the file is written by hand: a row with no usable id or a repeated one is skipped, a stat out of range is held to it, and each is logged and reported by `list_characters` rather than refusing the file. A file that is not a characters table gives no characters. The editor writes nothing here: the table is authored by hand until the data-editing panel ([Editor §6](REQUIREMENTS.md#6-data-editing)) exists. At run time it becomes the `game::GameContent` the simulation is built with — the one representation both loaders of [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md) fill; a loadout joins each row when weapons exist.
+
+### 8.2 The behaviors table
+
+`content/data/behaviors.data.json`, entry schema `simplish/behavior/1.0` — the intelligence props run in a playtest ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [actors.md](../game/actors.md)). Optional: every project has the game's built-in behaviors — `idle`, `wander`, `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger` — and a row here with one of their ids replaces it.
+
+```json
+{
+  "schema": "simplish/data_table/1.0",
+  "id": "behaviors",
+  "name": "Behaviors",
+  "content": {
+    "entry_schema": "simplish/behavior/1.0",
+    "entries": [
+      { "id": "sentry", "name": "Sentry",
+        "senses": { "sight_range": 12, "view_degrees": 120,
+                    "hearing_range": 6, "memory_ticks": 300 },
+        "movement": { "speed": 3.0, "turn_degrees_per_second": 270 },
+        "initial": "watch",
+        "interrupts": [ { "when": "far_from_home", "tiles": 15, "to": "go_home" } ],
+        "states": [
+          { "id": "watch", "do": "idle",
+            "exits": [ { "when": "sees_target", "to": "pursue" },
+                       { "when": "hears_target", "to": "search" } ] },
+          { "id": "pursue", "do": "pursue", "stop_within": 1.0,
+            "exits": [ { "when": "lost_target_for", "ticks": 120, "to": "search" } ] },
+          { "id": "search", "do": "search", "face": "target",
+            "exits": [ { "when": "sees_target", "to": "pursue" },
+                       { "when": "in_state_for", "ticks": 300, "to": "go_home" } ] },
+          { "id": "go_home", "do": "return_home",
+            "exits": [ { "when": "arrived", "to": "watch" } ] }
+        ] }
+    ]
+  }
+}
+```
+
+| Field | Means | Absent |
+|---|---|---|
+| `id` | What a prop names it by: `behavior:sentry` | The row is skipped |
+| `name` | What the Behavior row calls it | The id |
+| `senses` | `sight_range` and `hearing_range` in tiles, `view_degrees` (360 sees all round), `memory_ticks` | 10, 6, 180, 300 |
+| `movement` | `speed` in tiles a second, as a character's; `turn_degrees_per_second` | 3.5, 360 |
+| `initial` | The state an actor starts in | The first state |
+| `interrupts` | Exits tested before the current state's own, in every state | None |
+| `states` | At least one, at most 32 | The row is skipped |
+
+A **state** has an `id` unique within its row, an action `do`, a `face` (`movement`, `target`, `locked`; absent is `movement`), a `speed_permille` (1000 is the behavior's speed), an optional `clip` — the animation a rigged actor plays in it, presentation only — and `exits`. Its distances are named by its action: `stop_within` for `pursue` and `follow`, `min` and `max` for `keep_distance`, `radius` for `wander`, `distance` for `flee`. The actions are `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge`.
+
+An **exit** has a `when` and a `to` — a state of the same row, by id — and the one number its condition reads: `tiles` for `target_within`, `target_beyond` and `far_from_home`; `ticks` for `lost_target_for` and `in_state_for`; `permille` for `chance`. The other conditions — `always`, `sees_target`, `hears_target`, `arrived`, `no_path`, `blocked` — read none. Exits are tested in the order written; the first that holds is taken.
+
+Durations are ticks and chances permille, as in encounter files; speeds are tiles a second, as in the characters table.
+
+Reading is forgiving, as the characters reader is, but never so forgiving that a behavior it keeps could index past its own states: a row or state with no usable or a repeated id is skipped; an exit whose `when` is no condition or whose `to` names no state is skipped; an unknown `do` is `idle` and an unknown `face` is `movement`; a number that is not one takes its default and one out of range is held to it; a row left with no states is skipped. Each is logged and reported by `list_behaviors`. The editor writes nothing here: the table is authored by hand until the data-editing panel ([Editor §6](REQUIREMENTS.md#6-data-editing)) exists. At run time it becomes `game::GameContent::behaviors`, beside the characters.
 
 ---
 

@@ -40,6 +40,8 @@ enum class AgentTool : uint8_t {
   LIST_PLAYER_STARTS,
   /// Every character the project defines.
   LIST_CHARACTERS,
+  /// Every behavior a prop can run: the built-in ones and the project's.
+  LIST_BEHAVIORS,
   /// What the properties panel is editing.
   GET_SELECTION,
   /// The undo history and its cursor.
@@ -64,6 +66,8 @@ enum class AgentTool : uint8_t {
   SET_ANIMATION,
   /// Choose which asset a player start's player is drawn as.
   SET_CHARACTER,
+  /// Give a placed prop a behavior and a faction, making it an actor.
+  SET_BEHAVIOR,
   /// Move a placement, a light or a player start by a delta, in tiles.
   TRANSLATE,
   /// Take a placement, a light or a player start back out of the level.
@@ -115,6 +119,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::LIST_LIGHTS,
     AgentTool::LIST_PLAYER_STARTS,
     AgentTool::LIST_CHARACTERS,
+    AgentTool::LIST_BEHAVIORS,
     AgentTool::GET_SELECTION,
     AgentTool::GET_HISTORY,
     AgentTool::GET_LEVEL,
@@ -126,6 +131,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::SET_PROPERTY,
     AgentTool::SET_ANIMATION,
     AgentTool::SET_CHARACTER,
+    AgentTool::SET_BEHAVIOR,
     AgentTool::TRANSLATE,
     AgentTool::DELETE_ENTRY,
     AgentTool::SELECT,

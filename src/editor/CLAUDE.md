@@ -11,11 +11,13 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - [docs/editor/REQUIREMENTS.md](../../docs/editor/REQUIREMENTS.md) — what the
   editor must do, and its §1 *Current State* for what is actually built.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
-  on-disk format. Three kinds of file exist today: `.simplish/project.json`;
-  `content/levels/<id>.level.json` — one per level, carrying the props,
-  lights and player starts the editor authors (§4.1 — it differs from §4's
-  sketch in two documented ways); and `content/data/characters.data.json`,
-  the characters table, which the editor reads but never writes (§8.1).
+  on-disk format. Four kinds of file exist today: `.simplish/project.json`;
+  `content/levels/<id>.level.json` — one per level, carrying the props
+  (with any behavior they run), lights and player starts the editor authors
+  (§4.1 — it differs from §4's sketch in documented ways);
+  `content/data/characters.data.json`, the characters table (§8.1); and
+  `content/data/behaviors.data.json`, the behaviors props run (§8.2). The
+  editor reads both tables but never writes them.
   Tiles, other entities, regions, encounters, scenarios, and the other data
   tables are specified but unwritten.
 - [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,

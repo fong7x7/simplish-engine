@@ -7,6 +7,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <engine/input/input-action.h>
+#include <game/content/behavior-lookup.h>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -937,4 +938,95 @@ TEST_CASE("scale is a placement's, not a light's") {
           "value": 2})");
 
   REQUIRE(result.status == AgentStatus::BAD_PARAMS);
+}
+
+namespace {
+
+/// A project with one asset placed, and one behavior of its own: `zombie`.
+EditorShellState stateWithAProp() {
+  EditorShellState state = stateWithAssets();
+  eng::game::BehaviorDefinition zombie =
+      eng::game::resolveBehavior({}, "chase");
+  zombie.id = "zombie";
+  zombie.name = "Zombie";
+  state.behaviors.behaviors.push_back(zombie);
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 3, "y": 3})");
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("list_behaviors lists the built-in behaviors, then the project's") {
+  EditorShellState state = stateWithAProp();
+  const json listed = call(state, "list_behaviors", "{}");
+  const json& behaviors = listed.at("behaviors");
+
+  REQUIRE(behaviors.size() == eng::game::builtInBehaviors().size() + 1);
+  REQUIRE(behaviors[2].at("id") == "guard");
+  REQUIRE(behaviors[2].at("built_in") == true);
+  REQUIRE(behaviors[2].at("initial") == "watch");
+  REQUIRE(behaviors.back().at("ref") == "behavior:zombie");
+  REQUIRE(behaviors.back().at("built_in") == false);
+  REQUIRE(listed.at("problems").empty());
+}
+
+TEST_CASE("set_behavior makes a prop an actor, and undo makes it scenery") {
+  EditorShellState state = stateWithAProp();
+
+  const json acting = call(state, "set_behavior",
+                           R"({"target": "placement", "index": 0,
+                               "behavior": "Zombie", "faction": "neutral"})");
+
+  REQUIRE(acting.at("behavior") == "behavior:zombie");
+  REQUIRE(acting.at("faction") == "neutral");
+  REQUIRE(state.document.placements[0].faction == eng::game::Faction::NEUTRAL);
+  REQUIRE(state.history.actions.size() == 2);
+  // The faction alone, keeping the behavior.
+  (void)call(state, "set_behavior",
+             R"({"target": "selection", "faction": "friendly"})");
+  REQUIRE(state.document.placements[0].behavior == "behavior:zombie");
+  REQUIRE(state.history.actions.size() == 3);
+
+  (void)call(state, "undo", "{}");
+  (void)call(state, "undo", "{}");
+  REQUIRE(state.document.placements[0].behavior.empty());
+}
+
+TEST_CASE("set_behavior with an empty behavior takes it away") {
+  EditorShellState state = stateWithAProp();
+  (void)call(state, "set_behavior",
+             R"({"target": "placement", "index": 0, "behavior": "guard"})");
+  (void)call(state, "set_behavior",
+             R"({"target": "placement", "index": 0, "behavior": ""})");
+  REQUIRE(state.document.placements[0].behavior.empty());
+}
+
+TEST_CASE("set_behavior refuses an unknown behavior, faction, or target") {
+  EditorShellState state = stateWithAProp();
+  (void)call(state, "add_light", R"({"kind": "point", "x": 0, "y": 0})");
+
+  const AgentResult unknown = runAgentTool(
+      state, "set_behavior",
+      R"({"target": "placement", "index": 0, "behavior": "dancer"})");
+  REQUIRE(unknown.status == AgentStatus::NOT_FOUND);
+  REQUIRE(unknown.json.find("zombie") != std::string::npos);
+  REQUIRE(runAgentTool(state, "set_behavior",
+                       R"({"target": "placement", "index": 0,
+                           "faction": "mauve"})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(
+      runAgentTool(state, "set_behavior",
+                   R"({"target": "light", "index": 0, "behavior": "guard"})")
+          .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(state.document.placements[0].behavior.empty());
+}
+
+TEST_CASE("set_behavior is refused while the level is played") {
+  EditorShellState state = stateWithAProp();
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  REQUIRE(runAgentTool(
+              state, "set_behavior",
+              R"({"target": "placement", "index": 0, "behavior": "guard"})")
+              .status != AgentStatus::OK);
+  REQUIRE(state.document.placements[0].behavior.empty());
 }

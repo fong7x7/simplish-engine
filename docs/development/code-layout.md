@@ -241,13 +241,15 @@ src/
 │   ├── sim/{include,src,test}      # tick, entity slots, hashing, replay
 │   ├── input/{include,src,test}    # held actions → PlayerInput
 │   ├── physics/{include,src,test}  # cylinder vs box collision
+│   ├── spatial/{include,src,test}  # nav grid, line of sight, A*
 │   ├── image/{include,src,test}    # stb implementation TUs
 │   ├── render/include/             # RHI interface — headers only
 │   ├── gui/{include,src,test}
 │   └── client/{include,src,test}   # GameClient, RenderedGameClient
 ├── game/                           # gameplay — links the engine only
-│   ├── content/{include,src,test}  # character definitions
+│   ├── content/{include,src,test}  # characters and behaviors
 │   ├── player/{include,src,test}   # player pool and movement
+│   ├── actors/{include,src,test}   # enemies and NPCs: perception, behaviors
 │   └── world/{include,src,test}    # the game's SimulationSystems
 ├── platform/                       # the only per-target rebuild
 │   ├── render/

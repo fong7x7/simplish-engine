@@ -3,9 +3,11 @@
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
@@ -83,8 +85,8 @@ namespace {
     return status;
   }
 
-  /// Whether two placements sit, face, collide and animate exactly the same
-  /// way.
+  /// Whether two placements sit, face, collide, animate and behave exactly
+  /// the same way.
   ///
   /// A gesture that ended where it began is not an edit, and an undo entry
   /// that changes nothing is worse than no entry at all. Exact comparison
@@ -95,7 +97,8 @@ namespace {
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
            a.scale == b.scale && a.collides == b.collides &&
-           a.animation == b.animation;
+           a.animation == b.animation && a.behavior == b.behavior &&
+           a.faction == b.faction;
   }
 
   /// Whether two lights shine exactly alike, for the same reason
@@ -353,8 +356,8 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
                                       EditorPropertyEdit edit) {
     applyPropertyEdit(field, value, edit);
   };
-  panel->on_choice_changed = [this](size_t index) {
-    applyChoiceEdit(index);
+  panel->on_choice_changed = [this](EditorChoiceKind kind, size_t index) {
+    applyChoiceEdit(kind, index);
   };
   properties_panel_id_ =
       tree.insertExternalWidget(std::move(panel), root_panel_);
@@ -581,6 +584,7 @@ void SimplishEditor::reloadAssets() {
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
   reloadCharacters();
+  reloadBehaviors();
   refreshAssetPanel();
 }
 
@@ -1073,7 +1077,21 @@ void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
     std::vector<std::string> clips =
         editorClipNames(state_.assets[placement.asset].rig.get());
     const size_t current = editorClipIndex(clips, placement.animation);
-    panel.setChoices("Animation", std::move(clips), current);
+    panel.addChoices(EditorChoiceKind::ANIMATION, std::move(clips), current);
+  }
+  showActorChoices(panel, placement);
+}
+
+void SimplishEditor::showActorChoices(EditorPropertiesWidget& panel,
+                                      const EditorPlacement& placement) const {
+  EditorBehaviorChoices behaviors =
+      editorBehaviorChoices(state_.behaviors.behaviors, placement.behavior);
+  panel.addChoices(EditorChoiceKind::BEHAVIOR, std::move(behaviors.names),
+                   behaviors.current);
+  // A faction is a side for an actor to be on; scenery has none to pick.
+  if (isEditorActor(placement)) {
+    panel.addChoices(EditorChoiceKind::FACTION, editorFactionNames(),
+                     static_cast<size_t>(placement.faction));
   }
 }
 
@@ -1088,7 +1106,8 @@ void SimplishEditor::showPlayerStartSelection(EditorPropertiesWidget& panel) {
   panel.setSelection(editorPlayerStartName(start), start);
   EditorCharacterChoices choices =
       editorCharacterChoices(state_.characters.characters, start.character);
-  panel.setChoices("Character", std::move(choices.names), choices.current);
+  panel.addChoices(EditorChoiceKind::CHARACTER, std::move(choices.names),
+                   choices.current);
 }
 
 void SimplishEditor::applySelectionToChrome() {
@@ -1138,15 +1157,65 @@ void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
   }
 }
 
-void SimplishEditor::applyChoiceEdit(size_t index) {
-  if (editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
-    applyCharacterChoice(index);
-  } else if (editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
-    applyClipChoice(index);
+void SimplishEditor::applyChoiceEdit(EditorChoiceKind kind, size_t index) {
+  switch (kind) {
+    case EditorChoiceKind::ANIMATION:
+      applyClipChoice(index);
+      break;
+    case EditorChoiceKind::CHARACTER:
+      applyCharacterChoice(index);
+      break;
+    case EditorChoiceKind::BEHAVIOR:
+      applyBehaviorChoice(index);
+      break;
+    case EditorChoiceKind::FACTION:
+      applyFactionChoice(index);
+      break;
   }
 }
 
+void SimplishEditor::applyBehaviorChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  const EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  // Worked out again, as the character choices are, rather than
+  // remembered from when the panel was shown.
+  const EditorBehaviorChoices choices =
+      editorBehaviorChoices(state_.behaviors.behaviors, placement.behavior);
+  if (index < choices.refs.size()) {
+    applyActorEdit(choices.refs[index], placement.faction);
+  }
+}
+
+void SimplishEditor::applyFactionChoice(size_t index) {
+  if (editSubjectSelected(EditorSelectionKind::PLACEMENT) &&
+      index < game::ALL_FACTIONS.size()) {
+    applyActorEdit(state_.document.placements[state_.selection.index].behavior,
+                   game::ALL_FACTIONS[index]);
+  }
+}
+
+void SimplishEditor::applyActorEdit(const std::string& behavior,
+                                    game::Faction faction) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  if (!placement_prior_.has_value()) {
+    placement_prior_ = placement;
+  }
+  placement.behavior = behavior;
+  placement.faction = faction;
+  commitPlacementEdit();
+}
+
 void SimplishEditor::applyCharacterChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
+    return;
+  }
   // Worked out again rather than remembered from when the panel was shown:
   // the choices are a function of the assets and the start, and both are
   // right here.
@@ -1159,6 +1228,9 @@ void SimplishEditor::applyCharacterChoice(size_t index) {
 }
 
 void SimplishEditor::applyClipChoice(size_t index) {
+  if (!editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
   const size_t asset = state_.document.placements[state_.selection.index].asset;
   const std::vector<std::string> clips = editorClipNames(
       asset < state_.assets.size() ? state_.assets[asset].rig.get() : nullptr);
@@ -1322,6 +1394,30 @@ EditorPlacementMarker SimplishEditor::placementMarker(size_t index) {
                              : EditorMarkerStyle::PASSABLE};
 }
 
+void SimplishEditor::appendPlacementMarkers(
+    std::vector<EditorPlacementMarker>& markers) {
+  size_t actor = 0;
+  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
+    markers.push_back(isEditorActor(state_.document.placements[i])
+                          ? actorMarker(i, actor++)
+                          : placementMarker(i));
+  }
+}
+
+EditorPlacementMarker SimplishEditor::actorMarker(size_t index, size_t actor) {
+  const EditorPlacement placement = posedActor(index, actor);
+  const EditorAsset& asset = placement.asset < state_.assets.size()
+                                 ? state_.assets[placement.asset]
+                                 : UNKNOWN_ASSET;
+  EditorPlacementMarker marker{
+      placementWorldBounds(asset, placement),
+      isSelected(EditorSelectionKind::PLACEMENT, index),
+      EditorMarkerStyle::ACTOR};
+  marker.faction = placement.faction;
+  marker.facing = editorActorFacing(placement);
+  return marker;
+}
+
 EditorPlacementMarker SimplishEditor::lightMarker(size_t index) {
   const EditorLight& light = state_.document.lights[index];
   // A light has no geometry, so its marker is a small box about where it
@@ -1349,9 +1445,7 @@ void SimplishEditor::refreshPlacementMarkers() {
   // `markerSelection` reads a pick back in.
   std::vector<EditorPlacementMarker>& markers = viewport->placement_markers;
   markers.clear();
-  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
-    markers.push_back(placementMarker(i));
-  }
+  appendPlacementMarkers(markers);
   for (size_t i = 0; i < state_.document.lights.size(); ++i) {
     markers.push_back(lightMarker(i));
   }
@@ -1400,8 +1494,13 @@ void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
 void SimplishEditor::buildSceneInstances() {
   scene_instances_.clear();
   skinned_instances_.clear();
-  for (const auto& placement : state_.document.placements) {
-    appendPlacementInstance(placement);
+  size_t actor = 0;
+  for (size_t i = 0; i < state_.document.placements.size(); ++i) {
+    if (isEditorActor(state_.document.placements[i])) {
+      appendActorInstance(i, actor++);
+    } else {
+      appendPlacementInstance(state_.document.placements[i]);
+    }
   }
   appendCharacterInstances();
   // Players for props deleted since the last frame go; a prop brought back

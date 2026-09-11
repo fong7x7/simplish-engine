@@ -54,6 +54,10 @@ namespace {
     return agentOk(agentCharactersJson(state));
   }
 
+  AgentResult toolListBehaviors(EditorShellState& state, const json&) {
+    return agentOk(agentBehaviorsJson(state));
+  }
+
   AgentResult toolGetSelection(EditorShellState& state, const json&) {
     return agentOk(agentSelectionJson(state));
   }
@@ -123,6 +127,7 @@ namespace {
       AgentTool::SET_PROPERTY,
       AgentTool::SET_ANIMATION,
       AgentTool::SET_CHARACTER,
+      AgentTool::SET_BEHAVIOR,
       AgentTool::TRANSLATE,
       AgentTool::DELETE_ENTRY,
       AgentTool::SELECT,
@@ -153,6 +158,7 @@ namespace {
       toolListLights,
       toolListPlayerStarts,
       toolListCharacters,
+      toolListBehaviors,
       toolGetSelection,
       toolGetHistory,
       toolGetLevel,
@@ -164,6 +170,7 @@ namespace {
       runAgentSetProperty,
       runAgentSetAnimation,
       runAgentSetCharacter,
+      runAgentSetBehavior,
       runAgentTranslate,
       runAgentDelete,
       runAgentSelect,

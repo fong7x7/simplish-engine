@@ -10,16 +10,19 @@
 simplish_add_module(simplish-game-world
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-world.cpp
-    DEPENDENCIES simplish-game-player
+    DEPENDENCIES simplish-game-actors
+                 simplish-game-player
                  simplish-game-content
                  simplish-engine-physics
                  simplish-engine-sim
+                 simplish-engine-spatial
 )
 
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-game-world-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_determinism.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game_world.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_actors.cpp
         DEPENDENCIES simplish-game-world
     )
 endif()

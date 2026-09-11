@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-character-card.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-character-transform.h>
@@ -73,9 +74,10 @@ void SimplishEditor::requestPlaytest() {
     showStatusMessage("Open a project to play a level");
     return;
   }
-  // Read again on every Play, so a hand edit to the table reaches this
+  // Read again on every Play, so a hand edit to either table reaches this
   // playtest without reopening the project.
   reloadCharacters();
+  reloadBehaviors();
   const auto& characters = state_.characters.characters;
   if (characters.size() >= 2) {
     openCharacterSelect();
@@ -90,6 +92,15 @@ void SimplishEditor::reloadCharacters() {
                           : EditorCharacterTable{};
   for (const std::string& problem : state_.characters.problems) {
     LOG_WARN("editor", "characters.data.json: " + problem);
+  }
+}
+
+void SimplishEditor::reloadBehaviors() {
+  state_.behaviors = state_.project.loaded
+                         ? loadEditorBehaviorTable(state_.project.root)
+                         : EditorBehaviorTable{};
+  for (const std::string& problem : state_.behaviors.problems) {
+    LOG_WARN("editor", "behaviors.data.json: " + problem);
   }
 }
 
@@ -172,8 +183,8 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   game::GameSetup setup = makeEditorPlaytestSetup(
       state_.document, state_.assets, playtestFallback());
   setup.characters[0] = character;
-  playtest_ = std::make_unique<EditorPlaytestSession>(
-      setup, game::GameContent{state_.characters.characters}, state_.level_id);
+  playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
+                                                      state_.level_id);
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
@@ -186,7 +197,12 @@ std::string SimplishEditor::playingMessage() const {
          " — F5 or Esc to stop";
 }
 
+game::GameContent SimplishEditor::playtestContent() const {
+  return {state_.characters.characters, state_.behaviors.behaviors};
+}
+
 void SimplishEditor::beginPlaytestState() {
+  playtest_->setActorIds(editorActorIds(state_.document));
   state_.playtest = EditorPlaytestState{};
   state_.playtest.mode = EditorPlayMode::PLAYING;
   playtest_->publish(state_.playtest);
@@ -361,6 +377,41 @@ void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
        makeEditorCharacterTransform(model, figure.feet, figure.aim),
        model.texture,
        placement_animator_.pose(posed, *model.rig, animation_clock_)});
+}
+
+EditorPlacement SimplishEditor::posedActor(size_t index, size_t actor) const {
+  const EditorPlacement& placement = state_.document.placements[index];
+  const std::optional<uint32_t> dense =
+      isPlaying() ? playtest_->actorIndex(actor) : std::nullopt;
+  if (!dense) {
+    return placement;
+  }
+  return editorActorPose(
+      placement, playtest_->actorRenderPosition(*dense, playtest_alpha_),
+      playtest_->actors().facing[*dense]);
+}
+
+std::string SimplishEditor::actorClip(const EditorPlacement& placement,
+                                      size_t actor) const {
+  const std::optional<uint32_t> dense = playtest_->actorIndex(actor);
+  if (!dense || placement.asset >= state_.assets.size()) {
+    return placement.animation;
+  }
+  const std::vector<std::string> clips =
+      editorClipNames(state_.assets[placement.asset].rig.get());
+  const std::string& wanted = playtest_->actorState(*dense).clip;
+  if (!wanted.empty() && std::ranges::find(clips, wanted) != clips.end()) {
+    return wanted;
+  }
+  return editorCharacterClip(clips, playtest_->actorGait(*dense));
+}
+
+void SimplishEditor::appendActorInstance(size_t index, size_t actor) {
+  EditorPlacement posed = posedActor(index, actor);
+  if (isPlaying()) {
+    posed.animation = actorClip(posed, actor);
+  }
+  appendPlacementInstance(posed);
 }
 
 std::optional<size_t> SimplishEditor::characterAsset(const std::string& model) {

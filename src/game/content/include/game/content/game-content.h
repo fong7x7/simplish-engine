@@ -5,6 +5,7 @@
 /// @par Threading
 /// A value type; read-only once a run starts.
 
+#include <game/content/behavior-definition.h>
 #include <game/content/character-definition.h>
 #include <vector>
 
@@ -19,6 +20,9 @@ namespace eng::game {
 struct GameContent {
   /// Every character a player can pick, in the order the table lists them.
   std::vector<CharacterDefinition> characters{};
+  /// The project's own behaviors, in the order the table lists them. The
+  /// built-in presets are not here; `resolveBehavior` looks at both.
+  std::vector<BehaviorDefinition> behaviors{};
 };
 
 }  // namespace eng::game

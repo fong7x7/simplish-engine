@@ -46,7 +46,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 
 - **Language:** C++20, no exceptions, no RTTI ([ADR-001](../decisions/ADR-001-no-exceptions.md))
 - **Build:** CMake ≥ 3.25 with per-platform presets
-- **Floating point:** strict IEEE-754, no fast-math, no FMA contraction in simulation code. `-ffp-contract=off` on Clang/GCC, `/fp:precise` on MSVC. Simulation code must not call transcendental functions from libm — the engine provides deterministic replacements ([ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md))
+- **Floating point:** strict IEEE-754, no fast-math, no FMA contraction in simulation code. `-ffp-contract=off` on Clang/GCC, `/fp:precise` on MSVC. Simulation code must not call transcendental functions from libm — the engine provides deterministic replacements ([ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md)): `sinCosDegrees` in `engine/math` so far, the one the simulation has needed
 - **SIMD:** permitted in *rendering and audio* paths only. Simulation code stays scalar unless the SIMD path is proven bit-identical across all target architectures
 - **Warnings:** zero at `-Wall -Wextra` on every platform
 
@@ -175,7 +175,7 @@ Legibility is a rendering requirement, not an art note:
 | Skeletal animation (skeletons, clips, crossfades and pose blending, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
 | Lighting and shadows | `rendering/lighting.md` | M5 |
 | Effects (GPU particles, decals, trails, screen shake) | `rendering/fx.md` | M5 |
-| Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | `spatial.md` | M2 |
+| Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | [spatial.md](spatial.md) | M2 — first slice built: `engine/spatial` builds a navigation grid from the level's solid boxes, with clearance per cell, line of sight, deterministic A* with an expansion budget, and path smoothing. Flow fields and the spatial hash are not written |
 | Projectile simulation (integration, swept collision, penetration, homing) | `physics/projectiles.md` | M2 |
 | Collision and queries (character sweep, overlap, line-of-sight) | `physics/collision.md` | M2 — first slice built: `engine/physics` resolves an upright cylinder out of axis-aligned boxes, deterministically, every box every tick. Sweeps, line of sight and a spatial index are not written |
 | Audio (`IAudioBackend`, spatialisation, voice stealing, ducking) | `audio.md` | M3 |

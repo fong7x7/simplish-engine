@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 35 tools, HTTP transport, MCP bridge
+**Status:** Built — 37 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Thirty-five, in three groups. `GET /tools` is authoritative and carries
+Thirty-seven, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -159,16 +159,17 @@ each one's parameters; this table is the map.
 | `list_assets` | Every scanned asset: index, name, paths, bounds, whether its mesh is loaded, whether loading failed, how far its thumbnail got, how many placements instance it |
 | `get_asset` | One of those, by index or by name |
 | `list_folders` | The browser's folder tree, the built-in general section included |
-| `list_placements` | Every placement: index, asset, position, rotation |
+| `list_placements` | Every placement: index, asset, position, rotation, scale, whether it collides, its clip, and the behavior and faction it plays with |
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
 | `list_player_starts` | Every player start: the player it is for, its position, its default character, and how many players a session holds |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
+| `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states and its initial state; and the behaviors table's path and anything wrong with it |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`): the tick, where each player is, who they play as and their health, the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`): the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -180,6 +181,7 @@ each one's parameters; this table is the map.
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |
+| `set_behavior` | Gives a placed prop a behavior and a faction — making it an actor in a playtest — or takes its behavior away |
 | `translate` | Moves a placement, a light or a player start by a delta in tiles |
 | `delete` | Removes a placement, a light or a player start, as the Delete key does |
 | `select` | Selects a placement, a light or a player start, or clears the selection |

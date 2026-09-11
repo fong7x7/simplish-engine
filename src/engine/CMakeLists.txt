@@ -7,7 +7,7 @@
 #         render ─────┴────────┘
 #            └──► render-mesh ──┘
 #   math ──► core ──► sim ──► input
-#   math ──► physics
+#   math ──► physics ──► spatial
 #   math ──► animation ──► gltf ◄── render-mesh
 #
 # Concrete RHI backends, the desktop client, and distributor services are NOT
@@ -20,6 +20,7 @@ add_subdirectory(core)
 add_subdirectory(sim)
 add_subdirectory(input)
 add_subdirectory(physics)
+add_subdirectory(spatial)
 add_subdirectory(animation)
 add_subdirectory(image)
 add_subdirectory(render)
@@ -35,6 +36,7 @@ simplish_add_library(simplish-engine
             simplish-engine-sim
             simplish-engine-input
             simplish-engine-physics
+            simplish-engine-spatial
             simplish-engine-animation
             simplish-engine-image
             simplish-engine-render

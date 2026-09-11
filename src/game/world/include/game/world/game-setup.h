@@ -10,13 +10,15 @@
 #include <engine/math/vec3.h>
 #include <engine/physics/collision-box.h>
 #include <engine/sim/tick-input.h>
+#include <game/actors/actor-spawn.h>
 #include <string>
 #include <vector>
 
 namespace eng::game {
 
 /// The initial conditions of a run: how many players, who each one plays as,
-/// where each one enters the level, and what in it they cannot walk through.
+/// where each one enters the level, what in it they cannot walk through, and
+/// the actors — enemies and NPCs — waiting in it.
 /// With the seed and the input stream, this is what the simulation is a
 /// function of (ADR-002).
 ///
@@ -40,6 +42,10 @@ struct GameSetup {
   /// The level's solid geometry, in the order the level holds it. Fixed for
   /// the run; nothing a tick does moves it.
   std::vector<physics::CollisionBox> obstacles;
+  /// The actors the level starts with, in the order the level holds them.
+  /// That order is their dense order, so it is part of the run: two peers
+  /// listing the same actors differently simulate different runs.
+  std::vector<ActorSpawn> actors;
 };
 
 }  // namespace eng::game

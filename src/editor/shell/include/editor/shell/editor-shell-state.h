@@ -9,6 +9,7 @@
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-level-entry.h>
@@ -73,6 +74,10 @@ struct EditorShellState {
   /// every time Play is pressed — so a hand edit to the file reaches the
   /// next playtest without reopening anything.
   EditorCharacterTable characters;
+  /// The project's behaviors, from `content/data/behaviors.data.json` —
+  /// read when the characters are, for the same reason. The built-in
+  /// behaviors are not here; `editorAvailableBehaviors` adds them.
+  EditorBehaviorTable behaviors;
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;

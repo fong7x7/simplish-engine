@@ -6,6 +6,8 @@
 #include <editor/agent/agent-tool-info.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-behavior-choices.h>
+#include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
@@ -17,6 +19,8 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <game/content/behavior-lookup.h>
+#include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 #include <span>
 #include <string>
@@ -269,6 +273,24 @@ namespace {
     return players;
   }
 
+  /// Every actor in a playtest, as the agent API reports them.
+  json playtestActorsJson(const EditorPlaytestState& playtest) {
+    json actors = json::array();
+    for (const EditorPlaytestActor& actor : playtest.actors) {
+      actors.push_back(
+          {{"id", actor.id},
+           {"position", agentPointJson(actor.position)},
+           {"facing", {{"x", actor.facing.x}, {"y", actor.facing.y}}},
+           {"behavior", actor.behavior},
+           {"state", actor.state},
+           {"faction", game::factionName(actor.faction)},
+           {"target_player", actor.target},
+           {"sees_target", actor.sees_target},
+           {"path_waypoints", actor.path_waypoints}});
+    }
+    return actors;
+  }
+
   /// Ticks of scripted input still waiting to run.
   uint64_t queuedInputTicks(const EditorPlaytestState& playtest) {
     uint64_t ticks = 0;
@@ -404,6 +426,7 @@ std::string agentPlaytestJson(const EditorShellState& state) {
               {"tick", playtest.tick},
               {"dropped_ticks", playtest.dropped_ticks},
               {"players", playtestPlayersJson(playtest)},
+              {"actors", playtestActorsJson(playtest)},
               {"queued_input_ticks", queuedInputTicks(playtest)}};
   out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
   return out.dump(2);
@@ -436,6 +459,56 @@ std::string agentCharactersJson(const EditorShellState& state) {
   return json{{"file", path},
               {"characters", characters},
               {"problems", state.characters.problems}}
+      .dump(2);
+}
+
+namespace {
+
+  /// The ids of @p behavior's states, in order.
+  json stateIds(const game::BehaviorDefinition& behavior) {
+    json ids = json::array();
+    for (const game::BehaviorState& state : behavior.states) {
+      ids.push_back(state.id);
+    }
+    return ids;
+  }
+
+  /// Whether @p behavior is one of the game's own presets, not a row of
+  /// the project's table.
+  bool builtIn(const game::BehaviorDefinition& behavior) {
+    for (const game::BehaviorDefinition& preset : game::builtInBehaviors()) {
+      if (&preset == &behavior) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// One behavior, as `list_behaviors` reports it.
+  json behaviorJson(const game::BehaviorDefinition& behavior) {
+    return {{"id", behavior.id},
+            {"ref", editorBehaviorRef(behavior.id)},
+            {"name", behavior.name},
+            {"built_in", builtIn(behavior)},
+            {"states", stateIds(behavior)},
+            {"initial", behavior.states[behavior.initial].id}};
+  }
+
+}  // namespace
+
+std::string agentBehaviorsJson(const EditorShellState& state) {
+  json behaviors = json::array();
+  for (const game::BehaviorDefinition* behavior :
+       editorAvailableBehaviors(state.behaviors.behaviors)) {
+    behaviors.push_back(behaviorJson(*behavior));
+  }
+  const std::string path =
+      state.project.loaded
+          ? editorBehaviorTablePath(state.project.root).generic_string()
+          : std::string{};
+  return json{{"file", path},
+              {"behaviors", behaviors},
+              {"problems", state.behaviors.problems}}
       .dump(2);
 }
 

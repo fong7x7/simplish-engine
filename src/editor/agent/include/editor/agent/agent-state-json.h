@@ -41,6 +41,10 @@ namespace eng::editor {
 /// wrong with the file.
 [[nodiscard]] std::string agentCharactersJson(const EditorShellState& state);
 
+/// Every behavior a prop can name — the built-in ones and the project's —
+/// with the behaviors table's path and what was wrong with it.
+[[nodiscard]] std::string agentBehaviorsJson(const EditorShellState& state);
+
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
 

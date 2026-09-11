@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
+#include <game/content/faction.h>
 #include <string>
 
 namespace eng::editor {
@@ -60,6 +61,19 @@ struct EditorPlacement {
   /// first clip too: a clip renamed in the source file should not silently
   /// rewrite the level. A static model has no clips and ignores this.
   std::string animation{};
+  /// The behavior the prop runs in a playtest, by reference —
+  /// `behavior:guard` — or empty for none.
+  ///
+  /// A prop with a behavior is an *actor*: in a playtest it perceives the
+  /// players, plans paths and moves (`game::ActorPool`), drawn wherever the
+  /// simulation has it rather than where it was placed. It is not a
+  /// collision box for players while it does, whatever `collides` says —
+  /// its body is the actor's. A reference the behaviors table no longer
+  /// has is kept as written; the game runs such an actor as `idle`.
+  std::string behavior{};
+  /// Which side the prop is on when it has a behavior. Meaningless, and
+  /// not saved, when it has none.
+  game::Faction faction = game::Faction::HOSTILE;
 };
 
 }  // namespace eng::editor

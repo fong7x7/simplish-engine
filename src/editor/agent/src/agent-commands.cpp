@@ -9,6 +9,7 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-ops.h>
@@ -20,6 +21,7 @@
 #include <editor/shell/editor-property-ops.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
+#include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -794,6 +796,106 @@ AgentResult runAgentSetCharacter(EditorShellState& state, const json& params) {
   EditorPlayerStart next = prior;
   next.character = ref;
   return recordPlayerStart(state, entry.index, prior, next);
+}
+
+namespace {
+
+  /// Whether @p behavior is the one @p name refers to: its id, its
+  /// `behavior:` reference, or its display name.
+  bool behaviorMatches(const game::BehaviorDefinition& behavior,
+                       const std::string& name) {
+    return behavior.id == name || editorBehaviorRef(behavior.id) == name ||
+           behavior.name == name;
+  }
+
+  /// The reference the `behavior` parameter names — empty for an empty
+  /// one — or nothing when it names no behavior the project can run.
+  std::optional<std::string> behaviorRefNamed(const EditorShellState& state,
+                                              const std::string& name) {
+    if (name.empty()) {
+      return std::string{};
+    }
+    for (const game::BehaviorDefinition* behavior :
+         editorAvailableBehaviors(state.behaviors.behaviors)) {
+      if (behaviorMatches(*behavior, name)) {
+        return editorBehaviorRef(behavior->id);
+      }
+    }
+    return std::nullopt;
+  }
+
+  /// A failure listing the behaviors there are to name.
+  AgentResult unknownBehavior(const EditorShellState& state) {
+    const auto available = editorAvailableBehaviors(state.behaviors.behaviors);
+    std::vector<std::string> ids;
+    ids.reserve(available.size());
+    for (const game::BehaviorDefinition* behavior : available) {
+      ids.push_back(behavior->id);
+    }
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        "no behavior is called that; there are: " +
+                            joinNames(ids));
+  }
+
+  /// @p next with the `behavior` parameter applied, or the failure it is.
+  /// Left out, it keeps the behavior @p next has.
+  std::optional<AgentResult> applyBehaviorParam(const EditorShellState& state,
+                                                const json& params,
+                                                EditorPlacement& next) {
+    if (!params.contains("behavior")) {
+      return std::nullopt;
+    }
+    const auto ref = behaviorRefNamed(
+        state, agentStringParam(params, "behavior").value_or(""));
+    if (!ref) {
+      return unknownBehavior(state);
+    }
+    next.behavior = *ref;
+    return std::nullopt;
+  }
+
+  /// @p next with the `faction` parameter applied, or the failure it is.
+  /// Left out, it keeps the faction @p next has.
+  std::optional<AgentResult> applyFactionParam(const json& params,
+                                               EditorPlacement& next) {
+    if (!params.contains("faction")) {
+      return std::nullopt;
+    }
+    const auto faction =
+        game::parseFaction(agentStringParam(params, "faction").value_or(""));
+    if (!faction) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "faction is \"hostile\", \"neutral\" or "
+                          "\"friendly\"");
+    }
+    next.faction = *faction;
+    return std::nullopt;
+  }
+
+}  // namespace
+
+AgentResult runAgentSetBehavior(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  if (entry.kind != EditorSelectionKind::PLACEMENT) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "only a placed prop runs a behavior");
+  }
+  const EditorPlacement prior = state.document.placements[entry.index];
+  EditorPlacement next = prior;
+  if (auto problem = applyBehaviorParam(state, params, next)) {
+    return *problem;
+  }
+  if (auto problem = applyFactionParam(params, next)) {
+    return *problem;
+  }
+  if (prior.behavior == next.behavior && prior.faction == next.faction) {
+    return agentOk(placementPayload(state, entry.index));
+  }
+  return recordPlacement(state, entry.index, prior, next);
 }
 
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {

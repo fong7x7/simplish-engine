@@ -39,6 +39,10 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetCharacter(EditorShellState& state,
                                                const nlohmann::json& params);
 
+/// Give one prop a behavior and a faction, or take its behavior away.
+[[nodiscard]] AgentResult runAgentSetBehavior(EditorShellState& state,
+                                              const nlohmann::json& params);
+
 /// Move one entry by a delta in tiles.
 [[nodiscard]] AgentResult runAgentTranslate(EditorShellState& state,
                                             const nlohmann::json& params);

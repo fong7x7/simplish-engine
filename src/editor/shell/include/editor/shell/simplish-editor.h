@@ -114,6 +114,7 @@
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-character-figure.h>
 #include <editor/shell/editor-character-select-widget.h>
+#include <editor/shell/editor-choice-kind.h>
 #include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-result.h>
@@ -142,6 +143,7 @@
 #include <engine/sim/player-input.h>
 #include <filesystem>
 #include <functional>
+#include <game/content/faction.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -249,6 +251,12 @@ private:
   /// Read the project's characters table into the state, logging what was
   /// wrong with it.
   void reloadCharacters();
+  /// Read the project's behaviors table into the state, logging what was
+  /// wrong with it.
+  void reloadBehaviors();
+  /// What a playtest is played with: the project's characters and
+  /// behaviors, as last read.
+  [[nodiscard]] game::GameContent playtestContent() const;
   /// Where player 1 spawns when the level has no start for them: the tile
   /// under the middle of the viewport.
   [[nodiscard]] WorldPoint playtestFallback();
@@ -442,9 +450,22 @@ private:
   /// Apply one property change to the selected placement.
   void applyPlacementEdit(EditorPropertyField field, float value,
                           EditorPropertyEdit edit);
-  /// Act on the properties panel's choice row picking @p index: a clip for
-  /// a placement, a character for a player start.
-  void applyChoiceEdit(size_t index);
+  /// Act on the properties panel's @p kind row picking @p index: a clip or
+  /// a behavior or a faction for a placement, a character for a player
+  /// start.
+  void applyChoiceEdit(EditorChoiceKind kind, size_t index);
+  /// Give the selected placement the behavior at @p index of its Behavior
+  /// row.
+  void applyBehaviorChoice(size_t index);
+  /// Put the selected placement on the side at @p index of its Faction row.
+  void applyFactionChoice(size_t index);
+  /// Set the behavior and faction of the selected placement, as one
+  /// undoable edit — what the Behavior and Faction rows report.
+  void applyActorEdit(const std::string& behavior, game::Faction faction);
+  /// Offer the selected placement's Behavior row, and its Faction row when
+  /// it has a behavior, in @p panel.
+  void showActorChoices(EditorPropertiesWidget& panel,
+                        const EditorPlacement& placement) const;
   /// Give the selected player start the character at @p index of its
   /// Character row.
   void applyCharacterChoice(size_t index);
@@ -552,6 +573,18 @@ private:
   void buildSceneInstances();
   /// Append @p placement's instance to whichever list its model draws in.
   void appendPlacementInstance(const EditorPlacement& placement);
+  /// Append the instance of the placement at @p index, the @p actor-th
+  /// actor: where the game has it while playing, playing the clip its
+  /// state and its gait call for.
+  void appendActorInstance(size_t index, size_t actor);
+  /// The placement at @p index, the @p actor-th actor, where it is drawn
+  /// this frame: posed where the game has it while playing, as placed
+  /// otherwise.
+  [[nodiscard]] EditorPlacement posedActor(size_t index, size_t actor) const;
+  /// The clip @p placement, the @p actor-th actor, plays in a playtest:
+  /// its state's, when its model has that clip, or its walk or idle clip.
+  [[nodiscard]] std::string actorClip(const EditorPlacement& placement,
+                                      size_t actor) const;
   /// Pose @p placement's rigged model at the animation clock and append it
   /// to `skinned_instances_`.
   void appendSkinnedInstance(const EditorAsset& asset,
@@ -565,8 +598,14 @@ private:
   /// Push placement, light and player start boxes into the viewport for
   /// its overlay and picking, in that order.
   void refreshPlacementMarkers();
+  /// Push a marker for every placement into @p markers, in document order.
+  void appendPlacementMarkers(std::vector<EditorPlacementMarker>& markers);
   /// The viewport's marker for the placement at @p index.
   [[nodiscard]] EditorPlacementMarker placementMarker(size_t index);
+  /// The viewport's marker for the placement at @p index, the @p actor-th
+  /// actor: its footprint in its faction's colour, facing its way, where
+  /// it is drawn this frame.
+  [[nodiscard]] EditorPlacementMarker actorMarker(size_t index, size_t actor);
   /// The viewport's marker for the light at @p index: the small box that
   /// stands in for geometry a light does not have.
   [[nodiscard]] EditorPlacementMarker lightMarker(size_t index);

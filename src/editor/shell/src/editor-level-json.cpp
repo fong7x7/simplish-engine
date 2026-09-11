@@ -1,11 +1,13 @@
 #include <array>
 #include <cstddef>
+#include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -87,15 +89,8 @@ namespace {
                                  : std::string{};
   }
 
-  json propJson(const EditorPlacement& placement,
-                const std::vector<EditorAsset>& assets) {
-    json out;
-    out["id"] = placement.id;
-    out["asset"] = assetRefAt(assets, placement.asset);
-    out["at"] = tripleJson(placement.position.x, placement.position.y,
-                           placement.position.z);
-    out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
-                                 placement.rotation.z);
+  /// The keys a prop carries only when they say something, into @p out.
+  void addPropExtras(json& out, const EditorPlacement& placement) {
     // Only when it is not the size the prop was dropped at, so a level saved
     // before scale existed saves back byte for byte rather than every prop
     // in it gaining a line that says nothing.
@@ -108,6 +103,24 @@ namespace {
     if (!placement.animation.empty()) {
       out["animation"] = placement.animation;
     }
+    // Only for an actor: a prop with no behavior is scenery, and a faction
+    // on scenery would be a line saying nothing.
+    if (!placement.behavior.empty()) {
+      out["behavior"] = placement.behavior;
+      out["faction"] = game::factionName(placement.faction);
+    }
+  }
+
+  json propJson(const EditorPlacement& placement,
+                const std::vector<EditorAsset>& assets) {
+    json out;
+    out["id"] = placement.id;
+    out["asset"] = assetRefAt(assets, placement.asset);
+    out["at"] = tripleJson(placement.position.x, placement.position.y,
+                           placement.position.z);
+    out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
+                                 placement.rotation.z);
+    addPropExtras(out, placement);
     return out;
   }
 
@@ -192,6 +205,24 @@ namespace {
   /// An id is minted when the file left one out, so that no route into the
   /// document can produce a placement nothing is able to name — the rule
   /// `addPlacement` follows on the agent side.
+  /// @p behavior as the qualified reference the editor holds and writes: a
+  /// hand-written bare id, `guard`, reads as `behavior:guard`. Anything
+  /// already qualified is kept as written, as a character is.
+  std::string behaviorRef(const std::string& behavior) {
+    return behavior.empty() || behavior.contains(':')
+               ? behavior
+               : editorBehaviorRef(behavior);
+  }
+
+  /// The behavior and faction of a prop, into @p placement. A faction the
+  /// format does not know reads as hostile, the side a prop given a
+  /// behavior starts on.
+  void readActor(const json& entry, EditorPlacement& placement) {
+    placement.behavior = behaviorRef(readString(entry, "behavior"));
+    placement.faction = game::parseFaction(readString(entry, "faction"))
+                            .value_or(game::Faction::HOSTILE);
+  }
+
   EditorPlacement readProp(const json& entry, size_t index,
                            const EditorDocument& document,
                            const std::vector<EditorAsset>& assets) {
@@ -209,6 +240,7 @@ namespace {
     // solid — the default a dropped one gets.
     placement.collides = readBool(entry, "collides").value_or(true);
     placement.animation = readString(entry, "animation");
+    readActor(entry, placement);
     placement.id = readString(entry, "id");
     if (placement.id.empty()) {
       placement.id = mintEditorPlacementId(document, assets[index]);

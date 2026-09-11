@@ -105,7 +105,7 @@ ADR-004 anticipates a macro or generator for pool boilerplate "once three or fou
 | Requirement ([§4.3](REQUIREMENTS.md#43-determinism-contract)) | Where it is enforced |
 |---|---|
 | Strict floating point | `SimplishCompilerOptions` sets `-ffp-contract=off -fno-fast-math` (`/fp:precise` on MSVC) for **every** target. Clang contracts `a*b+c` into FMA by default, arm64 always has FMA and x86_64 here does not, so without this the two architectures round differently — see [the write-up](../solutions/determinism/fma-contraction-diverges-arm64-x86.md) |
-| PCG32 with named streams | `Pcg32(seed, stream)` matches the reference `pcg32_srandom_r` bit for bit (pinned by a test against the reference's published output). A game gives each system its own stream id |
+| PCG32 with named streams | `Pcg32(seed, stream)` matches the reference `pcg32_srandom_r` bit for bit (pinned by a test against the reference's published output). A game gives each system its own stream id — the game's first is `AI_RNG_STREAM`, which actors draw wander spots and `chance` conditions from, hashed as section `ai_rng` ([actors.md](../game/actors.md)) |
 | FX streams excluded from the hash | A cosmetic stream is simply never passed to `hashState`. `test_determinism` proves cosmetic draws leave every tick hash unchanged |
 | No hash-map iteration, no unordered parallelism | Nothing in the package iterates an associative container or spawns a thread |
 | No wall-clock reads | Nothing in the package includes `<chrono>`; `FixedStepClock` takes elapsed time as an argument |

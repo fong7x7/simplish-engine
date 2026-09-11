@@ -338,3 +338,51 @@ TEST_CASE("a running playtest reports its tick, players and hash") {
   REQUIRE(playtest.at("players").at(0).at("position").at("x") == Approx(2.5F));
   REQUIRE(playtest.at("queued_input_ticks") == 12);
 }
+
+namespace {
+
+/// A playtest mirror holding one knight, pursuing player 1.
+EditorShellState playingWithAKnight() {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.actors.push_back({.id = "knight_01",
+                                   .position = {6.0F, 1.5F, 0.0F},
+                                   .facing = {-1.0F, 0.0F},
+                                   .behavior = "guard",
+                                   .state = "pursue",
+                                   .faction = game::Faction::HOSTILE,
+                                   .target = 1,
+                                   .sees_target = true,
+                                   .path_waypoints = 3});
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("a running playtest reports what each actor is doing") {
+  const EditorShellState state = playingWithAKnight();
+  const json actor = json::parse(agentPlaytestJson(state)).at("actors").at(0);
+
+  REQUIRE(actor.at("id") == "knight_01");
+  REQUIRE(actor.at("position").at("x") == Approx(6.0F));
+  REQUIRE(actor.at("facing").at("x") == Approx(-1.0F));
+  REQUIRE(actor.at("state") == "pursue");
+  REQUIRE(actor.at("faction") == "hostile");
+  REQUIRE(actor.at("target_player") == 1);
+  REQUIRE(actor.at("sees_target") == true);
+  REQUIRE(actor.at("path_waypoints") == 3);
+}
+
+TEST_CASE("a placement reports its behavior and faction") {
+  EditorShellState state;
+  EditorPlacement placement;
+  placement.id = "knight_01";
+  placement.behavior = "behavior:guard";
+  placement.faction = game::Faction::FRIENDLY;
+  state.document.placements.push_back(placement);
+
+  const json listed = json::parse(agentPlacementsJson(state));
+  const json& first = listed.at("placements").at(0);
+  REQUIRE(first.at("behavior") == "behavior:guard");
+  REQUIRE(first.at("faction") == "friendly");
+}

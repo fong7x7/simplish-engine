@@ -3,7 +3,7 @@
 **Parent document:** [REQUIREMENTS.md](../../REQUIREMENTS.md)
 **Version:** 0.2
 **Status:** First slice implemented — project loading, toolbar, viewport, and the level file props and lights are saved to
-**Last Updated:** 2026-09-09
+**Last Updated:** 2026-09-11
 
 ---
 
@@ -20,8 +20,8 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 | Package | Covers | State |
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 28 tests |
-| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, and click-to-select, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected, and the level file those placements are saved to and loaded from | Built; 582 tests |
-| `src/editor/agent/` | The agent API: 35 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 110 tests |
+| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, and click-to-select, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 650 tests |
+| `src/editor/agent/` | The agent API: 37 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 
@@ -102,6 +102,13 @@ When the project defines two or more characters, Play first opens the **characte
 - **The player is drawn as their character.** Their character's model, turned to face where they aim — a model is taken to face its own +Z, glTF's convention — and, when it is rigged, playing the first clip whose name has `run` or `walk` in it while moving and `idle` in it while standing, crossfading between them as a prop's clips do. The default character, or one with no model, gives the built-in cylinder at a person's proportions. Either is lit and shaded like everything else, with a column in the player's colour over it. Props stop the player: each is a solid box in the playtest — the box the viewport outlines — and the player, an upright cylinder a little narrower than a tile, stops against it and slides along it (`engine/physics`). A prop's properties end in a **Collides** checkbox, ticked for every prop dropped, which a click anywhere on its row flips; one that is unticked is drawn with a faded footprint and walked through, for the grass, the rugs and the decals.
 
 Every playtest records a replay and writes it to `data/playtests/<level>.replay` when it stops. Players do not collide with each other, the ground has no height to follow, and there is no spatial index yet — every prop is tested every tick, which is fine for a level's props and a handful of players. Pause, single-step, speed, replay review, the multi-player preview and the debug overlays of §7 are not built; [capabilities.md §6.1](capabilities.md#61-playtest) is the register.
+
+Actors are the eleventh, and the first thing here that the game decides for itself. Any placed prop can be given a **behavior** — its properties end with a **Behavior** row stepping through None, the game's built-in behaviors (Idle, Wander, Guard, Chase, Skirmisher, Coward, Follower, Charger) and the project's own from `content/data/behaviors.data.json` ([project-format.md §8.2](project-format.md#82-the-behaviors-table)) — and, once it has one, a **Faction** row: hostile, neutral or friendly. A prop with a behavior is an **actor**: pressing Play turns it into an actor in the game's simulation ([actors.md](../game/actors.md)), which sees and hears the players, plans a path round the level's props, turns and moves as its behavior's states say, and is drawn wherever the game has it, turned to face its way, playing its state's clip or its walk and idle clips. In the viewport its footprint is outlined in its faction's colour — red, stone, teal — with a tick the way it faces, while editing and while playing. Saved with the prop as `behavior` and `faction`, and reachable through `set_behavior`, `list_behaviors`, `list_placements` and `get_playtest`, which reports every actor's position, facing, state and target. Four decisions:
+
+- **Intelligence is chosen per prop, not per entity.** The prop already has the model, the transform, the scale and the clip an actor needs; a separate entity kind would duplicate all four and the panel rows that edit them. A prop with a behavior is not a collision box for players in a playtest — its body is the actor's — whatever its Collides box says.
+- **A behavior is data, from closed sets** ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md)). States each do one action; exits each test one condition; nothing is scripted. The table is edited by hand until the data-editing panel of §6 exists, and read when the project opens, on a rescan, and on every Play; a reference to a behavior the project no longer has is kept, and plays as idle.
+- **The panel's choice rows are named, not counted.** A rigged prop with a behavior shows Animation, Behavior and Faction; a start shows Character. Each row carries an `EditorChoiceKind`, so an edit reaches the row it came from whichever of them are showing.
+- **Facing starts from the prop's rotation.** A model is taken to face its own glTF +Z — world −Y after the Z-up turn, as a player's model is — so the actor starts facing its Z rotation minus a quarter turn, handed to the game in degrees and turned into a direction by the simulation's own deterministic trigonometry.
 
 The menu bar is the exception that proves the point. It is built — File, Edit, Level, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 

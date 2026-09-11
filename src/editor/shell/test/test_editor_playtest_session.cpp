@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <engine/input/player-input-builder.h>
@@ -289,4 +290,85 @@ TEST_CASE("a player is moving on a tick that moved them, and still after") {
 
   session.step(sim::PlayerInput{}, none);
   REQUIRE(session.gait(0) == EditorCharacterGait::STILL);
+}
+
+namespace {
+
+/// A document with player 1 at (1.5, 1.5), a crate at (4, 4), and a prop at
+/// (8, 1) running @p behavior — or scenery, for none.
+EditorDocument documentWithActor(std::string behavior) {
+  EditorDocument document;
+  document.player_starts.push_back(makeEditorPlayerStart(1, {1.5F, 1.5F, 0}));
+  document.placements.push_back({"crate_01", 0, {4.0F, 4.0F, 0.0F}, {}});
+  EditorPlacement knight{"knight_01", 0, {8.0F, 1.0F, 0.0F}, {0, 0, 180.0F}};
+  knight.behavior = std::move(behavior);
+  document.placements.push_back(knight);
+  return document;
+}
+
+/// What a playtest of @p document reports after @p ticks idle ticks.
+EditorPlaytestState publishedAfter(const EditorDocument& document, int ticks) {
+  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
+                                "main");
+  session.setActorIds(editorActorIds(document));
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < ticks; ++tick) {
+    session.step({}, none);
+  }
+  EditorPlaytestState state;
+  session.publish(state);
+  return state;
+}
+
+}  // namespace
+
+TEST_CASE("a prop with a behavior plays as an actor, not as a box") {
+  const game::GameSetup setup =
+      makeEditorPlaytestSetup(documentWithActor("behavior:chase"), {}, {});
+
+  REQUIRE(setup.obstacles.size() == 1);
+  REQUIRE(setup.actors.size() == 1);
+  REQUIRE(setup.actors[0].behavior == "chase");
+  REQUIRE(setup.actors[0].at.x == 8.5F);
+  REQUIRE(setup.actors[0].yaw_degrees == 90.0F);
+}
+
+TEST_CASE("scenery is a box, and no actor") {
+  const game::GameSetup setup =
+      makeEditorPlaytestSetup(documentWithActor(""), {}, {});
+  REQUIRE(setup.obstacles.size() == 2);
+  REQUIRE(setup.actors.empty());
+}
+
+TEST_CASE("a playtest reports each actor by the prop it came from") {
+  const EditorPlaytestState state =
+      publishedAfter(documentWithActor("behavior:chase"), 240);
+
+  REQUIRE(state.actors.size() == 1);
+  const EditorPlaytestActor& knight = state.actors[0];
+  REQUIRE(knight.id == "knight_01");
+  REQUIRE(knight.behavior == "chase");
+  REQUIRE(knight.state == "pursue");
+  REQUIRE(knight.target == 1);
+  // Closing on player 1, who stands at (1.5, 1.5).
+  REQUIRE(knight.position.x < 6.0F);
+}
+
+TEST_CASE("an actor is drawn between the ticks it moved between") {
+  const EditorDocument document = documentWithActor("behavior:chase");
+  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
+                                "main");
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 10; ++tick) {
+    session.step({}, none);
+  }
+  const auto index = session.actorIndex(0);
+  REQUIRE(index.has_value());
+  const Vec3 before = session.actorRenderPosition(*index, 0.0F);
+  const Vec3 after = session.actorRenderPosition(*index, 1.0F);
+  REQUIRE(after.x < before.x);
+  REQUIRE(session.actorGait(*index) == EditorCharacterGait::MOVING);
+  REQUIRE(session.actorRenderPosition(*index, 0.5F).x ==
+          Approx((before.x + after.x) * 0.5F));
+  REQUIRE_FALSE(session.actorIndex(1).has_value());
 }

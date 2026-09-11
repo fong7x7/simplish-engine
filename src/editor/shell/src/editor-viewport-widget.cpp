@@ -125,14 +125,36 @@ namespace {
     }
   }
 
+  /// How far an actor's facing tick reaches past the middle of its
+  /// footprint, in tiles.
+  constexpr float FACING_TICK_TILES = 0.75f;
+
+  /// Draw a tick from the middle of @p marker's footprint the way it faces.
+  void renderFacingTick(GuiRendererContext& renderer, const IsoView& view,
+                        const EditorPlacementMarker& marker, uint32_t color) {
+    const PlacementBounds& box = marker.bounds;
+    const WorldPoint middle{(box.min.x + box.max.x) * 0.5f,
+                            (box.min.y + box.max.y) * 0.5f, box.min.z};
+    const WorldPoint tip{middle.x + marker.facing.x * FACING_TICK_TILES,
+                         middle.y + marker.facing.y * FACING_TICK_TILES,
+                         middle.z};
+    emitIsoLine(renderer, worldToScreen(view, middle), worldToScreen(view, tip),
+                color);
+  }
+
   /// The colour @p marker is outlined in: the selection's when it is
-  /// selected, its player's when it is a start, the prop tan otherwise.
+  /// selected, its player's when it is a start, its faction's when it is an
+  /// actor, the prop tan otherwise.
   GuiColor markerColor(const EditorPlacementMarker& marker) {
     if (marker.selected) {
       return SELECTION_OUTLINE;
     }
     if (marker.style == EditorMarkerStyle::PASSABLE) {
       return PASSABLE_OUTLINE;
+    }
+    if (marker.style == EditorMarkerStyle::ACTOR) {
+      return EDITOR_FACTION_COLORS[static_cast<size_t>(marker.faction) %
+                                   std::size(EDITOR_FACTION_COLORS)];
     }
     if (marker.style != EditorMarkerStyle::PLAYER_START) {
       return PLACEMENT_OUTLINE;
@@ -164,6 +186,9 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
       renderBoxOutline(renderer, view, marker.bounds, color);
     } else {
       renderFootprintOutline(renderer, view, marker.bounds, color);
+    }
+    if (marker.style == EditorMarkerStyle::ACTOR) {
+      renderFacingTick(renderer, view, marker, color);
     }
   }
 }
