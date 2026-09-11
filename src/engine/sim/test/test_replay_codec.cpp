@@ -18,7 +18,7 @@ namespace {
 /// runs of held input between.
 Replay sampleReplay() {
   Replay replay;
-  replay.header = {"transit_station", 0xC0FFEEULL, 42, 2};
+  replay.header = {"transit_station", 0xC0FFEEULL, 42, 2, {"scout", "tank"}};
   for (uint64_t tick = 0; tick < 300; ++tick) {
     TickInput input;
     input.players[0].move_x = tick < 100 ? int16_t{32767} : int16_t{-32767};
@@ -133,4 +133,17 @@ TEST_CASE("No corruption of a single byte crashes the decoder") {
     }
   }
   SUCCEED();
+}
+
+TEST_CASE("Each player's character round-trips, and only the session's") {
+  Replay replay;
+  replay.header.player_count = 2;
+  replay.header.characters = {"scout", "", "never", "written"};
+  const auto decoded = decodeReplay(encodeReplay(replay));
+  REQUIRE(decoded.has_value());
+  CHECK(decoded->header.characters[0] == "scout");
+  CHECK(decoded->header.characters[1].empty());
+  // Slots past the player count are not part of the session.
+  CHECK(decoded->header.characters[2].empty());
+  CHECK(decoded->header.characters[3].empty());
 }

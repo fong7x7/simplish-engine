@@ -113,6 +113,7 @@
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-character-figure.h>
+#include <editor/shell/editor-character-select-widget.h>
 #include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-result.h>
@@ -202,6 +203,12 @@ public:
   /// `refreshAssets` gives: a rescan renumbers the list they name.
   void rescanAssets();
 
+  /// Play the open level with player 1 as the character @p character — an
+  /// id in the characters table, or empty for the default character —
+  /// closing the selector if it is up. What picking a card does, and how an
+  /// agent starts a playtest without one.
+  void startPlaytestAs(const std::string& character);
+
 protected:
   bool onInit() override;
   void onSaveLocationChosen(const std::filesystem::path& path) override;
@@ -221,22 +228,40 @@ private:
   // -- Playtest (simplish-editor-playtest.cpp) ------------------------------
   /// Whether the level is being played.
   [[nodiscard]] bool isPlaying() const;
-  /// Start playing the open level, or stop playing it.
+  /// Start playing the open level — by way of the selector, when there is a
+  /// choice to make — or stop playing it, or put the selector away.
   void togglePlaytest();
-  /// Build a playtest from the open level and start running it. Refused,
-  /// with the reason in the status line, when no project is open.
-  void startPlaytest();
+  /// What Play does: read the characters again, then open the selector
+  /// when there are two or more of them to pick between, and otherwise play
+  /// at once as the one there is, or the default. Refused, with the reason
+  /// in the status line, when no project is open.
+  void requestPlaytest();
+  /// Show the selector over the viewport, on the character player 1 would
+  /// play as without a pick.
+  void openCharacterSelect();
+  /// Put the selector away without playing. A no-op when it is not up.
+  void closeCharacterSelect();
+  /// The selector's widget, or null before the chrome exists.
+  [[nodiscard]] EditorCharacterSelectWidget* characterSelectWidget();
+  /// Act on a key while the selector is up: arrows move the highlight,
+  /// Enter plays, Esc cancels. Returns true when it took the key.
+  bool handleChoosingKey(uint32_t key);
+  /// Read the project's characters table into the state, logging what was
+  /// wrong with it.
+  void reloadCharacters();
   /// Where player 1 spawns when the level has no start for them: the tile
   /// under the middle of the viewport.
   [[nodiscard]] WorldPoint playtestFallback();
+  /// The status line while playing: the level, and who player 1 is.
+  [[nodiscard]] std::string playingMessage() const;
   /// Reset the shell's view of the playtest to the one that just started.
   void beginPlaytestState();
   /// Write the playtest's replay to the project's scratch data, logging
   /// rather than failing when it cannot be written.
   void saveLastPlaytestReplay();
-  /// Throw the running playtest away and go back to editing. A no-op when
-  /// nothing is being played, so every route that replaces the level can
-  /// call it first.
+  /// Throw the running playtest away — or put the selector away — and go
+  /// back to editing. A no-op when neither is up, so every route that
+  /// replaces the level can call it first.
   void stopPlaytest();
   /// Run the ticks this frame's time pays for, and publish what they did.
   void tickPlaytest();
@@ -268,10 +293,9 @@ private:
   /// clock in the clip its gait picks.
   void appendSkinnedCharacter(const EditorCharacterFigure& figure,
                               size_t asset);
-  /// The asset @p character references, uploaded; nothing for the stand-in
-  /// and for one that is missing or will not load.
-  [[nodiscard]] std::optional<size_t>
-  characterAsset(const std::string& character);
+  /// The asset @p model references, uploaded; nothing for the stand-in and
+  /// for one that is missing or will not load.
+  [[nodiscard]] std::optional<size_t> characterAsset(const std::string& model);
   /// The built-in cylinder, which stands in for a player, uploaded; nothing
   /// when it is not in the asset list or will not load.
   [[nodiscard]] std::optional<size_t> avatarAsset();
@@ -307,6 +331,9 @@ private:
   void initAssetPanel(GuiWidgetTree& tree);
   /// Create the properties panel and wire its edits back to this editor.
   void initPropertiesPanel(GuiWidgetTree& tree);
+  /// Create the character selector, hidden, over everything else in the
+  /// work area, and wire its pick and cancel back to this editor.
+  void initCharacterSelect(GuiWidgetTree& tree);
   /// Drop the document and load the newly-opened project's assets.
   void refreshAssets();
   /// Write the level to the open project, and say so in the status line.
@@ -359,12 +386,7 @@ private:
   void dropBrowserEntry(size_t entry, float x, float y);
   /// Put the browser entry on @p tile, whichever list it belongs in.
   void placeBrowserEntry(size_t entry, WorldPoint tile);
-  /// Make asset @p entry the character of the player start under
-  /// @p screen, as one undoable edit. False, changing nothing, when no
-  /// start is there — the drop is then a placement like any other.
-  bool dressPlayerStart(size_t entry, IsoPoint screen);
-  /// Index of the player start whose marker is under @p screen, or nothing.
-  [[nodiscard]] std::optional<size_t> playerStartUnder(IsoPoint screen);
+
   /// Put the asset at @p index on the tile at @p position, as an action the
   /// user can undo.
   void placeAsset(size_t index, WorldPoint position);
@@ -672,6 +694,8 @@ private:
   GuiWidgetId asset_panel_id_ = GUI_WIDGET_ID_INVALID;
   /// Properties panel widget id in the tree (owned by the tree).
   GuiWidgetId properties_panel_id_ = GUI_WIDGET_ID_INVALID;
+  /// Character selector widget id in the tree (owned by the tree).
+  GuiWidgetId character_select_id_ = GUI_WIDGET_ID_INVALID;
   /// Mesh pipeline, uploaded meshes, and the scene depth target.
   MeshRenderer mesh_renderer_{};
   /// Outline pipeline, which reads `mesh_renderer_`'s depth target.

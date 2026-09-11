@@ -15,8 +15,8 @@ namespace {
   constexpr std::array<std::byte, 4> MAGIC = {std::byte{'S'}, std::byte{'R'},
                                               std::byte{'P'}, std::byte{'L'}};
 
-  /// Longest level id a replay may carry.
-  constexpr uint64_t MAX_LEVEL_ID_BYTES = 256;
+  /// Longest level id, or character id, a replay may carry.
+  constexpr uint64_t MAX_ID_BYTES = 256;
 
   /// Axes in a `PlayerInput`: move X and Y, aim X and Y.
   constexpr std::size_t AXIS_COUNT = 4;
@@ -92,15 +92,22 @@ namespace {
                       b.players.begin());
   }
 
+  /// @p text as a varint length and its bytes.
+  void encodeString(ByteWriter& out, const std::string& text) {
+    out.varint(text.size());
+    out.bytes(std::as_bytes(std::span<const char>(text.data(), text.size())));
+  }
+
   void encodeHeader(ByteWriter& out, const ReplayHeader& header) {
     out.bytes(MAGIC);
     out.u16(REPLAY_FORMAT_VERSION);
     out.u8(header.player_count);
     out.u64(header.seed);
     out.u64(header.content_hash);
-    out.varint(header.level_id.size());
-    out.bytes(std::as_bytes(
-        std::span<const char>(header.level_id.data(), header.level_id.size())));
+    encodeString(out, header.level_id);
+    for (uint8_t slot = 0; slot < header.player_count; ++slot) {
+      encodeString(out, header.characters[slot]);
+    }
   }
 
   void encodeInputs(ByteWriter& out, const Replay& replay) {
@@ -158,20 +165,30 @@ namespace {
     return *value;
   }
 
-  Failure decodeLevelId(ByteReader& in, std::string& level_id) {
-    const auto size = readVarint(in, MAX_LEVEL_ID_BYTES);
+  /// A string `encodeString` wrote, into @p text.
+  Failure decodeString(ByteReader& in, std::string& text) {
+    const auto size = readVarint(in, MAX_ID_BYTES);
     if (!size) {
       return size.error();
     }
-    const auto id = in.bytes(*size);
-    if (!id) {
+    const auto bytes = in.bytes(*size);
+    if (!bytes) {
       return readFailure(in);
     }
-    level_id.clear();
-    for (const std::byte byte : *id) {
-      level_id.push_back(static_cast<char>(byte));
+    text.clear();
+    for (const std::byte byte : *bytes) {
+      text.push_back(static_cast<char>(byte));
     }
     return std::nullopt;
+  }
+
+  /// The level id and then one character per player, into @p header.
+  Failure decodeNames(ByteReader& in, ReplayHeader& header) {
+    Failure failure = decodeString(in, header.level_id);
+    for (uint8_t slot = 0; !failure && slot < header.player_count; ++slot) {
+      failure = decodeString(in, header.characters[slot]);
+    }
+    return failure;
   }
 
   Failure decodeSession(ByteReader& in, ReplayHeader& header) {
@@ -187,7 +204,7 @@ namespace {
     header.player_count = *players;
     header.seed = *seed;
     header.content_hash = *content_hash;
-    return decodeLevelId(in, header.level_id);
+    return decodeNames(in, header);
   }
 
   Failure decodeHeader(ByteReader& in, ReplayHeader& header) {

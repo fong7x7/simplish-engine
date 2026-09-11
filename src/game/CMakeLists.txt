@@ -1,18 +1,20 @@
-# simplish-game — all gameplay: players now; weapons, enemies, the director
+# simplish-game — all gameplay: characters and players now; weapons, enemies, the director
 # and run rules as they are written (Game REQUIREMENTS)
 #
 # Platform-agnostic, and links only the engine:
 #
 #   game/ ──► engine/
 #
-#   player ──► world
+#   content ──► player ──► world
 
+add_subdirectory(content)
 add_subdirectory(player)
 add_subdirectory(world)
 
 simplish_add_library(simplish-game
     TYPE    STATIC
-    MODULES simplish-game-player
+    MODULES simplish-game-content
+            simplish-game-player
             simplish-game-world
 )
 

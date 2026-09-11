@@ -11,17 +11,12 @@
 #include <engine/sim/entity-handle.h>
 #include <engine/sim/state-hasher.h>
 #include <engine/sim/tick-input.h>
+#include <game/content/character-definition.h>
 #include <game/player/player-pool.h>
 #include <optional>
 #include <span>
 
 namespace eng::game {
-
-/// How far a player at full stick moves in one tick: five tiles a second.
-///
-/// A constant until the data tables of Game REQUIREMENTS §3 exist; a
-/// build's movement speed then comes from content instead.
-inline constexpr float PLAYER_SPEED_TILES_PER_TICK = 5.0F / 60.0F;
 
 /// How wide a player is to collision: the radius of the circle they stand
 /// in, in tiles. Narrower than a tile, so two can pass between props a
@@ -33,14 +28,16 @@ inline constexpr float PLAYER_RADIUS_TILES = 0.3F;
 inline constexpr float PLAYER_HEIGHT_TILES = 1.5F;
 
 /// Add a player driven by input slot @p input_slot, feet at @p at, aiming
-/// along world +X. Nothing when the pool is full.
-std::optional<sim::EntityHandle> spawnPlayer(PlayerPool& pool,
-                                             uint8_t input_slot, Vec3 at);
+/// along world +X, playing as @p character — whose speed and health they
+/// take. Nothing when the pool is full.
+std::optional<sim::EntityHandle>
+spawnPlayer(PlayerPool& pool, uint8_t input_slot, Vec3 at,
+            const CharacterDefinition& character);
 
 /// §4.1 step 2: move every player by its stick, keep them out of
 /// @p obstacles, and take up their aim.
 ///
-/// Movement is in world X and Y, at `PLAYER_SPEED_TILES_PER_TICK` for a
+/// Movement is in world X and Y, at the player's own `move_speed` for a
 /// full stick and proportionally less for a partial one. A player who walks
 /// into an obstacle stops against it, and one who walks into it at an angle
 /// slides along it. Every player is resolved every tick, moving or not, so

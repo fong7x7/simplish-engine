@@ -13,8 +13,12 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-scan.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-thumbnail.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-tree.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-card.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-choices.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-figure.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-select-layout.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-select-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
@@ -59,6 +63,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-render-mesh
         simplish-engine-sim
         simplish-engine-input
+        simplish-game-content
         simplish-game-world
         simplish-platform-client
         nlohmann_json::nlohmann_json

@@ -50,6 +50,10 @@ namespace {
     return agentOk(agentPlayerStartsJson(state));
   }
 
+  AgentResult toolListCharacters(EditorShellState& state, const json&) {
+    return agentOk(agentCharactersJson(state));
+  }
+
   AgentResult toolGetSelection(EditorShellState& state, const json&) {
     return agentOk(agentSelectionJson(state));
   }
@@ -102,8 +106,8 @@ namespace {
     return agentOk(agentPlaytestJson(state));
   }
 
-  AgentResult toolStartPlaytest(EditorShellState& state, const json&) {
-    return runAgentStartPlaytest(state);
+  AgentResult toolStartPlaytest(EditorShellState& state, const json& params) {
+    return runAgentStartPlaytest(state, params);
   }
 
   AgentResult toolStopPlaytest(EditorShellState& state, const json&) {
@@ -148,6 +152,7 @@ namespace {
       toolListPlacements,
       toolListLights,
       toolListPlayerStarts,
+      toolListCharacters,
       toolGetSelection,
       toolGetHistory,
       toolGetLevel,

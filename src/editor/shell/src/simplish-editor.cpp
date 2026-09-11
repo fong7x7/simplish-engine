@@ -15,7 +15,6 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-mesh-style.h>
 #include <editor/shell/editor-placement-clip.h>
-#include <editor/shell/editor-placement-pick.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-project-title.h>
@@ -384,6 +383,23 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   viewport_id_ = tree.insertExternalWidget(std::move(viewport), root_panel_);
   initPropertiesPanel(tree);
   initAssetPanel(tree);
+  // Last, so it draws over and is hit before everything it covers.
+  initCharacterSelect(tree);
+}
+
+void SimplishEditor::initCharacterSelect(GuiWidgetTree& tree) {
+  auto select = std::make_unique<EditorCharacterSelectWidget>();
+  select->on_chosen = [this](size_t index) {
+    const auto& characters = state_.characters.characters;
+    if (index < characters.size()) {
+      startPlaytestAs(characters[index].id);
+    }
+  };
+  select->on_cancelled = [this] {
+    closeCharacterSelect();
+  };
+  character_select_id_ =
+      tree.insertExternalWidget(std::move(select), root_panel_);
 }
 
 EditorViewportWidget* SimplishEditor::viewportWidget() {
@@ -472,6 +488,11 @@ void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
   if (auto* panel = tree.findWidget(asset_panel_id_)) {
     panel->rect = makeRect(0.0f, panel_top, window.w, window.h - panel_top);
   }
+  // Over the viewport and nothing else: the selector is about the level
+  // being played, and the panels around it stay where they are.
+  if (auto* select = tree.findWidget(character_select_id_)) {
+    select->rect = makeRect(0.0f, top, viewport_w, panel_top - top);
+  }
 }
 
 void SimplishEditor::applyProjectToChrome() {
@@ -558,6 +579,7 @@ void SimplishEditor::reloadAssets() {
   adoptAssetScan(state_.project.loaded
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
+  reloadCharacters();
   refreshAssetPanel();
 }
 
@@ -927,44 +949,9 @@ void SimplishEditor::dropBrowserEntry(size_t entry, float x, float y) {
       !containsPoint(viewport->rect, x, y)) {
     return;
   }
-  // A model dropped on a player start dresses it rather than landing on
-  // the tile beside it: that is what dropping it there asks for.
-  if (dressPlayerStart(entry, {x, y})) {
-    return;
-  }
   const IsoView view = makeIsoView(viewport->camera, viewport->rect);
   const WorldPoint world = screenToWorld(view, {x, y});
   placeBrowserEntry(entry, {std::floor(world.x), std::floor(world.y)});
-}
-
-bool SimplishEditor::dressPlayerStart(size_t entry, IsoPoint screen) {
-  const std::optional<size_t> start = playerStartUnder(screen);
-  if (!start || entry >= state_.assets.size()) {
-    return false;
-  }
-  select({EditorSelectionKind::PLAYER_START, *start});
-  applyCharacterEdit(editorAssetRef(state_.assets[entry]));
-  return true;
-}
-
-std::optional<size_t> SimplishEditor::playerStartUnder(IsoPoint screen) {
-  const EditorViewportWidget* viewport = viewportWidget();
-  if (viewport == nullptr) {
-    return std::nullopt;
-  }
-  // Picked as a click would pick, so the start a drop dresses is the one
-  // a click there would select.
-  const int marker =
-      pickPlacementMarker(makeIsoView(viewport->camera, viewport->rect),
-                          viewport->placement_markers, screen);
-  if (marker < 0) {
-    return std::nullopt;
-  }
-  const EditorSelection hit =
-      markerSelection(state_.document, static_cast<size_t>(marker));
-  return selectionIs(hit, EditorSelectionKind::PLAYER_START)
-             ? std::optional{hit.index}
-             : std::nullopt;
 }
 
 void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
@@ -1099,7 +1086,7 @@ void SimplishEditor::showPlayerStartSelection(EditorPropertiesWidget& panel) {
       state_.document.player_starts[state_.selection.index];
   panel.setSelection(editorPlayerStartName(start), start);
   EditorCharacterChoices choices =
-      editorCharacterChoices(state_.assets, start.character);
+      editorCharacterChoices(state_.characters.characters, start.character);
   panel.setChoices("Character", std::move(choices.names), choices.current);
 }
 
@@ -1163,7 +1150,7 @@ void SimplishEditor::applyCharacterChoice(size_t index) {
   // the choices are a function of the assets and the start, and both are
   // right here.
   const EditorCharacterChoices choices = editorCharacterChoices(
-      state_.assets,
+      state_.characters.characters,
       state_.document.player_starts[state_.selection.index].character);
   if (index < choices.refs.size()) {
     applyCharacterEdit(choices.refs[index]);
@@ -2068,21 +2055,14 @@ void SimplishEditor::shutdownChrome() {
 
 void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   // The root goes last: destroying it takes every descendant with it.
-  tree.destroyWidget(asset_panel_id_);
-  tree.destroyWidget(properties_panel_id_);
-  tree.destroyWidget(menu_bar_id_);
-  tree.destroyWidget(toolbar_id_);
-  tree.destroyWidget(viewport_id_);
-  tree.destroyWidget(title_panel_);
-  tree.destroyWidget(root_panel_);
-  menu_bar_id_ = GUI_WIDGET_ID_INVALID;
-  toolbar_id_ = GUI_WIDGET_ID_INVALID;
-  viewport_id_ = GUI_WIDGET_ID_INVALID;
-  title_panel_ = GUI_WIDGET_ID_INVALID;
+  for (GuiWidgetId* id : {&character_select_id_, &asset_panel_id_,
+                          &properties_panel_id_, &menu_bar_id_, &toolbar_id_,
+                          &viewport_id_, &title_panel_, &root_panel_}) {
+    tree.destroyWidget(*id);
+    *id = GUI_WIDGET_ID_INVALID;
+  }
+  // Went with the title panel it sits in.
   title_label_ = GUI_WIDGET_ID_INVALID;
-  root_panel_ = GUI_WIDGET_ID_INVALID;
-  asset_panel_id_ = GUI_WIDGET_ID_INVALID;
-  properties_panel_id_ = GUI_WIDGET_ID_INVALID;
 }
 
 }  // namespace eng::editor

@@ -31,6 +31,12 @@ struct PlayerPool {
   std::vector<Vec2> aim = std::vector<Vec2>(PLAYER_POOL_CAPACITY);
   /// Which `TickInput::players` entry drives each player, 0 to 3.
   std::vector<uint8_t> input_slot = std::vector<uint8_t>(PLAYER_POOL_CAPACITY);
+  /// How far each player moves in one tick at full stick, in tiles: their
+  /// character's speed, taken at spawn.
+  std::vector<float> move_speed = std::vector<float>(PLAYER_POOL_CAPACITY);
+  /// Health segments each player has left. Starts at their character's
+  /// health; nothing deals damage yet.
+  std::vector<uint16_t> health = std::vector<uint16_t>(PLAYER_POOL_CAPACITY);
 };
 
 }  // namespace eng::game

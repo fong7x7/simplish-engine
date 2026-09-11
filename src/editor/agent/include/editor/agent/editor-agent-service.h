@@ -83,8 +83,9 @@ private:
   [[nodiscard]] agent::AgentHttpResponse finish(const AgentResult& result);
   /// Carry out the work a tool could not do itself.
   void runHostRequest(const AgentHostRequest& request);
-  /// Carry out the two requests that name a level. False when @p request
-  /// is not one of them, which is what sends it on to the rest.
+  /// Carry out the requests about the open level: creating or opening one,
+  /// and playing it. False when @p request is not one of them, which is
+  /// what sends it on to the rest.
   [[nodiscard]] bool runLevelRequest(const AgentHostRequest& request);
   /// Carry out everything else: a menu command, a project, a rescan.
   void runProjectRequest(const AgentHostRequest& request);

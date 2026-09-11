@@ -9,6 +9,7 @@
 #include <editor/shell/editor-action-history.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
@@ -67,6 +68,11 @@ struct EditorShellState {
   /// Where the viewport camera sits and what it is over, refreshed from
   /// the widget once a tick. Read-only — see `editor-view-state.h`.
   EditorViewState view;
+  /// The project's characters, from `content/data/characters.data.json`.
+  /// Read when the project is opened, when its assets are rescanned, and
+  /// every time Play is pressed — so a hand edit to the file reaches the
+  /// next playtest without reopening anything.
+  EditorCharacterTable characters;
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;

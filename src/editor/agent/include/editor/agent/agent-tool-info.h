@@ -114,17 +114,25 @@ inline constexpr AgentParam AGENT_PARAMS_SET_ANIMATION[] = {
      "which is what a placement plays until one is chosen."},
 };
 
-/// `set_character` names the asset a player start's player is drawn as.
+/// `set_character` names who a player start's player plays as by default.
 inline constexpr AgentParam AGENT_PARAMS_SET_CHARACTER[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"player_start\", or \"selection\" when a player start is selected."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in the player start list. Not needed when target is "
      "\"selection\"."},
-    {"asset", AgentParamType::ASSET_REF, AgentParamNeed::OPTIONAL,
-     "The asset to draw the player as: index in the scanned asset list, or "
-     "its id, reference, name or path. Omitted or empty goes back to the "
-     "stand-in."},
+    {"character", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A character from list_characters, by id, reference or name. Omitted "
+     "or empty names none, leaving it to the selector."},
+};
+
+/// `start_playtest` may name who player 1 plays as.
+inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
+    {"character", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "Who player 1 plays as: a character from list_characters, by id, "
+     "reference or name. Omitted, it is the one their start names, or the "
+     "project's first character, or the default character when there are "
+     "none."},
 };
 
 /// `translate` moves an entry by a delta rather than to a position.
@@ -297,8 +305,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "list_player_starts",
      "Every player start in the level — where each player spawns — with "
      "its index, id, the player it is for (1 to 4), its position, and the "
-     "asset reference its player is drawn as (empty for the stand-in). "
-     "Also reports how many players a session holds.",
+     "character its player plays as by default (empty for none). Also "
+     "reports how many players a session holds.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::LIST_CHARACTERS,
+     "list_characters",
+     "Every character the project defines — id, name, model, move speed "
+     "in tiles a second, health segments — from the characters data table, "
+     "with the file's path and anything wrong with it. The table is read "
+     "when the project opens, on a rescan, and on every Play; to add or "
+     "change a character, edit that file.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::GET_SELECTION,
@@ -363,10 +380,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "clip the model does not have — the error lists the ones it does.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_ANIMATION},
     {AgentTool::SET_CHARACTER, "set_character",
-     "Choose what the player who spawns at a player start looks like, as "
-     "the properties panel's Character row or dropping a model on the "
-     "start does. Any asset will do; a rigged one plays its idle clip "
-     "standing and its run or walk clip moving. Recorded as one undoable "
+     "Choose who the player who spawns at a player start plays as unless "
+     "they pick someone else, as the properties panel's Character row "
+     "does: the character the selector opens on. Recorded as one undoable "
      "edit, and saved with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_CHARACTER},
     {AgentTool::TRANSLATE, "translate",
@@ -428,29 +444,30 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::GET_PLAYTEST,
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
-     "simulation is on, where each player is and what they are drawn as, "
+     "simulation is on, where each player is, who they play as and their "
+     "health, "
      "the latest tick hash, how "
      "many ticks the frame clock has dropped, and how many ticks of queued "
      "input are left. Poll it after start_playtest or send_input to watch "
      "the game run.",
      AgentToolEffect::READ,
      {}},
-    {AgentTool::START_PLAYTEST,
-     "start_playtest",
+    {AgentTool::START_PLAYTEST, "start_playtest",
      "Play the open level in the real simulation, as the toolbar's Play "
-     "button or F5 does. Player 1 spawns at the level's first start for "
+     "button or F5 does — but with no character selector: player 1 plays "
+     "as the character named, or the one the selector would open on. "
+     "Player 1 spawns at the level's first start for "
      "player 1, or under the camera when it has none. The document is not "
      "changed by playing it, and every document edit is refused until "
      "stop_playtest. The playtest is running by the time this answers, and "
      "advances with the editor's frames — at 60 ticks a second of real "
      "time — whether or not input is sent.",
-     AgentToolEffect::HOST,
-     {}},
+     AgentToolEffect::HOST, AGENT_PARAMS_START_PLAYTEST},
     {AgentTool::STOP_PLAYTEST,
      "stop_playtest",
      "Stop playing and go back to editing the level exactly as it was. The "
      "run's replay is written to data/playtests/<level>.replay in the "
-     "project.",
+     "project. While the character selector is up, puts it away instead.",
      AgentToolEffect::HOST,
      {}},
     {AgentTool::SEND_INPUT, "send_input",

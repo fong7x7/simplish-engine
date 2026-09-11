@@ -143,10 +143,19 @@ agentActionKindName(EditorActionKind kind) {
   return AGENT_ACTION_KIND_NAMES[static_cast<size_t>(kind)];
 }
 
-/// Wire name of whether the level is being edited or played.
+/// Wire name of whether the level is being edited, played, or is waiting on
+/// the character selector.
 [[nodiscard]] constexpr std::string_view
 agentPlayModeName(EditorPlayMode mode) {
-  return mode == EditorPlayMode::PLAYING ? "playing" : "editing";
+  switch (mode) {
+    case EditorPlayMode::PLAYING:
+      return "playing";
+    case EditorPlayMode::CHOOSING:
+      return "choosing";
+    case EditorPlayMode::EDITING:
+      break;
+  }
+  return "editing";
 }
 
 /// Wire name of how far an asset's card picture has got.

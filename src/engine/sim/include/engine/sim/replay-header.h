@@ -5,7 +5,9 @@
 /// @par Threading
 /// A value type.
 
+#include <array>
 #include <cstdint>
+#include <engine/sim/tick-input.h>
 #include <string>
 
 namespace eng::sim {
@@ -24,6 +26,12 @@ struct ReplayHeader {
   uint64_t seed = 0;
   /// Players in the session, 1 to `MAX_PLAYERS`.
   uint8_t player_count = 1;
+  /// What each player played as, by input slot: an id the game resolves
+  /// against its content, or empty for its default. Opaque to the engine;
+  /// it is here because a run's players are part of what it started from,
+  /// and a replay that forgot them would replay a different run. Entries at
+  /// or beyond `player_count` are empty.
+  std::array<std::string, MAX_PLAYERS> characters{};
 
   /// Headers are equal when every field is.
   bool operator==(const ReplayHeader&) const = default;

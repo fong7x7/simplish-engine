@@ -9,6 +9,7 @@
 #include <editor/shell/editor-document.h>
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
+#include <game/content/character-definition.h>
 #include <string>
 #include <vector>
 
@@ -22,8 +23,9 @@ struct EditorCharacterFigure {
   /// for a start's, `player:1` for a playtest's. Never a placement's id,
   /// which has no colon, so the two share one animator without meeting.
   std::string key{};
-  /// The asset reference it is drawn as, or empty for the stand-in.
-  std::string character{};
+  /// The asset reference it is drawn as — its character's model — or empty
+  /// for the stand-in.
+  std::string model{};
   /// Where its feet are, in tiles.
   Vec3 feet{};
   /// The direction it faces, world X and Y; need not be unit length.
@@ -33,9 +35,11 @@ struct EditorCharacterFigure {
 };
 
 /// The characters standing on @p document's player starts: one per start
-/// that has a character, facing +X — the way a player spawns aiming —
-/// standing still. A start with none has only its marker, as before.
+/// naming a character in @p characters, drawn as its model, facing +X —
+/// the way a player spawns aiming — and standing still. A start naming
+/// none, or one the table lacks, has only its marker.
 [[nodiscard]] std::vector<EditorCharacterFigure>
-editorStartFigures(const EditorDocument& document);
+editorStartFigures(const EditorDocument& document,
+                   const std::vector<game::CharacterDefinition>& characters);
 
 }  // namespace eng::editor

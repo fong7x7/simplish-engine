@@ -132,15 +132,16 @@ posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (held
 actions to a quantised `PlayerInput`), `physics` (a first slice: cylinder
-against boxes); game `player` and `world` (players moving on the tick and
-stopped by props, and the `SimulationSystems` composing them); platform
+against boxes); game `content`, `player` and `world` (character definitions,
+players moving on the tick at their character's speed and stopped by props,
+and the `SimulationSystems` composing them); platform
 `render` (five backends), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest) and `agent`; `bin/editor`.
 
 Not written yet: `engine/spatial`, `render-iso`, `render-sprite`,
 `render-fx`, `audio`, `content`, `net`, `debug`, the rest of `physics`,
-and everything in `src/game/` past moving a player — weapons, enemies, the
-director. The isometric renderer is ahead, not behind — check
+and everything in `src/game/` past characters and moving a player —
+weapons, loadouts, enemies, the director. The isometric renderer is ahead, not behind — check
 [REQUIREMENTS.md §6](REQUIREMENTS.md#6-repository--project-structure-target)
 before assuming a system exists.
 

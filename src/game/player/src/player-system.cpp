@@ -1,6 +1,7 @@
 #include <engine/input/player-input-builder.h>
 #include <engine/physics/cylinder-collision.h>
 #include <engine/sim/slot-move.h>
+#include <game/content/character-lookup.h>
 #include <game/player/player-system.h>
 #include <span>
 
@@ -15,10 +16,9 @@ namespace {
 
   /// Move the player at dense index @p i by @p input.
   void moveOne(PlayerPool& pool, uint32_t i, const sim::PlayerInput& input) {
-    pool.position[i].x +=
-        axisFraction(input.move_x) * PLAYER_SPEED_TILES_PER_TICK;
-    pool.position[i].y +=
-        axisFraction(input.move_y) * PLAYER_SPEED_TILES_PER_TICK;
+    const float speed = pool.move_speed[i];
+    pool.position[i].x += axisFraction(input.move_x) * speed;
+    pool.position[i].y += axisFraction(input.move_y) * speed;
     if (input.aim_x != 0 || input.aim_y != 0) {
       pool.aim[i] = {axisFraction(input.aim_x), axisFraction(input.aim_y)};
     }
@@ -37,8 +37,9 @@ namespace {
 
 }  // namespace
 
-std::optional<sim::EntityHandle> spawnPlayer(PlayerPool& pool,
-                                             uint8_t input_slot, Vec3 at) {
+std::optional<sim::EntityHandle>
+spawnPlayer(PlayerPool& pool, uint8_t input_slot, Vec3 at,
+            const CharacterDefinition& character) {
   const std::optional<sim::EntityHandle> handle = pool.slots.spawn();
   if (!handle) {
     return std::nullopt;
@@ -48,6 +49,8 @@ std::optional<sim::EntityHandle> spawnPlayer(PlayerPool& pool,
   pool.position[i] = at;
   pool.aim[i] = {1.0F, 0.0F};
   pool.input_slot[i] = input_slot;
+  pool.move_speed[i] = characterSpeedPerTick(character);
+  pool.health[i] = character.health;
   return handle;
 }
 
@@ -67,6 +70,8 @@ void compactPlayers(PlayerPool& pool) {
   sim::applySlotMoves(moves, pool.position);
   sim::applySlotMoves(moves, pool.aim);
   sim::applySlotMoves(moves, pool.input_slot);
+  sim::applySlotMoves(moves, pool.move_speed);
+  sim::applySlotMoves(moves, pool.health);
 }
 
 void hashPlayers(const PlayerPool& pool, sim::StateHasher& hasher) {
@@ -75,6 +80,8 @@ void hashPlayers(const PlayerPool& pool, sim::StateHasher& hasher) {
   hasher.addSpan(std::span<const Vec3>(pool.position).first(live));
   hasher.addSpan(std::span<const Vec2>(pool.aim).first(live));
   hasher.addSpan(std::span<const uint8_t>(pool.input_slot).first(live));
+  hasher.addSpan(std::span<const float>(pool.move_speed).first(live));
+  hasher.addSpan(std::span<const uint16_t>(pool.health).first(live));
 }
 
 }  // namespace eng::game

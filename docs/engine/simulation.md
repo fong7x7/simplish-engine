@@ -121,11 +121,11 @@ ADR-004 anticipates a macro or generator for pool boilerplate "once three or fou
 
 ## 5. Replay
 
-A `Replay` is a `ReplayHeader` (level id, content hash, seed, player count), every tick's `TickInput`, and checkpoint `TickHash`es — [§4.4](REQUIREMENTS.md#44-replay)'s `{level id, content hash, seed, input stream}` plus what is needed to verify it.
+A `Replay` is a `ReplayHeader` (level id, content hash, seed, player count, and the character each player played as — an id the game resolves against its content, opaque to the engine), every tick's `TickInput`, and checkpoint `TickHash`es — [§4.4](REQUIREMENTS.md#44-replay)'s `{level id, content hash, seed, input stream}` plus what is needed to verify it.
 
 **Recording.** `ReplayRecorder::record(input, result)` after each `step`, outside the tick. It keeps a checkpoint every `DEFAULT_CHECKPOINT_INTERVAL` (60) ticks and, in `finish`, the final tick. Ten minutes of input is reserved up front. Without tick hashing the replay still plays but cannot be verified.
 
-**The format** (`replay-codec.h` documents it byte by byte): the magic `SRPL`, a u16 version, the header, then inputs as runs — a varint count of ticks identical to the previous one, then one changed tick written per player as a change mask and only the changed fields (axis deltas as zigzag varints, buttons as XOR). Held input costs nothing: ten minutes of it with four players encodes in under 64 bytes. Checkpoints keep their section hashes but not their names, which is why `findDivergence` takes names from the live run. Fixed-width integers are little-endian on every host.
+**The format** (`replay-codec.h` documents it byte by byte): the magic `SRPL`, a u16 version (2 since the header gained characters; 1 is not read), the header, then inputs as runs — a varint count of ticks identical to the previous one, then one changed tick written per player as a change mask and only the changed fields (axis deltas as zigzag varints, buttons as XOR). Held input costs nothing: ten minutes of it with four players encodes in under 64 bytes. Checkpoints keep their section hashes but not their names, which is why `findDivergence` takes names from the live run. Fixed-width integers are little-endian on every host.
 
 **Decoding is hostile-input safe.** Replays arrive in crash reports and from other machines. `decodeReplay` never reads past the buffer, bounds every count (`MAX_REPLAY_TICKS` is six hours), rejects trailing bytes, and distinguishes `TRUNCATED` from `MALFORMED`, `BAD_MAGIC` and `UNSUPPORTED_VERSION`. Tests decode every strict prefix of a replay (all must be `TRUNCATED`) and every single-byte corruption of one, under the `asan` preset.
 

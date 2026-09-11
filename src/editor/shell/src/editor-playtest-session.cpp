@@ -1,9 +1,11 @@
 #include <editor/project/project-paths.h>
+#include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <engine/sim/replay-codec.h>
 #include <fstream>
+#include <game/content/character-lookup.h>
 #include <span>
 #include <system_error>
 #include <utility>
@@ -62,6 +64,21 @@ namespace {
     return boxes;
   }
 
+  /// The character each player's first start names, by input slot, as the
+  /// bare ids a setup holds.
+  std::array<std::string, sim::MAX_PLAYERS>
+  startCharacters(const EditorDocument& document) {
+    std::array<std::string, sim::MAX_PLAYERS> characters{};
+    for (size_t slot = 0; slot < characters.size(); ++slot) {
+      const EditorPlayerStart* start =
+          firstStartFor(document, static_cast<uint8_t>(slot + 1U));
+      if (start != nullptr) {
+        characters[slot] = editorCharacterIdOf(start->character);
+      }
+    }
+    return characters;
+  }
+
   /// A replay header for a playtest of @p level_id set up as @p setup.
   sim::ReplayHeader replayHeader(const game::GameSetup& setup,
                                  const std::string& level_id) {
@@ -69,6 +86,7 @@ namespace {
     header.level_id = level_id;
     header.seed = setup.seed;
     header.player_count = setup.player_count;
+    header.characters = setup.characters;
     return header;
   }
 
@@ -88,21 +106,22 @@ game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
   setup.seed = EDITOR_PLAYTEST_SEED;
   setup.player_count = 1;
   setup.spawns[0] = {at.x, at.y, at.z};
+  setup.characters = startCharacters(document);
   setup.obstacles = obstaclesOf(document, assets);
   return setup;
 }
 
-std::array<std::string, sim::MAX_PLAYERS>
-editorPlaytestCharacters(const EditorDocument& document) {
-  std::array<std::string, sim::MAX_PLAYERS> characters{};
-  for (size_t slot = 0; slot < characters.size(); ++slot) {
-    const EditorPlayerStart* start =
-        firstStartFor(document, static_cast<uint8_t>(slot + 1U));
-    if (start != nullptr) {
-      characters[slot] = start->character;
+std::string editorPlaytestDefaultCharacter(
+    const EditorDocument& document,
+    const std::vector<game::CharacterDefinition>& characters) {
+  const EditorPlayerStart* start = firstStartFor(document, 1);
+  if (start != nullptr) {
+    if (const std::optional<size_t> named =
+            findEditorCharacter(characters, start->character)) {
+      return characters[*named].id;
     }
   }
-  return characters;
+  return characters.empty() ? std::string{} : characters.front().id;
 }
 
 std::filesystem::path
@@ -125,14 +144,14 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
   return static_cast<bool>(out);
 }
 
-EditorPlaytestSession::EditorPlaytestSession(
-    const game::GameSetup& setup,
-    std::array<std::string, sim::MAX_PLAYERS> characters,
-    const std::string& level_id)
-  : world_(std::make_unique<game::GameWorld>(setup)),
+EditorPlaytestSession::EditorPlaytestSession(const game::GameSetup& setup,
+                                             const game::GameContent& content,
+                                             const std::string& level_id)
+  : world_(std::make_unique<game::GameWorld>(setup, content)),
     simulation_(*world_, sim::TickHashing::ON),
     recorder_(replayHeader(setup, level_id), sim::DEFAULT_CHECKPOINT_INTERVAL),
-    characters_(std::move(characters)), previous_(world_->players().position) {}
+    content_(content), characters_(setup.characters),
+    previous_(world_->players().position) {}
 
 FixedStepAdvance
 EditorPlaytestSession::advance(uint64_t elapsed_ns,
@@ -165,7 +184,8 @@ void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
     const Vec3& at = pool.position[i];
     state.players.push_back({static_cast<uint8_t>(pool.input_slot[i] + 1U),
                              {at.x, at.y, at.z},
-                             character(i)});
+                             character(i).id,
+                             pool.health[i]});
   }
 }
 
@@ -178,8 +198,11 @@ const game::PlayerPool& EditorPlaytestSession::players() const {
   return world_->players();
 }
 
-const std::string& EditorPlaytestSession::character(size_t index) const {
-  return characters_[world_->players().input_slot[index] % characters_.size()];
+const game::CharacterDefinition&
+EditorPlaytestSession::character(size_t index) const {
+  const uint8_t slot = world_->players().input_slot[index];
+  return game::resolveCharacter(content_,
+                                characters_[slot % characters_.size()]);
 }
 
 EditorCharacterGait EditorPlaytestSession::gait(size_t index) const {

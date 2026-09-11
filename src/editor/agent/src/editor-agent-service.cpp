@@ -81,6 +81,8 @@ bool EditorAgentService::runLevelRequest(const AgentHostRequest& request) {
     editor_->createLevel(request.level, request.unsaved);
   } else if (request.kind == AgentHostRequestKind::OPEN_LEVEL) {
     editor_->openLevel(request.level, request.unsaved);
+  } else if (request.kind == AgentHostRequestKind::START_PLAYTEST) {
+    editor_->startPlaytestAs(request.character);
   } else {
     return false;
   }
@@ -103,6 +105,7 @@ void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
     case AgentHostRequestKind::NONE:
     case AgentHostRequestKind::CREATE_LEVEL:
     case AgentHostRequestKind::OPEN_LEVEL:
+    case AgentHostRequestKind::START_PLAYTEST:
       break;
   }
 }

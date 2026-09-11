@@ -246,6 +246,7 @@ src/
 │   ├── gui/{include,src,test}
 │   └── client/{include,src,test}   # GameClient, RenderedGameClient
 ├── game/                           # gameplay — links the engine only
+│   ├── content/{include,src,test}  # character definitions
 │   ├── player/{include,src,test}   # player pool and movement
 │   └── world/{include,src,test}    # the game's SimulationSystems
 ├── platform/                       # the only per-target rebuild

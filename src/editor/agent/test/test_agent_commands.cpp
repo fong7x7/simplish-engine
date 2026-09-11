@@ -612,8 +612,9 @@ TEST_CASE("start_playtest needs a project, and queues the Play command") {
   EditorShellState state = stateWithAssets();
   const AgentResult result = runAgentTool(state, "start_playtest", "{}");
   REQUIRE(result.status == AgentStatus::OK);
-  REQUIRE(result.host.kind == AgentHostRequestKind::RUN_COMMAND);
-  REQUIRE(result.host.command == EditorMenuCommand::PLAYTEST);
+  // Straight to playing: an agent cannot click a card.
+  REQUIRE(result.host.kind == AgentHostRequestKind::START_PLAYTEST);
+  REQUIRE(result.host.character.empty());
 }
 
 TEST_CASE("start_playtest is refused while playing, stop_playtest while not") {
@@ -785,33 +786,43 @@ TEST_CASE("a static model, a light, and an unloaded rig refuse a clip") {
               .status == AgentStatus::UNAVAILABLE);
 }
 
-TEST_CASE("set_character dresses a player start, and undo takes it off") {
+namespace {
+
+/// A project with two characters and one start for player 1.
+EditorShellState stateWithCharacters() {
   EditorShellState state = stateWithAssets();
-  assignEditorAssetIds(state.assets);
+  state.characters.characters = {{"scout", "Scout", "", 7.0f, 3},
+                                 {"tank", "Tank", "", 3.0f, 9}};
   (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+  return state;
+}
 
-  const json dressed =
+}  // namespace
+
+TEST_CASE("set_character names a start's character, and undo takes it off") {
+  EditorShellState state = stateWithCharacters();
+
+  const json named =
       call(state, "set_character",
-           R"({"target": "player_start", "index": 0, "asset": "crate"})");
+           R"({"target": "player_start", "index": 0, "character": "tank"})");
 
-  REQUIRE(dressed.at("character") == "mesh:props_crate");
-  REQUIRE(state.document.player_starts[0].character == "mesh:props_crate");
+  REQUIRE(named.at("character") == "character:tank");
+  REQUIRE(state.document.player_starts[0].character == "character:tank");
   REQUIRE(state.history.actions.size() == 2);
-  // The same character again changes nothing, and records nothing.
+  // The same character again, by name, changes nothing and records nothing.
   (void)call(state, "set_character",
-             R"({"target": "selection", "asset": "props_crate"})");
+             R"({"target": "selection", "character": "Tank"})");
   REQUIRE(state.history.actions.size() == 2);
 
   (void)call(state, "undo", "{}");
   REQUIRE(state.document.player_starts[0].character.empty());
 }
 
-TEST_CASE("set_character with no asset goes back to the stand-in") {
-  EditorShellState state = stateWithAssets();
-  assignEditorAssetIds(state.assets);
-  (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+TEST_CASE("set_character with no character names none") {
+  EditorShellState state = stateWithCharacters();
   (void)call(state, "set_character",
-             R"({"target": "player_start", "index": 0, "asset": 1})");
+             R"({"target": "player_start", "index": 0,
+                 "character": "character:scout"})");
 
   const json bare =
       call(state, "set_character", R"({"target": "player_start", "index": 0})");
@@ -820,18 +831,60 @@ TEST_CASE("set_character with no asset goes back to the stand-in") {
   REQUIRE(state.document.player_starts[0].character.empty());
 }
 
-TEST_CASE("set_character refuses an unknown asset and anything but a start") {
-  EditorShellState state = stateWithAssets();
-  assignEditorAssetIds(state.assets);
-  (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+TEST_CASE(
+    "set_character refuses an unknown character and anything but a start") {
+  EditorShellState state = stateWithCharacters();
   (void)call(state, "place_asset", R"({"asset": 0, "x": 3, "y": 3})");
 
+  const AgentResult unknown = runAgentTool(
+      state, "set_character",
+      R"({"target": "player_start", "index": 0, "character": "nope"})");
+  REQUIRE(unknown.status == AgentStatus::NOT_FOUND);
+  // The error names what there is to pick from.
+  REQUIRE(unknown.json.find("scout, tank") != std::string::npos);
   REQUIRE(runAgentTool(state, "set_character",
-                       R"({"target": "player_start", "index": 0,
-                           "asset": "nope"})")
-              .status == AgentStatus::NOT_FOUND);
-  REQUIRE(runAgentTool(state, "set_character",
-                       R"({"target": "placement", "index": 0, "asset": 0})")
+                       R"({"target": "placement", "index": 0,
+                           "character": "tank"})")
               .status == AgentStatus::BAD_PARAMS);
   REQUIRE(state.document.player_starts[0].character.empty());
+}
+
+TEST_CASE("start_playtest plays as the character named, or the default pick") {
+  EditorShellState state = stateWithCharacters();
+
+  REQUIRE(runAgentTool(state, "start_playtest", R"({"character": "Tank"})")
+              .host.character == "tank");
+  // No pick is the start's character, and with none the first one.
+  REQUIRE(runAgentTool(state, "start_playtest", "{}").host.character ==
+          "scout");
+  state.document.player_starts[0].character = "character:tank";
+  REQUIRE(runAgentTool(state, "start_playtest", "{}").host.character == "tank");
+  REQUIRE(runAgentTool(state, "start_playtest", R"({"character": "nope"})")
+              .status == AgentStatus::NOT_FOUND);
+}
+
+TEST_CASE("stop_playtest puts the character selector away") {
+  EditorShellState state = stateWithCharacters();
+  state.playtest.mode = EditorPlayMode::CHOOSING;
+
+  const AgentResult result = runAgentTool(state, "stop_playtest", "{}");
+
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.command == EditorMenuCommand::PLAYTEST);
+  // And a playtest may be started from it, which is what picking does.
+  REQUIRE(runAgentTool(state, "start_playtest", "{}").status ==
+          AgentStatus::OK);
+}
+
+TEST_CASE("list_characters reports the table and what was wrong with it") {
+  EditorShellState state = stateWithCharacters();
+  state.characters.problems = {"a row was skipped"};
+
+  const json listed = call(state, "list_characters", "{}");
+
+  REQUIRE(listed.at("characters").size() == 2);
+  REQUIRE(listed.at("characters")[1].at("ref") == "character:tank");
+  REQUIRE(listed.at("characters")[1].at("health") == 9);
+  REQUIRE(listed.at("characters")[0].at("move_speed") == Approx(7.0f));
+  REQUIRE(listed.at("problems").size() == 1);
 }

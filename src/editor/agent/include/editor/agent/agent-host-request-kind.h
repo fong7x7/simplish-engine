@@ -33,6 +33,8 @@ enum class AgentHostRequestKind : uint8_t {
   CREATE_LEVEL,
   /// Edit the level `AgentHostRequest::level`.
   OPEN_LEVEL,
+  /// Play the open level as `AgentHostRequest::character`, with no selector.
+  START_PLAYTEST,
 };
 
 }  // namespace eng::editor

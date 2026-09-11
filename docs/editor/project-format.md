@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — the manifest and the level file's props, lights and player starts are implemented; everything else is not
+**Status:** Specification — the manifest, the level file's props, lights and player starts, and the characters data table (§8.1) are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -189,7 +189,7 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 
-**The player start is the one entity definition the editor knows.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names the asset the player who spawns there is drawn as, by its qualified reference (`"character": "mesh:characters_hero"`, or `shape:cylinder` for a built-in shape); a start without one is drawn as the stand-in, and the key is written only when there is one. A bare id reads as the asset it names, and a reference to an asset the project no longer has is kept as written rather than dropped — it is presentation, so the start is still a start without it. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
+**The player start is the one entity definition the editor knows.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names who the player who spawns there plays as unless they pick someone else — a row of the characters table (§8.1), by reference: `"character": "character:scout"`. It is written only when there is one; a bare id reads as `character:<id>`, and a reference to a character the table no longer has is kept as written rather than dropped — the start is still a start without it, and its player picks as though it named none. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
 
 Everything else in §4 — bounds, the tile palette, the RLE layers, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
 
@@ -343,6 +343,37 @@ A golden test pins this: a corpus of expressions evaluated both ways, asserted e
 ```
 
 `entry_schema` names the schema every entry validates against, so the editor renders fields by type and the generator knows the struct to emit.
+
+### 8.1 What the editor reads today
+
+One table, the characters a player can play as: `content/data/characters.data.json`, entry schema `simplish/character/1.0`.
+
+```json
+{
+  "schema": "simplish/data_table/1.0",
+  "id": "characters",
+  "name": "Characters",
+  "content": {
+    "entry_schema": "simplish/character/1.0",
+    "entries": [
+      { "id": "scout", "name": "Scout", "model": "mesh:characters_scout",
+        "move_speed": 7.5, "health": 3 },
+      { "id": "tank", "name": "Tank", "model": "shape:cylinder",
+        "move_speed": 3.5, "health": 9 }
+    ]
+  }
+}
+```
+
+| Field | Means | Absent |
+|---|---|---|
+| `id` | What a player start (`character:scout`), a setup and a replay name it by. Lowercase, digits and underscores | The row is skipped |
+| `name` | What the selector and the Character row call it | The id |
+| `model` | The asset it is drawn as, by reference — `mesh:…` or `shape:…` | The stand-in cylinder |
+| `move_speed` | Tiles a second at full stick, 0 to 20 | 5, the default character's |
+| `health` | Health segments it starts with, 1 to 99 | 5 |
+
+Reading is forgiving, as the level reader is, because the file is written by hand: a row with no usable id or a repeated one is skipped, a stat out of range is held to it, and each is logged and reported by `list_characters` rather than refusing the file. A file that is not a characters table gives no characters. The editor writes nothing here: the table is authored by hand until the data-editing panel ([Editor §6](REQUIREMENTS.md#6-data-editing)) exists. At run time it becomes the `game::GameContent` the simulation is built with — the one representation both loaders of [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md) fill; a loadout joins each row when weapons exist.
 
 ---
 

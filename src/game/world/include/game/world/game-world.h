@@ -8,6 +8,7 @@
 #include <engine/sim/simulation-systems.h>
 #include <engine/sim/tick-context.h>
 #include <engine/sim/tick-hash-builder.h>
+#include <game/content/game-content.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <vector>
@@ -22,8 +23,11 @@ namespace eng::game {
 class GameWorld final : public sim::SimulationSystems {
 public:
   /// A world at tick 0: one player per slot of @p setup, standing at its
-  /// spawn.
-  explicit GameWorld(const GameSetup& setup);
+  /// spawn as the character it picked from @p content — or as the default
+  /// character, when it picked none the content has. Nothing of @p content
+  /// is kept past construction: what a tick needs was copied into the
+  /// players.
+  GameWorld(const GameSetup& setup, const GameContent& content);
 
   /// Moves every player by its stick, and keeps them out of the level's
   /// solid geometry.

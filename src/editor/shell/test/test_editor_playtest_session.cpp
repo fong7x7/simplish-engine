@@ -8,6 +8,7 @@
 #include <engine/sim/replay-verification.h>
 #include <filesystem>
 #include <fstream>
+#include <game/content/character-lookup.h>
 #include <game/player/player-system.h>
 #include <iterator>
 #include <vector>
@@ -101,7 +102,7 @@ TEST_CASE("a step runs one tick on the keyboard's input") {
 
   REQUIRE(state.tick == 1);
   REQUIRE(state.players[0].position.x ==
-          Approx(game::PLAYER_SPEED_TILES_PER_TICK));
+          Approx(game::characterSpeedPerTick(game::defaultCharacter())));
   REQUIRE(state.hash.has_value());
 }
 
@@ -118,7 +119,7 @@ TEST_CASE("scripted input runs in place of the keyboard until it is used up") {
   // Two ticks left, then the keyboard's one tick right.
   REQUIRE(scripted.empty());
   REQUIRE(session.players().position[0].x ==
-          Approx(-game::PLAYER_SPEED_TILES_PER_TICK));
+          Approx(-game::characterSpeedPerTick(game::defaultCharacter())));
 }
 
 TEST_CASE("a second of real time is sixty ticks") {
@@ -149,7 +150,7 @@ TEST_CASE("a player is drawn between where the last tick found and left it") {
   std::vector<EditorScriptedInput> none;
   session.step(pushingRight(), none);
 
-  const float moved = game::PLAYER_SPEED_TILES_PER_TICK;
+  const float moved = game::characterSpeedPerTick(game::defaultCharacter());
   REQUIRE(session.renderPosition(0, 0.0F).x == Approx(0.0F));
   REQUIRE(session.renderPosition(0, 0.5F).x == Approx(moved * 0.5F));
   REQUIRE(session.renderPosition(0, 1.0F).x == Approx(moved));
@@ -169,7 +170,7 @@ TEST_CASE("a playtest's replay reproduces it in a fresh world") {
   const auto decoded = sim::decodeReplay(sim::encodeReplay(session.replay()));
   REQUIRE(decoded.has_value());
   REQUIRE(decoded->header.level_id == "main");
-  game::GameWorld fresh(setup);
+  game::GameWorld fresh(setup, {});
   sim::Simulation replaying(fresh, sim::TickHashing::ON);
   REQUIRE(sim::verifyReplay(*decoded, replaying).ok());
 }
@@ -229,33 +230,53 @@ TEST_CASE("walking right in a playtest stops at the first solid prop") {
           Approx(6.0F - game::PLAYER_RADIUS_TILES));
 }
 
-TEST_CASE("each player is drawn as the character of their first start") {
+TEST_CASE("each player plays as the character of their first start") {
   EditorDocument document = documentWithStarts();
-  document.player_starts[0].character = "mesh:knight";
-  document.player_starts[1].character = "mesh:hero";
-  // A later start for player 1 does not change what they look like.
+  document.player_starts[0].character = "character:tank";
+  document.player_starts[1].character = "character:scout";
+  // A later start for player 1 does not change who they are.
   document.player_starts.push_back(makeEditorPlayerStart(1, {0, 0, 0}));
-  document.player_starts.back().character = "shape:cube";
+  document.player_starts.back().character = "character:medic";
 
-  const auto characters = editorPlaytestCharacters(document);
+  const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
 
-  REQUIRE(characters[0] == "mesh:hero");
-  REQUIRE(characters[1] == "mesh:knight");
-  REQUIRE(characters[2].empty());
+  REQUIRE(setup.characters[0] == "scout");
+  REQUIRE(setup.characters[1] == "tank");
+  REQUIRE(setup.characters[2].empty());
 }
 
-TEST_CASE("a playtest reports what each player is drawn as") {
+TEST_CASE("a playtest plays and reports the character player 1 picked") {
   EditorDocument document = documentWithStarts();
-  document.player_starts[1].character = "mesh:hero";
-  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}),
-                                editorPlaytestCharacters(document), "main");
+  game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+  setup.characters[0] = "tank";
+  game::GameContent content;
+  content.characters.push_back({"tank", "Tank", "mesh:tank", 3.0F, 9});
+  EditorPlaytestSession session(setup, content, "main");
+  std::vector<EditorScriptedInput> none;
   EditorPlaytestState state;
 
+  session.step(pushingRight(), none);
   session.publish(state);
 
-  REQUIRE(session.character(0) == "mesh:hero");
-  REQUIRE(state.players.size() == 1);
-  REQUIRE(state.players[0].character == "mesh:hero");
+  REQUIRE(session.character(0).model == "mesh:tank");
+  REQUIRE(state.players[0].character == "tank");
+  REQUIRE(state.players[0].health == 9);
+  REQUIRE(session.players().position[0].x == Approx(4.5F + 3.0F / 60.0F));
+  REQUIRE(session.replay().header.characters[0] == "tank");
+}
+
+TEST_CASE("player 1 plays as their start's character, else the first") {
+  const std::vector<game::CharacterDefinition> characters{
+      {"scout", "Scout", "", 7.0F, 3}, {"tank", "Tank", "", 3.0F, 9}};
+  EditorDocument document = documentWithStarts();
+  REQUIRE(editorPlaytestDefaultCharacter(document, characters) == "scout");
+
+  document.player_starts[1].character = "character:tank";
+  REQUIRE(editorPlaytestDefaultCharacter(document, characters) == "tank");
+
+  document.player_starts[1].character = "character:gone";
+  REQUIRE(editorPlaytestDefaultCharacter(document, characters) == "scout");
+  REQUIRE(editorPlaytestDefaultCharacter(document, {}).empty());
 }
 
 TEST_CASE("a player is moving on a tick that moved them, and still after") {

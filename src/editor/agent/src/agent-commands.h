@@ -35,7 +35,7 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetAnimation(EditorShellState& state,
                                                const nlohmann::json& params);
 
-/// Name the asset one player start's player is drawn as.
+/// Name the character one player start's player plays as by default.
 [[nodiscard]] AgentResult runAgentSetCharacter(EditorShellState& state,
                                                const nlohmann::json& params);
 
@@ -82,7 +82,8 @@ namespace eng::editor {
 
 /// Queue starting a playtest, when there is a level to play and none is
 /// being played.
-[[nodiscard]] AgentResult runAgentStartPlaytest(const EditorShellState& state);
+[[nodiscard]] AgentResult runAgentStartPlaytest(const EditorShellState& state,
+                                                const nlohmann::json& params);
 
 /// Queue stopping the running playtest.
 [[nodiscard]] AgentResult runAgentStopPlaytest(const EditorShellState& state);

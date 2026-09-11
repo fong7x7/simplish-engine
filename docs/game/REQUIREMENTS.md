@@ -11,7 +11,7 @@
 
 The game layer (`simplish-game`) is everything that makes Simplish a specific game rather than an engine: the player, the weapons, the enemies, the director that decides what comes next, and the rules of a run. It links `src/engine/` and is platform-agnostic — no SDL3, no graphics API, no distributor SDK. Platform-specific concerns reach it through engine interfaces.
 
-**Current state:** `src/game/player` and `src/game/world` exist, and nothing else of the game does. Players spawn from a `GameSetup`, move at five tiles a second by their stick on the deterministic tick, and keep the aim they are given; the world composes them into the `SimulationSystems` the tick steps, and the editor's Play button runs it. Players collide with the level's solid props — an upright cylinder pushed out of axis-aligned boxes, sliding along them — but not with each other, and the ground has no height to follow. There is no weapon — the fire button is recorded and read by nothing — and no enemy.
+**Current state:** `src/game/content`, `src/game/player` and `src/game/world` exist, and nothing else of the game does. Players spawn from a `GameSetup` as the character each picked from the `GameContent` character table — which gives them their move speed and health — move by their stick on the deterministic tick, and keep the aim they are given; the world composes them into the `SimulationSystems` the tick steps, and the editor's Play button runs it. Players collide with the level's solid props — an upright cylinder pushed out of axis-aligned boxes, sliding along them — but not with each other, and the ground has no height to follow. There is no weapon — the fire button is recorded and read by nothing — and no enemy.
 
 **The game:** an isometric horde shooter set in a collapsed modern world. One to four players hold hand-authored ground against escalating waves. The fantasy is *overwhelming volume, narrowly survived* — hundreds of enemies converging, thousands of projectiles in the air, and a build that turns that pressure into a body count.
 
@@ -28,6 +28,8 @@ The game layer (`simplish-game`) is everything that makes Simplish a specific ga
 ---
 
 ## 3. Player
+
+A player plays as a **character**, picked before the run: a row of the project's characters data table ([project-format.md §8.1](../editor/project-format.md#81-what-the-editor-reads-today)) with a name, a model and the stats it plays by. The pick is part of the run's entry state ([ADR-008](../decisions/ADR-008-level-scenario-hierarchy.md)) — it is in the `GameSetup`, the stats are copied into the player at spawn, and the replay header records it — so it is simulation input, identical on every co-op peer. Built so far: move speed and health segments, and the editor's selector. A character's loadout — the weapons and consumables it starts with — joins the row when weapons exist; changing character mid-run, if the game wants it, is a level-boundary change to the next stage's entry state, never a write during a tick.
 
 ### 3.1 Movement
 

@@ -1,12 +1,14 @@
 #pragma once
 
 /// @file editor-character-choices.h
-/// @brief What a player start's Character row offers, and which asset a
-/// start's character is.
+/// @brief What a player start's Character row offers, and turning a start's
+/// reference into a character and a character into the asset it is drawn
+/// as.
 /// @par Threading Thread-safe (pure functions over value types).
 
 #include <cstddef>
 #include <editor/shell/editor-asset.h>
+#include <game/content/character-definition.h>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,39 +16,52 @@
 
 namespace eng::editor {
 
-/// What the Character row calls a start with no character of its own.
-inline constexpr std::string_view EDITOR_CHARACTER_STAND_IN_NAME = "Stand-in";
+/// What the Character row calls a start that names no character: its
+/// player picks in the selector, which opens on the first character.
+inline constexpr std::string_view EDITOR_CHARACTER_NONE_NAME = "None";
 
-/// The characters a player start can be given, in the order the Character
-/// row steps through them, and which of them it has now.
+/// The characters a player start can name, in the order the Character row
+/// steps through them, and which of them it names now.
 /// @thread_safety Immutable value type.
 struct EditorCharacterChoices {
-  /// What the row shows for each choice: the stand-in first, then every
-  /// asset by name, in the browser's order.
+  /// What the row shows for each choice: none first, then every character
+  /// by name, in the table's order.
   std::vector<std::string> names{};
   /// The reference each choice writes into the start, alongside `names`:
-  /// empty for the stand-in, the asset's qualified reference otherwise.
+  /// empty for none, `character:<id>` otherwise.
   std::vector<std::string> refs{};
   /// Which choice the start has now.
   size_t current = 0;
 };
 
-/// Every character in @p assets, with @p character — a start's reference —
-/// picked.
+/// Every character in @p characters, with @p character — a start's
+/// reference — picked.
 ///
-/// Every asset is offered, the built-in shapes included: a cube is a
-/// perfectly good player while the real model is being made. A reference
-/// naming no asset in the list is offered too, last, as `<ref> (missing)`,
-/// so the row says what the start holds rather than pretending it is the
-/// stand-in; stepping off it is the way to replace it.
+/// A reference naming no character in the table is offered too, last, as
+/// `<ref> (missing)`, so the row says what the start holds rather than
+/// pretending it holds nothing; stepping off it is the way to replace it.
 [[nodiscard]] EditorCharacterChoices
-editorCharacterChoices(const std::vector<EditorAsset>& assets,
+editorCharacterChoices(const std::vector<game::CharacterDefinition>& characters,
                        const std::string& character);
 
-/// Index of the asset @p character references in @p assets, or nothing for
-/// the stand-in and for an asset the list does not hold.
+/// How a start references the character @p id: `character:scout`.
+[[nodiscard]] std::string editorCharacterRef(std::string_view id);
+
+/// The character id a start's reference @p ref names — `scout` for
+/// `character:scout` — or empty when it is empty or references anything
+/// but a character.
+[[nodiscard]] std::string editorCharacterIdOf(std::string_view ref);
+
+/// Index of the character @p ref references in @p characters, or nothing
+/// when it is empty or names none of them.
 [[nodiscard]] std::optional<size_t>
-findEditorCharacterAsset(const std::vector<EditorAsset>& assets,
-                         const std::string& character);
+findEditorCharacter(const std::vector<game::CharacterDefinition>& characters,
+                    std::string_view ref);
+
+/// Index of the asset whose reference is @p ref in @p assets, or nothing
+/// for an empty one and for an asset the list does not hold.
+[[nodiscard]] std::optional<size_t>
+findEditorAssetByRef(const std::vector<EditorAsset>& assets,
+                     std::string_view ref);
 
 }  // namespace eng::editor

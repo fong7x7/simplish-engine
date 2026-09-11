@@ -37,6 +37,10 @@ namespace eng::editor {
 /// Whether the level is being played, and what the playtest has done.
 [[nodiscard]] std::string agentPlaytestJson(const EditorShellState& state);
 
+/// `list_characters`: every character in the project's table, and what was
+/// wrong with the file.
+[[nodiscard]] std::string agentCharactersJson(const EditorShellState& state);
+
 /// What the properties panel is editing, and the fields it lists for it.
 [[nodiscard]] std::string agentSelectionJson(const EditorShellState& state);
 

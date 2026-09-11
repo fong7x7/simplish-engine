@@ -8,12 +8,14 @@
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
 #include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
+#include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-property-ops.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
@@ -721,18 +723,44 @@ AgentResult runAgentSetAnimation(EditorShellState& state, const json& params) {
 
 namespace {
 
-  /// The reference the `asset` parameter names, empty when it is omitted
-  /// or empty — the stand-in — or nothing when it names no asset.
+  /// Whether @p character is the one @p name refers to: its id, its
+  /// `character:` reference, or its display name.
+  bool characterMatches(const game::CharacterDefinition& character,
+                        const std::string& name) {
+    return character.id == name || editorCharacterRef(character.id) == name ||
+           character.name == name;
+  }
+
+  /// The id of the character the `character` parameter names: empty when
+  /// it is omitted or empty, nothing when it names none in the table.
   std::optional<std::string> characterParam(const EditorShellState& state,
                                             const json& params) {
-    const auto found = params.find("asset");
-    if (found == params.end() || found->is_null() ||
-        (found->is_string() && found->get<std::string>().empty())) {
+    const std::string name = agentStringParam(params, "character").value_or("");
+    if (name.empty()) {
       return std::string{};
     }
-    const std::optional<size_t> asset = findAsset(state, params);
-    return asset ? std::optional{editorAssetRef(state.assets[*asset])}
-                 : std::nullopt;
+    for (const game::CharacterDefinition& character :
+         state.characters.characters) {
+      if (characterMatches(character, name)) {
+        return character.id;
+      }
+    }
+    return std::nullopt;
+  }
+
+  /// A failure listing the characters there are to name.
+  AgentResult unknownCharacter(const EditorShellState& state) {
+    std::vector<std::string> ids;
+    for (const game::CharacterDefinition& character :
+         state.characters.characters) {
+      ids.push_back(character.id);
+    }
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        ids.empty() ? "the project defines no characters; "
+                                      "list_characters says where they go"
+                                    : "no character is called that; the "
+                                      "project has: " +
+                                          joinNames(ids));
   }
 
 }  // namespace
@@ -749,15 +777,16 @@ AgentResult runAgentSetCharacter(EditorShellState& state, const json& params) {
   }
   const std::optional<std::string> character = characterParam(state, params);
   if (!character) {
-    return agentFailure(AgentStatus::NOT_FOUND,
-                        "no asset is called that; list_assets lists them");
+    return unknownCharacter(state);
   }
+  const std::string ref =
+      character->empty() ? std::string{} : editorCharacterRef(*character);
   const EditorPlayerStart prior = state.document.player_starts[entry.index];
-  if (prior.character == *character) {
+  if (prior.character == ref) {
     return agentOk(playerStartPayload(state, entry.index));
   }
   EditorPlayerStart next = prior;
-  next.character = *character;
+  next.character = ref;
   return recordPlayerStart(state, entry.index, prior, next);
 }
 
@@ -895,22 +924,45 @@ AgentResult runAgentOpenLevel(const EditorShellState& state,
   return queueLevelRequest(state, params, AgentHostRequestKind::OPEN_LEVEL);
 }
 
-AgentResult runAgentStartPlaytest(const EditorShellState& state) {
-  if (!state.project.loaded) {
-    return agentFailure(AgentStatus::UNAVAILABLE,
-                        "no project is open, so there is no level to play");
+namespace {
+
+  /// Why a playtest cannot start in @p state, or nothing when it can.
+  std::optional<AgentResult> unplayable(const EditorShellState& state) {
+    if (!state.project.loaded) {
+      return agentFailure(AgentStatus::UNAVAILABLE,
+                          "no project is open, so there is no level to play");
+    }
+    if (state.playtest.mode == EditorPlayMode::PLAYING) {
+      return agentFailure(
+          AgentStatus::UNAVAILABLE,
+          "a playtest is already running; stop_playtest ends it");
+    }
+    return std::nullopt;
   }
-  if (state.playtest.mode == EditorPlayMode::PLAYING) {
-    return agentFailure(AgentStatus::UNAVAILABLE,
-                        "a playtest is already running; stop_playtest ends it");
+
+}  // namespace
+
+AgentResult runAgentStartPlaytest(const EditorShellState& state,
+                                  const json& params) {
+  if (const std::optional<AgentResult> problem = unplayable(state)) {
+    return *problem;
   }
-  return queued(
-      {AgentHostRequestKind::RUN_COMMAND, EditorMenuCommand::PLAYTEST, {}, {}},
-      "start_playtest");
+  std::optional<std::string> character = characterParam(state, params);
+  if (!character) {
+    return unknownCharacter(state);
+  }
+  if (character->empty()) {
+    character = editorPlaytestDefaultCharacter(state.document,
+                                               state.characters.characters);
+  }
+  AgentHostRequest request{};
+  request.kind = AgentHostRequestKind::START_PLAYTEST;
+  request.character = *character;
+  return queued(request, "start_playtest");
 }
 
 AgentResult runAgentStopPlaytest(const EditorShellState& state) {
-  if (state.playtest.mode != EditorPlayMode::PLAYING) {
+  if (state.playtest.mode == EditorPlayMode::EDITING) {
     return agentFailure(AgentStatus::UNAVAILABLE, "no playtest is running");
   }
   return queued(

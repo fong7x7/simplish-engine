@@ -10,6 +10,7 @@ simplish_add_module(simplish-game-player
                  simplish-engine-sim
                  simplish-engine-input
                  simplish-engine-physics
+                 simplish-game-content
 )
 
 if(ENGINE_BUILD_TESTS)

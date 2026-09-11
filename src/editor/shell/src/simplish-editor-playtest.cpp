@@ -3,7 +3,9 @@
 // because it is the one part of the editor that runs the game rather than
 // authoring it, and everything here is gated on a playtest existing.
 
+#include <algorithm>
 #include <chrono>
+#include <editor/shell/editor-character-card.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-character-transform.h>
 #include <editor/shell/editor-placement-clip.h>
@@ -59,11 +61,89 @@ bool SimplishEditor::isPlaying() const {
 }
 
 void SimplishEditor::togglePlaytest() {
-  if (isPlaying()) {
+  if (isPlaying() || state_.playtest.mode == EditorPlayMode::CHOOSING) {
     stopPlaytest();
   } else {
-    startPlaytest();
+    requestPlaytest();
   }
+}
+
+void SimplishEditor::requestPlaytest() {
+  if (!state_.project.loaded) {
+    showStatusMessage("Open a project to play a level");
+    return;
+  }
+  // Read again on every Play, so a hand edit to the table reaches this
+  // playtest without reopening the project.
+  reloadCharacters();
+  const auto& characters = state_.characters.characters;
+  if (characters.size() >= 2) {
+    openCharacterSelect();
+    return;
+  }
+  startPlaytestAs(characters.empty() ? std::string{} : characters.front().id);
+}
+
+void SimplishEditor::reloadCharacters() {
+  state_.characters = state_.project.loaded
+                          ? loadEditorCharacterTable(state_.project.root)
+                          : EditorCharacterTable{};
+  for (const std::string& problem : state_.characters.problems) {
+    LOG_WARN("editor", "characters.data.json: " + problem);
+  }
+}
+
+EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
+  return dynamic_cast<EditorCharacterSelectWidget*>(
+      guiWidgetTree().findWidget(character_select_id_));
+}
+
+void SimplishEditor::openCharacterSelect() {
+  EditorCharacterSelectWidget* selector = characterSelectWidget();
+  if (selector == nullptr) {
+    return;
+  }
+  commitPendingEdit();
+  select({});
+  const auto& characters = state_.characters.characters;
+  const std::string preferred =
+      editorPlaytestDefaultCharacter(state_.document, characters);
+  const auto found =
+      std::ranges::find(characters, preferred, &game::CharacterDefinition::id);
+  selector->open(makeEditorCharacterCards(characters, state_.assets),
+                 static_cast<size_t>(found - characters.begin()));
+  state_.playtest.mode = EditorPlayMode::CHOOSING;
+  applyPlayModeToChrome();
+  showStatusMessage("Choose a character to play " + state_.level_id);
+}
+
+void SimplishEditor::closeCharacterSelect() {
+  if (EditorCharacterSelectWidget* selector = characterSelectWidget()) {
+    selector->close();
+  }
+  if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
+    state_.playtest.mode = EditorPlayMode::EDITING;
+    applyPlayModeToChrome();
+  }
+}
+
+bool SimplishEditor::handleChoosingKey(uint32_t key) {
+  EditorCharacterSelectWidget* selector = characterSelectWidget();
+  if (selector == nullptr) {
+    return false;
+  }
+  if (key == Keycode::ARROW_LEFT || key == Keycode::ARROW_UP) {
+    selector->moveHighlight(-1);
+  } else if (key == Keycode::ARROW_RIGHT || key == Keycode::ARROW_DOWN) {
+    selector->moveHighlight(1);
+  } else if (key == Keycode::KEY_RETURN) {
+    selector->confirm();
+  } else if (key == Keycode::ESCAPE) {
+    selector->cancel();
+  } else {
+    return false;
+  }
+  return true;
 }
 
 WorldPoint SimplishEditor::playtestFallback() {
@@ -80,23 +160,30 @@ WorldPoint SimplishEditor::playtestFallback() {
   return {std::floor(at.x) + 0.5f, std::floor(at.y) + 0.5f, 0.0f};
 }
 
-void SimplishEditor::startPlaytest() {
-  if (!state_.project.loaded) {
-    showStatusMessage("Open a project to play a level");
+void SimplishEditor::startPlaytestAs(const std::string& character) {
+  if (!state_.project.loaded || isPlaying()) {
     return;
   }
+  closeCharacterSelect();
   // The gesture in flight is part of the level being played; the selection
   // is not, and its panel would be a way to edit mid-game.
   commitPendingEdit();
   select({});
+  game::GameSetup setup = makeEditorPlaytestSetup(
+      state_.document, state_.assets, playtestFallback());
+  setup.characters[0] = character;
   playtest_ = std::make_unique<EditorPlaytestSession>(
-      makeEditorPlaytestSetup(state_.document, state_.assets,
-                              playtestFallback()),
-      editorPlaytestCharacters(state_.document), state_.level_id);
+      setup, game::GameContent{state_.characters.characters}, state_.level_id);
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
-  showStatusMessage("Playing " + state_.level_id + " — F5 or Esc to stop");
+  showStatusMessage(playingMessage());
+}
+
+std::string SimplishEditor::playingMessage() const {
+  const std::string& name = playtest_->character(0).name;
+  return "Playing " + state_.level_id + (name.empty() ? "" : " as " + name) +
+         " — F5 or Esc to stop";
 }
 
 void SimplishEditor::beginPlaytestState() {
@@ -109,6 +196,7 @@ void SimplishEditor::beginPlaytestState() {
 }
 
 void SimplishEditor::stopPlaytest() {
+  closeCharacterSelect();
   if (!isPlaying()) {
     return;
   }
@@ -212,14 +300,14 @@ void SimplishEditor::appendPlaytestMarkers(
 
 std::vector<EditorCharacterFigure> SimplishEditor::characterFigures() const {
   if (!isPlaying()) {
-    return editorStartFigures(state_.document);
+    return editorStartFigures(state_.document, state_.characters.characters);
   }
   std::vector<EditorCharacterFigure> figures;
   const game::PlayerPool& pool = playtest_->players();
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const auto player = static_cast<uint8_t>(pool.input_slot[i] + 1U);
     figures.push_back({"player:" + std::to_string(player),
-                       playtest_->character(i),
+                       playtest_->character(i).model,
                        playtest_->renderPosition(i, playtest_alpha_),
                        pool.aim[i], playtest_->gait(i)});
   }
@@ -234,7 +322,7 @@ void SimplishEditor::appendCharacterInstances() {
 
 void SimplishEditor::appendCharacterInstance(
     const EditorCharacterFigure& figure) {
-  if (const std::optional<size_t> index = characterAsset(figure.character)) {
+  if (const std::optional<size_t> index = characterAsset(figure.model)) {
     const EditorAsset& asset = state_.assets[*index];
     if (asset.rig != nullptr && asset.skinned_mesh != MESH_GPU_INVALID) {
       appendSkinnedCharacter(figure, *index);
@@ -275,10 +363,9 @@ void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
        placement_animator_.pose(posed, *model.rig, animation_clock_)});
 }
 
-std::optional<size_t>
-SimplishEditor::characterAsset(const std::string& character) {
+std::optional<size_t> SimplishEditor::characterAsset(const std::string& model) {
   const std::optional<size_t> index =
-      findEditorCharacterAsset(state_.assets, character);
+      findEditorAssetByRef(state_.assets, model);
   return index && ensureAssetMesh(*index) ? index : std::nullopt;
 }
 
@@ -296,6 +383,12 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     if (kind == ClientKeyDownKind::FIRST_PRESS) {
       togglePlaytest();
     }
+    return true;
+  }
+  if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
+    // Every key, taken or not: the selector is modal, and a stray Delete
+    // must not reach the level behind it.
+    (void)handleChoosingKey(key);
     return true;
   }
   return isPlaying() && handlePlayingKey(key);

@@ -6,6 +6,7 @@
 #include <editor/agent/agent-tool-info.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-io.h>
@@ -262,7 +263,8 @@ namespace {
     for (const EditorPlaytestPlayer& player : playtest.players) {
       players.push_back({{"player", player.player},
                          {"position", agentPointJson(player.position)},
-                         {"character", player.character}});
+                         {"character", player.character},
+                         {"health", player.health}});
     }
     return players;
   }
@@ -405,6 +407,36 @@ std::string agentPlaytestJson(const EditorShellState& state) {
               {"queued_input_ticks", queuedInputTicks(playtest)}};
   out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
   return out.dump(2);
+}
+
+namespace {
+
+  /// One character, as `list_characters` reports it.
+  json characterJson(const game::CharacterDefinition& character) {
+    return {{"id", character.id},
+            {"ref", editorCharacterRef(character.id)},
+            {"name", character.name},
+            {"model", character.model},
+            {"move_speed", character.move_speed},
+            {"health", character.health}};
+  }
+
+}  // namespace
+
+std::string agentCharactersJson(const EditorShellState& state) {
+  json characters = json::array();
+  for (const game::CharacterDefinition& character :
+       state.characters.characters) {
+    characters.push_back(characterJson(character));
+  }
+  const std::string path =
+      state.project.loaded
+          ? editorCharacterTablePath(state.project.root).generic_string()
+          : std::string{};
+  return json{{"file", path},
+              {"characters", characters},
+              {"problems", state.characters.problems}}
+      .dump(2);
 }
 
 std::string agentSelectionJson(const EditorShellState& state) {

@@ -67,7 +67,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Audio (desktop) | OpenAL Soft 1.23+ via `FetchContent` | Desktop | Behind `IAudioBackend` |
 | Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
-| Testing | Catch2 v3 | All | 1,139 tests green on macOS/Metal, 1,099 on the headless stub |
+| Testing | Catch2 v3 | All | 1,159 tests green on macOS/Metal, 1,123 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
 
 ---

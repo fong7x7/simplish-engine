@@ -35,7 +35,17 @@ GameSetup fourPlayers() {
     const auto x = static_cast<float>(i) * 1.5F - 2.0F;
     setup.obstacles.push_back({{x, 2.0F, 0.0F}, {x + 1.0F, 3.0F, 1.0F}});
   }
+  // Characters of different speeds, and one left to the default, so the
+  // stats a player takes from content are part of it too.
+  setup.characters = {"scout", "tank", "", "scout"};
   return setup;
+}
+
+eng::game::GameContent twoCharacters() {
+  eng::game::GameContent content;
+  content.characters.push_back({"scout", "Scout", "", 7.25F, 3});
+  content.characters.push_back({"tank", "Tank", "", 3.5F, 9});
+  return content;
 }
 
 /// Four players pushing their sticks around in a pattern of their own.
@@ -52,7 +62,7 @@ TickInput scripted(uint64_t tick) {
 }
 
 std::vector<uint64_t> runHashes(uint64_t perturbed_tick = UINT64_MAX) {
-  GameWorld world(fourPlayers());
+  GameWorld world(fourPlayers(), twoCharacters());
   Simulation simulation(world, TickHashing::ON);
   std::vector<uint64_t> hashes;
   for (uint64_t tick = 0; tick < RUN_TICKS; ++tick) {
@@ -84,7 +94,7 @@ TEST_CASE("one changed input diverges the game world from that tick") {
 }
 
 TEST_CASE("a recorded game run verifies against a fresh world") {
-  GameWorld world(fourPlayers());
+  GameWorld world(fourPlayers(), twoCharacters());
   Simulation simulation(world, TickHashing::ON);
   eng::sim::ReplayRecorder recorder({"main", 0, 0, 4},
                                     eng::sim::DEFAULT_CHECKPOINT_INTERVAL);
@@ -96,7 +106,7 @@ TEST_CASE("a recorded game run verifies against a fresh world") {
       eng::sim::decodeReplay(eng::sim::encodeReplay(recorder.finish()));
   REQUIRE(decoded.has_value());
 
-  GameWorld fresh(fourPlayers());
+  GameWorld fresh(fourPlayers(), twoCharacters());
   Simulation replaying(fresh, TickHashing::ON);
   REQUIRE(eng::sim::verifyReplay(*decoded, replaying).ok());
 }

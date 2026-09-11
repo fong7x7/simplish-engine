@@ -15,7 +15,7 @@
 namespace eng::sim {
 
 /// The replay format version `encodeReplay` writes and `decodeReplay` reads.
-inline constexpr uint16_t REPLAY_FORMAT_VERSION = 1;
+inline constexpr uint16_t REPLAY_FORMAT_VERSION = 2;
 
 /// Longest replay `decodeReplay` accepts: six hours at 60 Hz. A bound, so a
 /// corrupt tick count cannot ask the decoder for gigabytes.
@@ -32,9 +32,10 @@ enum class ReplayDecodeError : uint8_t {
 /// Encodes `replay` in the replay format.
 ///
 /// Header: the magic `SRPL`, the format version (u16), the player count
-/// (u8), the seed and content hash (u64 each), and the level id as a varint
-/// length and its bytes. Fixed-width integers are little-endian; varints
-/// are LEB128.
+/// (u8), the seed and content hash (u64 each), the level id as a varint
+/// length and its bytes, then each player's character the same way, one
+/// per player in the session. Fixed-width integers are little-endian;
+/// varints are LEB128. Version 1 had no characters, and is not read.
 ///
 /// Inputs: a varint tick count, then alternating runs — a varint count of
 /// ticks identical to the one before, then one changed tick. A changed tick

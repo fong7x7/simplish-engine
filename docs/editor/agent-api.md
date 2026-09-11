@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 23 tools, HTTP transport, MCP bridge
+**Status:** Built — 35 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Thirty-two, in three groups. `GET /tools` is authoritative and carries
+Thirty-five, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -161,13 +161,14 @@ each one's parameters; this table is the map.
 | `list_folders` | The browser's folder tree, the built-in general section included |
 | `list_placements` | Every placement: index, asset, position, rotation |
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
-| `list_player_starts` | Every player start: the player it is for, its position, its character, and how many players a session holds |
+| `list_player_starts` | Every player start: the player it is for, its position, its default character, and how many players a session holds |
+| `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being played: the tick, where each player is and what they are drawn as, the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`): the tick, where each player is, who they play as and their health, the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -178,7 +179,7 @@ each one's parameters; this table is the map.
 | `add_player_start` | Marks where a player spawns and selects it, for a named player or the lowest one with no start yet |
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
-| `set_character` | Names the asset a player start's player is drawn as, or goes back to the stand-in |
+| `set_character` | Names the character a player start's player plays as by default, or none |
 | `translate` | Moves a placement, a light or a player start by a delta in tiles |
 | `delete` | Removes a placement, a light or a player start, as the Delete key does |
 | `select` | Selects a placement, a light or a player start, or clears the selection |
@@ -195,8 +196,8 @@ each one's parameters; this table is the map.
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
 | `create_level` | Adds an empty level to the project and starts editing it |
 | `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
-| `start_playtest` | Plays the open level in the real simulation, as the Play button does |
-| `stop_playtest` | Stops playing, writes the run's replay, and goes back to the level as it was |
+| `start_playtest` | Plays the open level in the real simulation, as the Play button does — with no selector: as the `character` given, or the one the selector would open on |
+| `stop_playtest` | Stops playing, writes the run's replay, and goes back to the level as it was; puts the character selector away while it is up |
 
 ### Conventions worth knowing before calling one
 
@@ -239,7 +240,7 @@ each one's parameters; this table is the map.
   player start stores a position and a player. A rigged placement's clip is
   a name, not a number, so it has its own tool, `set_animation`, rather
   than a `set_property` field; `get_asset` lists the clip names to pick from.
-  A player start's character is an asset, not a number, so it has
+  A player start's character is a name, not a number, so it has
   `set_character`. A directional light's position is only where its marker sits, so
   the panel hides it — but it is real, and this API will move it.
 

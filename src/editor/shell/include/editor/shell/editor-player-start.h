@@ -33,16 +33,15 @@ struct EditorPlayerStart {
   /// Where the player's feet land: the centre of the tile it was dropped
   /// on, on the ground.
   WorldPoint position{};
-  /// What the player who spawns here looks like: the reference of the
-  /// asset drawn for them — `mesh:characters_hero`, `shape:cylinder` — or
-  /// empty for the stand-in.
+  /// Who the player who spawns here plays as unless they pick someone else:
+  /// a reference into the project's characters table — `character:scout` —
+  /// or empty to leave it to the selector.
   ///
-  /// A reference rather than an index into the asset list, which a rescan
-  /// renumbers, and the qualified one rather than the bare id, because a
-  /// model and a built-in shape may share an id. One naming an asset the
-  /// project no longer has is kept as written, so a file that goes missing
-  /// for a while does not cost the start its character, and is drawn as the
-  /// stand-in until it is back.
+  /// The default a level gives a player, not a lock: the character
+  /// selector opens on it, and the pick made there is what the run uses.
+  /// One naming a character the table no longer has is kept as written, so
+  /// a row that goes missing for a while does not cost the start its
+  /// character; until it is back the selector opens on the first character.
   std::string character{};
 };
 

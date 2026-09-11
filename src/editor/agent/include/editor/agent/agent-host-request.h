@@ -32,6 +32,9 @@ struct AgentHostRequest {
   /// tool has already refused the call when this is `REFUSE` and there are
   /// any, so by the time the editor reads it the answer is settled.
   EditorLevelUnsaved unsaved = EditorLevelUnsaved::REFUSE;
+  /// The character id player 1 plays as, meaningful only for
+  /// `START_PLAYTEST`; empty for the default character.
+  std::string character{};
 };
 
 }  // namespace eng::editor

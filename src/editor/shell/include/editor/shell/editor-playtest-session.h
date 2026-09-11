@@ -23,6 +23,8 @@
 #include <engine/sim/tick-hash.h>
 #include <engine/sim/tick-input.h>
 #include <filesystem>
+#include <game/content/character-definition.h>
+#include <game/content/game-content.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/game-world.h>
@@ -42,8 +44,10 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 /// What a playtest of @p document starts from: one player, standing on the
 /// first start for player 1 in the document, or on @p fallback — the tile
 /// under the camera — when it has none (Editor REQUIREMENTS §7: "starting at
-/// the camera position or a chosen spawn point"); and a collision box for
-/// every placement that collides, measured against @p assets.
+/// the camera position or a chosen spawn point"); each player as the
+/// character their first start names, which the selector's pick then
+/// replaces for player 1; and a collision box for every placement that
+/// collides, measured against @p assets.
 ///
 /// The box is the one the viewport outlines and picks: the placement's
 /// asset, turned and set where it stands, enclosed in an axis-aligned box.
@@ -55,16 +59,13 @@ makeEditorPlaytestSetup(const EditorDocument& document,
                         const std::vector<EditorAsset>& assets,
                         WorldPoint fallback);
 
-/// What each player of a playtest of @p document looks like, by input slot:
-/// the character of the first start for that player, in document order —
-/// the start `makeEditorPlaytestSetup` spawns them on — or empty, the
-/// stand-in, when they have no start or it has no character.
-///
-/// Presentation, and so not in the `GameSetup`: the game never learns what
-/// a player looks like, and a replay of the run is the same run whatever
-/// the players were drawn as.
-[[nodiscard]] std::array<std::string, sim::MAX_PLAYERS>
-editorPlaytestCharacters(const EditorDocument& document);
+/// Who player 1 plays as unless they pick someone else: the character the
+/// first start for player 1 names, when @p characters has it; otherwise the
+/// first character; otherwise nobody — empty, the default character. What
+/// the selector opens on, and what a playtest started with no pick uses.
+[[nodiscard]] std::string editorPlaytestDefaultCharacter(
+    const EditorDocument& document,
+    const std::vector<game::CharacterDefinition>& characters);
 
 /// Where the replay of the last playtest of @p level_id is kept:
 /// `<root>/data/playtests/<level_id>.replay`. Editor scratch rather than
@@ -91,10 +92,10 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
 /// @thread_safety Main-thread-only.
 class EditorPlaytestSession {
 public:
-  /// A playtest at tick 0 of the level @p level_id, set up as @p setup,
-  /// its players drawn as @p characters — see `editorPlaytestCharacters`.
+  /// A playtest at tick 0 of the level @p level_id, set up as @p setup and
+  /// played with @p content, which the session keeps a copy of.
   EditorPlaytestSession(const game::GameSetup& setup,
-                        std::array<std::string, sim::MAX_PLAYERS> characters,
+                        const game::GameContent& content,
                         const std::string& level_id);
 
   /// Runs every tick @p elapsed_ns of real time pays for, at most four,
@@ -119,9 +120,10 @@ public:
   /// The players, as the simulation holds them.
   [[nodiscard]] const game::PlayerPool& players() const;
 
-  /// The asset reference the player at dense index @p index is drawn as,
-  /// or empty for the stand-in.
-  [[nodiscard]] const std::string& character(size_t index) const;
+  /// The character the player at dense index @p index is playing as: the
+  /// one their slot picked, or the default when it picked none the content
+  /// has.
+  [[nodiscard]] const game::CharacterDefinition& character(size_t index) const;
 
   /// Whether the player at dense index @p index moved on the last tick,
   /// which is what picks the clip a rigged character plays.
@@ -144,7 +146,9 @@ private:
   FixedStepClock clock_;
   /// Every tick's input and a checkpoint a second.
   sim::ReplayRecorder recorder_;
-  /// What each player looks like, by input slot.
+  /// The content the run is played with.
+  game::GameContent content_;
+  /// Which character each input slot picked, as the setup said.
   std::array<std::string, sim::MAX_PLAYERS> characters_{};
   /// Each player's position before the last tick, for interpolation.
   std::vector<Vec3> previous_;

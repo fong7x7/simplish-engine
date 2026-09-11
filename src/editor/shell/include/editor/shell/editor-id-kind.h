@@ -16,7 +16,8 @@ namespace eng::editor {
 /// ([project-format.md §3]), and the prefix is what lets the content
 /// generator type-check a reference without loading its target first. The
 /// ones here are what the editor can name today: the two sorts of asset
-/// that can be placed, and the three sorts of thing a level holds.
+/// that can be placed, the three sorts of thing a level holds, and a row of
+/// the characters table.
 /// @thread_safety Immutable value type.
 enum class EditorIdKind : uint8_t {
   /// A model read from the project's assets directory.
@@ -29,6 +30,8 @@ enum class EditorIdKind : uint8_t {
   LIGHT,
   /// A point a player enters the level at.
   PLAYER_START,
+  /// A character a player can play as, from the characters table.
+  CHARACTER,
 };
 
 /// The prefix a reference to @p kind carries, without the colon.
@@ -44,6 +47,8 @@ enum class EditorIdKind : uint8_t {
       return "light";
     case EditorIdKind::PLAYER_START:
       return "player_start";
+    case EditorIdKind::CHARACTER:
+      return "character";
   }
   return {};
 }

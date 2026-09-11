@@ -18,9 +18,11 @@ struct EditorPlaytestPlayer {
   uint8_t player = 1;
   /// Where the player's feet are, in tiles.
   WorldPoint position{};
-  /// The asset reference the player is drawn as, or empty for the
-  /// stand-in.
+  /// The id of the character the player is playing as, or empty for the
+  /// default character.
   std::string character{};
+  /// Health segments the player has left.
+  uint16_t health = 0;
 };
 
 }  // namespace eng::editor
