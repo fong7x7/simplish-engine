@@ -35,6 +35,10 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetAnimation(EditorShellState& state,
                                                const nlohmann::json& params);
 
+/// Name the asset one player start's player is drawn as.
+[[nodiscard]] AgentResult runAgentSetCharacter(EditorShellState& state,
+                                               const nlohmann::json& params);
+
 /// Move one entry by a delta in tiles.
 [[nodiscard]] AgentResult runAgentTranslate(EditorShellState& state,
                                             const nlohmann::json& params);

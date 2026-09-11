@@ -9,14 +9,17 @@
 //   - A placed asset lists position X, Y, Z, rotation X, Y, Z, and a
 //     Collides checkbox that a click anywhere on its row flips; a light
 //     lists the direction, colour, intensity and range its own kind uses;
-//     a player start lists its player and its position
+//     a player start lists its player, its position, and its character
 //   - Each row is a label, a step-down button, a value box, and a step-up
 //     button; a click on a button steps the value, a drag across the value
 //     box scrubs it
-//   - A rigged model gets one more row, Animation, whose value box names
-//     the clip it plays and whose buttons step to the previous or next clip,
-//     wrapping round. It is a name, not a number, so it is a row of its own
-//     rather than a property field, and reports through on_clip_changed
+//   - One more row may follow the property rows: a choice among names,
+//     whose value box shows the one picked and whose buttons step to the
+//     previous or next, wrapping round. A rigged model's is Animation, its
+//     clips; a player start's is Character, the assets it can be drawn as.
+//     A name is not a number, so it is a row of its own rather than a
+//     property field, and reports the index picked through
+//     on_choice_changed; what the names mean is the editor's business
 //   - A drag reports every intermediate value as a preview and one final
 //     value as a commit, so the editor moves the prop live and records one
 //     undo entry for the gesture
@@ -49,8 +52,7 @@
 //
 // Integration Points:
 //   - SimplishEditor: owns this widget, feeds it the selection, and applies
-//     on_property_changed to whatever is selected and on_clip_changed to
-//     the selected placement
+//     on_property_changed and on_choice_changed to whatever is selected
 
 #include <cstddef>
 #include <editor/shell/editor-light.h>
@@ -64,6 +66,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace eng::editor {
@@ -99,18 +102,24 @@ public:
   /// Show a player start's properties: which player, and where.
   void setSelection(std::string name, const EditorPlayerStart& start);
 
-  /// Offer a rigged model's clips as an Animation row below the property
-  /// rows, showing the one @p current names — or the first, when it names
-  /// none of them, which is the clip such a placement plays. Called after
-  /// `setSelection`, which drops any clips a previous selection had; an
-  /// empty list shows no row.
-  void setClips(std::vector<std::string> clips, const std::string& current);
+  /// Offer @p choices as a row labelled @p label below the property rows,
+  /// showing the one at @p current — or the first, when that is out of
+  /// range. Called after `setSelection`, which drops any choices a previous
+  /// selection had; an empty list shows no row.
+  void setChoices(std::string_view label, std::vector<std::string> choices,
+                  size_t current);
 
-  /// The clip the Animation row shows, or empty when there is no such row.
-  [[nodiscard]] const std::string& clip() const { return clip_; }
+  /// The name the choice row shows, or empty when there is no such row.
+  [[nodiscard]] const std::string& choice() const;
 
-  /// Rect of the Animation row, in layout pixels. Empty when there is none.
-  [[nodiscard]] Rect clipRowRect() const;
+  /// Where the name the choice row shows is in its list.
+  [[nodiscard]] size_t choiceIndex() const { return choice_; }
+
+  /// The choice row's label, or empty when there is no such row.
+  [[nodiscard]] const std::string& choiceLabel() const { return choice_label_; }
+
+  /// Rect of the choice row, in layout pixels. Empty when there is none.
+  [[nodiscard]] Rect choiceRowRect() const;
 
   /// Show nothing, and hide the panel.
   void clearSelection();
@@ -152,10 +161,10 @@ public:
   std::function<void(EditorPropertyField, float, EditorPropertyEdit)>
       on_property_changed{};
 
-  /// Raised when a step button on the Animation row picks another clip,
-  /// with the name of the clip it picked. Always a finished edit: there is
-  /// no gesture to preview.
-  std::function<void(const std::string&)> on_clip_changed{};
+  /// Raised when a step button on the choice row picks another name, with
+  /// where that name is in the list `setChoices` was given. Always a
+  /// finished edit: there is no gesture to preview.
+  std::function<void(size_t)> on_choice_changed{};
 
 private:
   /// Draw the title strip.
@@ -174,8 +183,8 @@ private:
   /// Draw the checkbox an on-or-off row @p index shows, in @p row.
   void renderToggle(const GuiDrawContext& ctx, const Rect& row,
                     size_t index) const;
-  /// Draw the Animation row, when there is one.
-  void renderClipRow(const GuiDrawContext& ctx) const;
+  /// Draw the choice row, when there is one.
+  void renderChoiceRow(const GuiDrawContext& ctx) const;
   /// Draw one step button and its sign.
   void renderStep(const GuiDrawContext& ctx, const Rect& rect,
                   std::string_view sign) const;
@@ -193,11 +202,11 @@ private:
   void beginDrag(EditorPropertyField field, const GuiMouseEvent& event);
   /// Act on a press in row @p index. Returns true when a drag began.
   bool pressRow(size_t index, const GuiMouseEvent& event);
-  /// Act on a press in the Animation row: step to the previous or next
-  /// clip when it lands on a button.
-  void pressClipRow(const GuiMouseEvent& event);
-  /// Rows the panel lists: the property rows, and the Animation row when
-  /// there are clips.
+  /// Act on a press in the choice row: step to the previous or next name
+  /// when it lands on a button.
+  void pressChoiceRow(const GuiMouseEvent& event);
+  /// Rows the panel lists: the property rows, and the choice row when
+  /// there are choices.
   [[nodiscard]] size_t rowCount() const;
   /// Move a value by one step and commit it.
   void stepField(EditorPropertyField field, float steps);
@@ -215,10 +224,12 @@ private:
   std::string name_{};
   /// Backing store for the id line's text: the qualified reference.
   std::string reference_{};
-  /// Clip names the Animation row steps through; empty for no such row.
-  std::vector<std::string> clips_{};
-  /// The clip the Animation row shows.
-  std::string clip_{};
+  /// What the choice row is labelled: `Animation`, `Character`.
+  std::string choice_label_{};
+  /// Names the choice row steps through; empty for no such row.
+  std::vector<std::string> choices_{};
+  /// Which of them the choice row shows.
+  size_t choice_ = 0;
   /// Whether a value is being scrubbed.
   bool dragging_ = false;
   /// Field the scrub is changing.

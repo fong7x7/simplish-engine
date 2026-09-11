@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <editor/shell/iso-projection.h>
+#include <string>
 
 namespace eng::editor {
 
@@ -17,6 +18,9 @@ struct EditorPlaytestPlayer {
   uint8_t player = 1;
   /// Where the player's feet are, in tiles.
   WorldPoint position{};
+  /// The asset reference the player is drawn as, or empty for the
+  /// stand-in.
+  std::string character{};
 };
 
 }  // namespace eng::editor

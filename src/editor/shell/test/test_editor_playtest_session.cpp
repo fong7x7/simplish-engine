@@ -52,7 +52,7 @@ std::vector<std::byte> readBytes(const std::filesystem::path& path) {
 EditorPlaytestSession sessionAt(WorldPoint spawn) {
   EditorDocument document;
   document.player_starts.push_back(makeEditorPlayerStart(1, spawn));
-  return {makeEditorPlaytestSetup(document, {}, {}), "main"};
+  return {makeEditorPlaytestSetup(document, {}, {}), {}, "main"};
 }
 
 }  // namespace
@@ -158,7 +158,7 @@ TEST_CASE("a player is drawn between where the last tick found and left it") {
 TEST_CASE("a playtest's replay reproduces it in a fresh world") {
   EditorDocument document = documentWithStarts();
   const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
-  EditorPlaytestSession session(setup, "main");
+  EditorPlaytestSession session(setup, {}, "main");
   std::vector<EditorScriptedInput> none;
   for (uint64_t tick = 0; tick < 200; ++tick) {
     sim::PlayerInput input = pushingRight();
@@ -216,7 +216,7 @@ TEST_CASE("walking right in a playtest stops at the first solid prop") {
   EditorPlacement crate;
   crate.position = {6.0F, 2.0F, 0.0F};
   document.placements.push_back(crate);
-  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}),
+  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
                                 "main");
   std::vector<EditorScriptedInput> none;
 
@@ -227,4 +227,45 @@ TEST_CASE("walking right in a playtest stops at the first solid prop") {
   // Player 1 starts at x 4.5 on row 2.5, in line with the crate.
   REQUIRE(session.players().position[0].x ==
           Approx(6.0F - game::PLAYER_RADIUS_TILES));
+}
+
+TEST_CASE("each player is drawn as the character of their first start") {
+  EditorDocument document = documentWithStarts();
+  document.player_starts[0].character = "mesh:knight";
+  document.player_starts[1].character = "mesh:hero";
+  // A later start for player 1 does not change what they look like.
+  document.player_starts.push_back(makeEditorPlayerStart(1, {0, 0, 0}));
+  document.player_starts.back().character = "shape:cube";
+
+  const auto characters = editorPlaytestCharacters(document);
+
+  REQUIRE(characters[0] == "mesh:hero");
+  REQUIRE(characters[1] == "mesh:knight");
+  REQUIRE(characters[2].empty());
+}
+
+TEST_CASE("a playtest reports what each player is drawn as") {
+  EditorDocument document = documentWithStarts();
+  document.player_starts[1].character = "mesh:hero";
+  EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}),
+                                editorPlaytestCharacters(document), "main");
+  EditorPlaytestState state;
+
+  session.publish(state);
+
+  REQUIRE(session.character(0) == "mesh:hero");
+  REQUIRE(state.players.size() == 1);
+  REQUIRE(state.players[0].character == "mesh:hero");
+}
+
+TEST_CASE("a player is moving on a tick that moved them, and still after") {
+  EditorPlaytestSession session = sessionAt({0, 0, 0});
+  std::vector<EditorScriptedInput> none;
+  REQUIRE(session.gait(0) == EditorCharacterGait::STILL);
+
+  session.step(pushingRight(), none);
+  REQUIRE(session.gait(0) == EditorCharacterGait::MOVING);
+
+  session.step(sim::PlayerInput{}, none);
+  REQUIRE(session.gait(0) == EditorCharacterGait::STILL);
 }

@@ -261,7 +261,8 @@ namespace {
     json players = json::array();
     for (const EditorPlaytestPlayer& player : playtest.players) {
       players.push_back({{"player", player.player},
-                         {"position", agentPointJson(player.position)}});
+                         {"position", agentPointJson(player.position)},
+                         {"character", player.character}});
     }
     return players;
   }

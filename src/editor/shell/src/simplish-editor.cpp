@@ -6,6 +6,7 @@
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
 #include <editor/shell/editor-level-io.h>
@@ -14,6 +15,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-mesh-style.h>
 #include <editor/shell/editor-placement-clip.h>
+#include <editor/shell/editor-placement-pick.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-project-title.h>
@@ -107,11 +109,13 @@ namespace {
            a.intensity == b.intensity && a.range == b.range;
   }
 
-  /// Whether two player starts are for the same player on the same spot,
-  /// for the reason `sameTransform` compares placements exactly.
+  /// Whether two player starts are for the same player, on the same spot,
+  /// wearing the same character, for the reason `sameTransform` compares
+  /// placements exactly.
   bool sameStart(const EditorPlayerStart& a, const EditorPlayerStart& b) {
     return a.player == b.player && a.position.x == b.position.x &&
-           a.position.y == b.position.y && a.position.z == b.position.z;
+           a.position.y == b.position.y && a.position.z == b.position.z &&
+           a.character == b.character;
   }
 
   /// The entry a viewport marker stands for. Markers are the placements,
@@ -349,8 +353,8 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
                                       EditorPropertyEdit edit) {
     applyPropertyEdit(field, value, edit);
   };
-  panel->on_clip_changed = [this](const std::string& clip) {
-    applyClipEdit(clip);
+  panel->on_choice_changed = [this](size_t index) {
+    applyChoiceEdit(index);
   };
   properties_panel_id_ =
       tree.insertExternalWidget(std::move(panel), root_panel_);
@@ -923,9 +927,44 @@ void SimplishEditor::dropBrowserEntry(size_t entry, float x, float y) {
       !containsPoint(viewport->rect, x, y)) {
     return;
   }
+  // A model dropped on a player start dresses it rather than landing on
+  // the tile beside it: that is what dropping it there asks for.
+  if (dressPlayerStart(entry, {x, y})) {
+    return;
+  }
   const IsoView view = makeIsoView(viewport->camera, viewport->rect);
   const WorldPoint world = screenToWorld(view, {x, y});
   placeBrowserEntry(entry, {std::floor(world.x), std::floor(world.y)});
+}
+
+bool SimplishEditor::dressPlayerStart(size_t entry, IsoPoint screen) {
+  const std::optional<size_t> start = playerStartUnder(screen);
+  if (!start || entry >= state_.assets.size()) {
+    return false;
+  }
+  select({EditorSelectionKind::PLAYER_START, *start});
+  applyCharacterEdit(editorAssetRef(state_.assets[entry]));
+  return true;
+}
+
+std::optional<size_t> SimplishEditor::playerStartUnder(IsoPoint screen) {
+  const EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return std::nullopt;
+  }
+  // Picked as a click would pick, so the start a drop dresses is the one
+  // a click there would select.
+  const int marker =
+      pickPlacementMarker(makeIsoView(viewport->camera, viewport->rect),
+                          viewport->placement_markers, screen);
+  if (marker < 0) {
+    return std::nullopt;
+  }
+  const EditorSelection hit =
+      markerSelection(state_.document, static_cast<size_t>(marker));
+  return selectionIs(hit, EditorSelectionKind::PLAYER_START)
+             ? std::optional{hit.index}
+             : std::nullopt;
 }
 
 void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
@@ -1043,8 +1082,10 @@ void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
                                : std::string{};
   panel.setSelection(name, placement);
   if (placement.asset < state_.assets.size()) {
-    panel.setClips(editorClipNames(state_.assets[placement.asset].rig.get()),
-                   placement.animation);
+    std::vector<std::string> clips =
+        editorClipNames(state_.assets[placement.asset].rig.get());
+    const size_t current = editorClipIndex(clips, placement.animation);
+    panel.setChoices("Animation", std::move(clips), current);
   }
 }
 
@@ -1057,6 +1098,9 @@ void SimplishEditor::showPlayerStartSelection(EditorPropertiesWidget& panel) {
   const EditorPlayerStart& start =
       state_.document.player_starts[state_.selection.index];
   panel.setSelection(editorPlayerStartName(start), start);
+  EditorCharacterChoices choices =
+      editorCharacterChoices(state_.assets, start.character);
+  panel.setChoices("Character", std::move(choices.names), choices.current);
 }
 
 void SimplishEditor::applySelectionToChrome() {
@@ -1104,6 +1148,48 @@ void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
   if (edit == EditorPropertyEdit::COMMIT) {
     commitPlacementEdit();
   }
+}
+
+void SimplishEditor::applyChoiceEdit(size_t index) {
+  if (editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
+    applyCharacterChoice(index);
+  } else if (editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    applyClipChoice(index);
+  }
+}
+
+void SimplishEditor::applyCharacterChoice(size_t index) {
+  // Worked out again rather than remembered from when the panel was shown:
+  // the choices are a function of the assets and the start, and both are
+  // right here.
+  const EditorCharacterChoices choices = editorCharacterChoices(
+      state_.assets,
+      state_.document.player_starts[state_.selection.index].character);
+  if (index < choices.refs.size()) {
+    applyCharacterEdit(choices.refs[index]);
+  }
+}
+
+void SimplishEditor::applyClipChoice(size_t index) {
+  const size_t asset = state_.document.placements[state_.selection.index].asset;
+  const std::vector<std::string> clips = editorClipNames(
+      asset < state_.assets.size() ? state_.assets[asset].rig.get() : nullptr);
+  if (index < clips.size()) {
+    applyClipEdit(clips[index]);
+  }
+}
+
+void SimplishEditor::applyCharacterEdit(const std::string& character) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLAYER_START)) {
+    return;
+  }
+  EditorPlayerStart& start =
+      state_.document.player_starts[state_.selection.index];
+  if (!player_start_prior_.has_value()) {
+    player_start_prior_ = start;
+  }
+  start.character = character;
+  commitPlayerStartEdit();
 }
 
 void SimplishEditor::applyClipEdit(const std::string& clip) {
@@ -1329,10 +1415,11 @@ void SimplishEditor::buildSceneInstances() {
   for (const auto& placement : state_.document.placements) {
     appendPlacementInstance(placement);
   }
+  appendCharacterInstances();
   // Players for props deleted since the last frame go; a prop brought back
-  // by an undo gets a fresh one, which cuts in rather than fading.
+  // by an undo gets a fresh one, which cuts in rather than fading. The
+  // characters are posed first, so theirs are kept.
   placement_animator_.endFrame();
-  appendPlaytestInstances();
 }
 
 GuiColor SimplishEditor::frameClearColor() const {
@@ -1343,11 +1430,11 @@ GuiColor SimplishEditor::frameClearColor() const {
 
 RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   eng::RhiDevice* device = rhiDevice();
-  // No placements means no scene pass at all, which leaves the frame
+  // Nothing to draw means no scene pass at all, which leaves the frame
   // exactly as it was before any of this existed. A playtest always has
   // one: the players are drawn in it.
-  if (device == nullptr ||
-      (state_.document.placements.empty() && !isPlaying())) {
+  if (device == nullptr || (state_.document.placements.empty() &&
+                            !isPlaying() && characterFigures().empty())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),

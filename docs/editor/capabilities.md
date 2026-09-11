@@ -81,7 +81,8 @@ puzzled over.
 | Add a light | ✅ | `add_light` | |
 | Mark where a player starts | ✅ | `add_player_start` | Dragged from general › tools. Each start is for one of the four players, and a dropped one takes the lowest player without a start yet; the viewport draws it as a person-height column in that player's colour |
 | Give a start to another player | ✅ | `set_property` (`player`) | The panel's Player row steps 1–4; a value outside that is clamped |
-| Read every player start | ✅ | `list_player_starts` | With the player each is for, and how many players a session holds |
+| Choose what a player looks like | ✅ | `set_character`, `list_player_starts` | Per start: a Character row, last in a start's properties, steps through the stand-in and every asset, and dropping a model from the browser onto a start's column does the same — one undoable edit either way. The model stands on the start in the viewport, as tall as a player and facing +X, and in a playtest the player who spawns there is drawn as it, turned to face their aim; a rigged one idles standing and runs or walks moving, picked by clip name. Presentation only — collision is the same cylinder whatever the model. Saved with the start; one naming an asset the project no longer has is kept and drawn as the stand-in |
+| Read every player start | ✅ | `list_player_starts` | With the player each is for, its character, and how many players a session holds |
 | Read every placement | ✅ | `list_placements` | |
 | Read every light | ✅ | `list_lights` | |
 | Move or turn an entry | ✅ | `set_property`, `translate` | Absolute or by a delta |
@@ -124,7 +125,7 @@ puzzled over.
 | Capability | In the editor | Agent | Notes |
 |---|---|---|---|
 | Play the open level, and stop | ✅ | `start_playtest`, `stop_playtest`, `run_command` (`playtest`) | The toolbar's Play button, Level › Play Level, or F5; Esc stops too. One player, spawning on the level's first start for player 1, or under the camera without one |
-| See the running game | ✅ | `get_playtest`, `get_state` (`playtest`) | Tick, where each player is, the latest tick hash, dropped ticks. The toolbar status line shows the tick while playing |
+| See the running game | ✅ | `get_playtest`, `get_state` (`playtest`) | Tick, where each player is and what they are drawn as, the latest tick hash, dropped ticks. The toolbar status line shows the tick while playing |
 | Control player 1 | ✅ | `send_input` | WASD or the arrows move relative to the camera (W is up the screen in either projection), the cursor aims, the left button fires (recorded; nothing fires yet). `send_input` queues exact input for a run of ticks, in place of the keyboard, so a playthrough can be scripted and checked by its hashes. Its stick is in world axes, not the camera's, so a script means the same run under either projection |
 | Props stop the player | ✅ | — | Every prop whose Collides box is ticked is a solid box to the playtest: the one the viewport outlines, so a turned prop blocks the box around it rather than its exact shape. The player stops against it and slides along it |
 | The level is untouched by playing it | ✅ | — | The game runs from a copy; every edit — browser drops, picks, the panel, Delete, undo — is ignored while playing, and the API's edit tools are refused |

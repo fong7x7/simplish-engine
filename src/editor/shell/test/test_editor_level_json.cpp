@@ -270,3 +270,39 @@ TEST_CASE("a prop's clip round-trips, and none is written when it names none") {
   // One prop names a clip, so the key appears exactly once in the file.
   REQUIRE(text.find("\"animation\"") == text.rfind("\"animation\""));
 }
+
+TEST_CASE("a start's character round-trips, and none is written for none") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.player_starts.push_back(makeEditorPlayerStart(1, {1.5f, 1.5f, 0}));
+  written.player_starts.push_back(makeEditorPlayerStart(2, {2.5f, 1.5f, 0}));
+  written.player_starts[0].id = "start_01";
+  written.player_starts[0].character = "mesh:props_crate";
+  written.player_starts[1].id = "start_02";
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const auto read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.player_starts[0].character == "mesh:props_crate");
+  REQUIRE(read->document.player_starts[1].character.empty());
+  REQUIRE(text.find("\"character\"") == text.rfind("\"character\""));
+}
+
+TEST_CASE("a hand-written character id reads as the asset it names") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {"entities": [
+      {"id": "start_01", "definition": "entity:player_start",
+       "at": [0.5, 0.5, 0], "properties": {"player": 1, "character": "cube"}},
+      {"id": "start_02", "definition": "entity:player_start",
+       "at": [1.5, 0.5, 0],
+       "properties": {"player": 2, "character": "mesh:gone"}}]}})";
+
+  const auto read = parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.player_starts[0].character == "shape:cube");
+  // An asset the project does not hold is kept, not thrown away.
+  REQUIRE(read->document.player_starts[1].character == "mesh:gone");
+}

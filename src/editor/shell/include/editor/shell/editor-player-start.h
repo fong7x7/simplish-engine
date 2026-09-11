@@ -33,6 +33,17 @@ struct EditorPlayerStart {
   /// Where the player's feet land: the centre of the tile it was dropped
   /// on, on the ground.
   WorldPoint position{};
+  /// What the player who spawns here looks like: the reference of the
+  /// asset drawn for them — `mesh:characters_hero`, `shape:cylinder` — or
+  /// empty for the stand-in.
+  ///
+  /// A reference rather than an index into the asset list, which a rescan
+  /// renumbers, and the qualified one rather than the bare id, because a
+  /// model and a built-in shape may share an id. One naming an asset the
+  /// project no longer has is kept as written, so a file that goes missing
+  /// for a while does not cost the start its character, and is drawn as the
+  /// stand-in until it is back.
+  std::string character{};
 };
 
 }  // namespace eng::editor

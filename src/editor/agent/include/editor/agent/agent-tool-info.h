@@ -114,6 +114,19 @@ inline constexpr AgentParam AGENT_PARAMS_SET_ANIMATION[] = {
      "which is what a placement plays until one is chosen."},
 };
 
+/// `set_character` names the asset a player start's player is drawn as.
+inline constexpr AgentParam AGENT_PARAMS_SET_CHARACTER[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"player_start\", or \"selection\" when a player start is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the player start list. Not needed when target is "
+     "\"selection\"."},
+    {"asset", AgentParamType::ASSET_REF, AgentParamNeed::OPTIONAL,
+     "The asset to draw the player as: index in the scanned asset list, or "
+     "its id, reference, name or path. Omitted or empty goes back to the "
+     "stand-in."},
+};
+
 /// `translate` moves an entry by a delta rather than to a position.
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -283,8 +296,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::LIST_PLAYER_STARTS,
      "list_player_starts",
      "Every player start in the level — where each player spawns — with "
-     "its index, id, the player it is for (1 to 4), and its position. Also "
-     "reports how many players a session holds.",
+     "its index, id, the player it is for (1 to 4), its position, and the "
+     "asset reference its player is drawn as (empty for the stand-in). "
+     "Also reports how many players a session holds.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::GET_SELECTION,
@@ -348,6 +362,13 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "edit. Refused for a placement whose model has no clips, and for a "
      "clip the model does not have — the error lists the ones it does.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_ANIMATION},
+    {AgentTool::SET_CHARACTER, "set_character",
+     "Choose what the player who spawns at a player start looks like, as "
+     "the properties panel's Character row or dropping a model on the "
+     "start does. Any asset will do; a rigged one plays its idle clip "
+     "standing and its run or walk clip moving. Recorded as one undoable "
+     "edit, and saved with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_CHARACTER},
     {AgentTool::TRANSLATE, "translate",
      "Move a placement, a light or a player start by a delta in tiles — "
      "the tool to reach for when asked to shift something in a direction "
@@ -407,7 +428,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::GET_PLAYTEST,
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
-     "simulation is on, where each player is, the latest tick hash, how "
+     "simulation is on, where each player is and what they are drawn as, "
+     "the latest tick hash, how "
      "many ticks the frame clock has dropped, and how many ticks of queued "
      "input are left. Poll it after start_playtest or send_input to watch "
      "the game run.",

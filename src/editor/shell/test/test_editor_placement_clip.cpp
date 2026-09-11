@@ -5,11 +5,12 @@
 using eng::animation::AnimationClip;
 using eng::animation::Rig;
 using eng::animation::RIG_REST_POSE;
+using eng::editor::editorCharacterClip;
+using eng::editor::EditorCharacterGait;
 using eng::editor::editorClipIndex;
 using eng::editor::editorClipNames;
 using eng::editor::EditorPlacement;
 using eng::editor::editorPlacementClip;
-using eng::editor::stepEditorClip;
 
 namespace {
 
@@ -56,17 +57,23 @@ TEST_CASE("a model with no clips, or no rig, stands at rest") {
   REQUIRE(editorPlacementClip(playing(""), &still) == RIG_REST_POSE);
 }
 
-TEST_CASE("stepping through clips wraps round at either end") {
-  const Rig rig = threeClips();
-  const std::vector<std::string> clips = editorClipNames(&rig);
-  REQUIRE(stepEditorClip(clips, "idle", 1) == "walk");
-  REQUIRE(stepEditorClip(clips, "run", 1) == "idle");
-  REQUIRE(stepEditorClip(clips, "idle", -1) == "run");
-  REQUIRE(stepEditorClip(clips, "walk", 7) == "run");
+TEST_CASE("a moving character runs, or walks when it has no run") {
+  const std::vector<std::string> both{"Idle", "Walk_Loop", "Run_Fast"};
+  const std::vector<std::string> walker{"Idle", "Walk_Loop"};
+  REQUIRE(editorCharacterClip(both, EditorCharacterGait::MOVING) == "Run_Fast");
+  REQUIRE(editorCharacterClip(walker, EditorCharacterGait::MOVING) ==
+          "Walk_Loop");
 }
 
-TEST_CASE("stepping from no clip starts from the first") {
-  const Rig rig = threeClips();
-  REQUIRE(stepEditorClip(editorClipNames(&rig), "", 1) == "walk");
-  REQUIRE(stepEditorClip({}, "idle", 1).empty());
+TEST_CASE("a still character idles, matching the name in any case") {
+  const std::vector<std::string> clips{"Walk", "IDLE_breathing"};
+  REQUIRE(editorCharacterClip(clips, EditorCharacterGait::STILL) ==
+          "IDLE_breathing");
+}
+
+TEST_CASE("a character with no clip named for its gait plays its first") {
+  const std::vector<std::string> clips{"dance", "wave"};
+  REQUIRE(editorCharacterClip(clips, EditorCharacterGait::STILL).empty());
+  REQUIRE(editorCharacterClip(clips, EditorCharacterGait::MOVING).empty());
+  REQUIRE(editorCharacterClip({}, EditorCharacterGait::MOVING).empty());
 }

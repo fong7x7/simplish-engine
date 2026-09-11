@@ -1,6 +1,5 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
-#include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
@@ -19,12 +18,18 @@ namespace {
   constexpr float TEXT_INSET = 6.0f;
   /// How far a checkbox's tick sits inside its box.
   constexpr float CHECK_INSET = 5.0f;
-  /// The Animation row's label.
-  constexpr std::string_view CLIP_LABEL = "Animation";
 
   /// Vertically centred draw position for a line of text in @p rect.
   DrawPos textPos(const Rect& rect, float inset_x) {
     return drawPosInset(rect, inset_x, TEXT_BASELINE);
+  }
+
+  /// The choice @p steps along from @p current among @p count, wrapping
+  /// round at either end whichever way it stepped and however far.
+  size_t stepChoice(size_t count, size_t current, int steps) {
+    const auto n = static_cast<long>(count);
+    const long to = ((static_cast<long>(current) + steps) % n + n) % n;
+    return static_cast<size_t>(to);
   }
 
 }  // namespace
@@ -80,8 +85,9 @@ void EditorPropertiesWidget::beginSelection(
   reference_ = std::move(reference);
   fields_.assign(fields.begin(), fields.end());
   values_.assign(fields_.size(), 0.0f);
-  clips_.clear();
-  clip_.clear();
+  choice_label_.clear();
+  choices_.clear();
+  choice_ = 0;
   has_selection_ = true;
   visible = true;
 }
@@ -113,25 +119,32 @@ void EditorPropertiesWidget::setSelection(std::string name,
   }
 }
 
-void EditorPropertiesWidget::setClips(std::vector<std::string> clips,
-                                      const std::string& current) {
-  clips_ = std::move(clips);
-  clip_ =
-      clips_.empty() ? std::string{} : clips_[editorClipIndex(clips_, current)];
+void EditorPropertiesWidget::setChoices(std::string_view label,
+                                        std::vector<std::string> choices,
+                                        size_t current) {
+  choice_label_ = label;
+  choices_ = std::move(choices);
+  choice_ = current < choices_.size() ? current : 0;
+}
+
+const std::string& EditorPropertiesWidget::choice() const {
+  static const std::string none;
+  return choices_.empty() ? none : choices_[choice_];
 }
 
 size_t EditorPropertiesWidget::rowCount() const {
-  return fields_.size() + (clips_.empty() ? 0 : 1);
+  return fields_.size() + (choices_.empty() ? 0 : 1);
 }
 
-Rect EditorPropertiesWidget::clipRowRect() const {
-  return clips_.empty() ? Rect{}
-                        : propertyRowRect(layout().body, fields_.size());
+Rect EditorPropertiesWidget::choiceRowRect() const {
+  return choices_.empty() ? Rect{}
+                          : propertyRowRect(layout().body, fields_.size());
 }
 
 void EditorPropertiesWidget::clearSelection() {
-  clips_.clear();
-  clip_.clear();
+  choice_label_.clear();
+  choices_.clear();
+  choice_ = 0;
   has_selection_ = false;
   visible = false;
   // A drag whose subject has gone has nothing left to commit.
@@ -221,23 +234,23 @@ void EditorPropertiesWidget::renderRows(const GuiDrawContext& ctx) const {
   for (size_t row = 0; row < fields_.size(); ++row) {
     renderRow(ctx, row);
   }
-  renderClipRow(ctx);
+  renderChoiceRow(ctx);
 }
 
-void EditorPropertiesWidget::renderClipRow(const GuiDrawContext& ctx) const {
-  if (clips_.empty()) {
+void EditorPropertiesWidget::renderChoiceRow(const GuiDrawContext& ctx) const {
+  if (choices_.empty()) {
     return;
   }
-  const Rect row = clipRowRect();
+  const Rect row = choiceRowRect();
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
-               textPos(propertyLabelRect(row), 0.0f), CLIP_LABEL);
+               textPos(propertyLabelRect(row), 0.0f), choice_label_);
   renderStep(ctx, propertyDecrementRect(row), "-");
   renderStep(ctx, propertyIncrementRect(row), "+");
   const Rect value = propertyValueRect(row);
   ctx.drawRoundedRect(value, GuiColor::applyOpacity(VALUE_BG, opacity),
                       THEME_BTN_RADIUS);
   ctx.drawCenteredText(value, GuiColor::applyOpacity(THEME_TEXT, opacity),
-                       clip_);
+                       choice());
 }
 
 void EditorPropertiesWidget::render(const GuiDrawContext& ctx) const {
@@ -313,21 +326,21 @@ bool EditorPropertiesWidget::pressRow(size_t index,
   return true;
 }
 
-void EditorPropertiesWidget::pressClipRow(const GuiMouseEvent& event) {
-  const Rect row = clipRowRect();
+void EditorPropertiesWidget::pressChoiceRow(const GuiMouseEvent& event) {
+  const Rect row = choiceRowRect();
   int steps = 0;
   if (containsPoint(propertyDecrementRect(row), event.x, event.y)) {
     steps = -1;
   } else if (containsPoint(propertyIncrementRect(row), event.x, event.y)) {
     steps = 1;
   }
-  const std::string next = stepEditorClip(clips_, clip_, steps);
-  if (steps == 0 || next == clip_) {
+  const size_t next = stepChoice(choices_.size(), choice_, steps);
+  if (steps == 0 || next == choice_) {
     return;
   }
-  clip_ = next;
-  if (on_clip_changed) {
-    on_clip_changed(clip_);
+  choice_ = next;
+  if (on_choice_changed) {
+    on_choice_changed(choice_);
   }
 }
 
@@ -341,9 +354,9 @@ bool EditorPropertiesWidget::handleMouseDown(const GuiMouseEvent& event) {
     return false;
   }
   if (static_cast<size_t>(row) == fields_.size()) {
-    // The Animation row: a step is done the moment it is pressed, so it
-    // never takes capture.
-    pressClipRow(event);
+    // The choice row: a step is done the moment it is pressed, so it never
+    // takes capture.
+    pressChoiceRow(event);
     return false;
   }
   return pressRow(static_cast<size_t>(row), event);

@@ -112,6 +112,7 @@
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-asset-scan.h>
+#include <editor/shell/editor-character-figure.h>
 #include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-result.h>
@@ -252,9 +253,25 @@ private:
   /// Add a column in its player's colour for every player, drawn where the
   /// frame puts them, after the level's own markers.
   void appendPlaytestMarkers(std::vector<EditorPlacementMarker>& markers);
-  /// Add a mesh instance standing in for every player, until sprites
-  /// exist to draw one with.
-  void appendPlaytestInstances();
+  /// The characters the viewport draws this frame: every player while a
+  /// playtest runs, and the ones standing on the level's starts otherwise.
+  [[nodiscard]] std::vector<EditorCharacterFigure> characterFigures() const;
+  /// Draw every character `characterFigures` lists.
+  void appendCharacterInstances();
+  /// Draw @p figure as its character, or as the stand-in when it has none
+  /// or the asset will not load.
+  void appendCharacterInstance(const EditorCharacterFigure& figure);
+  /// Draw the stand-in — the built-in cylinder at a player's proportions —
+  /// with its feet on @p feet.
+  void appendStandIn(Vec3 feet);
+  /// Draw @p figure as the rigged model @p asset, posed on the animation
+  /// clock in the clip its gait picks.
+  void appendSkinnedCharacter(const EditorCharacterFigure& figure,
+                              size_t asset);
+  /// The asset @p character references, uploaded; nothing for the stand-in
+  /// and for one that is missing or will not load.
+  [[nodiscard]] std::optional<size_t>
+  characterAsset(const std::string& character);
   /// The built-in cylinder, which stands in for a player, uploaded; nothing
   /// when it is not in the asset list or will not load.
   [[nodiscard]] std::optional<size_t> avatarAsset();
@@ -342,6 +359,12 @@ private:
   void dropBrowserEntry(size_t entry, float x, float y);
   /// Put the browser entry on @p tile, whichever list it belongs in.
   void placeBrowserEntry(size_t entry, WorldPoint tile);
+  /// Make asset @p entry the character of the player start under
+  /// @p screen, as one undoable edit. False, changing nothing, when no
+  /// start is there — the drop is then a placement like any other.
+  bool dressPlayerStart(size_t entry, IsoPoint screen);
+  /// Index of the player start whose marker is under @p screen, or nothing.
+  [[nodiscard]] std::optional<size_t> playerStartUnder(IsoPoint screen);
   /// Put the asset at @p index on the tile at @p position, as an action the
   /// user can undo.
   void placeAsset(size_t index, WorldPoint position);
@@ -387,7 +410,8 @@ private:
   void showPlacementSelection(EditorPropertiesWidget& panel);
   /// Show the selected light's kind and properties in @p panel.
   void showLightSelection(EditorPropertiesWidget& panel);
-  /// Show the selected player start's player and position in @p panel.
+  /// Show the selected player start's player, position and character in
+  /// @p panel.
   void showPlayerStartSelection(EditorPropertiesWidget& panel);
   /// Apply one property change to whatever is selected, recording history
   /// when the gesture that produced it has finished.
@@ -396,9 +420,21 @@ private:
   /// Apply one property change to the selected placement.
   void applyPlacementEdit(EditorPropertyField field, float value,
                           EditorPropertyEdit edit);
+  /// Act on the properties panel's choice row picking @p index: a clip for
+  /// a placement, a character for a player start.
+  void applyChoiceEdit(size_t index);
+  /// Give the selected player start the character at @p index of its
+  /// Character row.
+  void applyCharacterChoice(size_t index);
+  /// Have the selected placement play the clip at @p index of its
+  /// Animation row.
+  void applyClipChoice(size_t index);
   /// Set the clip the selected placement plays, as one undoable edit —
   /// what the properties panel's Animation row reports.
   void applyClipEdit(const std::string& clip);
+  /// Set the character the selected player start is drawn as, as one
+  /// undoable edit — what the properties panel's Character row reports.
+  void applyCharacterEdit(const std::string& character);
   /// Apply one property change to the selected light.
   void applyLightEdit(EditorPropertyField field, float value,
                       EditorPropertyEdit edit);

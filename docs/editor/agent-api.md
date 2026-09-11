@@ -161,13 +161,13 @@ each one's parameters; this table is the map.
 | `list_folders` | The browser's folder tree, the built-in general section included |
 | `list_placements` | Every placement: index, asset, position, rotation |
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
-| `list_player_starts` | Every player start: the player it is for, its position, and how many players a session holds |
+| `list_player_starts` | Every player start: the player it is for, its position, its character, and how many players a session holds |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being played: the tick, where each player is, the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being played: the tick, where each player is and what they are drawn as, the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -177,6 +177,8 @@ each one's parameters; this table is the map.
 | `add_light` | Adds a directional or point light and selects it |
 | `add_player_start` | Marks where a player spawns and selects it, for a named player or the lowest one with no start yet |
 | `set_property` | Writes one property to an absolute value |
+| `set_animation` | Names the clip a placed rigged model plays |
+| `set_character` | Names the asset a player start's player is drawn as, or goes back to the stand-in |
 | `translate` | Moves a placement, a light or a player start by a delta in tiles |
 | `delete` | Removes a placement, a light or a player start, as the Delete key does |
 | `select` | Selects a placement, a light or a player start, or clears the selection |
@@ -236,7 +238,9 @@ each one's parameters; this table is the map.
   position, a rotation and whether it collides (`collides`, 1 or 0); a
   player start stores a position and a player. A rigged placement's clip is
   a name, not a number, so it has its own tool, `set_animation`, rather
-  than a `set_property` field; `get_asset` lists the clip names to pick from. A directional light's position is only where its marker sits, so
+  than a `set_property` field; `get_asset` lists the clip names to pick from.
+  A player start's character is an asset, not a number, so it has
+  `set_character`. A directional light's position is only where its marker sits, so
   the panel hides it — but it is real, and this API will move it.
 
 ### The worked example

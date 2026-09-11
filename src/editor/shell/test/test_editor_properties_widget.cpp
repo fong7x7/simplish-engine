@@ -419,14 +419,14 @@ TEST_CASE("clicking anywhere on the Collides row flips it and commits") {
 namespace {
 
 /// A panel showing a rigged placement with three clips, recording every
-/// clip it reports.
+/// choice it reports.
 struct ClipFixture : PanelFixture {
-  std::vector<std::string> picked;
+  std::vector<size_t> picked;
 
   ClipFixture() {
-    panel.setClips({"idle", "walk", "run"}, "");
-    panel.on_clip_changed = [this](const std::string& clip) {
-      picked.push_back(clip);
+    panel.setChoices("Animation", {"idle", "walk", "run"}, 0);
+    panel.on_choice_changed = [this](size_t index) {
+      picked.push_back(index);
     };
   }
 };
@@ -435,45 +435,60 @@ struct ClipFixture : PanelFixture {
 
 TEST_CASE("a rigged placement lists an Animation row under its properties") {
   ClipFixture fixture;
-  const eng::Rect row = fixture.panel.clipRowRect();
+  const eng::Rect row = fixture.panel.choiceRowRect();
   REQUIRE(row.h > 0.0f);
   REQUIRE(row.y > fixture.rowOf(EditorPropertyField::COLLIDES).y);
-  // Naming no clip plays the first, and the row says so.
-  REQUIRE(fixture.panel.clip() == "idle");
+  REQUIRE(fixture.panel.choiceLabel() == "Animation");
+  REQUIRE(fixture.panel.choice() == "idle");
 }
 
-TEST_CASE("the Animation row's buttons step through the clips, wrapping") {
+TEST_CASE("the choice row's buttons step through the names, wrapping") {
   ClipFixture fixture;
-  const eng::Rect row = fixture.panel.clipRowRect();
+  const eng::Rect row = fixture.panel.choiceRowRect();
   const eng::Rect next = propertyIncrementRect(row);
   const eng::Rect back = propertyDecrementRect(row);
 
   REQUIRE_FALSE(fixture.press(midX(next), midY(next)));
   REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
   REQUIRE_FALSE(fixture.press(midX(back), midY(back)));
-  REQUIRE(fixture.picked == std::vector<std::string>{"walk", "idle", "run"});
-  REQUIRE(fixture.panel.clip() == "run");
-  // A clip is a name, not a property value: nothing numeric was reported.
+  REQUIRE(fixture.picked == std::vector<size_t>{1, 0, 2});
+  REQUIRE(fixture.panel.choice() == "run");
+  REQUIRE(fixture.panel.choiceIndex() == 2);
+  // A choice is a name, not a property value: nothing numeric was reported.
   REQUIRE(fixture.changes.empty());
 }
 
-TEST_CASE("a press on the Animation row's name changes nothing") {
+TEST_CASE("a press on the choice row's name changes nothing") {
   ClipFixture fixture;
-  const eng::Rect value = propertyValueRect(fixture.panel.clipRowRect());
+  const eng::Rect value = propertyValueRect(fixture.panel.choiceRowRect());
   REQUIRE_FALSE(fixture.press(midX(value), midY(value)));
   REQUIRE(fixture.picked.empty());
   REQUIRE_FALSE(fixture.panel.dragging());
 }
 
-TEST_CASE("a placement shows the clip it names") {
+TEST_CASE("the choice row shows the name it is given") {
   ClipFixture fixture;
-  fixture.panel.setClips({"idle", "walk", "run"}, "walk");
-  REQUIRE(fixture.panel.clip() == "walk");
+  fixture.panel.setChoices("Animation", {"idle", "walk", "run"}, 1);
+  REQUIRE(fixture.panel.choice() == "walk");
+  // Out of range is the first, rather than past the end.
+  fixture.panel.setChoices("Animation", {"idle", "walk", "run"}, 9);
+  REQUIRE(fixture.panel.choice() == "idle");
 }
 
-TEST_CASE("a new selection drops the previous one's clips") {
+TEST_CASE("a player start lists a Character row after its properties") {
+  PanelFixture fixture;
+  fixture.panel.setSelection("Player 1 Start", EditorPlayerStart{});
+  fixture.panel.setChoices("Character", {"Stand-in", "hero"}, 1);
+  REQUIRE(fixture.panel.choiceLabel() == "Character");
+  REQUIRE(fixture.panel.choice() == "hero");
+  REQUIRE(fixture.panel.choiceRowRect().y >
+          fixture.rowOf(fixture.panel.fields().back()).y);
+}
+
+TEST_CASE("a new selection drops the previous one's choices") {
   ClipFixture fixture;
   fixture.panel.setSelection("crate", EditorPlacement{});
-  REQUIRE(fixture.panel.clipRowRect().h == 0.0f);
-  REQUIRE(fixture.panel.clip().empty());
+  REQUIRE(fixture.panel.choiceRowRect().h == 0.0f);
+  REQUIRE(fixture.panel.choice().empty());
+  REQUIRE(fixture.panel.choiceLabel().empty());
 }

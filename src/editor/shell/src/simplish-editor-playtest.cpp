@@ -4,6 +4,9 @@
 // authoring it, and everything here is gated on a playtest existing.
 
 #include <chrono>
+#include <editor/shell/editor-character-choices.h>
+#include <editor/shell/editor-character-transform.h>
+#include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-controls.h>
@@ -89,7 +92,7 @@ void SimplishEditor::startPlaytest() {
   playtest_ = std::make_unique<EditorPlaytestSession>(
       makeEditorPlaytestSetup(state_.document, state_.assets,
                               playtestFallback()),
-      state_.level_id);
+      editorPlaytestCharacters(state_.document), state_.level_id);
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
@@ -207,20 +210,76 @@ void SimplishEditor::appendPlaytestMarkers(
   }
 }
 
-void SimplishEditor::appendPlaytestInstances() {
+std::vector<EditorCharacterFigure> SimplishEditor::characterFigures() const {
   if (!isPlaying()) {
-    return;
+    return editorStartFigures(state_.document);
   }
-  const std::optional<size_t> shape = avatarAsset();
-  if (!shape) {
-    return;
+  std::vector<EditorCharacterFigure> figures;
+  const game::PlayerPool& pool = playtest_->players();
+  for (uint32_t i = 0; i < pool.slots.size(); ++i) {
+    const auto player = static_cast<uint8_t>(pool.input_slot[i] + 1U);
+    figures.push_back({"player:" + std::to_string(player),
+                       playtest_->character(i),
+                       playtest_->renderPosition(i, playtest_alpha_),
+                       pool.aim[i], playtest_->gait(i)});
   }
-  const EditorAsset& asset = state_.assets[*shape];
-  for (uint32_t i = 0; i < playtest_->players().slots.size(); ++i) {
-    const Vec3 at = playtest_->renderPosition(i, playtest_alpha_);
+  return figures;
+}
+
+void SimplishEditor::appendCharacterInstances() {
+  for (const EditorCharacterFigure& figure : characterFigures()) {
+    appendCharacterInstance(figure);
+  }
+}
+
+void SimplishEditor::appendCharacterInstance(
+    const EditorCharacterFigure& figure) {
+  if (const std::optional<size_t> index = characterAsset(figure.character)) {
+    const EditorAsset& asset = state_.assets[*index];
+    if (asset.rig != nullptr && asset.skinned_mesh != MESH_GPU_INVALID) {
+      appendSkinnedCharacter(figure, *index);
+      return;
+    }
     scene_instances_.push_back(
-        {asset.mesh, standInTransform(asset, at), asset.texture});
+        {asset.mesh,
+         makeEditorCharacterTransform(asset, figure.feet, figure.aim),
+         asset.texture});
+    return;
   }
+  appendStandIn(figure.feet);
+}
+
+void SimplishEditor::appendStandIn(Vec3 feet) {
+  if (const std::optional<size_t> shape = avatarAsset()) {
+    const EditorAsset& asset = state_.assets[*shape];
+    scene_instances_.push_back(
+        {asset.mesh, standInTransform(asset, feet), asset.texture});
+  }
+}
+
+void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
+                                            size_t asset) {
+  const EditorAsset& model = state_.assets[asset];
+  // Posed through the props' animator, under a key no prop has, so a
+  // player who stops fades from walking to standing as a prop fades
+  // between the clips the panel picks.
+  EditorPlacement posed;
+  posed.id = figure.key;
+  posed.asset = asset;
+  posed.animation =
+      editorCharacterClip(editorClipNames(model.rig.get()), figure.gait);
+  skinned_instances_.push_back(
+      {model.skinned_mesh,
+       makeEditorCharacterTransform(model, figure.feet, figure.aim),
+       model.texture,
+       placement_animator_.pose(posed, *model.rig, animation_clock_)});
+}
+
+std::optional<size_t>
+SimplishEditor::characterAsset(const std::string& character) {
+  const std::optional<size_t> index =
+      findEditorCharacterAsset(state_.assets, character);
+  return index && ensureAssetMesh(*index) ? index : std::nullopt;
 }
 
 std::optional<size_t> SimplishEditor::avatarAsset() {

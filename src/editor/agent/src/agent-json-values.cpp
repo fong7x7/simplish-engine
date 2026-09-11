@@ -34,7 +34,8 @@ nlohmann::json agentPlayerStartValue(const EditorPlayerStart& start) {
   return {{"id", start.id},
           {"ref", editorPlayerStartRef(start)},
           {"player", start.player},
-          {"position", agentPointJson(start.position)}};
+          {"position", agentPointJson(start.position)},
+          {"character", start.character}};
 }
 
 }  // namespace eng::editor

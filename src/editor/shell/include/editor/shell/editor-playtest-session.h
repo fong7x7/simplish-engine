@@ -4,9 +4,11 @@
 /// @brief The game running inside the editor, from Play until Stop.
 /// @par Threading Main-thread-only.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <editor/shell/editor-asset.h>
+#include <editor/shell/editor-character-gait.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-scripted-input.h>
@@ -19,6 +21,7 @@
 #include <engine/sim/replay.h>
 #include <engine/sim/simulation.h>
 #include <engine/sim/tick-hash.h>
+#include <engine/sim/tick-input.h>
 #include <filesystem>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
@@ -52,6 +55,17 @@ makeEditorPlaytestSetup(const EditorDocument& document,
                         const std::vector<EditorAsset>& assets,
                         WorldPoint fallback);
 
+/// What each player of a playtest of @p document looks like, by input slot:
+/// the character of the first start for that player, in document order —
+/// the start `makeEditorPlaytestSetup` spawns them on — or empty, the
+/// stand-in, when they have no start or it has no character.
+///
+/// Presentation, and so not in the `GameSetup`: the game never learns what
+/// a player looks like, and a replay of the run is the same run whatever
+/// the players were drawn as.
+[[nodiscard]] std::array<std::string, sim::MAX_PLAYERS>
+editorPlaytestCharacters(const EditorDocument& document);
+
 /// Where the replay of the last playtest of @p level_id is kept:
 /// `<root>/data/playtests/<level_id>.replay`. Editor scratch rather than
 /// content ([project-format.md §11]): overwritten by the next playtest of
@@ -77,8 +91,10 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
 /// @thread_safety Main-thread-only.
 class EditorPlaytestSession {
 public:
-  /// A playtest at tick 0 of the level @p level_id, set up as @p setup.
+  /// A playtest at tick 0 of the level @p level_id, set up as @p setup,
+  /// its players drawn as @p characters — see `editorPlaytestCharacters`.
   EditorPlaytestSession(const game::GameSetup& setup,
+                        std::array<std::string, sim::MAX_PLAYERS> characters,
                         const std::string& level_id);
 
   /// Runs every tick @p elapsed_ns of real time pays for, at most four,
@@ -103,6 +119,14 @@ public:
   /// The players, as the simulation holds them.
   [[nodiscard]] const game::PlayerPool& players() const;
 
+  /// The asset reference the player at dense index @p index is drawn as,
+  /// or empty for the stand-in.
+  [[nodiscard]] const std::string& character(size_t index) const;
+
+  /// Whether the player at dense index @p index moved on the last tick,
+  /// which is what picks the clip a rigged character plays.
+  [[nodiscard]] EditorCharacterGait gait(size_t index) const;
+
   /// Ticks simulated so far.
   [[nodiscard]] uint64_t tick() const { return simulation_.nextTick(); }
 
@@ -120,6 +144,8 @@ private:
   FixedStepClock clock_;
   /// Every tick's input and a checkpoint a second.
   sim::ReplayRecorder recorder_;
+  /// What each player looks like, by input slot.
+  std::array<std::string, sim::MAX_PLAYERS> characters_{};
   /// Each player's position before the last tick, for interpolation.
   std::vector<Vec3> previous_;
   /// Ticks the clock has dropped, summed over the playtest.

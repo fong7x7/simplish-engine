@@ -12,11 +12,11 @@ namespace eng::editor {
 
 namespace {
 
-  /// The first start for player 1, in document order, or nothing.
-  const EditorPlayerStart*
-  firstStartForPlayerOne(const EditorDocument& document) {
+  /// The first start for @p player, in document order, or nothing.
+  const EditorPlayerStart* firstStartFor(const EditorDocument& document,
+                                         uint8_t player) {
     for (const EditorPlayerStart& start : document.player_starts) {
-      if (start.player == 1) {
+      if (start.player == player) {
         return &start;
       }
     }
@@ -82,7 +82,7 @@ namespace {
 game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
                                         const std::vector<EditorAsset>& assets,
                                         WorldPoint fallback) {
-  const EditorPlayerStart* start = firstStartForPlayerOne(document);
+  const EditorPlayerStart* start = firstStartFor(document, 1);
   const WorldPoint at = start != nullptr ? start->position : fallback;
   game::GameSetup setup;
   setup.seed = EDITOR_PLAYTEST_SEED;
@@ -90,6 +90,19 @@ game::GameSetup makeEditorPlaytestSetup(const EditorDocument& document,
   setup.spawns[0] = {at.x, at.y, at.z};
   setup.obstacles = obstaclesOf(document, assets);
   return setup;
+}
+
+std::array<std::string, sim::MAX_PLAYERS>
+editorPlaytestCharacters(const EditorDocument& document) {
+  std::array<std::string, sim::MAX_PLAYERS> characters{};
+  for (size_t slot = 0; slot < characters.size(); ++slot) {
+    const EditorPlayerStart* start =
+        firstStartFor(document, static_cast<uint8_t>(slot + 1U));
+    if (start != nullptr) {
+      characters[slot] = start->character;
+    }
+  }
+  return characters;
 }
 
 std::filesystem::path
@@ -112,12 +125,14 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
   return static_cast<bool>(out);
 }
 
-EditorPlaytestSession::EditorPlaytestSession(const game::GameSetup& setup,
-                                             const std::string& level_id)
+EditorPlaytestSession::EditorPlaytestSession(
+    const game::GameSetup& setup,
+    std::array<std::string, sim::MAX_PLAYERS> characters,
+    const std::string& level_id)
   : world_(std::make_unique<game::GameWorld>(setup)),
     simulation_(*world_, sim::TickHashing::ON),
     recorder_(replayHeader(setup, level_id), sim::DEFAULT_CHECKPOINT_INTERVAL),
-    previous_(world_->players().position) {}
+    characters_(std::move(characters)), previous_(world_->players().position) {}
 
 FixedStepAdvance
 EditorPlaytestSession::advance(uint64_t elapsed_ns,
@@ -148,8 +163,9 @@ void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
   state.players.clear();
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const Vec3& at = pool.position[i];
-    state.players.push_back(
-        {static_cast<uint8_t>(pool.input_slot[i] + 1U), {at.x, at.y, at.z}});
+    state.players.push_back({static_cast<uint8_t>(pool.input_slot[i] + 1U),
+                             {at.x, at.y, at.z},
+                             character(i)});
   }
 }
 
@@ -160,6 +176,20 @@ Vec3 EditorPlaytestSession::renderPosition(size_t index, float alpha) const {
 
 const game::PlayerPool& EditorPlaytestSession::players() const {
   return world_->players();
+}
+
+const std::string& EditorPlaytestSession::character(size_t index) const {
+  return characters_[world_->players().input_slot[index] % characters_.size()];
+}
+
+EditorCharacterGait EditorPlaytestSession::gait(size_t index) const {
+  const Vec3 now = world_->players().position[index];
+  if (index >= previous_.size()) {
+    return EditorCharacterGait::STILL;
+  }
+  const Vec3 before = previous_[index];
+  return now.x != before.x || now.y != before.y ? EditorCharacterGait::MOVING
+                                                : EditorCharacterGait::STILL;
 }
 
 }  // namespace eng::editor

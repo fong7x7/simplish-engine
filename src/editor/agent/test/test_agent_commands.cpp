@@ -3,6 +3,7 @@
 #include <editor/agent/agent-dispatch.h>
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
 #include <engine/input/input-action.h>
 #include <nlohmann/json.hpp>
@@ -782,4 +783,55 @@ TEST_CASE("a static model, a light, and an unloaded rig refuse a clip") {
   REQUIRE(runAgentTool(state, "set_animation",
                        R"({"target": "placement", "index": 1, "clip": "walk"})")
               .status == AgentStatus::UNAVAILABLE);
+}
+
+TEST_CASE("set_character dresses a player start, and undo takes it off") {
+  EditorShellState state = stateWithAssets();
+  assignEditorAssetIds(state.assets);
+  (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+
+  const json dressed =
+      call(state, "set_character",
+           R"({"target": "player_start", "index": 0, "asset": "crate"})");
+
+  REQUIRE(dressed.at("character") == "mesh:props_crate");
+  REQUIRE(state.document.player_starts[0].character == "mesh:props_crate");
+  REQUIRE(state.history.actions.size() == 2);
+  // The same character again changes nothing, and records nothing.
+  (void)call(state, "set_character",
+             R"({"target": "selection", "asset": "props_crate"})");
+  REQUIRE(state.history.actions.size() == 2);
+
+  (void)call(state, "undo", "{}");
+  REQUIRE(state.document.player_starts[0].character.empty());
+}
+
+TEST_CASE("set_character with no asset goes back to the stand-in") {
+  EditorShellState state = stateWithAssets();
+  assignEditorAssetIds(state.assets);
+  (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+  (void)call(state, "set_character",
+             R"({"target": "player_start", "index": 0, "asset": 1})");
+
+  const json bare =
+      call(state, "set_character", R"({"target": "player_start", "index": 0})");
+
+  REQUIRE(bare.at("character") == "");
+  REQUIRE(state.document.player_starts[0].character.empty());
+}
+
+TEST_CASE("set_character refuses an unknown asset and anything but a start") {
+  EditorShellState state = stateWithAssets();
+  assignEditorAssetIds(state.assets);
+  (void)call(state, "add_player_start", R"({"x": 0.5, "y": 0.5})");
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 3, "y": 3})");
+
+  REQUIRE(runAgentTool(state, "set_character",
+                       R"({"target": "player_start", "index": 0,
+                           "asset": "nope"})")
+              .status == AgentStatus::NOT_FOUND);
+  REQUIRE(runAgentTool(state, "set_character",
+                       R"({"target": "placement", "index": 0, "asset": 0})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(state.document.player_starts[0].character.empty());
 }

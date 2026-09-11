@@ -123,7 +123,7 @@ Package boundaries are where the dependency rules in §5 are enforced: `src/engi
 
 ## 7. Current State
 
-**The engine, the platform layer, and a first editor build and pass their tests** — 1,129 tests on macOS/Metal and 1,081 on the headless stub backend, with zero compiler warnings.
+**The engine, the platform layer, and a first editor build and pass their tests** — 1,139 tests on macOS/Metal and 1,099 on the headless stub backend, with zero compiler warnings.
 
 | Layer | Packages | State |
 |---|---|---|

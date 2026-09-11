@@ -127,6 +127,11 @@ namespace {
     out["at"] =
         tripleJson(start.position.x, start.position.y, start.position.z);
     out["properties"] = {{"player", start.player}};
+    // Only when it names one: a start with none draws the stand-in, and
+    // most levels' starts are that.
+    if (!start.character.empty()) {
+      out["properties"]["character"] = start.character;
+    }
     return out;
   }
 
@@ -227,16 +232,32 @@ namespace {
     return light;
   }
 
+  /// @p character as the qualified reference of the asset it names, which
+  /// is how the editor holds and writes one — so a hand-written bare id
+  /// reads as the asset it means. One naming no asset is kept as written.
+  std::string characterRef(const std::string& character,
+                           const std::vector<EditorAsset>& assets) {
+    for (const EditorAsset& asset : assets) {
+      if (!asset.id.empty() &&
+          (asset.id == character || editorAssetRef(asset) == character)) {
+        return editorAssetRef(asset);
+      }
+    }
+    return character;
+  }
+
   /// One player start. Its player is read from the property block and held
   /// to a slot a session has, so a hand-edited `"player": 9` opens as
   /// player 4 rather than as a start nobody spawns at.
   EditorPlayerStart readPlayerStart(const json& entry,
-                                    const EditorDocument& document) {
+                                    const EditorDocument& document,
+                                    const std::vector<EditorAsset>& assets) {
     const Triple at = readTriple(entry, "at", ZERO_TRIPLE);
     const json properties = entry.value("properties", json::object());
     EditorPlayerStart start = makeEditorPlayerStart(
         clampEditorPlayerSlot(readNumber(properties, "player", 1.0f)),
         {at[0], at[1], at[2]});
+    start.character = characterRef(readString(properties, "character"), assets);
     start.id = readString(entry, "id");
     if (start.id.empty()) {
       start.id = mintEditorPlayerStartId(document);
@@ -271,7 +292,8 @@ namespace {
   /// Every entity the editor has a definition for. Player starts are the
   /// only one today; any other is dropped and counted, as a prop naming a
   /// missing asset is, rather than silently rewritten into something else.
-  void readEntities(const json& content, EditorLevelLoad& load) {
+  void readEntities(const json& content, const std::vector<EditorAsset>& assets,
+                    EditorLevelLoad& load) {
     for (const json& entry : arrayAt(content, "entities")) {
       if (!entry.is_object() ||
           readString(entry, "definition") != EDITOR_PLAYER_START_DEFINITION) {
@@ -279,7 +301,7 @@ namespace {
         continue;
       }
       load.document.player_starts.push_back(
-          readPlayerStart(entry, load.document));
+          readPlayerStart(entry, load.document, assets));
     }
   }
 
@@ -322,7 +344,7 @@ parseEditorLevel(std::string_view text,
   EditorLevelLoad load;
   readProps(content, assets, load);
   readLights(content, load.document);
-  readEntities(content, load);
+  readEntities(content, assets, load);
   return load;
 }
 

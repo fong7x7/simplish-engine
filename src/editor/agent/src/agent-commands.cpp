@@ -719,6 +719,48 @@ AgentResult runAgentSetAnimation(EditorShellState& state, const json& params) {
   return recordPlacement(state, entry.index, prior, next);
 }
 
+namespace {
+
+  /// The reference the `asset` parameter names, empty when it is omitted
+  /// or empty — the stand-in — or nothing when it names no asset.
+  std::optional<std::string> characterParam(const EditorShellState& state,
+                                            const json& params) {
+    const auto found = params.find("asset");
+    if (found == params.end() || found->is_null() ||
+        (found->is_string() && found->get<std::string>().empty())) {
+      return std::string{};
+    }
+    const std::optional<size_t> asset = findAsset(state, params);
+    return asset ? std::optional{editorAssetRef(state.assets[*asset])}
+                 : std::nullopt;
+  }
+
+}  // namespace
+
+AgentResult runAgentSetCharacter(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  if (entry.kind != EditorSelectionKind::PLAYER_START) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "only a player start has a character");
+  }
+  const std::optional<std::string> character = characterParam(state, params);
+  if (!character) {
+    return agentFailure(AgentStatus::NOT_FOUND,
+                        "no asset is called that; list_assets lists them");
+  }
+  const EditorPlayerStart prior = state.document.player_starts[entry.index];
+  if (prior.character == *character) {
+    return agentOk(playerStartPayload(state, entry.index));
+  }
+  EditorPlayerStart next = prior;
+  next.character = *character;
+  return recordPlayerStart(state, entry.index, prior, next);
+}
+
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);
