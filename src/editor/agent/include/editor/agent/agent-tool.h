@@ -38,10 +38,16 @@ enum class AgentTool : uint8_t {
   LIST_LIGHTS,
   /// Every player start in the level.
   LIST_PLAYER_STARTS,
+  /// Every waypoint in the level, and the patrol routes they lay out.
+  LIST_WAYPOINTS,
   /// Every character the project defines.
   LIST_CHARACTERS,
   /// Every behavior a prop can run: the built-in ones and the project's.
   LIST_BEHAVIORS,
+  /// The level's navigation grid, and which actors cannot reach a start.
+  GET_NAVIGATION,
+  /// The route an actor would plan between two points of the level.
+  FIND_PATH,
   /// What the properties panel is editing.
   GET_SELECTION,
   /// The undo history and its cursor.
@@ -59,6 +65,9 @@ enum class AgentTool : uint8_t {
   ADD_LIGHT,
   /// Add a player start, as dragging one from general > tools would.
   ADD_PLAYER_START,
+  /// Add a waypoint to a patrol route, as dragging one from general >
+  /// tools would.
+  ADD_WAYPOINT,
   /// Set one property of a placement, a light or a player start to an
   /// absolute value.
   SET_PROPERTY,
@@ -102,6 +111,8 @@ enum class AgentTool : uint8_t {
   STOP_PLAYTEST,
   /// Queue player 1's input for the next ticks of a running playtest.
   SEND_INPUT,
+  /// Pause a running playtest and run an exact number of ticks of it.
+  STEP_PLAYTEST,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -118,8 +129,11 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::LIST_PLACEMENTS,
     AgentTool::LIST_LIGHTS,
     AgentTool::LIST_PLAYER_STARTS,
+    AgentTool::LIST_WAYPOINTS,
     AgentTool::LIST_CHARACTERS,
     AgentTool::LIST_BEHAVIORS,
+    AgentTool::GET_NAVIGATION,
+    AgentTool::FIND_PATH,
     AgentTool::GET_SELECTION,
     AgentTool::GET_HISTORY,
     AgentTool::GET_LEVEL,
@@ -128,6 +142,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::PLACE_ASSET,
     AgentTool::ADD_LIGHT,
     AgentTool::ADD_PLAYER_START,
+    AgentTool::ADD_WAYPOINT,
     AgentTool::SET_PROPERTY,
     AgentTool::SET_ANIMATION,
     AgentTool::SET_CHARACTER,
@@ -147,6 +162,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::START_PLAYTEST,
     AgentTool::STOP_PLAYTEST,
     AgentTool::SEND_INPUT,
+    AgentTool::STEP_PLAYTEST,
 };
 
 }  // namespace eng::editor

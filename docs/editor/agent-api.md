@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Thirty-seven, in three groups. `GET /tools` is authoritative and carries
+Forty-two, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -159,17 +159,20 @@ each one's parameters; this table is the map.
 | `list_assets` | Every scanned asset: index, name, paths, bounds, whether its mesh is loaded, whether loading failed, how far its thumbnail got, how many placements instance it |
 | `get_asset` | One of those, by index or by name |
 | `list_folders` | The browser's folder tree, the built-in general section included |
-| `list_placements` | Every placement: index, asset, position, rotation, scale, whether it collides, its clip, and the behavior and faction it plays with |
+| `list_placements` | Every placement: index, asset, position, rotation, scale, whether it collides, its clip, and the behavior, faction and patrol route it plays with |
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
 | `list_player_starts` | Every player start: the player it is for, its position, its default character, and how many players a session holds |
+| `list_waypoints` | Every waypoint: its route (1 to 9), its place in it, and its position; and every route in use, with its points in walking order and the actors that patrol it |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states and its initial state; and the behaviors table's path and anything wrong with it |
+| `get_navigation` | The navigation grid a playtest would plan across — its size and cell, how many cells are solid, too narrow, walled off from every player start, and open — and which actors cannot reach a start or have no floor where they stand. What the Navigation Overlay draws |
+| `find_path` | The route an actor of a given radius would plan between two points, by the game's own A* and smoothing: how the search ended, the waypoints, and the length in tiles |
 | `get_selection` | What the properties panel is editing, and the rows it lists |
 | `get_history` | Every edit this session, and how many are applied |
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`): the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused: the tick, where each player is, who they play as and their health, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets and whether it sees them, and waypoints left on its path — the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -178,13 +181,14 @@ each one's parameters; this table is the map.
 | `place_asset` | Places an asset on a tile and selects it, as a browser drag would |
 | `add_light` | Adds a directional or point light and selects it |
 | `add_player_start` | Marks where a player spawns and selects it, for a named player or the lowest one with no start yet |
+| `add_waypoint` | Adds a waypoint to a patrol route and selects it: to the route named, or the selected waypoint's, after its last waypoint unless a place is named |
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |
-| `set_behavior` | Gives a placed prop a behavior and a faction — making it an actor in a playtest — or takes its behavior away |
-| `translate` | Moves a placement, a light or a player start by a delta in tiles |
-| `delete` | Removes a placement, a light or a player start, as the Delete key does |
-| `select` | Selects a placement, a light or a player start, or clears the selection |
+| `set_behavior` | Gives a placed prop a behavior, a faction and a patrol route — making it an actor in a playtest — or takes its behavior away |
+| `translate` | Moves a placement, a light, a player start or a waypoint by a delta in tiles |
+| `delete` | Removes a placement, a light, a player start or a waypoint, as the Delete key does |
+| `select` | Selects a placement, a light, a player start or a waypoint, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
@@ -199,6 +203,7 @@ each one's parameters; this table is the map.
 | `create_level` | Adds an empty level to the project and starts editing it |
 | `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
 | `start_playtest` | Plays the open level in the real simulation, as the Play button does — with no selector: as the `character` given, or the one the selector would open on |
+| `step_playtest` | Pauses the running playtest and runs exactly `ticks` ticks of it (1 to 3,600), on input queued by `send_input` or held on the keyboard; it stays paused afterwards |
 | `stop_playtest` | Stops playing, writes the run's replay, and goes back to the level as it was; puts the character selector away while it is up |
 
 ### Conventions worth knowing before calling one
@@ -220,7 +225,8 @@ each one's parameters; this table is the map.
   from the camera (down-screen), +Z is straight up. One unit is one tile.
   The manifest repeats this under `axes`.
 - **Targets.** Every tool that names an entry takes `target` of
-  `"placement"`, `"light"`, `"player_start"`, or `"selection"`, and an
+  `"placement"`, `"light"`, `"player_start"`, `"waypoint"`, or
+  `"selection"`, and an
   `index` for all but the last. `"selection"` means whatever the properties
   panel is on.
 - **Editing selects.** A tool that changes an entry selects it, so the
@@ -241,7 +247,8 @@ each one's parameters; this table is the map.
   stores a position, a rotation, a uniform `scale` (held to 0.125–8, where
   1 is the size it was dropped at) and whether it collides (`collides`, 1
   or 0); a
-  player start stores a position and a player. A rigged placement's clip is
+  player start stores a position and a player; a waypoint stores a
+  position, a `route` (1 to 9) and an `order` (1 to 99). A rigged placement's clip is
   a name, not a number, so it has its own tool, `set_animation`, rather
   than a `set_property` field; `get_asset` lists the clip names to pick from.
   A player start's character is a name, not a number, so it has

@@ -327,14 +327,34 @@ TEST_CASE("with no project open the Level menu offers nothing live") {
   MenuFixture fx;
   fx.bar()->tick(fx.tree);
 
-  // New Level, a divider, and Play Level: no levels to list, and neither
-  // command has a project to act on.
+  // New Level, a divider, Play Level, and the two rows that act on a
+  // running playtest: no levels to list, and no command has anything to
+  // act on.
   const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
-  REQUIRE(levels.items.size() == 3);
+  REQUIRE(levels.items.size() == 5);
   REQUIRE(!levels.items[0].enabled);
   REQUIRE(levels.items[1].separator);
   REQUIRE(levels.items[2].label == "Play Level");
   REQUIRE(!levels.items[2].enabled);
+  REQUIRE(levels.items[3].label == "Pause Playtest");
+  REQUIRE(!levels.items[4].enabled);
+}
+
+TEST_CASE("Pause and Step are live only while playing, and Pause ticks") {
+  MenuFixture fx;
+  fx.bar()->setProjectPresence(EditorProjectPresence::OPEN);
+  fx.bar()->tick(fx.tree);
+  const int pause = rowWithLabel(*fx.menu(LEVEL_MENU), "Pause Playtest");
+  const int step = rowWithLabel(*fx.menu(LEVEL_MENU), "Step One Tick");
+  REQUIRE(!fx.menu(LEVEL_MENU)->items[static_cast<size_t>(pause)].enabled);
+
+  fx.bar()->setPlayMode(EditorPlayMode::PLAYING);
+  fx.bar()->setPlaytestClock(EditorPlaytestClock::PAUSED);
+  fx.bar()->tick(fx.tree);
+  const eng::GuiDropdown& levels = *fx.menu(LEVEL_MENU);
+  REQUIRE(levels.items[static_cast<size_t>(pause)].enabled);
+  REQUIRE(levels.items[static_cast<size_t>(pause)].checked);
+  REQUIRE(levels.items[static_cast<size_t>(step)].enabled);
 }
 
 TEST_CASE("Play Level is live with a project and ticked while playing") {

@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <editor/shell/editor-actor-overlay.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-character-gait.h>
 #include <editor/shell/editor-document.h>
@@ -157,6 +158,11 @@ public:
 
   /// The state of its behavior the actor at dense index @p index is in.
   [[nodiscard]] const game::BehaviorState& actorState(uint32_t index) const;
+
+  /// The actor at dense index @p index as the AI overlay draws it, @p alpha
+  /// of the way between the last two ticks.
+  [[nodiscard]] EditorActorOverlay actorOverlay(uint32_t index,
+                                                float alpha) const;
 
   /// Ticks simulated so far.
   [[nodiscard]] uint64_t tick() const { return simulation_.nextTick(); }

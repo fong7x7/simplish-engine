@@ -27,6 +27,8 @@ enum class EditorSelectionKind : uint8_t {
   LIGHT,
   /// A player start, indexed into `EditorDocument::player_starts`.
   PLAYER_START,
+  /// A patrol route's waypoint, indexed into `EditorDocument::waypoints`.
+  WAYPOINT,
 };
 
 /// The one thing the properties panel is editing.

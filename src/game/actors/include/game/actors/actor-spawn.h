@@ -5,9 +5,11 @@
 /// @par Threading
 /// A value type.
 
+#include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
 #include <string>
+#include <vector>
 
 namespace eng::game {
 
@@ -37,6 +39,9 @@ struct ActorSpawn {
   float radius = ACTOR_DEFAULT_RADIUS_TILES;
   /// Its height to collision, in tiles.
   float height = ACTOR_DEFAULT_HEIGHT_TILES;
+  /// The waypoints it patrols, in walking order; empty for none. What a
+  /// `patrol` state walks.
+  std::vector<Vec2> route{};
 };
 
 }  // namespace eng::game

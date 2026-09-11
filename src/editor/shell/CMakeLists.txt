@@ -33,6 +33,9 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-light-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-availability.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-menu-bar-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-navigation.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-nav-overlay.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-path-query.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-thumbnail-cache.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-animator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-clip.cpp"
@@ -48,7 +51,9 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-scale-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shape.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-waypoint-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
@@ -67,6 +72,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-render
         simplish-engine-render-mesh
         simplish-engine-sim
+        simplish-engine-spatial
         simplish-engine-input
         simplish-game-actors
         simplish-game-content

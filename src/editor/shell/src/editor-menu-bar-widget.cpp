@@ -80,6 +80,8 @@ namespace {
       EditorMenuCommand::ZOOM_OUT,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::TOGGLE_GRID,
+      EditorMenuCommand::TOGGLE_NAVIGATION,
+      EditorMenuCommand::TOGGLE_AI_OVERLAY,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SET_VIEW_DIMETRIC,
       EditorMenuCommand::SET_VIEW_ISOMETRIC,
@@ -91,9 +93,9 @@ namespace {
   /// The project's levels are spliced in after New Level, so Play Level
   /// sits under the list of what it would play.
   constexpr EditorMenuCommand LEVEL_ROWS[] = {
-      EditorMenuCommand::NEW_LEVEL,
-      EditorMenuCommand::SEPARATOR,
-      EditorMenuCommand::PLAYTEST,
+      EditorMenuCommand::NEW_LEVEL,     EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::PLAYTEST,      EditorMenuCommand::PAUSE_PLAYTEST,
+      EditorMenuCommand::STEP_PLAYTEST,
   };
 
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
@@ -339,6 +341,9 @@ bool EditorMenuBarWidget::commandEnabled(EditorMenuCommand command) const {
   if (editorMenuCommandNeedsProject(command)) {
     return project_ == EditorProjectPresence::OPEN;
   }
+  if (editorMenuCommandNeedsPlaytest(command)) {
+    return play_mode_ == EditorPlayMode::PLAYING;
+  }
   if (command == EditorMenuCommand::UNDO) {
     return can_undo_;
   }
@@ -361,10 +366,16 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_SHADING_CEL) {
     return shading_ == ProjectShading::CEL;
   }
+  return playtestChecked(command);
+}
+
+bool EditorMenuBarWidget::playtestChecked(EditorMenuCommand command) const {
+  const bool playing = play_mode_ == EditorPlayMode::PLAYING;
   if (command == EditorMenuCommand::PLAYTEST) {
-    return play_mode_ == EditorPlayMode::PLAYING;
+    return playing;
   }
-  return false;
+  return command == EditorMenuCommand::PAUSE_PLAYTEST && playing &&
+         clock_ == EditorPlaytestClock::PAUSED;
 }
 
 void EditorMenuBarWidget::setProjection(ProjectProjection projection) {
@@ -521,6 +532,14 @@ void EditorMenuBarWidget::setPlayMode(EditorPlayMode mode) {
     return;
   }
   play_mode_ = mode;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setPlaytestClock(EditorPlaytestClock clock) {
+  if (clock_ == clock) {
+    return;
+  }
+  clock_ = clock;
   items_dirty_ = true;
 }
 

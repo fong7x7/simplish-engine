@@ -29,14 +29,16 @@ enum class EditorChoiceKind : uint8_t {
   BEHAVIOR,
   /// Which side an actor is on.
   FACTION,
+  /// The patrol route an actor walks.
+  ROUTE,
 };
 
 /// What each kind's row is labelled, in enumerator order.
 inline constexpr std::string_view EDITOR_CHOICE_LABELS[] = {
-    "Animation", "Character", "Behavior", "Faction"};
+    "Animation", "Character", "Behavior", "Faction", "Route"};
 
 static_assert(std::size(EDITOR_CHOICE_LABELS) ==
-                  static_cast<size_t>(EditorChoiceKind::FACTION) + 1,
+                  static_cast<size_t>(EditorChoiceKind::ROUTE) + 1,
               "every choice row needs a label");
 
 /// What @p kind's row is labelled.

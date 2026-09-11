@@ -37,6 +37,10 @@ void addActors(GameSetup& setup) {
     setup.actors.push_back({.at = {x, 6.0F, 0.0F}, .behavior = behavior});
     x += 1.75F;
   }
+  setup.actors.push_back(
+      {.at = {9.0F, -2.0F, 0.0F},
+       .behavior = "patrol",
+       .route = {{9.0F, -2.0F}, {9.0F, 4.0F}, {3.0F, -2.0F}}});
 }
 
 GameSetup fourPlayers() {

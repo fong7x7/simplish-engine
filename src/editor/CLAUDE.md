@@ -13,7 +13,8 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
   on-disk format. Four kinds of file exist today: `.simplish/project.json`;
   `content/levels/<id>.level.json` — one per level, carrying the props
-  (with any behavior they run), lights and player starts the editor authors
+  (with any behavior they run), lights, player starts and patrol-route
+  waypoints the editor authors
   (§4.1 — it differs from §4's sketch in documented ways);
   `content/data/characters.data.json`, the characters table (§8.1); and
   `content/data/behaviors.data.json`, the behaviors props run (§8.2). The

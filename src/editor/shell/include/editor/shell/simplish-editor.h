@@ -211,6 +211,16 @@ public:
   /// agent starts a playtest without one.
   void startPlaytestAs(const std::string& character);
 
+  /// Pause a running playtest, or resume a paused one. What F6 and Level ›
+  /// Pause Playtest do.
+  void togglePlaytestPause();
+
+  /// Pause a running playtest and run exactly @p ticks ticks of it, on the
+  /// input queued for player 1 or held on the keyboard — what F7 does for
+  /// one tick, and how an agent reaches an exact tick. A no-op when no
+  /// playtest is running.
+  void stepPlaytest(uint32_t ticks);
+
 protected:
   bool onInit() override;
   void onSaveLocationChosen(const std::filesystem::path& path) override;
@@ -273,6 +283,9 @@ private:
   void stopPlaytest();
   /// Run the ticks this frame's time pays for, and publish what they did.
   void tickPlaytest();
+  /// Publish what the last ticks did, follow the player, and move the
+  /// markers: everything after ticks run, stepped or on time.
+  void afterPlaytestTicks();
   /// Nanoseconds of real time since the last frame of play.
   [[nodiscard]] uint64_t playtestElapsedNs();
   /// Player 1's input on the next tick, from the held keys, the left button
@@ -310,6 +323,9 @@ private:
   /// Start, stop, and steer a playtest from the keyboard. Returns true when
   /// @p key was one of the keys a playtest took.
   bool handlePlaytestKey(uint32_t key, ClientKeyDownKind kind);
+  /// F6 and F7 while playing: pause or resume, and step one tick. Returns
+  /// true when @p key was one of them.
+  bool handleClockKey(uint32_t key, ClientKeyDownKind kind);
   /// The keys a running playtest takes: Escape stops it, and the movement
   /// keys are held. Returns true when @p key was one of them.
   bool handlePlayingKey(uint32_t key);
@@ -406,6 +422,10 @@ private:
   /// Add a player start on the tile at @p tile, for the lowest player that
   /// has none yet, as an action the user can undo.
   void placePlayerStart(WorldPoint tile);
+  /// Add a waypoint on @p tile: to the route of the selected waypoint when
+  /// one is selected — so a route is laid out by dropping one after
+  /// another — and to route 1 otherwise, after its last waypoint.
+  void placeWaypoint(WorldPoint tile);
   /// Carry out the Edit menu's undo, redo and delete. Returns false when
   /// the command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
@@ -443,6 +463,8 @@ private:
   /// Show the selected player start's player, position and character in
   /// @p panel.
   void showPlayerStartSelection(EditorPropertiesWidget& panel);
+  /// Show the selected waypoint's route, place and position in @p panel.
+  void showWaypointSelection(EditorPropertiesWidget& panel);
   /// Apply one property change to whatever is selected, recording history
   /// when the gesture that produced it has finished.
   void applyPropertyEdit(EditorPropertyField field, float value,
@@ -454,6 +476,9 @@ private:
   /// a behavior or a faction for a placement, a character for a player
   /// start.
   void applyChoiceEdit(EditorChoiceKind kind, size_t index);
+  /// The rows that make a placement an actor: its Behavior, Faction and
+  /// Route rows picking @p index.
+  void applyActorChoice(EditorChoiceKind kind, size_t index);
   /// Give the selected placement the behavior at @p index of its Behavior
   /// row.
   void applyBehaviorChoice(size_t index);
@@ -500,6 +525,14 @@ private:
   void commitLightEdit();
   /// Record the finished player start edit as one undoable action.
   void commitPlayerStartEdit();
+  /// Record the waypoint gesture in flight, if it changed anything.
+  void commitWaypointEdit();
+  /// Apply one property change to the selected waypoint.
+  void applyWaypointEdit(EditorPropertyField field, float value,
+                         EditorPropertyEdit edit);
+  /// Have the selected placement patrol the route at @p index of its Route
+  /// row.
+  void applyRouteChoice(size_t index);
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -595,11 +628,30 @@ private:
   skinnedDrawParams(const EditorViewportWidget& viewport);
   /// Rebuild `scene_lights_` from the document's lights.
   void buildSceneLights();
-  /// Push placement, light and player start boxes into the viewport for
-  /// its overlay and picking, in that order.
+  /// Push placement, light, player start and waypoint boxes into the
+  /// viewport for its overlay and picking, in that order, and the routes
+  /// the waypoints lay out.
   void refreshPlacementMarkers();
+  /// Bring the navigation and AI overlays up to date with the level and
+  /// the playtest, as far as each is on.
+  void refreshOverlays();
+  /// Measure the level's navigation again for the overlay while it is on,
+  /// and clear it while it is off.
+  void refreshNavigationOverlay();
+  /// Say in the status line which actors cannot reach a player start,
+  /// while the navigation overlay is on.
+  void reportNavigation();
+  /// Copy every actor's mind out of the running game for the AI overlay
+  /// while it is on, and clear it while it is off or nothing is playing.
+  void refreshActorOverlays();
+  /// Flip the overlay @p command names on @p viewport, and bring it up to
+  /// date.
+  void toggleOverlay(EditorViewportWidget& viewport, EditorMenuCommand command);
   /// Push a marker for every placement into @p markers, in document order.
   void appendPlacementMarkers(std::vector<EditorPlacementMarker>& markers);
+  /// Push a marker for every light, then every player start, then every
+  /// waypoint into @p markers, each in document order.
+  void appendEntityMarkers(std::vector<EditorPlacementMarker>& markers);
   /// The viewport's marker for the placement at @p index.
   [[nodiscard]] EditorPlacementMarker placementMarker(size_t index);
   /// The viewport's marker for the placement at @p index, the @p actor-th
@@ -612,6 +664,11 @@ private:
   /// The viewport's marker for the player start at @p index: a column about
   /// a person tall, in its player's colour.
   [[nodiscard]] EditorPlacementMarker playerStartMarker(size_t index);
+  /// The viewport's marker for the waypoint at @p index: a short post in
+  /// its route's colour.
+  [[nodiscard]] EditorPlacementMarker waypointMarker(size_t index);
+  /// Every leg of every patrol route, for the viewport to draw.
+  [[nodiscard]] std::vector<EditorRouteLine> routeLines() const;
   /// Whether anything the chrome's layout depends on has changed.
   [[nodiscard]] bool chromeNeedsLayout();
   /// The viewport widget, or nullptr before the chrome exists.
@@ -678,6 +735,9 @@ private:
   /// Stamp the manifest and promote the project in the recent list.
   void recordProjectOpened(const std::string& stamp);
   /// Carry out the View menu's camera and grid commands.
+  /// Run @p command when it is one of the Level menu's playtest rows.
+  /// Returns true when it was.
+  bool runPlaytestCommand(EditorMenuCommand command);
   void applyViewCommand(EditorMenuCommand command);
   /// Close the open project, leaving the editor with none.
   void closeProject();
@@ -789,6 +849,8 @@ private:
   std::optional<EditorLight> light_prior_{};
   /// The same for a player start.
   std::optional<EditorPlayerStart> player_start_prior_{};
+  /// The selected waypoint as it was when the gesture now in flight began.
+  std::optional<EditorWaypoint> waypoint_prior_{};
   /// The level being played, or nothing while editing.
   std::unique_ptr<EditorPlaytestSession> playtest_{};
   /// When the last frame of play ran, for the playtest's clock.

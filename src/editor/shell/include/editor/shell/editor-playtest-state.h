@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-playtest-actor.h>
+#include <editor/shell/editor-playtest-clock.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <optional>
@@ -25,6 +26,8 @@ namespace eng::editor {
 struct EditorPlaytestState {
   /// Editing, or playing.
   EditorPlayMode mode = EditorPlayMode::EDITING;
+  /// Whether a running playtest advances on its own or waits to be stepped.
+  EditorPlaytestClock clock = EditorPlaytestClock::RUNNING;
   /// Ticks simulated since the playtest started.
   uint64_t tick = 0;
   /// Ticks the frame clock dropped rather than ran — a frame that took

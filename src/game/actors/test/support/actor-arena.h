@@ -14,6 +14,7 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-pool.h>
+#include <game/actors/actor-route.h>
 #include <game/actors/actor-spawn.h>
 #include <game/actors/actor-workspace.h>
 #include <game/content/behavior-definition.h>
@@ -58,6 +59,8 @@ public:
   spatial::NavGrid grid;
   /// The brains added actors run.
   std::vector<ActorBrain> brains;
+  /// The routes added actors patrol.
+  std::vector<ActorRoute> routes;
   /// The actors.
   ActorPool actors{16};
   /// Scratch for the actor passes.

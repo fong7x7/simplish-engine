@@ -14,12 +14,14 @@
 
 simplish_add_module(simplish-engine-spatial
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
-    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/line-of-sight.cpp
+    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/grid-step.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/line-of-sight.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/nav-grid.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/nav-grid-fit.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/nearest-open-cell.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/path-finder.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/path-smoothing.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/reachability.cpp
     DEPENDENCIES simplish-engine-math
                  simplish-engine-physics
 )
@@ -32,6 +34,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_nearest_open_cell.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_path_finder.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_path_smoothing.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_reachability.cpp
         DEPENDENCIES simplish-engine-spatial
     )
 endif()

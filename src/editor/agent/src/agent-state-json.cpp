@@ -1,5 +1,6 @@
 #include "agent-json-values.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <editor/agent/agent-names.h>
 #include <editor/agent/agent-state-json.h>
@@ -15,10 +16,12 @@
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-navigation.h>
 #include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
@@ -53,6 +56,8 @@ namespace {
         {"focus_y", view.camera.focus.y},
         {"zoom", view.camera.zoom},
         {"show_grid", view.show_grid},
+        {"show_navigation", view.show_navigation},
+        {"show_ai", view.show_ai},
         // Named rather than derived from the axes: an agent asking
         // which projection it is looking at wants the word the
         // project file and the View menu both use.
@@ -199,6 +204,44 @@ namespace {
     return out;
   }
 
+  /// The selected waypoint, as the panel shows it.
+  json waypointSelectionJson(const EditorShellState& state, size_t index) {
+    const EditorWaypoint& waypoint = state.document.waypoints[index];
+    json out = agentWaypointValue(waypoint);
+    out["target"] = "waypoint";
+    out["index"] = index;
+    out["name"] = editorWaypointName(waypoint);
+    json fields = json::array();
+    for (EditorPropertyField field : EDITOR_WAYPOINT_FIELDS) {
+      fields.push_back(fieldValue(field, editorWaypointValue(waypoint, field)));
+    }
+    out["fields"] = std::move(fields);
+    return out;
+  }
+
+  /// The ids of the actors in @p document patrolling @p route.
+  json patrolledBy(const EditorDocument& document, uint8_t route) {
+    json ids = json::array();
+    for (const EditorPlacement& placement : document.placements) {
+      if (!placement.behavior.empty() && placement.route == route) {
+        ids.push_back(placement.id);
+      }
+    }
+    return ids;
+  }
+
+  /// One route of @p document: where it goes, in walking order, and who
+  /// walks it.
+  json routeJson(const EditorDocument& document, uint8_t route) {
+    json points = json::array();
+    for (const Vec2 point : editorRoutePoints(document, route)) {
+      points.push_back({{"x", point.x}, {"y", point.y}});
+    }
+    return {{"route", route},
+            {"points", std::move(points)},
+            {"patrolled_by", patrolledBy(document, route)}};
+  }
+
   /// The selected placement, as the panel shows it.
   json placementSelectionJson(const EditorShellState& state, size_t index) {
     const EditorPlacement& placement = state.document.placements[index];
@@ -242,6 +285,8 @@ namespace {
         return lightSelectionJson(state, index);
       case EditorSelectionKind::PLAYER_START:
         return playerStartSelectionJson(state, index);
+      case EditorSelectionKind::WAYPOINT:
+        return waypointSelectionJson(state, index);
       case EditorSelectionKind::NONE:
         break;
     }
@@ -331,6 +376,7 @@ std::string agentStateJson(const EditorShellState& state) {
               {"placement_count", state.document.placements.size()},
               {"light_count", state.document.lights.size()},
               {"player_start_count", state.document.player_starts.size()},
+              {"waypoint_count", state.document.waypoints.size()},
               {"can_undo", canUndoEditorAction(state.history)},
               {"can_redo", canRedoEditorAction(state.history)},
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
@@ -348,7 +394,8 @@ std::string agentLevelJson(const EditorShellState& state) {
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
               {"prop_count", state.document.placements.size()},
               {"light_count", state.document.lights.size()},
-              {"player_start_count", state.document.player_starts.size()}};
+              {"player_start_count", state.document.player_starts.size()},
+              {"waypoint_count", state.document.waypoints.size()}};
   // Only where there is a project to be relative to; an absolute path made
   // from an empty root would name the working directory, not a level.
   out["path"] = loaded ? editorLevelPath(state).generic_string() : "";
@@ -420,9 +467,28 @@ std::string agentPlayerStartsJson(const EditorShellState& state) {
       .dump(2);
 }
 
+std::string agentWaypointsJson(const EditorShellState& state) {
+  json waypoints = json::array();
+  const auto& list = state.document.waypoints;
+  for (size_t i = 0; i < list.size(); ++i) {
+    json entry = agentWaypointValue(list[i]);
+    entry["index"] = i;
+    waypoints.push_back(entry);
+  }
+  json routes = json::array();
+  for (const uint8_t route : editorRoutesInUse(state.document)) {
+    routes.push_back(routeJson(state.document, route));
+  }
+  return json{{"waypoints", waypoints},
+              {"routes", routes},
+              {"route_count", EDITOR_ROUTE_COUNT}}
+      .dump(2);
+}
+
 std::string agentPlaytestJson(const EditorShellState& state) {
   const EditorPlaytestState& playtest = state.playtest;
   json out = {{"mode", agentPlayModeName(playtest.mode)},
+              {"paused", playtest.clock == EditorPlaytestClock::PAUSED},
               {"tick", playtest.tick},
               {"dropped_ticks", playtest.dropped_ticks},
               {"players", playtestPlayersJson(playtest)},
@@ -509,6 +575,45 @@ std::string agentBehaviorsJson(const EditorShellState& state) {
   return json{{"file", path},
               {"behaviors", behaviors},
               {"problems", state.behaviors.problems}}
+      .dump(2);
+}
+
+namespace {
+
+  /// How many of @p navigation's cells are @p kind.
+  size_t countCells(const EditorNavigation& navigation, EditorNavCell kind) {
+    return static_cast<size_t>(std::ranges::count(navigation.cells, kind));
+  }
+
+  /// The grid's placement and size.
+  json gridJson(const spatial::NavGrid& grid) {
+    const spatial::NavGridSpec& spec = grid.spec();
+    return {{"origin", {{"x", spec.origin.x}, {"y", spec.origin.y}}},
+            {"width", spec.width},
+            {"height", spec.height},
+            {"cell_size", spec.cell_size}};
+  }
+
+  /// How many cells are of each kind.
+  json cellCountsJson(const EditorNavigation& navigation) {
+    return {
+        {"open", countCells(navigation, EditorNavCell::OPEN)},
+        {"solid", countCells(navigation, EditorNavCell::SOLID)},
+        {"narrow", countCells(navigation, EditorNavCell::NARROW)},
+        {"unreachable", countCells(navigation, EditorNavCell::UNREACHABLE)}};
+  }
+
+}  // namespace
+
+std::string agentNavigationJson(const EditorShellState& state) {
+  const EditorNavigation navigation =
+      analyseEditorNavigation(state.document, state.assets);
+  return json{{"grid", gridJson(navigation.grid)},
+              {"clearance", navigation.clearance},
+              {"cells", cellCountsJson(navigation)},
+              {"reachability_known", navigation.reachability_known},
+              {"unreachable_actors", navigation.unreachable_actors},
+              {"stranded_actors", navigation.stranded_actors}}
       .dump(2);
 }
 

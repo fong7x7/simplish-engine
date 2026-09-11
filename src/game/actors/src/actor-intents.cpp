@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <engine/math/sin-cos.h>
+#include <game/actors/actor-route.h>
 
 namespace eng::game {
 
@@ -152,12 +153,67 @@ namespace {
     intent.moves = 1;
   }
 
+  /// The route actor @p a patrols, or nothing when it has none worth
+  /// walking.
+  const ActorRoute* routeOf(const ActorRef& a,
+                            const ActorTickContext& context) {
+    const uint16_t route = a.pool.route[a.i];
+    if (route >= context.routes.size() ||
+        context.routes[route].points.empty()) {
+      return nullptr;
+    }
+    return &context.routes[route];
+  }
+
+  /// The leg after @p leg of a route of @p count waypoints, walked as
+  /// @p mode says, turning @p reverse round at an end of a beat.
+  uint16_t nextLeg(uint16_t leg, size_t count, BehaviorRouteMode mode,
+                   uint8_t& reverse) {
+    const auto last = static_cast<uint16_t>(count - 1);
+    if (mode == BehaviorRouteMode::LOOP) {
+      return leg >= last ? 0 : static_cast<uint16_t>(leg + 1);
+    }
+    if ((reverse != 0 && leg == 0) || (reverse == 0 && leg >= last)) {
+      reverse = reverse != 0 ? 0 : 1;
+    }
+    return reverse != 0 ? static_cast<uint16_t>(leg - 1)
+                        : static_cast<uint16_t>(leg + 1);
+  }
+
+  /// Whether actor @p a stands at @p point, as near as arriving counts.
+  bool standsAt(const ActorRef& a, Vec2 point) {
+    constexpr float THERE = ACTOR_ARRIVE_TILES + ACTOR_MIN_STEP_TILES;
+    return Vec2::distanceSquared(flat(a.pool.position[a.i]), point) <=
+           THERE * THERE;
+  }
+
+  /// Waypoint by waypoint round its route, going on to the next whenever it
+  /// stands at the one it was walking to. Judged by where it stands rather
+  /// than by what it last did, so a patrol that paused on reaching a
+  /// waypoint moves on from it when it comes back, instead of walking to
+  /// it again. A route of one waypoint is a post it keeps returning to.
+  void patrol(const ActorRef& a, const ActorTickContext& context,
+              const BehaviorState& state, ActorIntent& intent) {
+    const ActorRoute* route = routeOf(a, context);
+    if (route == nullptr) {
+      return;
+    }
+    const size_t count = route->points.size();
+    uint16_t& leg = a.pool.route_leg[a.i];
+    leg = static_cast<uint16_t>(leg % count);
+    if (count > 1 && standsAt(a, route->points[leg])) {
+      leg = nextLeg(leg, count, state.route, a.pool.route_reverse[a.i]);
+    }
+    a.pool.has_goal[a.i] = 1;
+    goTo(a, intent, route->points[leg], ACTOR_ARRIVE_TILES);
+  }
+
   /// Each action's intent, in enumerator order.
-  constexpr std::array<IntentFn, 10> INTENTS{
-      stand, stand,    wander, approach,   keepDistance,
-      flee,  approach, search, returnHome, charge};
+  constexpr std::array<IntentFn, 11> INTENTS{
+      stand,    stand,  wander,     approach, keepDistance, flee,
+      approach, search, returnHome, charge,   patrol};
   static_assert(INTENTS.size() ==
-                static_cast<size_t>(BehaviorAction::CHARGE) + 1);
+                static_cast<size_t>(BehaviorAction::PATROL) + 1);
 
 }  // namespace
 

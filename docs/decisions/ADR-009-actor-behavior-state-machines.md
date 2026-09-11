@@ -90,7 +90,7 @@ Four existing decisions constrain how that intelligence is written down before t
 ### Implications for Future Work
 
 - **Damage-driven conditions** (`damaged`, `health_below`) and **attack actions** (`melee`, `fire`, `detonate`) join the sets with the damage phase; an attack appends to an effects buffer the `damage` phase applies, never writing state directly ([project-format.md §9](../editor/project-format.md#9-what-it-becomes)).
-- **`patrol`** joins with route markers authored in the editor.
+- **`patrol`** has joined, with route markers (`entity:waypoint`) authored in the editor. It kept the format's shape: the action names no route — the prop does, as it names its behavior — and the one thing a patrol state adds is how it walks one (`route`: `loop` or `ping_pong`). A route is a list of points handed in with the spawn, so the simulation never sees a waypoint entity.
 - **Actors targeting actors** — a guard fighting a raider — needs the spatial hash to find neighbours; until then hostile and friendly actors both take players as targets, and a neutral one takes none.
 - **Flow fields** replace per-actor A* for pursuing a player once the horde arrives, behind the same `pursue` action; nothing in the behavior format changes.
 - The editor's data-editing panel (Editor §6) edits behaviors like any other table, by schema.

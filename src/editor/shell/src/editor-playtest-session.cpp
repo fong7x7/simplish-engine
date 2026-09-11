@@ -5,6 +5,7 @@
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <engine/sim/replay-codec.h>
 #include <fstream>
 #include <game/content/character-lookup.h>
@@ -79,8 +80,23 @@ namespace {
     for (const size_t index : editorActorPlacements(document)) {
       const EditorPlacement& placement = document.placements[index];
       actors.push_back(editorActorSpawn(placement, assetOf(placement, assets)));
+      // A route with no waypoints left in it is no route: the actor's
+      // patrol stands still, as a behavior with no route says it does.
+      if (placement.route != 0) {
+        actors.back().route = editorRoutePoints(document, placement.route);
+      }
     }
     return actors;
+  }
+
+  /// The waypoints of @p path still to walk, on the floor at @p z.
+  std::vector<WorldPoint> remainingPath(const game::ActorPath& path, float z) {
+    std::vector<WorldPoint> points;
+    for (uint32_t i = path.next; i < path.count && i < path.points.size();
+         ++i) {
+      points.push_back({path.points[i].x, path.points[i].y, z});
+    }
+    return points;
   }
 
   /// The number of the player @p handle names in @p players, 1 to 4, or 0
@@ -302,6 +318,25 @@ const game::BehaviorState&
 EditorPlaytestSession::actorState(uint32_t index) const {
   const game::ActorPool& pool = world_->actors();
   return world_->brains()[pool.brain[index]].behavior.states[pool.state[index]];
+}
+
+EditorActorOverlay EditorPlaytestSession::actorOverlay(uint32_t index,
+                                                       float alpha) const {
+  const game::ActorPool& pool = world_->actors();
+  const game::BehaviorSenses& senses =
+      world_->brains()[pool.brain[index]].behavior.senses;
+  const Vec3 at = actorRenderPosition(index, alpha);
+  return {.at = {at.x, at.y, at.z},
+          .height = pool.height[index],
+          .facing = pool.facing[index],
+          .view_degrees = senses.view_degrees,
+          .sight_range = senses.sight_range,
+          .path = remainingPath(pool.path[index], at.z),
+          .has_target = pool.remembers_target[index] != 0,
+          .target = {pool.last_seen[index].x, pool.last_seen[index].y, at.z},
+          .sees_target = pool.sees_target[index] != 0,
+          .label = actorState(index).id,
+          .faction = pool.faction[index]};
 }
 
 EditorCharacterGait EditorPlaytestSession::gait(size_t index) const {

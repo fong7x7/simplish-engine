@@ -40,6 +40,11 @@ enum class BehaviorAction : uint8_t {
   /// Run straight ahead along the facing, not steering, until something
   /// stops it or the state ends: a charger's rush.
   CHARGE,
+  /// Walk the route its prop names, waypoint by waypoint, as the state's
+  /// `route` says — round and round, or back and forth. It carries on from
+  /// where it left off when it comes back to the state; one with no route
+  /// stands.
+  PATROL,
 };
 
 }  // namespace eng::game

@@ -15,6 +15,11 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::PLAYTEST;
 }
 
+bool editorMenuCommandNeedsPlaytest(EditorMenuCommand command) {
+  return command == EditorMenuCommand::PAUSE_PLAYTEST ||
+         command == EditorMenuCommand::STEP_PLAYTEST;
+}
+
 bool editorMenuCommandImplemented(EditorMenuCommand command) {
   return std::find(std::begin(EDITOR_IMPLEMENTED_COMMANDS),
                    std::end(EDITOR_IMPLEMENTED_COMMANDS),
@@ -27,6 +32,9 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
   // nothing if it were live right now.
   if (editorMenuCommandNeedsProject(command)) {
     return state.project.loaded;
+  }
+  if (editorMenuCommandNeedsPlaytest(command)) {
+    return state.playtest.mode == EditorPlayMode::PLAYING;
   }
   if (command == EditorMenuCommand::UNDO) {
     return canUndoEditorAction(state.history);

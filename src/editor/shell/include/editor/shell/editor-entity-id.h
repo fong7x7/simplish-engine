@@ -66,6 +66,10 @@ void assignEditorAssetIds(std::vector<EditorAsset>& assets);
 /// `player_start:start_01`.
 [[nodiscard]] std::string editorPlayerStartRef(const EditorPlayerStart& start);
 
+/// How another file references the waypoint @p waypoint:
+/// `waypoint:waypoint_01`.
+[[nodiscard]] std::string editorWaypointRef(const EditorWaypoint& waypoint);
+
 /// Point every placement in @p document at its asset's index in @p assets,
 /// given the ids those indices meant before. Returns how many placements
 /// were dropped, which is zero for the ordinary case of a file added.
@@ -100,5 +104,9 @@ size_t rebindPlacementAssets(EditorDocument& document,
 /// would go on naming a start that now belongs to player 3.
 [[nodiscard]] std::string
 mintEditorPlayerStartId(const EditorDocument& document);
+
+/// An id for a new waypoint, free in @p document: `waypoint_01` — not
+/// numbered by its route or place, which the panel can change.
+[[nodiscard]] std::string mintEditorWaypointId(const EditorDocument& document);
 
 }  // namespace eng::editor

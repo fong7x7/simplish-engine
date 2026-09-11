@@ -30,6 +30,9 @@ enum class EditorMarkerStyle : uint8_t {
   /// way it faces — a prop with a behavior, so a level shows at a glance
   /// which props will move, whose side they are on, and where they look.
   ACTOR,
+  /// The whole box, in its route's colour — a patrol route's waypoint,
+  /// a post with nothing else in the scene to see it by.
+  WAYPOINT,
 };
 
 /// One thing in the level, as much of it as the viewport needs.
@@ -54,6 +57,9 @@ struct EditorPlacementMarker {
   game::Faction faction = game::Faction::HOSTILE;
   /// The unit direction an `ACTOR` marker faces, on the floor.
   Vec2 facing{};
+  /// The route a `WAYPOINT` marker belongs to, 1 to 9, which picks its
+  /// colour.
+  uint8_t route = 0;
 };
 
 }  // namespace eng::editor

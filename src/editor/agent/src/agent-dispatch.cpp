@@ -1,5 +1,6 @@
 #include "agent-call.h"
 #include "agent-commands.h"
+#include "agent-waypoints.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -50,12 +51,20 @@ namespace {
     return agentOk(agentPlayerStartsJson(state));
   }
 
+  AgentResult toolListWaypoints(EditorShellState& state, const json&) {
+    return agentOk(agentWaypointsJson(state));
+  }
+
   AgentResult toolListCharacters(EditorShellState& state, const json&) {
     return agentOk(agentCharactersJson(state));
   }
 
   AgentResult toolListBehaviors(EditorShellState& state, const json&) {
     return agentOk(agentBehaviorsJson(state));
+  }
+
+  AgentResult toolGetNavigation(EditorShellState& state, const json&) {
+    return agentOk(agentNavigationJson(state));
   }
 
   AgentResult toolGetSelection(EditorShellState& state, const json&) {
@@ -114,6 +123,10 @@ namespace {
     return runAgentStartPlaytest(state, params);
   }
 
+  AgentResult toolStepPlaytest(EditorShellState& state, const json& params) {
+    return runAgentStepPlaytest(state, params);
+  }
+
   AgentResult toolStopPlaytest(EditorShellState& state, const json&) {
     return runAgentStopPlaytest(state);
   }
@@ -124,6 +137,7 @@ namespace {
       AgentTool::PLACE_ASSET,
       AgentTool::ADD_LIGHT,
       AgentTool::ADD_PLAYER_START,
+      AgentTool::ADD_WAYPOINT,
       AgentTool::SET_PROPERTY,
       AgentTool::SET_ANIMATION,
       AgentTool::SET_CHARACTER,
@@ -157,8 +171,11 @@ namespace {
       toolListPlacements,
       toolListLights,
       toolListPlayerStarts,
+      toolListWaypoints,
       toolListCharacters,
       toolListBehaviors,
+      toolGetNavigation,
+      runAgentFindPath,
       toolGetSelection,
       toolGetHistory,
       toolGetLevel,
@@ -167,6 +184,7 @@ namespace {
       runAgentPlaceAsset,
       runAgentAddLight,
       runAgentAddPlayerStart,
+      runAgentAddWaypoint,
       runAgentSetProperty,
       runAgentSetAnimation,
       runAgentSetCharacter,
@@ -186,6 +204,7 @@ namespace {
       toolStartPlaytest,
       toolStopPlaytest,
       runAgentSendInput,
+      toolStepPlaytest,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

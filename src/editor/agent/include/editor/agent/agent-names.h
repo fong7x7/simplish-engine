@@ -30,7 +30,7 @@ inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
     "position_x", "position_y",  "position_z",  "rotation_x",  "rotation_y",
     "rotation_z", "direction_x", "direction_y", "direction_z", "color_r",
     "color_g",    "color_b",     "intensity",   "range",       "player",
-    "collides",   "scale",
+    "collides",   "scale",       "route",       "order",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -68,6 +68,10 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "set_shading_cel",
     "about",
     "playtest",
+    "pause_playtest",
+    "step_tick",
+    "toggle_navigation",
+    "toggle_ai_overlay",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==
@@ -115,6 +119,8 @@ agentSelectionKindName(EditorSelectionKind kind) {
       return "light";
     case EditorSelectionKind::PLAYER_START:
       return "player_start";
+    case EditorSelectionKind::WAYPOINT:
+      return "waypoint";
     case EditorSelectionKind::NONE:
       return "none";
   }
@@ -123,18 +129,18 @@ agentSelectionKindName(EditorSelectionKind kind) {
 
 /// Wire name of every recorded edit, indexed by the kind's own value.
 ///
-/// A table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one: nine arms of
-/// two lines say no more than nine rows, and the assertion below catches a
+/// A table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one: twelve arms
+/// of two lines say no more than twelve rows, and the assertion below catches a
 /// kind added to the enum without a name here.
 inline constexpr std::string_view AGENT_ACTION_KIND_NAMES[] = {
     "place_asset",      "transform_placement",    "remove_placement",
     "add_light",        "transform_light",        "remove_light",
     "add_player_start", "transform_player_start", "remove_player_start",
+    "add_waypoint",     "transform_waypoint",     "remove_waypoint",
 };
 
 static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorActionKind::REMOVE_PLAYER_START) +
-                      1,
+                  static_cast<size_t>(EditorActionKind::REMOVE_WAYPOINT) + 1,
               "every recorded edit needs a name the agent API reports it by");
 
 /// Wire name of one recorded edit.

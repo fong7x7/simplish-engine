@@ -70,6 +70,16 @@ enum class EditorMenuCommand : uint8_t {
   ABOUT,
   /// Start playing the open level, or stop playing it.
   PLAYTEST,
+  /// Pause a running playtest, or resume a paused one.
+  PAUSE_PLAYTEST,
+  /// Run exactly one tick of a playtest, pausing it first.
+  STEP_PLAYTEST,
+  /// Show or hide the navigation overlay: blocked, narrow and unreachable
+  /// floor.
+  TOGGLE_NAVIGATION,
+  /// Show or hide the AI overlay: every actor's view, path, target and
+  /// state, while playing.
+  TOGGLE_AI_OVERLAY,
 };
 
 /// Display text for one command.
@@ -125,6 +135,10 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SET_SHADING_CEL, "Cel Shading", ""},
     {EditorMenuCommand::ABOUT, "About Simplish", ""},
     {EditorMenuCommand::PLAYTEST, "Play Level", "F5"},
+    {EditorMenuCommand::PAUSE_PLAYTEST, "Pause Playtest", "F6"},
+    {EditorMenuCommand::STEP_PLAYTEST, "Step One Tick", "F7"},
+    {EditorMenuCommand::TOGGLE_NAVIGATION, "Navigation Overlay", ""},
+    {EditorMenuCommand::TOGGLE_AI_OVERLAY, "AI Overlay", ""},
 };
 
 /// Look up the display text for @p command.

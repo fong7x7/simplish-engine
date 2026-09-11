@@ -38,6 +38,7 @@ if(ENGINE_BUILD_TESTS)
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/actor-arena.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_brain.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_movement.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_patrol.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_perception.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_states.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_system.cpp

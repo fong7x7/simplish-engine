@@ -4,6 +4,7 @@
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-scale-slider.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <utility>
@@ -132,6 +133,15 @@ void EditorPropertiesWidget::setSelection(std::string name,
                  EDITOR_PLAYER_START_FIELDS);
   for (size_t row = 0; row < fields_.size(); ++row) {
     values_[row] = editorPlayerStartValue(start, fields_[row]);
+  }
+}
+
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorWaypoint& waypoint) {
+  beginSelection(std::move(name), editorWaypointRef(waypoint),
+                 EDITOR_WAYPOINT_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorWaypointValue(waypoint, fields_[row]);
   }
 }
 

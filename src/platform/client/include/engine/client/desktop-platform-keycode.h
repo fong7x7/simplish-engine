@@ -20,6 +20,10 @@ struct DesktopPlatformKeycode {
   static constexpr uint32_t DELETE_FORWARD = 127U;
   /// Matches `SDLK_F5`: start and stop a playtest, as most editors bind it.
   static constexpr uint32_t F5 = 0x4000003EU;
+  /// Matches `SDLK_F6`: pause or resume a playtest.
+  static constexpr uint32_t F6 = 0x4000003FU;
+  /// Matches `SDLK_F7`: step a playtest one tick.
+  static constexpr uint32_t F7 = 0x40000040U;
   /// Matches `SDLK_RIGHT`.
   static constexpr uint32_t ARROW_RIGHT = 0x4000004FU;
   /// Matches `SDLK_LEFT`.

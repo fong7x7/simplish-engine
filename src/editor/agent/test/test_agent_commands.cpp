@@ -1030,3 +1030,64 @@ TEST_CASE("set_behavior is refused while the level is played") {
               .status != AgentStatus::OK);
   REQUIRE(state.document.placements[0].behavior.empty());
 }
+
+TEST_CASE("step_playtest asks the editor for an exact number of ticks") {
+  EditorShellState state = stateWithAssets();
+  REQUIRE(runAgentTool(state, "step_playtest", R"({"ticks": 5})").status ==
+          AgentStatus::UNAVAILABLE);
+
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  const AgentResult stepped =
+      runAgentTool(state, "step_playtest", R"({"ticks": 30})");
+  REQUIRE(stepped.status == AgentStatus::OK);
+  REQUIRE(stepped.host.kind == AgentHostRequestKind::STEP_PLAYTEST);
+  REQUIRE(stepped.host.ticks == 30);
+  REQUIRE(runAgentTool(state, "step_playtest", "{}").host.ticks == 1);
+  REQUIRE(runAgentTool(state, "step_playtest", R"({"ticks": 0})").status ==
+          AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("pausing is a menu command live only while playing") {
+  EditorShellState state = stateWithAssets();
+  REQUIRE(runAgentTool(state, "run_command", R"({"command": "pause_playtest"})")
+              .status == AgentStatus::UNAVAILABLE);
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  const AgentResult paused =
+      runAgentTool(state, "run_command", R"({"command": "pause_playtest"})");
+  REQUIRE(paused.status == AgentStatus::OK);
+  REQUIRE(paused.host.command == EditorMenuCommand::PAUSE_PLAYTEST);
+}
+
+TEST_CASE("get_navigation reports the grid and the actors that are cut off") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "add_player_start", R"({"x": 0, "y": 0})");
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 4, "y": 0})");
+  (void)call(state, "set_behavior",
+             R"({"target": "placement", "index": 0, "behavior": "chase"})");
+
+  const json navigation = call(state, "get_navigation", "{}");
+  REQUIRE(navigation.at("grid").at("cell_size") == Approx(0.25));
+  REQUIRE(navigation.at("clearance") == 2);
+  REQUIRE(navigation.at("reachability_known") == true);
+  REQUIRE(navigation.at("unreachable_actors").empty());
+  REQUIRE(navigation.at("cells").at("open").get<int>() > 0);
+}
+
+TEST_CASE("find_path plans round a prop, and says when an end is walled in") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 2, "y": 0})");
+
+  const json around = call(state, "find_path",
+                           R"({"from_x": 0.5, "from_y": 0.5,
+                               "to_x": 4.5, "to_y": 0.5})");
+  REQUIRE(around.at("status") == "found");
+  REQUIRE(around.at("waypoints").size() >= 2);
+  REQUIRE(around.at("length").get<double>() > 4.0);
+
+  const json inside = call(state, "find_path",
+                           R"({"from_x": 0.5, "from_y": 0.5,
+                               "to_x": 2.5, "to_y": 0.5, "radius": 2})");
+  REQUIRE(inside.at("status") == "blocked_endpoint");
+  REQUIRE(runAgentTool(state, "find_path", R"({"from_x": 1})").status ==
+          AgentStatus::BAD_PARAMS);
+}

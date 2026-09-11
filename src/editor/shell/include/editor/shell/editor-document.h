@@ -7,12 +7,13 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-waypoint.h>
 #include <vector>
 
 namespace eng::editor {
 
 /// The level as the editor holds it: what has been placed, what lights it,
-/// and where the players enter it.
+/// where the players enter it, and the routes its actors patrol.
 ///
 /// One record rather than a list per kind passed around separately, because
 /// the history describes all of it: an action names a list and a slot in
@@ -26,6 +27,8 @@ struct EditorDocument {
   std::vector<EditorLight> lights;
   /// Where players spawn, in the order the starts were added.
   std::vector<EditorPlayerStart> player_starts;
+  /// The points of the level's patrol routes, in the order they were added.
+  std::vector<EditorWaypoint> waypoints;
 };
 
 }  // namespace eng::editor

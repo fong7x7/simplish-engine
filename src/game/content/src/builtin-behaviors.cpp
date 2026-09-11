@@ -199,12 +199,29 @@ namespace {
     return behavior("charger", "Charger", std::move(states));
   }
 
+  /// Walks its prop's route at a stroll, gives chase to whoever it sees,
+  /// searches where it lost them, and picks its round up where it left it.
+  BehaviorDefinition patrol() {
+    enum : uint8_t { WALK, PURSUE, SEARCH };
+    BehaviorState walk =
+        state("patrol", Act::PATROL,
+              {on(Cond::SEES_TARGET, PURSUE), on(Cond::HEARS_TARGET, SEARCH)});
+    walk.speed_permille = 700;
+    return behavior("patrol", "Patrol",
+                    {walk,
+                     state("pursue", Act::PURSUE,
+                           {onTicks(Cond::LOST_TARGET_FOR, 120, SEARCH)}),
+                     state("search", Act::SEARCH,
+                           {on(Cond::SEES_TARGET, PURSUE),
+                            onTicks(Cond::IN_STATE_FOR, 240, WALK)})});
+  }
+
 }  // namespace
 
 std::span<const BehaviorDefinition> builtInBehaviors() {
-  static const std::array<BehaviorDefinition, 8> presets{
-      idle(),       wander(), guard(),    chase(),
-      skirmisher(), coward(), follower(), charger()};
+  static const std::array<BehaviorDefinition, 9> presets{
+      idle(),   wander(),   guard(),   chase(), skirmisher(),
+      coward(), follower(), charger(), patrol()};
   return presets;
 }
 

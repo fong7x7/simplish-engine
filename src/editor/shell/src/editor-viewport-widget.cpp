@@ -1,3 +1,5 @@
+#include "editor-viewport-overlays.h"
+
 #include <cmath>
 #include <cstdint>
 #include <editor/shell/editor-placement-pick.h>
@@ -142,26 +144,45 @@ namespace {
                 color);
   }
 
+  /// The colour route @p route is drawn in.
+  GuiColor editorRouteColor(uint8_t route) {
+    const size_t slot = route > 0 ? route - 1U : 0U;
+    return EDITOR_ROUTE_COLORS[slot % std::size(EDITOR_ROUTE_COLORS)];
+  }
+
+  /// The colour player @p player's start is drawn in.
+  GuiColor playerColor(uint8_t player) {
+    const size_t slot = player > 0 ? player - 1U : 0U;
+    return EDITOR_PLAYER_START_COLORS[slot %
+                                      std::size(EDITOR_PLAYER_START_COLORS)];
+  }
+
+  /// The colour an actor on @p faction's side is marked in.
+  GuiColor factionColor(game::Faction faction) {
+    return EDITOR_FACTION_COLORS[static_cast<size_t>(faction) %
+                                 std::size(EDITOR_FACTION_COLORS)];
+  }
+
   /// The colour @p marker is outlined in: the selection's when it is
-  /// selected, its player's when it is a start, its faction's when it is an
-  /// actor, the prop tan otherwise.
+  /// selected, and otherwise its style's — a start's player's, an actor's
+  /// faction's, a waypoint's route's, the prop tan.
   GuiColor markerColor(const EditorPlacementMarker& marker) {
     if (marker.selected) {
       return SELECTION_OUTLINE;
     }
-    if (marker.style == EditorMarkerStyle::PASSABLE) {
-      return PASSABLE_OUTLINE;
+    switch (marker.style) {
+      case EditorMarkerStyle::PASSABLE:
+        return PASSABLE_OUTLINE;
+      case EditorMarkerStyle::PLAYER_START:
+        return playerColor(marker.player);
+      case EditorMarkerStyle::ACTOR:
+        return factionColor(marker.faction);
+      case EditorMarkerStyle::WAYPOINT:
+        return editorRouteColor(marker.route);
+      case EditorMarkerStyle::FOOTPRINT:
+        break;
     }
-    if (marker.style == EditorMarkerStyle::ACTOR) {
-      return EDITOR_FACTION_COLORS[static_cast<size_t>(marker.faction) %
-                                   std::size(EDITOR_FACTION_COLORS)];
-    }
-    if (marker.style != EditorMarkerStyle::PLAYER_START) {
-      return PLACEMENT_OUTLINE;
-    }
-    const size_t slot = marker.player > 0 ? marker.player - 1U : 0U;
-    return EDITOR_PLAYER_START_COLORS[slot %
-                                      std::size(EDITOR_PLAYER_START_COLORS)];
+    return PLACEMENT_OUTLINE;
   }
 
 }  // namespace
@@ -182,7 +203,8 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
     // A start is a column with nothing in the scene standing in it, so it
     // is drawn whole; everything else has its footprint drawn here and its
     // geometry drawn by the scene pass.
-    if (marker.style == EditorMarkerStyle::PLAYER_START) {
+    if (marker.style == EditorMarkerStyle::PLAYER_START ||
+        marker.style == EditorMarkerStyle::WAYPOINT) {
       renderBoxOutline(renderer, view, marker.bounds, color);
     } else {
       renderFootprintOutline(renderer, view, marker.bounds, color);
@@ -190,6 +212,16 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
     if (marker.style == EditorMarkerStyle::ACTOR) {
       renderFacingTick(renderer, view, marker, color);
     }
+  }
+}
+
+void EditorViewportWidget::renderRouteLines(GuiRendererContext& renderer,
+                                            const IsoView& view) const {
+  for (const EditorRouteLine& line : route_lines) {
+    const IsoPoint a = worldToScreen(view, line.from);
+    const IsoPoint b = worldToScreen(view, line.to);
+    renderer.emitLine(
+        {a.x, a.y, b.x, b.y, editorRouteColor(line.route).pack(), 2.0f});
   }
 }
 
@@ -219,6 +251,10 @@ void EditorViewportWidget::renderGround(GuiRendererContext& renderer,
     renderGrid(renderer, view);
   }
   renderAxes(renderer, view);
+  if (show_navigation) {
+    renderNavOverlay(renderer, view, nav_overlay);
+  }
+  renderRouteLines(renderer, view);
   renderPlacements(renderer, view);
   renderer.popScissor();
 }
@@ -231,22 +267,33 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
   // scene is composited between them, and a clip cannot span the two.
   renderGround(renderer, view);
   renderer.markSceneSplit();
-  const bool has_selection = hasSelectedMarker();
-  if (!has_selection && !has_hover_) {
+  if (!hasSelectedMarker() && !has_hover_ && !showsActors()) {
     return;
   }
-  // The selection box and the cursor feedback belong on top, where they
-  // stay visible over the geometry they are pointing at. The clip is opened
-  // only when there is something to put inside it, so a viewport with
-  // neither emits the same command stream it always did.
+  // The selection box, the AI overlay and the cursor feedback belong on
+  // top, where they stay visible over the geometry they are pointing at.
+  // The clip is opened only when there is something to put inside it, so a
+  // viewport with none of them emits the same command stream it always did.
   renderer.pushScissor(rect);
-  if (has_selection) {
+  renderOverScene(renderer, view);
+  renderer.popScissor();
+}
+
+void EditorViewportWidget::renderOverScene(GuiRendererContext& renderer,
+                                           const IsoView& view) const {
+  if (hasSelectedMarker()) {
     renderSelection(renderer, view);
+  }
+  if (showsActors()) {
+    renderActorOverlays(renderer, view, actor_overlays);
   }
   if (has_hover_) {
     renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
   }
-  renderer.popScissor();
+}
+
+bool EditorViewportWidget::showsActors() const {
+  return show_ai && !actor_overlays.empty();
 }
 
 void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
@@ -259,6 +306,11 @@ void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
   // Filling here would erase every mesh in the viewport.
   if (ctx.renderer != nullptr) {
     renderScene(*ctx.renderer);
+  }
+  if (showsActors() && ctx.renderer != nullptr) {
+    ctx.renderer->pushScissor(rect);
+    renderActorLabels(ctx, makeIsoView(camera, rect), actor_overlays);
+    ctx.renderer->popScissor();
   }
 
   ctx.drawBorderRect(rect, GuiColor::applyOpacity(THEME_BORDER, opacity));

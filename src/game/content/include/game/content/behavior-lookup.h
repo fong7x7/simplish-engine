@@ -15,8 +15,9 @@
 namespace eng::game {
 
 /// The behaviors every project has without writing any: `idle`, `wander`,
-/// `guard`, `chase`, `skirmisher`, `coward`, `follower` and `charger`, in
-/// that order. A project's own behavior with the same id replaces one.
+/// `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger` and
+/// `patrol`, in that order. A project's own behavior with the same id replaces
+/// one.
 [[nodiscard]] std::span<const BehaviorDefinition> builtInBehaviors();
 
 /// The behavior @p id names: the project's own in @p content first, then a

@@ -20,7 +20,8 @@ nlohmann::json agentPlacementValue(const EditorPlacement& placement) {
           {"collides", placement.collides},
           {"animation", placement.animation},
           {"behavior", placement.behavior},
-          {"faction", game::factionName(placement.faction)}};
+          {"faction", game::factionName(placement.faction)},
+          {"route", placement.route}};
 }
 
 nlohmann::json agentLightValue(const EditorLight& light) {
@@ -40,6 +41,14 @@ nlohmann::json agentPlayerStartValue(const EditorPlayerStart& start) {
           {"player", start.player},
           {"position", agentPointJson(start.position)},
           {"character", start.character}};
+}
+
+nlohmann::json agentWaypointValue(const EditorWaypoint& waypoint) {
+  return {{"id", waypoint.id},
+          {"ref", editorWaypointRef(waypoint)},
+          {"route", waypoint.route},
+          {"order", waypoint.order},
+          {"position", agentPointJson(waypoint.position)}};
 }
 
 }  // namespace eng::editor

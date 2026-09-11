@@ -11,6 +11,7 @@
 #include <engine/sim/tick-input.h>
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
+#include <game/actors/actor-route.h>
 #include <game/player/player-pool.h>
 #include <span>
 
@@ -32,6 +33,8 @@ struct ActorTickContext {
   std::span<const physics::CollisionBox> obstacles;
   /// The brains actors run, indexed by `ActorPool::brain`.
   std::span<const ActorBrain> brains;
+  /// The routes actors patrol, indexed by `ActorPool::route`.
+  std::span<const ActorRoute> routes;
   /// The simulation's AI stream: wander spots and `chance` draws. Drawn
   /// from in dense order, so every peer draws the same numbers for the
   /// same actors.

@@ -6,6 +6,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -394,4 +395,61 @@ TEST_CASE("a hand-written behavior id reads as the behavior it names") {
   // A behavior the project does not define is kept, not thrown away.
   REQUIRE(read->document.placements[1].behavior == "behavior:gone");
   REQUIRE(read->document.placements[1].faction == eng::game::Faction::NEUTRAL);
+}
+
+TEST_CASE("waypoints and the route a prop patrols round-trip") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  EditorWaypoint waypoint = makeEditorWaypoint(3, 7, {5.5f, 6.5f, 0.0f});
+  waypoint.id = "waypoint_01";
+  written.waypoints.push_back(waypoint);
+  written.placements[1].behavior = "behavior:patrol";
+  written.placements[1].route = 3;
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const auto read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->dropped_entities == 0);
+  const EditorWaypoint& back = read->document.waypoints.at(0);
+  REQUIRE((back.id == "waypoint_01" && back.route == 3 && back.order == 7));
+  REQUIRE(back.position.y == Approx(6.5f));
+  REQUIRE(read->document.placements[1].route == 3);
+}
+
+TEST_CASE("a route on scenery says nothing, and is not saved") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[0].route = 2;
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+
+  REQUIRE(text.find("\"route\"") == std::string::npos);
+  REQUIRE(parseEditorLevel(text, assets)->document.placements[0].route == 0);
+}
+
+TEST_CASE("a hand-written waypoint is held to a route and a place a level "
+          "can hold") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0", "id": "main", "name": "main",
+    "content": {
+      "props": [{"asset": "mesh:props_crate", "at": [0, 0, 0],
+                 "behavior": "patrol", "route": 40}],
+      "entities": [
+        {"definition": "entity:waypoint", "at": [1, 2, 0],
+         "properties": {"route": 0, "order": 500}},
+        {"definition": "entity:waypoint", "at": [3, 4, 0]}]}})";
+
+  const auto read = parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  const auto& waypoints = read->document.waypoints;
+  REQUIRE(waypoints.size() == 2);
+  REQUIRE(waypoints[0].route == 1);
+  REQUIRE(waypoints[0].order == EDITOR_WAYPOINT_MAX_ORDER);
+  // One with no properties is the first place of the first route, and is
+  // given an id of its own.
+  REQUIRE(waypoints[1].order == 1);
+  REQUIRE(waypoints[1].id != waypoints[0].id);
+  REQUIRE(read->document.placements[0].route == EDITOR_ROUTE_COUNT);
 }

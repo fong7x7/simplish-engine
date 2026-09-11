@@ -3,7 +3,7 @@
 **Parent document:** [Engine REQUIREMENTS](REQUIREMENTS.md) §6
 **Package:** `src/engine/spatial/` (`eng::spatial`), plus `sinCosDegrees` and `turnToward` in `src/engine/math/`
 **Governed by:** [ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md); consumed by the actors of [ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md)
-**Status:** First slice built and tested: the navigation grid, line of sight, A*, and path smoothing. Driven by `src/game/actors` ([actors.md](../game/actors.md)). Flow fields, the spatial hash and a static-geometry broadphase are not written — §6.
+**Status:** First slice built and tested: the navigation grid, line of sight, A*, path smoothing, and reachability. Driven by `src/game/actors` ([actors.md](../game/actors.md)) and drawn by the editor's Navigation Overlay. Flow fields, the spatial hash and a static-geometry broadphase are not written — §6.
 
 Where characters of a given size can stand, whether one can see or walk straight to a point, and the shortest way there when it cannot. Game-agnostic: nothing here knows what an actor or a behavior is. Everything here runs inside the tick, so all of it is under the determinism contract.
 
@@ -29,6 +29,8 @@ physics::CollisionBox list ──► NavGrid (clearance per cell)
 | `nearestOpenCell` | `nearest-open-cell.h` | The nearest cell a character of a given size can stand in |
 | `PathFinder`, `PathRequest`, `PathResult`, `PathStatus` | `path-finder.h` … | A* over the grid, with scratch memory reused across searches |
 | `smoothPath` | `path-smoothing.h` | Cells to waypoints: the furthest cell a straight walk reaches, repeatedly |
+| `canGridStep`, `GRID_STEPS` | `grid-step.h` | The eight steps between neighbouring cells, and whether one is open — the one rule A* and reachability share |
+| `reachableCells` | `reachability.h` | Every cell a character of a given size can walk to from any of a set of cells |
 | `sinCosDegrees`, `turnToward` | `engine/math/sin-cos.h`, `turn-toward.h` | Deterministic sine and cosine; turning a heading by at most a fixed angle |
 
 `sinCosDegrees` lives in `math` because [Engine §3](REQUIREMENTS.md#3-platform--tech-stack) promises simulation code deterministic replacements for libm's transcendentals, and this is the first of them; nothing about it is spatial.
@@ -71,6 +73,8 @@ The walk's step count is bounded by the cells between its ends; a rounding that 
 
 A path of cells steps in eight directions and zigzags. `smoothPath` turns it into straight legs: from each waypoint, the next is the furthest cell along the path a straight walk with the character's clearance still reaches. Scanning stops at the first cell that fails, so smoothing is linear in the path's length. The output is a fixed-size span; a caller whose buffer fills walks what it has and plans again from there.
 
+`reachableCells(grid, from, clearance)` floods out from a set of cells by the same eight steps and the same corner rule as A*, and marks every cell it reaches. It answers "can anything get from here to there at all" for every cell at once, where A* answers it for one pair: the editor floods from the player starts to find floor walled off from them, and from each actor to find actors that can never reach a start. It allocates, and is for the editor, not the tick.
+
 When a goal is somewhere a character cannot stand — a player backed against a crate, a random spot on top of a prop — `nearestOpenCell` searches rings outward by chessboard distance and takes the nearest open cell in the first ring holding one, ties to row-major order.
 
 ---
@@ -98,4 +102,3 @@ Nothing here is hashed: the grid is a pure function of the setup, and a path liv
 | **Incremental updates** — a door opening mid-run | Logic's `open_door` ([project-format.md §7](../editor/project-format.md#7-logic-and-expressions)); the grid then becomes state and is hashed |
 | **Tile-layer bounds** in place of `fitNavGrid` | The level format's tile layers |
 | **Multiple floors** | [Open question 3](../../REQUIREMENTS.md#8-open-questions): the grid is one flat floor |
-| **Editor overlay** of blocked and too-narrow cells, and reachability warnings | [Editor §4.3](../editor/REQUIREMENTS.md#43-navigation-and-flow) |

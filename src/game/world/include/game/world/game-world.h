@@ -14,6 +14,7 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-pool.h>
+#include <game/actors/actor-route.h>
 #include <game/actors/actor-workspace.h>
 #include <game/content/behavior-definition.h>
 #include <game/content/game-content.h>
@@ -77,6 +78,9 @@ public:
 private:
   /// Spawn one actor per spawn of @p setup, compiling the brains they run.
   void spawnActors(const GameSetup& setup, const GameContent& content);
+  /// Give the actor at dense index @p index the route @p points, when
+  /// there is one.
+  void assignRoute(uint32_t index, const std::vector<Vec2>& points);
   /// The index in `brains_` of @p behavior, compiled and added if it is
   /// not there yet.
   uint16_t brainIndex(const BehaviorDefinition& behavior);
@@ -92,6 +96,9 @@ private:
   std::vector<ActorBrain> brains_;
   /// Every actor in the session.
   ActorPool actors_;
+  /// The routes actors patrol, one per actor spawned with one, in setup
+  /// order.
+  std::vector<ActorRoute> routes_;
   /// Each setup actor's handle, in setup order.
   std::vector<sim::EntityHandle> actor_handles_;
   /// Scratch the actor passes work in; not state.

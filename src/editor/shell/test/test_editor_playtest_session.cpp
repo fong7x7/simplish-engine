@@ -4,6 +4,7 @@
 #include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <engine/input/player-input-builder.h>
 #include <engine/sim/replay-codec.h>
 #include <engine/sim/replay-verification.h>
@@ -331,6 +332,27 @@ TEST_CASE("a prop with a behavior plays as an actor, not as a box") {
   REQUIRE(setup.actors[0].behavior == "chase");
   REQUIRE(setup.actors[0].at.x == 8.5F);
   REQUIRE(setup.actors[0].yaw_degrees == 90.0F);
+}
+
+TEST_CASE("an actor patrols the points of the route it names, in order") {
+  EditorDocument document = documentWithActor("behavior:patrol");
+  document.placements[1].route = 2;
+  document.waypoints.push_back(makeEditorWaypoint(2, 2, {6.5F, 6.5F, 0}));
+  document.waypoints.push_back(makeEditorWaypoint(1, 1, {9.5F, 9.5F, 0}));
+  document.waypoints.push_back(makeEditorWaypoint(2, 1, {3.5F, 6.5F, 0}));
+
+  const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+
+  REQUIRE(setup.actors[0].route.size() == 2);
+  REQUIRE(setup.actors[0].route[0].x == 3.5F);
+  REQUIRE(setup.actors[0].route[1].x == 6.5F);
+}
+
+TEST_CASE("an actor naming no route, or an empty one, has no route") {
+  EditorDocument document = documentWithActor("behavior:patrol");
+  REQUIRE(makeEditorPlaytestSetup(document, {}, {}).actors[0].route.empty());
+  document.placements[1].route = 4;
+  REQUIRE(makeEditorPlaytestSetup(document, {}, {}).actors[0].route.empty());
 }
 
 TEST_CASE("scenery is a box, and no actor") {

@@ -35,6 +35,12 @@ enum class EditorActionKind : uint8_t {
   TRANSFORM_PLAYER_START,
   /// A player start was taken back out of the level.
   REMOVE_PLAYER_START,
+  /// A waypoint was added to the level.
+  ADD_WAYPOINT,
+  /// A waypoint was moved, or given another route or place in it.
+  TRANSFORM_WAYPOINT,
+  /// A waypoint was taken back out of the level.
+  REMOVE_WAYPOINT,
 };
 
 }  // namespace eng::editor

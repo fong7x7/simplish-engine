@@ -19,6 +19,7 @@ ActorArena::ActorArena(std::vector<physics::CollisionBox> boxes)
   : obstacles(std::move(boxes)), grid(arenaSpec(), obstacles),
     workspace(16, grid.cellCount()) {
   brains.reserve(16);
+  routes.reserve(16);
 }
 
 uint32_t ActorArena::addPlayer(Vec2 at) {
@@ -33,7 +34,12 @@ uint32_t ActorArena::addActor(const BehaviorDefinition& behavior,
   spawn.behavior = behavior.id;
   const auto brain = static_cast<uint16_t>(brains.size() - 1);
   (void)spawnActor(actors, spawn, brain, brains.back());
-  return actors.slots.size() - 1;
+  const uint32_t index = actors.slots.size() - 1;
+  if (!spawn.route.empty()) {
+    actors.route[index] = static_cast<uint16_t>(routes.size());
+    routes.push_back({spawn.route});
+  }
+  return index;
 }
 
 void ActorArena::movePlayer(uint32_t player, Vec2 at) {
@@ -52,6 +58,7 @@ void ActorArena::step(uint32_t ticks) {
                                    .grid = grid,
                                    .obstacles = obstacles,
                                    .brains = brains,
+                                   .routes = routes,
                                    .rng = rng};
     stepActors(actors, context, workspace);
     ++tick;

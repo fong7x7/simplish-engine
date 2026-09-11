@@ -4,6 +4,7 @@
 /// @brief What the editor must carry out after a tool has run.
 /// @par Threading Main-thread-only.
 
+#include <cstdint>
 #include <editor/agent/agent-host-request-kind.h>
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-command.h>
@@ -35,6 +36,8 @@ struct AgentHostRequest {
   /// The character id player 1 plays as, meaningful only for
   /// `START_PLAYTEST`; empty for the default character.
   std::string character{};
+  /// Ticks to run, meaningful only for `STEP_PLAYTEST`.
+  uint32_t ticks = 0;
 };
 
 }  // namespace eng::editor

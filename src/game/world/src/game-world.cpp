@@ -1,11 +1,11 @@
 #include <algorithm>
-#include <engine/spatial/nav-grid-fit.h>
 #include <game/actors/actor-system.h>
 #include <game/actors/actor-tick-context.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/character-lookup.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
+#include <game/world/world-nav-grid.h>
 
 namespace eng::game {
 
@@ -17,23 +17,10 @@ namespace {
         std::clamp<size_t>(setup.player_count, 1, sim::MAX_PLAYERS));
   }
 
-  /// The navigation grid for @p setup's actors: its obstacles, over a
-  /// rectangle taking in every spawn. No cells when there are no actors
-  /// to plan across it.
+  /// The navigation grid for @p setup's actors, or one with no cells when
+  /// there are none to plan across it.
   spatial::NavGrid navGridFor(const GameSetup& setup) {
-    if (setup.actors.empty()) {
-      return {};
-    }
-    std::vector<Vec2> points;
-    points.reserve(sim::MAX_PLAYERS + setup.actors.size());
-    for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
-      points.push_back({setup.spawns[slot].x, setup.spawns[slot].y});
-    }
-    for (const ActorSpawn& actor : setup.actors) {
-      points.push_back({actor.at.x, actor.at.y});
-    }
-    return {spatial::fitNavGrid(setup.obstacles, points, setup.spawns[0].z),
-            setup.obstacles};
+    return setup.actors.empty() ? spatial::NavGrid{} : buildWorldNavGrid(setup);
   }
 
 }  // namespace
@@ -61,6 +48,7 @@ void GameWorld::enemyAi(const sim::TickContext& context) {
                               .grid = grid_,
                               .obstacles = obstacles_,
                               .brains = brains_,
+                              .routes = routes_,
                               .rng = ai_rng_};
   stepActors(actors_, view, workspace_);
 }
@@ -79,12 +67,24 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
 void GameWorld::spawnActors(const GameSetup& setup,
                             const GameContent& content) {
   brains_.reserve(setup.actors.size());
+  routes_.reserve(setup.actors.size());
   actor_handles_.reserve(setup.actors.size());
   for (const ActorSpawn& spawn : setup.actors) {
     const uint16_t brain = brainIndex(resolveBehavior(content, spawn.behavior));
     const auto handle = spawnActor(actors_, spawn, brain, brains_[brain]);
     actor_handles_.push_back(handle.value_or(sim::EntityHandle{}));
+    if (handle) {
+      assignRoute(actors_.slots.size() - 1U, spawn.route);
+    }
   }
+}
+
+void GameWorld::assignRoute(uint32_t index, const std::vector<Vec2>& points) {
+  if (points.empty()) {
+    return;
+  }
+  actors_.route[index] = static_cast<uint16_t>(routes_.size());
+  routes_.push_back({points});
 }
 
 uint16_t GameWorld::brainIndex(const BehaviorDefinition& behavior) {

@@ -3,7 +3,7 @@
 **Parent document:** [Game REQUIREMENTS](REQUIREMENTS.md) §5
 **Packages:** `src/game/actors/` (`eng::game`), behaviors in `src/game/content/`, the world's wiring in `src/game/world/`
 **Governed by:** [ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md), [ADR-004](../decisions/ADR-004-soa-pools-over-ecs.md)
-**Status:** First slice built and tested: perception, the behavior machine, paths across the level, steering, facing — driven in the editor's playtest by any prop given a behavior. Attacks and damage, patrol routes, flow fields and actors targeting actors are not written — §8.
+**Status:** Built and tested: perception, the behavior machine, paths across the level, steering, facing, and patrol routes — driven in the editor's playtest by any prop given a behavior, which can be paused, stepped a tick at a time, and watched through the navigation and AI overlays. Attacks and damage, flow fields and actors targeting actors are not written — §8.
 
 An **actor** is anything in the simulation that decides what to do: an enemy, an NPC, a companion. Its intelligence is a **behavior**. The word *agent* is not used for either, because in this repository it means the AI that drives the editor ([agent-api.md](../editor/agent-api.md)).
 
@@ -30,6 +30,7 @@ GameSetup::actors ──► GameWorld ──► ActorPool (SoA, hashed as "actor
 | `ActorBrain`, `compileBrain` | `game/actors/actor-brain.h` | A behavior with its rates and angles worked out per tick |
 | `ActorPool` | `game/actors/actor-pool.h` | Every actor, one array per field |
 | `ActorPath` | `game/actors/actor-path.h` | The route an actor is following: up to 16 smoothed waypoints |
+| `ActorRoute` | `game/actors/actor-route.h` | A patrol route: the points an actor on it walks between, in order. The world holds each distinct one once |
 | `ActorWorkspace`, `ActorIntent` | `actor-workspace.h`, `actor-intent.h` | Scratch a tick works in and throws away: the path finder, each actor's step |
 | `stepActors`, `spawnActor`, `compactActors`, `hashActors` | `game/actors/actor-system.h` | The tick's side |
 
@@ -43,7 +44,7 @@ GameSetup::actors ──► GameWorld ──► ActorPool (SoA, hashed as "actor
 |---|---|
 | **Perceive** | For each player: *seen* if within sight range, inside the view cone (a dot product against the cosine of half the view), and in line of sight with clearance 1; *heard* if within hearing range and holding fire — walls do not stop sound. The actor keeps the target it has while it still perceives them, and otherwise takes the nearest perceived. It remembers where it last perceived them and forgets after `memory_ticks`. A neutral actor takes nobody |
 | **Decide** | Interrupts, then the current state's exits, in authored order; the first whose condition holds is taken, once per tick. An exit to the state the actor is in is skipped. Entering a state clears its goal, path and movement flags |
-| **Intend** | The state's action sets where to go and how close counts: pursue where the target was seen, stopping short; wander to a random spot near home; flee to a point away from the threat; and so on (§3) |
+| **Intend** | The state's action sets where to go and how close counts: pursue where the target was seen, stopping short; wander to a random spot near home; flee to a point away from the threat; walk to the next point of a patrol route; and so on (§3) |
 | **Plan** | An actor with a straight walk to its goal takes it. One without asks the `PathFinder` from the nearest open cell to the nearest open cell to its goal, within the tick's shared expansion budget, and keeps the smoothed waypoints. A path whose goal cell moved is replanned at most every `ACTOR_REPLAN_TICKS` (15) |
 | **Steer** | Toward the next waypoint — or the goal once the path runs out — at the state's speed, never past the waypoint or the stopping distance. A charge steps along the facing and does not steer |
 | **Separate** | Each actor is eased half the overlap out of every other actor and wholly out of every player, who does not yield |
@@ -70,6 +71,7 @@ A behavior is a state machine written as data ([ADR-009](../decisions/ADR-009-ac
 | `search` | walks to where its target was last seen, and stands | — |
 | `return_home` | walks back to where it spawned | — |
 | `charge` | runs straight along its facing, at the state's speed | — |
+| `patrol` | walks its route's points in order — round and round, or out and back when the state's `route` is `ping_pong` — and stands where it is with no route | — |
 
 | Condition | Holds when |
 |---|---|
@@ -90,7 +92,9 @@ A behavior is a state machine written as data ([ADR-009](../decisions/ADR-009-ac
 | `target` | where its target was seen, whichever way it moves |
 | `locked` | nothing — it keeps the heading it entered with |
 
-**Built-in presets** are always available, and a project's behavior with the same id replaces one: `idle`, `wander`, `guard` (watch, pursue within a 12-tile leash, search, return), `chase` (the swarmer: sees all round, pursues, searches), `skirmisher` (keeps distance, watching), `coward` (wanders, flees on sight), `follower` (keeps up, waits where it lost you), and `charger` (pursue, wind up facing the target, rush 2.8× straight ahead, recover).
+**Built-in presets** are always available, and a project's behavior with the same id replaces one: `idle`, `wander`, `guard` (watch, pursue within a 12-tile leash, search, return), `chase` (the swarmer: sees all round, pursues, searches), `skirmisher` (keeps distance, watching), `coward` (wanders, flees on sight), `follower` (keeps up, waits where it lost you), `charger` (pursue, wind up facing the target, rush 2.8× straight ahead, recover), and `patrol` (walk the route at 70% speed, pursue on sight, search, go back to the route).
+
+A patrolling actor goes on to the next point once it stands within arrival distance of the one it is heading for, judged by where it is rather than by the `arrived` flag — so an actor pulled off its route by a pursuit takes it up again at the point it was heading for, not the first. Its place on the route (`route_leg`, and which way it is going on a `ping_pong` route) is actor state, and hashed.
 
 A behavior that is not well formed — no states, or an index out of range — or an id nobody has, runs `idle`. `resolveBehavior` never fails, so a setup naming a behavior the content lacks is still a run every peer resolves the same way.
 
@@ -106,7 +110,7 @@ In the editor a model is taken to face its own glTF +Z, which the Z-up conversio
 
 ## 5. State and Hashing
 
-Every `ActorPool` field is simulation state and is hashed, in section `actors`: body (position, facing, home, radius, height, brain, faction), mind (state, the tick it entered, target handle, what it perceives, where and when it last perceived its target), and movement (goal, whether the goal is kept, arrived, blocked, no path, and the whole `ActorPath`). `ActorPath` opts into `IS_HASHABLE_BITS` with a size check: it is floats and integers with no padding.
+Every `ActorPool` field is simulation state and is hashed, in section `actors`: body (position, facing, home, radius, height, brain, faction), mind (state, the tick it entered, target handle, what it perceives, where and when it last perceived its target), movement (goal, whether the goal is kept, arrived, blocked, no path, and the whole `ActorPath`), and its patrol route (which route, the leg it is on, and which way it is walking it). `ActorPath` opts into `IS_HASHABLE_BITS` with a size check: it is floats and integers with no padding.
 
 The AI stream's state is its own section, `ai_rng`. It is drawn from only in dense order — wander spots and `chance` conditions — so every peer draws the same numbers for the same actors.
 
@@ -131,7 +135,11 @@ The per-tick path budget is the one hard ceiling today: however many actors repl
 
 ## 7. In the Editor
 
-Any placed prop can run a behavior: its properties end with a **Behavior** row (None, the presets, the project's own) and, once it has one, a **Faction** row. Saved as `behavior` and `faction` on the prop ([project-format.md §4.1](../editor/project-format.md#41-what-the-editor-writes-today)); reachable through `list_behaviors` and `set_behavior`, and every actor's position, facing, state and target through `get_playtest` ([capabilities.md](../editor/capabilities.md)). In a playtest the prop is drawn where its actor is, turned to its facing, playing its state's clip or its walk and idle clips; it is no longer a collision box for players. In the viewport an actor's footprint is outlined in its faction's colour with a tick the way it faces.
+Any placed prop can run a behavior: its properties end with a **Behavior** row (None, the presets, the project's own) and, once it has one, **Faction** and **Route** rows. Saved as `behavior`, `faction` and `route` on the prop ([project-format.md §4.1](../editor/project-format.md#41-what-the-editor-writes-today)); reachable through `list_behaviors` and `set_behavior`, and every actor's position, facing, state and target through `get_playtest` ([capabilities.md](../editor/capabilities.md)).
+
+A route is laid out with **waypoints** — general › tools › Waypoint in the browser, or `add_waypoint`. Each belongs to one of nine routes and has a place in it; dropping a waypoint while one is selected adds it to that route, after its last, so a route is laid out by dropping one after another. The viewport joins each route's waypoints in walking order, in the route's colour. `list_waypoints` reports every route's points and who patrols it.
+
+A playtest can be paused (F6, Level › Pause Playtest) and stepped a tick at a time (F7, or `step_playtest` for any number of ticks). The View menu's **Navigation Overlay** shades what an actor cannot use — solid, too narrow for an actor a player's width, or walled off from every player start — and the status line names actors no path joins to a start (`get_navigation`; `find_path` plans a route between any two points). The **AI Overlay** draws, while playing, each actor's view cone, the path it is walking, a line to the target it sees, and its state's name. In a playtest the prop is drawn where its actor is, turned to its facing, playing its state's clip or its walk and idle clips; it is no longer a collision box for players. In the viewport an actor's footprint is outlined in its faction's colour with a tick the way it faces.
 
 A rigged actor is a skinned mesh, and ADR-003's amendment allows **16 skinned instances a frame**: enough for the NPCs and set-piece enemies of a hand-authored level. A horde is sprites.
 
@@ -142,9 +150,7 @@ A rigged actor is a skinned mesh, and ADR-003's amendment allows **16 skinned in
 | Gap | Waiting on |
 |---|---|
 | Attacks and damage: `melee`, `fire`, `detonate` actions; `damaged`, `health_below` conditions | The damage phase, designed with weapons. An attack appends to an effects buffer the `damage` phase applies |
-| Patrol routes | A route marker the editor places (`entity:waypoint`) and a `patrol` action |
 | Actors targeting actors | The spatial hash |
 | Flow-field pursuit, staggered perception, distance tiers | The horde (Game §5.2) and the performance gate's 2,000-actor benchmark |
-| AI debug overlay in the playtest — paths, states, view cones — and pause and single-step | [Editor §7](../editor/REQUIREMENTS.md#7-playtest) |
 | An `enemies` archetype table the director spawns from | The director (Game §6) |
 | AI stand-ins for the multi-player preview and dropped co-op peers | Editor §7 and Game §8; they would feed `PlayerInput`, recorded like any input |

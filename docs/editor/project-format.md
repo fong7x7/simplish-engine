@@ -1,6 +1,6 @@
 # Simplish Project Format
 
-**Status:** Specification — the manifest, the level file's props (their behaviors included), lights and player starts, and the characters and behaviors data tables (§8.1, §8.2) are implemented; everything else is not
+**Status:** Specification — the manifest, the level file's props (their behaviors included), lights, player starts and waypoints, and the characters and behaviors data tables (§8.1, §8.2) are implemented; everything else is not
 **Scope:** Editor | Engine | Build
 **Governed by:** [ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)
 
@@ -154,7 +154,7 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 
 File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/<id>.level.json` for the level the Level menu has open, and opening a project reads one back. `main` is where a new project starts and where an opened one goes back to when it has such a level; every other id is authored, through Level > New Level, which turns a typed name into an id the rules above allow. Its `name` is its id, because nothing in the editor shows or edits a level name yet — writing the project's name there instead would put the same name in every level file of a project holding several.
 
-Three parts of §4 are written — props, lights, and one kind of entity — and one of them differs from the shape above:
+Three parts of §4 are written — props, lights, and two kinds of entity — and one of them differs from the shape above:
 
 ```json
 {
@@ -169,7 +169,7 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
       { "id": "characters_knight_01", "asset": "mesh:characters_knight",
         "at": [5.0, 4.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": 1.5,
         "collides": true, "animation": "walk",
-        "behavior": "behavior:guard", "faction": "hostile" }
+        "behavior": "behavior:patrol", "faction": "hostile", "route": 1 }
     ],
     "lights": [
       { "id": "point_01", "kind": "point", "at": [1.0, 1.0, 3.0],
@@ -178,7 +178,11 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
     ],
     "entities": [
       { "id": "start_01", "definition": "entity:player_start",
-        "at": [2.5, 3.5, 0.0], "properties": { "player": 1 } }
+        "at": [2.5, 3.5, 0.0], "properties": { "player": 1 } },
+      { "id": "waypoint_01", "definition": "entity:waypoint",
+        "at": [6.5, 4.5, 0.0], "properties": { "route": 1, "order": 1 } },
+      { "id": "waypoint_02", "definition": "entity:waypoint",
+        "at": [6.5, 9.5, 0.0], "properties": { "route": 1, "order": 2 } }
     ]
   }
 }
@@ -192,11 +196,13 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
 
 **A rigged prop may name the clip it plays.** `animation` is the name of one of the model's animation clips, exactly as its glTF file names it, and is written only when a prop names one: a prop without it plays the model's first clip, which is what every rigged prop dropped does, and a static prop has no clips and never carries the key. A name the model does not have is kept rather than cleared, and plays the first clip too, so a clip renamed in the source file does not silently rewrite the level. The clip is presentation only — the simulation never reads a pose ([ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters)). A rigged model's asset reference is `mesh:` like any model on disk.
 
-**A prop may run a behavior.** `behavior` names the intelligence the prop runs in a playtest, by reference — `behavior:guard` for a built-in behavior or a row of the behaviors table (§8.2) — and `faction` which side it is on: `"hostile"`, `"neutral"` or `"friendly"`. A prop with a behavior is an *actor* ([actors.md](../game/actors.md)): in a playtest it is spawned into the simulation at the middle of its tile, facing its Z rotation less a quarter turn, as wide as half the narrower side of its unturned footprint, and it is not a collision box for players. Both keys are written only when the prop has a behavior, so scenery carries neither and a level saved before they existed saves back unchanged. A bare id — `"guard"` — reads as `behavior:guard`; a reference to a behavior the project no longer has is kept as written and plays as `idle`; a faction the format does not know reads as `hostile`. This is the one place a prop carries per-instance game state rather than only geometry, which §4's split between props and entities anticipated for entities: the prop already holds the model, transform and clip an actor needs, and an entity for it would duplicate them.
+**A prop may run a behavior.** `behavior` names the intelligence the prop runs in a playtest, by reference — `behavior:guard` for a built-in behavior or a row of the behaviors table (§8.2) — and `faction` which side it is on: `"hostile"`, `"neutral"` or `"friendly"`. A prop with a behavior is an *actor* ([actors.md](../game/actors.md)): in a playtest it is spawned into the simulation at the middle of its tile, facing its Z rotation less a quarter turn, as wide as half the narrower side of its unturned footprint, and it is not a collision box for players. Both keys are written only when the prop has a behavior, so scenery carries neither and a level saved before they existed saves back unchanged. A bare id — `"guard"` — reads as `behavior:guard`; a reference to a behavior the project no longer has is kept as written and plays as `idle`; a faction the format does not know reads as `hostile`. An actor may also carry `route`, 1 to 9: the patrol route its behavior's `patrol` state walks — the waypoints of that route, below. It is written only when the prop has a behavior and a route; absent, or below 1, is none, and above 9 is held to 9. A route no waypoint belongs to any more is kept, and walks nowhere. This is the one place a prop carries per-instance game state rather than only geometry, which §4's split between props and entities anticipated for entities: the prop already holds the model, transform and clip an actor needs, and an entity for it would duplicate them.
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 
-**The player start is the one entity definition the editor knows.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names who the player who spawns there plays as unless they pick someone else — a row of the characters table (§8.1), by reference: `"character": "character:scout"`. It is written only when there is one; a bare id reads as `character:<id>`, and a reference to a character the table no longer has is kept as written rather than dropped — the start is still a start without it, and its player picks as though it named none. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
+**The editor knows two entity definitions: the player start and the waypoint.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names who the player who spawns there plays as unless they pick someone else — a row of the characters table (§8.1), by reference: `"character": "character:scout"`. It is written only when there is one; a bare id reads as `character:<id>`, and a reference to a character the table no longer has is kept as written rather than dropped — the start is still a start without it, and its player picks as though it named none. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
+
+**A waypoint is a point of a patrol route.** Dragged from general › tools like the player start; `route` is which of a level's nine routes it belongs to, 1 to 9, and `order` its place in it, 1 to 99. An actor walks a route's waypoints by `order`, and in file order where two share one, so a hand-written route need not be numbered without gaps. Reading holds both to their ranges — a waypoint with neither is the first place of route 1 — and gives one with no id one, numbered from `waypoint` (`waypoint_01`); another file references it as `waypoint:waypoint_01`. A waypoint's height is kept but walks nowhere: patrols walk the floor. Routes are the level's, not an actor's, so two guards can share one and moving a waypoint moves every patrol that walks it.
 
 Everything else in §4 — bounds, the tile palette, the RLE layers, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
 
@@ -384,7 +390,7 @@ Reading is forgiving, as the level reader is, because the file is written by han
 
 ### 8.2 The behaviors table
 
-`content/data/behaviors.data.json`, entry schema `simplish/behavior/1.0` — the intelligence props run in a playtest ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [actors.md](../game/actors.md)). Optional: every project has the game's built-in behaviors — `idle`, `wander`, `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger` — and a row here with one of their ids replaces it.
+`content/data/behaviors.data.json`, entry schema `simplish/behavior/1.0` — the intelligence props run in a playtest ([ADR-009](../decisions/ADR-009-actor-behavior-state-machines.md), [actors.md](../game/actors.md)). Optional: every project has the game's built-in behaviors — `idle`, `wander`, `guard`, `chase`, `skirmisher`, `coward`, `follower`, `charger`, `patrol` — and a row here with one of their ids replaces it.
 
 ```json
 {
@@ -427,7 +433,7 @@ Reading is forgiving, as the level reader is, because the file is written by han
 | `interrupts` | Exits tested before the current state's own, in every state | None |
 | `states` | At least one, at most 32 | The row is skipped |
 
-A **state** has an `id` unique within its row, an action `do`, a `face` (`movement`, `target`, `locked`; absent is `movement`), a `speed_permille` (1000 is the behavior's speed), an optional `clip` — the animation a rigged actor plays in it, presentation only — and `exits`. Its distances are named by its action: `stop_within` for `pursue` and `follow`, `min` and `max` for `keep_distance`, `radius` for `wander`, `distance` for `flee`. The actions are `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge`.
+A **state** has an `id` unique within its row, an action `do`, a `face` (`movement`, `target`, `locked`; absent is `movement`), a `speed_permille` (1000 is the behavior's speed), an optional `clip` — the animation a rigged actor plays in it, presentation only — and `exits`. Its distances are named by its action: `stop_within` for `pursue` and `follow`, `min` and `max` for `keep_distance`, `radius` for `wander`, `distance` for `flee`. A `patrol` state takes a `route` instead: `"loop"` (the default) walks from its last waypoint back to its first, and `"ping_pong"` turns round at either end; which route an actor walks is the prop's, not the behavior's (§4.1). The actions are `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge`, `patrol`.
 
 An **exit** has a `when` and a `to` — a state of the same row, by id — and the one number its condition reads: `tiles` for `target_within`, `target_beyond` and `far_from_home`; `ticks` for `lost_target_for` and `in_state_for`; `permille` for `chance`. The other conditions — `always`, `sees_target`, `hears_target`, `arrived`, `no_path`, `blocked` — read none. Exits are tested in the order written; the first that holds is taken.
 
@@ -530,7 +536,7 @@ Migrations are code, not configuration: a function per version step, unit-tested
 The format is specified; none of it is built. A sensible order, each step useful on its own:
 
 1. **Schemas and the envelope** — schema ids, the validator wired to them, and `data/` tables, which are the simplest file kind and already have a runtime consumer.
-2. **Level files** — ~~the tile layer, props, entities, and regions~~. Props, lights and player starts are done (§4.1): placements, light sources and where players spawn survive a restart. The tile layer, the other entities and regions wait on the tools that author them.
+2. **Level files** — ~~the tile layer, props, entities, and regions~~. Props, lights, player starts and waypoints are done (§4.1): placements, light sources, where players spawn and the routes actors patrol survive a restart. The tile layer, the other entities and regions wait on the tools that author them.
 3. **The generator** — starting with data tables and ids, before logic.
 4. **Encounters and scenarios** — once the director exists to consume them.
 5. **Logic and expressions** — last, because the equivalence test and the expression golden test are what make it safe, and both want the earlier pieces in place.

@@ -19,7 +19,7 @@ namespace {
   /// a little beyond touching (two 0.3-tile radii); a follower hangs back
   /// two tiles; keeping distance holds a band of three to six; a wander
   /// strays four tiles and a flight runs eight.
-  constexpr std::array<ActionDistances, 10> ACTION_DISTANCES{{
+  constexpr std::array<ActionDistances, 11> ACTION_DISTANCES{{
       {},            // idle
       {},            // hold
       {0.0F, 4.0F},  // wander
@@ -30,9 +30,10 @@ namespace {
       {},            // search
       {},            // return_home
       {},            // charge
+      {},            // patrol
   }};
   static_assert(ACTION_DISTANCES.size() ==
-                static_cast<size_t>(BehaviorAction::CHARGE) + 1);
+                static_cast<size_t>(BehaviorAction::PATROL) + 1);
 
   /// Whether every exit of @p exits leads to one of @p state_count states.
   bool exitsInRange(const std::vector<BehaviorExit>& exits,

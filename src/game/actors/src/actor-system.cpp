@@ -56,6 +56,9 @@ namespace {
     pool.blocked[i] = 0;
     pool.no_path[i] = 0;
     pool.path[i] = {};
+    pool.route[i] = ACTOR_NO_ROUTE;
+    pool.route_leg[i] = 0;
+    pool.route_reverse[i] = 0;
   }
 
   /// Apply @p moves to the body fields.
@@ -89,6 +92,9 @@ namespace {
     sim::applySlotMoves(moves, pool.blocked);
     sim::applySlotMoves(moves, pool.no_path);
     sim::applySlotMoves(moves, pool.path);
+    sim::applySlotMoves(moves, pool.route);
+    sim::applySlotMoves(moves, pool.route_leg);
+    sim::applySlotMoves(moves, pool.route_reverse);
   }
 
   /// The first @p count entries of @p field: the live ones.
@@ -129,6 +135,9 @@ namespace {
     hasher.addSpan(live(pool.blocked, n));
     hasher.addSpan(live(pool.no_path, n));
     hasher.addSpan(live(pool.path, n));
+    hasher.addSpan(live(pool.route, n));
+    hasher.addSpan(live(pool.route_leg, n));
+    hasher.addSpan(live(pool.route_reverse, n));
   }
 
 }  // namespace

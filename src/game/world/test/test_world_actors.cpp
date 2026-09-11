@@ -87,3 +87,11 @@ TEST_CASE("an actor's faction comes from its spawn") {
   const GameWorld world(setup, {});
   REQUIRE(world.actors().faction[0] == Faction::FRIENDLY);
 }
+
+TEST_CASE("an actor spawned with a route patrols it; one without has none") {
+  GameSetup setup = withActors({"patrol", "patrol"});
+  setup.actors[0].route = {{0.0F, 6.0F}, {0.0F, 9.0F}};
+  const GameWorld world(setup, {});
+  REQUIRE(world.actors().route[0] == 0);
+  REQUIRE(world.actors().route[1] == eng::game::ACTOR_NO_ROUTE);
+}

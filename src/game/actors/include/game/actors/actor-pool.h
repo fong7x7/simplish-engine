@@ -74,6 +74,14 @@ struct ActorPool {
   std::vector<uint8_t> no_path;
   /// The route each actor is following.
   std::vector<ActorPath> path;
+
+  /// Which of the world's routes each actor patrols, or `ACTOR_NO_ROUTE`.
+  std::vector<uint16_t> route;
+  /// The waypoint of its route each actor is walking to.
+  std::vector<uint16_t> route_leg;
+  /// Whether each actor is walking its route backwards, turning at the
+  /// ends, as a `ping_pong` patrol does.
+  std::vector<uint8_t> route_reverse;
 };
 
 }  // namespace eng::game

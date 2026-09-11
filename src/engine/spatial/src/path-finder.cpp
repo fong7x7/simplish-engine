@@ -1,53 +1,12 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <engine/spatial/grid-step.h>
 #include <engine/spatial/path-finder.h>
 
 namespace eng::spatial {
 
 namespace {
-
-  /// Cost of a step along an axis.
-  constexpr uint32_t STRAIGHT_COST = 10;
-  /// Cost of a diagonal step: √2 × 10, rounded, which keeps the octile
-  /// heuristic consistent so no cell is ever closed twice.
-  constexpr uint32_t DIAGONAL_COST = 14;
-
-  /// One of the eight steps a path may take from a cell.
-  struct Step {
-    /// Columns moved.
-    int32_t dx = 0;
-    /// Rows moved.
-    int32_t dy = 0;
-    /// What the step costs.
-    uint32_t cost = 0;
-  };
-
-  /// The steps, in the order neighbours are visited: the four along the
-  /// axes first, then the four diagonals. The order is part of the
-  /// determinism contract — it decides which of two equal paths is found.
-  constexpr std::array<Step, 8> STEPS{{{1, 0, STRAIGHT_COST},
-                                       {-1, 0, STRAIGHT_COST},
-                                       {0, 1, STRAIGHT_COST},
-                                       {0, -1, STRAIGHT_COST},
-                                       {1, 1, DIAGONAL_COST},
-                                       {-1, 1, DIAGONAL_COST},
-                                       {1, -1, DIAGONAL_COST},
-                                       {-1, -1, DIAGONAL_COST}}};
-
-  /// Whether a path may step from @p cell by @p step: onto an open cell,
-  /// and, for a diagonal, past two open cells beside it.
-  bool canStep(const NavGrid& grid, GridCell cell, const Step& step,
-               uint8_t clearance) {
-    if (!grid.isOpen({cell.x + step.dx, cell.y + step.dy}, clearance)) {
-      return false;
-    }
-    if (step.dx == 0 || step.dy == 0) {
-      return true;
-    }
-    return grid.isOpen({cell.x + step.dx, cell.y}, clearance) &&
-           grid.isOpen({cell.x, cell.y + step.dy}, clearance);
-  }
 
   /// Whether both ends of @p request are cells a path could stand in.
   bool endpointsOpen(const NavGrid& grid, const PathRequest& request) {
@@ -122,9 +81,9 @@ void PathFinder::expand(const NavGrid& grid, uint32_t index,
                         uint8_t clearance) {
   done_[index] = search_;
   const GridCell cell = grid.cellOf(index);
-  for (size_t dir = 0; dir < STEPS.size(); ++dir) {
-    const Step& step = STEPS[dir];
-    if (canStep(grid, cell, step, clearance)) {
+  for (size_t dir = 0; dir < GRID_STEPS.size(); ++dir) {
+    const GridStep& step = GRID_STEPS[dir];
+    if (canGridStep(grid, cell, step, clearance)) {
       relax(index, grid.indexOf({cell.x + step.dx, cell.y + step.dy}),
             static_cast<uint8_t>(dir));
     }
@@ -132,7 +91,7 @@ void PathFinder::expand(const NavGrid& grid, uint32_t index,
 }
 
 void PathFinder::relax(uint32_t from, uint32_t to, uint8_t dir) {
-  const uint32_t cost = cost_[from] + STEPS[dir].cost;
+  const uint32_t cost = cost_[from] + GRID_STEPS[dir].cost;
   const bool open = seen_[to] == search_;
   if (done_[to] == search_ || (open && cost >= cost_[to])) {
     return;
@@ -153,8 +112,8 @@ uint32_t PathFinder::heuristic(uint32_t index) const {
   const auto y = static_cast<int32_t>(index / width_);
   const auto dx = static_cast<uint32_t>(std::abs(x - goal_.x));
   const auto dy = static_cast<uint32_t>(std::abs(y - goal_.y));
-  return STRAIGHT_COST * std::max(dx, dy) +
-         (DIAGONAL_COST - STRAIGHT_COST) * std::min(dx, dy);
+  return GRID_STRAIGHT_COST * std::max(dx, dy) +
+         (GRID_DIAGONAL_COST - GRID_STRAIGHT_COST) * std::min(dx, dy);
 }
 
 bool PathFinder::before(uint32_t a, uint32_t b) const {
@@ -225,7 +184,7 @@ std::span<const GridCell> PathFinder::trace(const NavGrid& grid,
   while (index != start_) {
     const GridCell cell = grid.cellOf(index);
     path_.push_back(cell);
-    const Step& step = STEPS[via_[index]];
+    const GridStep& step = GRID_STEPS[via_[index]];
     index = grid.indexOf({cell.x - step.dx, cell.y - step.dy});
   }
   path_.push_back(grid.cellOf(start_));

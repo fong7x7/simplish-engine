@@ -93,9 +93,11 @@ puzzled over.
 | Choose which animation clip a rigged prop plays | ✅ | `set_animation`, `list_placements` | An Animation row, below a rigged prop's properties, names the clip; its step buttons move to the previous or next, wrapping round, as one undoable edit, and the prop crossfades to the new clip over a fifth of a second — `set_animation` fades the same way. A prop naming none plays the model's first clip, so a dropped model moves at once. Every placed clip loops on the viewport's own clock, in edit mode and in a playtest alike; it is presentation and never reaches the simulation. Saved with the prop |
 | Give a prop intelligence — make it an actor | ✅ | `set_behavior`, `list_placements` | A Behavior row, below a prop's properties, steps through None, the built-in behaviors and the project's own, as one undoable edit. A prop with a behavior is an actor in a playtest ([actors.md](../game/actors.md)) and is no longer a collision box for players. Its footprint is outlined in its faction's colour with a tick the way it faces. Saved with the prop; one naming a behavior the project no longer has is kept, and plays as idle |
 | Choose which side an actor is on | ✅ | `set_behavior` (`faction`), `list_placements` | A Faction row — Hostile, Neutral, Friendly — shown once the prop has a behavior. Hostile and friendly actors take players as targets; a neutral one takes nobody |
-| Define the behaviors props can run | 🚧 | `list_behaviors` | Eight built in; the project's own hand-written in `content/data/behaviors.data.json` ([project-format.md §8.2](project-format.md#82-the-behaviors-table)), a row with a built-in's id replacing it. Read when the project opens, on a rescan, and on every Play; problems are logged and reported by `list_behaviors`. Edited in the editor once the data-editing panel exists |
+| Lay out a patrol route | ✅ | `add_waypoint`, `list_waypoints`, `set_property` (`route`, `order`), `translate`, `delete`, `select` | The Waypoint card in general › tools. Each waypoint belongs to one of nine routes and has a place in it, edited as its Route and Order rows; one dropped while a waypoint is selected joins that route after its last. The viewport draws a knee-high post and joins each route's waypoints in walking order, in the route's colour. Saved as `entity:waypoint` entities |
+| Choose the route an actor patrols | ✅ | `set_behavior` (`route`), `list_placements`, `list_waypoints` | A Route row — None and every route in use — shown once the prop has a behavior, as one undoable edit. What its behavior's `patrol` state walks; `list_waypoints` names who patrols each route. Saved with the prop |
+| Define the behaviors props can run | 🚧 | `list_behaviors` | Nine built in; the project's own hand-written in `content/data/behaviors.data.json` ([project-format.md §8.2](project-format.md#82-the-behaviors-table)), a row with a built-in's id replacing it. Read when the project opens, on a rescan, and on every Play; problems are logged and reported by `list_behaviors`. Edited in the editor once the data-editing panel exists |
 | Select, and clear the selection | ✅ | `select`, `get_selection` | |
-| Delete a placement, a light or a player start | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
+| Delete a placement, a light, a player start or a waypoint | ✅ | `delete`, `run_command` (`delete_selection`) | Backspace or Delete removes what is selected, and so does Edit > Delete; the tool takes any entry by index. One undoable edit either way — the entry travels in the action, so undo puts back the one that was there |
 | Duplicate an entry | ❌ | ❌ | The action kinds a removal needed are built now; a duplicate is an insert of a copy at the end |
 | Multi-select | ❌ | ❌ | `EditorSelection` holds one entry by design |
 | Copy and paste | ❌ | ❌ | Listed in the menu, disabled |
@@ -123,6 +125,8 @@ puzzled over.
 | Run a menu command | ✅ | `run_command` | A command the menu greys out is refused, by the same rule |
 | Quit | ✅ | `run_command` (`exit`) | |
 | Toolbar status line | ✅ | ❌ | An agent reads the state the line is derived from, not the line |
+| See where actors can walk | ✅ | `get_navigation`, `run_command` (`toggle_navigation`), `get_state` (`camera.show_navigation`) | View › Navigation Overlay shades every cell an actor cannot use — solid, too narrow for an actor a player's width, or walled off from every player start — from the grid a playtest would build, and the status line names actors no path joins to a start. `get_navigation` reports the counts and those actors |
+| Ask how an actor would get somewhere | — | `find_path` | The route the game's A* and smoothing would plan between two points for an actor of any radius, with its length. Nothing in the interface asks this; the overlays show the answers the game actually reaches |
 | Dockable panels, workspaces | ❌ | ❌ | [REQUIREMENTS §3](REQUIREMENTS.md#3-editor-shell) |
 
 ## 6.1 Playtest
@@ -136,10 +140,12 @@ puzzled over.
 | Props stop the player | ✅ | — | Every prop whose Collides box is ticked is a solid box to the playtest: the one the viewport outlines, so a turned prop blocks the box around it rather than its exact shape. The player stops against it and slides along it |
 | The level is untouched by playing it | ✅ | — | The game runs from a copy; every edit — browser drops, picks, the panel, Delete, undo — is ignored while playing, and the API's edit tools are refused |
 | Every playtest records a replay | 🚧 | `stop_playtest` | Written to `data/playtests/<level>.replay` when the playtest stops. Nothing plays one back in the editor yet |
-| Pause, single-step, speed multipliers | ❌ | ❌ | [REQUIREMENTS §7](REQUIREMENTS.md#7-playtest). The session steps one tick at a time already; the controls are what is missing |
+| Pause and single-step | ✅ | `step_playtest`, `run_command` (`pause_playtest`, `step_tick`), `get_playtest` (`paused`) | F6 or Level › Pause Playtest pauses and resumes; F7 runs exactly one tick on the input held or queued. `step_playtest` runs up to 3,600 ticks and leaves the playtest paused, so an agent can land on an exact tick |
+| Speed multipliers | ❌ | ❌ | [REQUIREMENTS §7](REQUIREMENTS.md#7-playtest) |
 | Actors play their behaviors | ✅ | `get_playtest` (`actors`) | Every prop with a behavior perceives the players, plans a path round the props, turns and moves on the tick, and is drawn where the game has it — turned to face its way, playing its state's clip or its walk and idle clips. `get_playtest` reports each actor's position, facing, behavior, state, faction, target and path |
 | Multi-player preview with stand-ins | ❌ | ❌ | Only player 1 spawns; the other starts are shown but empty |
-| Debug overlays during play | ❌ | ❌ | Collision, flow fields, budgets, per-phase timing — and actors' paths, states and view cones, which `get_playtest` reports but nothing draws |
+| See what actors think | ✅ | `get_playtest` (`actors`), `run_command` (`toggle_ai_overlay`), `get_state` (`camera.show_ai`) | View › AI Overlay draws, while playing, each actor's view cone, the rest of its path, a line to the target it sees, and its state's name. `get_playtest` reports the same per actor |
+| Other debug overlays during play | ❌ | ❌ | Collision, flow fields, budgets, per-phase timing |
 
 ## 7. Not built at all
 
@@ -150,8 +156,8 @@ exist, and so that whoever builds one knows the API is part of building it.
 | Capability | Specified in |
 |---|---|
 | Tile and height painting | [§4.1](REQUIREMENTS.md#41-the-grid) |
-| Entity placement and property blocks, beyond the player start | [§4.2](REQUIREMENTS.md#42-props-and-entities) — the player start is the one definition built, with its `player` property; a general entity needs a definition schema to render a property block from |
-| Flow-field and reachability overlays | [§4.3](REQUIREMENTS.md#43-navigation-and-flow) |
+| Entity placement and property blocks, beyond the player start and the waypoint | [§4.2](REQUIREMENTS.md#42-props-and-entities) — the player start and the waypoint are the two definitions built, each with its properties; a general entity needs a definition schema to render a property block from |
+| Flow-field overlay | [§4.3](REQUIREMENTS.md#43-navigation-and-flow) — reachability is drawn by the Navigation Overlay; flow fields do not exist yet |
 | Encounter and wave authoring | [§5](REQUIREMENTS.md#5-encounter-and-wave-authoring) |
 | Data-table editing | [§6](REQUIREMENTS.md#6-data-editing) |
 | Hot-reload of data files | [§3](REQUIREMENTS.md#3-editor-shell) |

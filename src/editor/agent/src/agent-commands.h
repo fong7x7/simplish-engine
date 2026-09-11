@@ -39,6 +39,14 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetCharacter(EditorShellState& state,
                                                const nlohmann::json& params);
 
+/// The route an actor would plan between two points of the level.
+[[nodiscard]] AgentResult runAgentFindPath(EditorShellState& state,
+                                           const nlohmann::json& params);
+
+/// Pause the running playtest and run an exact number of ticks of it.
+[[nodiscard]] AgentResult runAgentStepPlaytest(const EditorShellState& state,
+                                               const nlohmann::json& params);
+
 /// Give one prop a behavior and a faction, or take its behavior away.
 [[nodiscard]] AgentResult runAgentSetBehavior(EditorShellState& state,
                                               const nlohmann::json& params);

@@ -773,17 +773,19 @@ TEST_CASE("selecting the lighting subsection shows the lights as cards") {
   REQUIRE(browser.visibleAssets().front() == 1 + EDITOR_SHAPE_COUNT);
 }
 
-TEST_CASE("selecting the tools subsection shows the player start card") {
+TEST_CASE("selecting the tools subsection shows the player start and "
+          "waypoint cards") {
   EditorAssetBrowserWidget browser = makeBrowserWithGeneral({"crate.obj"});
   browser.handleMouseDown(centreOf(browser.folderRowRect(3)));
 
   // Numbered after the lights, so the entry a drop reports indexes the
-  // general items to the player start.
-  REQUIRE(
-      browser.visibleAssets() ==
-      std::vector<size_t>{1 + EDITOR_SHAPE_COUNT + EDITOR_GENERAL_LIGHT_COUNT});
+  // general items to the player start and then the waypoint.
+  const size_t first = 1 + EDITOR_SHAPE_COUNT + EDITOR_GENERAL_LIGHT_COUNT;
+  REQUIRE(browser.visibleAssets() == std::vector<size_t>{first, first + 1});
   REQUIRE(EDITOR_GENERAL_ITEMS[EDITOR_GENERAL_LIGHT_COUNT] ==
           EditorGeneralItem::PLAYER_START);
+  REQUIRE(EDITOR_GENERAL_ITEMS[EDITOR_GENERAL_LIGHT_COUNT + 1] ==
+          EditorGeneralItem::WAYPOINT);
 }
 
 TEST_CASE("selecting the shapes subsection shows the shapes as cards") {

@@ -9,6 +9,7 @@
 #include <game/content/behavior-action.h>
 #include <game/content/behavior-condition.h>
 #include <game/content/behavior-facing.h>
+#include <game/content/behavior-route-mode.h>
 #include <game/content/faction.h>
 #include <optional>
 #include <string_view>
@@ -33,6 +34,12 @@ parseBehaviorCondition(std::string_view name);
 /// The facing a behaviors file means by @p name, if any.
 [[nodiscard]] std::optional<BehaviorFacing>
 parseBehaviorFacing(std::string_view name);
+
+/// @p mode as a behaviors file writes it: `ping_pong`.
+[[nodiscard]] std::string_view behaviorRouteModeName(BehaviorRouteMode mode);
+/// The route mode a behaviors file means by @p name, if any.
+[[nodiscard]] std::optional<BehaviorRouteMode>
+parseBehaviorRouteMode(std::string_view name);
 
 /// @p faction as a level file writes it: `hostile`.
 [[nodiscard]] std::string_view factionName(Faction faction);

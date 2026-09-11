@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <cstddef>
+#include <cstdint>
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
@@ -74,6 +75,10 @@ struct EditorPlacement {
   /// Which side the prop is on when it has a behavior. Meaningless, and
   /// not saved, when it has none.
   game::Faction faction = game::Faction::HOSTILE;
+  /// The patrol route the prop walks when its behavior patrols: a route
+  /// number, 1 to `EDITOR_ROUTE_COUNT`, or 0 for none. Like the faction,
+  /// meaningless without a behavior.
+  uint8_t route = 0;
 };
 
 }  // namespace eng::editor

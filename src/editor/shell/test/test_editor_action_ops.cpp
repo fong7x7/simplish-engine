@@ -3,6 +3,7 @@
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
+#include <editor/shell/editor-waypoint-ops.h>
 #include <optional>
 #include <vector>
 
@@ -686,4 +687,40 @@ TEST_CASE("the list a selection names is measured by its own kind") {
   REQUIRE(editorListSize(fx.document, EditorSelectionKind::PLAYER_START) == 2);
   REQUIRE(editorListSize(fx.document, EditorSelectionKind::NONE) == 0);
   REQUIRE_FALSE(editorDeleteAction(fx.document, startAt(2)).has_value());
+}
+
+namespace {
+
+/// Add a waypoint to @p fx, then move it to place 5, as two edits.
+void addAndReorderWaypoint(HistoryFixture& fx) {
+  const EditorWaypoint dropped = makeEditorWaypoint(2, 1, {1.5f, 1.5f, 0.0f});
+  performEditorAction(fx.history, fx.document,
+                      {.kind = EditorActionKind::ADD_WAYPOINT,
+                       .index = 0,
+                       .waypoint = dropped});
+  EditorWaypoint moved = dropped;
+  moved.order = 5;
+  performEditorAction(fx.history, fx.document,
+                      {.kind = EditorActionKind::TRANSFORM_WAYPOINT,
+                       .index = 0,
+                       .waypoint = moved,
+                       .waypoint_prior = dropped});
+}
+
+}  // namespace
+
+TEST_CASE("a waypoint is added, moved and removed as undoable edits") {
+  HistoryFixture fx;
+  addAndReorderWaypoint(fx);
+  const EditorAction removed = fx.remove({EditorSelectionKind::WAYPOINT, 0});
+
+  REQUIRE(removed.kind == EditorActionKind::REMOVE_WAYPOINT);
+  REQUIRE(fx.document.waypoints.empty());
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.waypoints[0].order == 5);
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.waypoints[0].order == 1);
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.waypoints.empty());
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::WAYPOINT) == 0);
 }

@@ -7,11 +7,17 @@ namespace eng::game {
 namespace {
 
   /// Actions by name, in enumerator order.
-  constexpr std::array<std::string_view, 10> ACTION_NAMES{
-      "idle", "hold",   "wander", "pursue",      "keep_distance",
-      "flee", "follow", "search", "return_home", "charge"};
+  constexpr std::array<std::string_view, 11> ACTION_NAMES{
+      "idle",   "hold",   "wander",      "pursue", "keep_distance", "flee",
+      "follow", "search", "return_home", "charge", "patrol"};
   static_assert(ACTION_NAMES.size() ==
-                static_cast<size_t>(BehaviorAction::CHARGE) + 1);
+                static_cast<size_t>(BehaviorAction::PATROL) + 1);
+
+  /// Route modes by name, in enumerator order.
+  constexpr std::array<std::string_view, 2> ROUTE_MODE_NAMES{"loop",
+                                                             "ping_pong"};
+  static_assert(ROUTE_MODE_NAMES.size() ==
+                static_cast<size_t>(BehaviorRouteMode::PING_PONG) + 1);
 
   /// Conditions by name, in enumerator order.
   constexpr std::array<std::string_view, 12> CONDITION_NAMES{
@@ -68,6 +74,14 @@ std::string_view behaviorFacingName(BehaviorFacing facing) {
 
 std::optional<BehaviorFacing> parseBehaviorFacing(std::string_view name) {
   return parseName<BehaviorFacing>(FACING_NAMES, name);
+}
+
+std::string_view behaviorRouteModeName(BehaviorRouteMode mode) {
+  return ROUTE_MODE_NAMES[static_cast<size_t>(mode)];
+}
+
+std::optional<BehaviorRouteMode> parseBehaviorRouteMode(std::string_view name) {
+  return parseName<BehaviorRouteMode>(ROUTE_MODE_NAMES, name);
 }
 
 std::string_view factionName(Faction faction) {

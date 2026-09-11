@@ -9,6 +9,7 @@ ActorPool::ActorPool(uint32_t capacity)
     sees_target(capacity), hears_target(capacity), remembers_target(capacity),
     last_seen(capacity), last_seen_tick(capacity), goal(capacity),
     has_goal(capacity), arrived(capacity), blocked(capacity), no_path(capacity),
-    path(capacity) {}
+    path(capacity), route(capacity), route_leg(capacity),
+    route_reverse(capacity) {}
 
 }  // namespace eng::game

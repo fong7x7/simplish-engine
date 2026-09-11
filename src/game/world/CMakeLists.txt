@@ -10,6 +10,7 @@
 simplish_add_module(simplish-game-world
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-world.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/world-nav-grid.cpp
     DEPENDENCIES simplish-game-actors
                  simplish-game-player
                  simplish-game-content

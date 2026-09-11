@@ -46,42 +46,44 @@ namespace {
   /// four switches.
   enum class ListEdit : uint8_t { INSERT, WRITE, ERASE };
 
+  /// Which list an action kind edits, and how.
+  struct ActionShape {
+    /// The document list it names.
+    EditorSelectionKind list = EditorSelectionKind::PLACEMENT;
+    /// What it does to that list when applied.
+    ListEdit edit = ListEdit::WRITE;
+  };
+
+  /// Every kind's shape, in `EditorActionKind` order: a table, so a kind
+  /// added to the enum without a row here fails the assertion below rather
+  /// than falling through a switch.
+  constexpr ActionShape ACTION_SHAPES[] = {
+      {EditorSelectionKind::PLACEMENT, ListEdit::INSERT},
+      {EditorSelectionKind::PLACEMENT, ListEdit::WRITE},
+      {EditorSelectionKind::PLACEMENT, ListEdit::ERASE},
+      {EditorSelectionKind::LIGHT, ListEdit::INSERT},
+      {EditorSelectionKind::LIGHT, ListEdit::WRITE},
+      {EditorSelectionKind::LIGHT, ListEdit::ERASE},
+      {EditorSelectionKind::PLAYER_START, ListEdit::INSERT},
+      {EditorSelectionKind::PLAYER_START, ListEdit::WRITE},
+      {EditorSelectionKind::PLAYER_START, ListEdit::ERASE},
+      {EditorSelectionKind::WAYPOINT, ListEdit::INSERT},
+      {EditorSelectionKind::WAYPOINT, ListEdit::WRITE},
+      {EditorSelectionKind::WAYPOINT, ListEdit::ERASE},
+  };
+
+  static_assert(std::size(ACTION_SHAPES) ==
+                    static_cast<size_t>(EditorActionKind::REMOVE_WAYPOINT) + 1,
+                "every action kind needs a list and an edit");
+
   /// Which of the document's lists @p kind names.
   EditorSelectionKind actionList(EditorActionKind kind) {
-    switch (kind) {
-      case EditorActionKind::PLACE_ASSET:
-      case EditorActionKind::TRANSFORM_PLACEMENT:
-      case EditorActionKind::REMOVE_PLACEMENT:
-        return EditorSelectionKind::PLACEMENT;
-      case EditorActionKind::ADD_LIGHT:
-      case EditorActionKind::TRANSFORM_LIGHT:
-      case EditorActionKind::REMOVE_LIGHT:
-        return EditorSelectionKind::LIGHT;
-      case EditorActionKind::ADD_PLAYER_START:
-      case EditorActionKind::TRANSFORM_PLAYER_START:
-      case EditorActionKind::REMOVE_PLAYER_START:
-        return EditorSelectionKind::PLAYER_START;
-    }
-    return EditorSelectionKind::PLACEMENT;
+    return ACTION_SHAPES[static_cast<size_t>(kind)].list;
   }
 
   /// The edit @p kind makes to that list when it is applied.
   ListEdit appliedEdit(EditorActionKind kind) {
-    switch (kind) {
-      case EditorActionKind::PLACE_ASSET:
-      case EditorActionKind::ADD_LIGHT:
-      case EditorActionKind::ADD_PLAYER_START:
-        return ListEdit::INSERT;
-      case EditorActionKind::TRANSFORM_PLACEMENT:
-      case EditorActionKind::TRANSFORM_LIGHT:
-      case EditorActionKind::TRANSFORM_PLAYER_START:
-        return ListEdit::WRITE;
-      case EditorActionKind::REMOVE_PLACEMENT:
-      case EditorActionKind::REMOVE_LIGHT:
-      case EditorActionKind::REMOVE_PLAYER_START:
-        return ListEdit::ERASE;
-    }
-    return ListEdit::WRITE;
+    return ACTION_SHAPES[static_cast<size_t>(kind)].edit;
   }
 
   /// The edit that undoes @p edit. This is the whole contract of an
@@ -133,9 +135,12 @@ namespace {
     } else if (list == EditorSelectionKind::LIGHT) {
       editList(document.lights, edit, action.index,
                prior ? action.light_prior : action.light);
-    } else {
+    } else if (list == EditorSelectionKind::PLAYER_START) {
       editList(document.player_starts, edit, action.index,
                prior ? action.player_start_prior : action.player_start);
+    } else {
+      editList(document.waypoints, edit, action.index,
+               prior ? action.waypoint_prior : action.waypoint);
     }
   }
 
@@ -163,6 +168,9 @@ namespace {
     if (kind == EditorSelectionKind::LIGHT) {
       return EditorActionKind::REMOVE_LIGHT;
     }
+    if (kind == EditorSelectionKind::WAYPOINT) {
+      return EditorActionKind::REMOVE_WAYPOINT;
+    }
     return kind == EditorSelectionKind::PLAYER_START
                ? EditorActionKind::REMOVE_PLAYER_START
                : EditorActionKind::REMOVE_PLACEMENT;
@@ -176,8 +184,10 @@ namespace {
       action.placement = document.placements[action.index];
     } else if (list == EditorSelectionKind::LIGHT) {
       action.light = document.lights[action.index];
-    } else {
+    } else if (list == EditorSelectionKind::PLAYER_START) {
       action.player_start = document.player_starts[action.index];
+    } else {
+      action.waypoint = document.waypoints[action.index];
     }
   }
 
@@ -271,6 +281,8 @@ size_t editorListSize(const EditorDocument& document,
       return document.lights.size();
     case EditorSelectionKind::PLAYER_START:
       return document.player_starts.size();
+    case EditorSelectionKind::WAYPOINT:
+      return document.waypoints.size();
     case EditorSelectionKind::NONE:
       return 0;
   }

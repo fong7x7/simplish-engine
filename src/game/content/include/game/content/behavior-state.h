@@ -9,6 +9,7 @@
 #include <game/content/behavior-action.h>
 #include <game/content/behavior-exit.h>
 #include <game/content/behavior-facing.h>
+#include <game/content/behavior-route-mode.h>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,9 @@ struct BehaviorState {
   /// The action's far distance, in tiles: how far a wander strays from
   /// home, how far a flight goes, the outer edge of keeping distance.
   float far_tiles = 0.0F;
+  /// What a patrol does at the end of its route; ignored by every other
+  /// action.
+  BehaviorRouteMode route = BehaviorRouteMode::LOOP;
   /// The animation clip a rigged actor plays in this state, or empty for
   /// its walk or idle clip. Presentation: the simulation never reads it.
   std::string clip{};

@@ -240,12 +240,49 @@ void SimplishEditor::tickPlaytest() {
   if (!isPlaying()) {
     return;
   }
-  const FixedStepAdvance due = playtest_->advance(
-      playtestElapsedNs(), livePlayerInput(), state_.playtest.scripted);
+  // Paused, the frame's time is spent rather than owed, so resuming does
+  // not arrive with a burst of ticks the pause saved up.
+  const uint64_t elapsed = playtestElapsedNs();
+  if (state_.playtest.clock == EditorPlaytestClock::PAUSED) {
+    return;
+  }
+  const FixedStepAdvance due =
+      playtest_->advance(elapsed, livePlayerInput(), state_.playtest.scripted);
   playtest_alpha_ = due.interpolation;
+  afterPlaytestTicks();
+}
+
+void SimplishEditor::afterPlaytestTicks() {
   playtest_->publish(state_.playtest);
   followPlayer();
   refreshPlacementMarkers();
+}
+
+void SimplishEditor::togglePlaytestPause() {
+  if (!isPlaying()) {
+    return;
+  }
+  const bool paused = state_.playtest.clock == EditorPlaytestClock::PAUSED;
+  state_.playtest.clock =
+      paused ? EditorPlaytestClock::RUNNING : EditorPlaytestClock::PAUSED;
+  applyPlayModeToChrome();
+  showStatusMessage(paused ? "Resumed"
+                           : "Paused — F7 steps one tick, F6 resumes");
+}
+
+void SimplishEditor::stepPlaytest(uint32_t ticks) {
+  if (!isPlaying()) {
+    return;
+  }
+  state_.playtest.clock = EditorPlaytestClock::PAUSED;
+  for (uint32_t i = 0; i < ticks; ++i) {
+    playtest_->step(livePlayerInput(), state_.playtest.scripted);
+  }
+  // Drawn where the last tick left everything, not partway to a next tick
+  // that is not coming.
+  playtest_alpha_ = 1.0f;
+  afterPlaytestTicks();
+  applyPlayModeToChrome();
 }
 
 uint64_t SimplishEditor::playtestElapsedNs() {
@@ -379,6 +416,23 @@ void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
        placement_animator_.pose(posed, *model.rig, animation_clock_)});
 }
 
+void SimplishEditor::refreshActorOverlays() {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  viewport->actor_overlays.clear();
+  if (!viewport->show_ai || !isPlaying()) {
+    return;
+  }
+  for (size_t actor = 0; actor < playtest_->actorCount(); ++actor) {
+    if (const std::optional<uint32_t> index = playtest_->actorIndex(actor)) {
+      viewport->actor_overlays.push_back(
+          playtest_->actorOverlay(*index, playtest_alpha_));
+    }
+  }
+}
+
 EditorPlacement SimplishEditor::posedActor(size_t index, size_t actor) const {
   const EditorPlacement& placement = state_.document.placements[index];
   const std::optional<uint32_t> dense =
@@ -436,6 +490,9 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     }
     return true;
   }
+  if (handleClockKey(key, kind)) {
+    return true;
+  }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
     // Every key, taken or not: the selector is modal, and a stray Delete
     // must not reach the level behind it.
@@ -443,6 +500,20 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     return true;
   }
   return isPlaying() && handlePlayingKey(key);
+}
+
+bool SimplishEditor::handleClockKey(uint32_t key, ClientKeyDownKind kind) {
+  if (!isPlaying() || (key != Keycode::F6 && key != Keycode::F7)) {
+    return false;
+  }
+  // F7 repeats while held, which is how a run of ticks is walked through;
+  // F6 toggles, so it acts on the press alone.
+  if (key == Keycode::F7) {
+    stepPlaytest(1);
+  } else if (kind == ClientKeyDownKind::FIRST_PRESS) {
+    togglePlaytestPause();
+  }
+  return true;
 }
 
 bool SimplishEditor::handlePlayingKey(uint32_t key) {
@@ -479,11 +550,15 @@ void SimplishEditor::applyPlayModeToChrome() {
   if (auto* menu =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     menu->setPlayMode(state_.playtest.mode);
+    menu->setPlaytestClock(state_.playtest.clock);
   }
 }
 
 std::string SimplishEditor::playtestStatus() const {
-  std::string status = "playing   tick " + std::to_string(state_.playtest.tick);
+  std::string status = (state_.playtest.clock == EditorPlaytestClock::PAUSED
+                            ? "paused    tick "
+                            : "playing   tick ") +
+                       std::to_string(state_.playtest.tick);
   if (state_.playtest.dropped_ticks > 0) {
     status += "   dropped " + std::to_string(state_.playtest.dropped_ticks);
   }

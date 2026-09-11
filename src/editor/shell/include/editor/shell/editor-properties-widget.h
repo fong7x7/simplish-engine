@@ -71,6 +71,7 @@
 #include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
+#include <editor/shell/editor-waypoint.h>
 #include <engine/gui/gui-panel.h>
 #include <functional>
 #include <memory>
@@ -111,6 +112,9 @@ public:
 
   /// Show a player start's properties: which player, and where.
   void setSelection(std::string name, const EditorPlayerStart& start);
+
+  /// Show a waypoint's properties: its route, its place in it, and where.
+  void setSelection(std::string name, const EditorWaypoint& waypoint);
 
   /// Offer @p choices as the @p kind row, below the property rows and any
   /// choice rows already offered, showing the one at @p current — or the

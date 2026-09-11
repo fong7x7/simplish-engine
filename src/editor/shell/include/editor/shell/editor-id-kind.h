@@ -37,15 +37,18 @@ enum class EditorIdKind : uint8_t {
   /// A behavior an actor runs: a built-in one, or a row of the behaviors
   /// table.
   BEHAVIOR,
+  /// A point of a patrol route, standing in the level.
+  WAYPOINT,
 };
 
 /// Every kind's prefix, without the colon, in enumerator order.
 inline constexpr std::string_view EDITOR_ID_KIND_PREFIXES[] = {
-    "mesh", "shape", "prop", "light", "player_start", "character", "behavior",
+    "mesh",         "shape",     "prop",     "light",
+    "player_start", "character", "behavior", "waypoint",
 };
 
 static_assert(std::size(EDITOR_ID_KIND_PREFIXES) ==
-                  static_cast<size_t>(EditorIdKind::BEHAVIOR) + 1,
+                  static_cast<size_t>(EditorIdKind::WAYPOINT) + 1,
               "every id kind needs a prefix");
 
 /// The prefix a reference to @p kind carries, without the colon.

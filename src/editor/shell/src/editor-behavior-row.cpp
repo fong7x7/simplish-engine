@@ -140,6 +140,17 @@ namespace {
     return facing.value_or(game::BehaviorFacing::MOVEMENT);
   }
 
+  /// The route mode @p state's `route` names, or `loop`, saying so, for a
+  /// word that names none.
+  game::BehaviorRouteMode readRouteMode(const json& state, const RowRead& row) {
+    const std::string word = stringAt(state, "route");
+    const auto mode = game::parseBehaviorRouteMode(word);
+    if (!mode && !word.empty()) {
+      note(row, "\"" + word + "\" is not a route mode, so the patrol loops");
+    }
+    return mode.value_or(game::BehaviorRouteMode::LOOP);
+  }
+
   /// A distance of @p state under @p key, its default @p fallback.
   float distanceAt(const json& state, const char* key, float fallback,
                    const RowRead& row) {
@@ -176,6 +187,7 @@ namespace {
         {static_cast<float>(made.speed_permille), 0.0F, MAX_SPEED_PERMILLE},
         row));
     made.clip = stringAt(state, "clip");
+    made.route = readRouteMode(state, row);
     readDistances(state, made, row);
     return made;
   }

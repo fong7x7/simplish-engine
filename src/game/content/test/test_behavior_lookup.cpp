@@ -19,7 +19,7 @@ BehaviorDefinition oneState(std::string id, std::vector<BehaviorExit> exits) {
 
 TEST_CASE("every built-in behavior is well formed and uniquely named") {
   const auto presets = builtInBehaviors();
-  REQUIRE(presets.size() == 8);
+  REQUIRE(presets.size() == 9);
   REQUIRE(presets.front().id == "idle");
   for (size_t i = 0; i < presets.size(); ++i) {
     INFO(presets[i].id);

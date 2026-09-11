@@ -386,3 +386,10 @@ TEST_CASE("a placement reports its behavior and faction") {
   REQUIRE(first.at("behavior") == "behavior:guard");
   REQUIRE(first.at("faction") == "friendly");
 }
+
+TEST_CASE("get_playtest says whether the playtest is paused") {
+  EditorShellState state = playingWithAKnight();
+  REQUIRE(json::parse(agentPlaytestJson(state)).at("paused") == false);
+  state.playtest.clock = EditorPlaytestClock::PAUSED;
+  REQUIRE(json::parse(agentPlaytestJson(state)).at("paused") == true);
+}
