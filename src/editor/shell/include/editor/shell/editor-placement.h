@@ -37,6 +37,16 @@ struct EditorPlacement {
   /// place (`makePlacementTransform`), which is where the axis order is
   /// defined.
   Vec3 rotation{};
+  /// Uniform size multiplier on top of the one-tile fit, so 1 is the size a
+  /// model is dropped at and 2 is twice that in every direction.
+  ///
+  /// One number rather than three. Every mesh shader carries the normal
+  /// through the model matrix, which is only correct while the scale is the
+  /// same on each axis; stretching one axis would shade the model wrong on
+  /// four backends until each grew a normal matrix. Applied about the same
+  /// point rotation is — the centre of the footprint at the height the model
+  /// rests on — so a prop grows up and out from where it stands.
+  float scale = 1.0f;
   /// Whether a player can walk through it. Solid by default: most of what
   /// is dropped into a level is a crate or a wall, and the few that are not
   /// — grass, a rug, a decal — are ticked off in the properties panel.

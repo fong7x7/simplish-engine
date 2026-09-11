@@ -64,6 +64,8 @@ struct PropertiesCapture {
     out.id = "props_crate_01";
     out.position = {12.0f, -3.5f, 1.25f};
     out.rotation = {0.0f, 45.0f, -90.0f};
+    // Off 1 so the slider shows a handle away from its middle mark.
+    out.scale = 2.0f;
     return out;
   }
 
@@ -243,6 +245,20 @@ TEST_CASE("the id line paints under the name") {
   REQUIRE(layout.id.y >= layout.asset.y + layout.asset.h);
   REQUIRE(layout.id.h > 0.0f);
   REQUIRE(layout.body.y >= layout.id.y + layout.id.h);
+}
+
+TEST_CASE("the scale slider fills its track up to the handle") {
+  const PropertiesCapture capture;
+  const eng::Rect track = propertyValueRect(
+      capture.panel().fieldRowRect(EditorPropertyField::SCALE));
+  // At 2 the handle is two thirds along (a doubling past the middle, on a
+  // six-doubling track), so a sample well left of it is on the filled part
+  // and one well right of it is on the bare track.
+  const auto travelled =
+      capture.pixel(track.x + track.w * 0.15f, track.y + 3.0f);
+  const auto beyond = capture.pixel(track.x + track.w * 0.9f, track.y + 3.0f);
+  REQUIRE_FALSE(matches(travelled, eng::GuiColor{30, 30, 34, 255}));
+  REQUIRE(matches(beyond, eng::GuiColor{30, 30, 34, 255}));
 }
 
 TEST_CASE("the properties capture can be written to PNG for inspection") {

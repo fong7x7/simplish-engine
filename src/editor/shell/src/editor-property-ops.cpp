@@ -58,10 +58,13 @@ namespace {
       {EDITOR_UNIT_STEP, EDITOR_UNIT_DRAG_PER_PIXEL},          // UNIT
       {EDITOR_SLOT_STEP, EDITOR_SLOT_DRAG_PER_PIXEL},          // SLOT
       {EDITOR_SLOT_STEP, 0.0f},                                // TOGGLE
+      // A scale is set by where on its slider it is pressed, never stepped
+      // or scrubbed — see `editor-scale-slider.h`.
+      {0.0f, 0.0f},  // SCALE
   };
 
   static_assert(std::size(KIND_TUNING) ==
-                    static_cast<size_t>(EditorPropertyKind::TOGGLE) + 1,
+                    static_cast<size_t>(EditorPropertyKind::SCALE) + 1,
                 "every property kind needs a step and a drag rate");
 
   const KindTuning& kindTuning(EditorPropertyKind kind) {
@@ -76,6 +79,19 @@ namespace {
   /// Whether a field names one of a placement's rotation components.
   bool isRotationField(EditorPropertyField field) {
     return editorFieldInTriple(field, EditorPropertyField::ROTATION_X);
+  }
+
+  /// A placement field that is one number of its own rather than part of a
+  /// vector: whether it collides, and its scale.
+  float placementScalarValue(const EditorPlacement& placement,
+                             EditorPropertyField field) {
+    if (field == EditorPropertyField::COLLIDES) {
+      return placement.collides ? 1.0f : 0.0f;
+    }
+    if (field == EditorPropertyField::SCALE) {
+      return placement.scale;
+    }
+    return 0.0f;
   }
 
 }  // namespace
@@ -95,6 +111,8 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return static_cast<float>(clampEditorPlayerSlot(value));
     case EditorPropertyKind::TOGGLE:
       return value >= 0.5f ? 1.0f : 0.0f;
+    case EditorPropertyKind::SCALE:
+      return std::clamp(value, EDITOR_SCALE_MIN, EDITOR_SCALE_MAX);
     case EditorPropertyKind::DISTANCE:
       return value;
   }
@@ -113,10 +131,7 @@ float editorPropertyValue(const EditorPlacement& placement,
         placement.rotation,
         editorFieldAxis(field, EditorPropertyField::ROTATION_X));
   }
-  if (field == EditorPropertyField::COLLIDES) {
-    return placement.collides ? 1.0f : 0.0f;
-  }
-  return 0.0f;
+  return placementScalarValue(placement, field);
 }
 
 void setEditorPropertyValue(EditorPlacement& placement,
@@ -132,6 +147,8 @@ void setEditorPropertyValue(EditorPlacement& placement,
         written;
   } else if (field == EditorPropertyField::COLLIDES) {
     placement.collides = written != 0.0f;
+  } else if (field == EditorPropertyField::SCALE) {
+    placement.scale = written;
   }
 }
 

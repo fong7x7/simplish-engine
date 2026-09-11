@@ -5,6 +5,7 @@
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
+#include <editor/shell/editor-property-ops.h>
 #include <engine/input/input-action.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -887,4 +888,53 @@ TEST_CASE("list_characters reports the table and what was wrong with it") {
   REQUIRE(listed.at("characters")[1].at("health") == 9);
   REQUIRE(listed.at("characters")[0].at("move_speed") == Approx(7.0f));
   REQUIRE(listed.at("problems").size() == 1);
+}
+
+TEST_CASE("set_property scales a placement") {
+  // The placement whitelist is read off the panel's own field list, so a
+  // field the panel shows is one an agent can set without a second list to
+  // forget it in.
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+
+  const json placed = call(
+      state, "set_property",
+      R"({"target": "placement", "index": 0, "field": "scale", "value": 2})");
+
+  REQUIRE(placed.at("scale") == Approx(2.0f));
+  REQUIRE(state.document.placements[0].scale == Approx(2.0f));
+}
+
+TEST_CASE("a scale is clamped as the panel would clamp it") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+
+  (void)call(
+      state, "set_property",
+      R"({"target": "placement", "index": 0, "field": "scale", "value": 0})");
+
+  REQUIRE(state.document.placements[0].scale == Approx(EDITOR_SCALE_MIN));
+}
+
+TEST_CASE("a scale is one undoable edit") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+  (void)call(
+      state, "set_property",
+      R"({"target": "placement", "index": 0, "field": "scale", "value": 3})");
+
+  (void)call(state, "undo", "{}");
+  REQUIRE(state.document.placements[0].scale == Approx(1.0f));
+}
+
+TEST_CASE("scale is a placement's, not a light's") {
+  EditorShellState state;
+  (void)call(state, "add_light", R"({"kind": "point", "x": 0, "y": 0})");
+
+  const AgentResult result =
+      runAgentTool(state, "set_property",
+                   R"({"target": "light", "index": 0, "field": "scale",
+          "value": 2})");
+
+  REQUIRE(result.status == AgentStatus::BAD_PARAMS);
 }

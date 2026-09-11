@@ -32,6 +32,16 @@ inline constexpr float EDITOR_UNIT_STEP = 0.05f;
 /// How far one step button moves a player: to the next one.
 inline constexpr float EDITOR_SLOT_STEP = 1.0f;
 
+/// Smallest a placed prop can be scaled to: an eighth of its one-tile fit.
+///
+/// Bounded below because nothing scaled to zero can be seen, picked or
+/// collided with, and a negative scale turns a model inside out; bounded
+/// above because a prop eight tiles across is already a building.
+inline constexpr float EDITOR_SCALE_MIN = 0.125f;
+
+/// Largest a placed prop can be scaled to: eight times its one-tile fit.
+inline constexpr float EDITOR_SCALE_MAX = 8.0f;
+
 /// Tiles a distance moves per pixel dragged.
 ///
 /// One tile per tile-width of travel at zoom 1, so a drag across the value

@@ -3,6 +3,7 @@
 #include "agent-call.h"
 #include "agent-json-values.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <editor/agent/agent-names.h>
 #include <editor/agent/agent-state-json.h>
@@ -52,11 +53,14 @@ namespace {
            field <= EditorPropertyField::ROTATION_Z;
   }
 
-  /// Whether @p field is one a placement stores: its position, its
-  /// rotation, and whether it collides.
+  /// Whether @p field is one a placement stores.
+  ///
+  /// Read off the panel's own list rather than kept here by hand: a field a
+  /// placement gains is then settable by an agent the moment the panel
+  /// shows it, which a second list would only be until somebody forgot it.
   bool isPlacementField(EditorPropertyField field) {
-    return field <= EditorPropertyField::ROTATION_Z ||
-           field == EditorPropertyField::COLLIDES;
+    return std::ranges::find(EDITOR_PLACEMENT_FIELDS, field) !=
+           std::end(EDITOR_PLACEMENT_FIELDS);
   }
 
   /// Select @p selection, dropping it when it names an entry that is not
@@ -208,8 +212,9 @@ namespace {
                                 EditorPropertyField field, float value) {
     if (!isPlacementField(field)) {
       return agentFailure(AgentStatus::BAD_PARAMS,
-                          "a placement holds a position, a rotation and "
-                          "whether it collides, and nothing else");
+                          "a placement holds a position, a rotation, a "
+                          "scale and whether it collides, and nothing "
+                          "else");
     }
     const EditorPlacement prior = state.document.placements[index];
     EditorPlacement next = prior;
@@ -224,11 +229,12 @@ namespace {
   AgentResult setLightField(EditorShellState& state, size_t index,
                             EditorPropertyField field, float value) {
     if (isRotationField(field) || field == EditorPropertyField::PLAYER ||
-        field == EditorPropertyField::COLLIDES) {
+        field == EditorPropertyField::COLLIDES ||
+        field == EditorPropertyField::SCALE) {
       return agentFailure(AgentStatus::BAD_PARAMS,
                           "a light is aimed by its direction, not turned by "
-                          "a rotation, and neither belongs to a player nor "
-                          "collides");
+                          "a rotation; it has a range rather than a scale, "
+                          "and neither belongs to a player nor collides");
     }
     const EditorLight prior = state.document.lights[index];
     EditorLight next = prior;

@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <iterator>
 
 using Catch::Approx;
 using namespace eng::editor;
@@ -121,4 +123,37 @@ TEST_CASE("a toggle is on at a half and above, and written as on or off") {
   REQUIRE(formatEditorPropertyValue(0.0f, EditorPropertyField::COLLIDES) ==
           "off");
   REQUIRE(editorPropertyDragPerPixel(EditorPropertyField::COLLIDES) == 0.0f);
+}
+
+TEST_CASE("a placement's scale reads back what was written to it") {
+  EditorPlacement placement;
+  setEditorPropertyValue(placement, EditorPropertyField::SCALE, 2.5f);
+  REQUIRE(placement.scale == Approx(2.5f));
+  REQUIRE(editorPropertyValue(placement, EditorPropertyField::SCALE) ==
+          Approx(2.5f));
+}
+
+TEST_CASE("a placement starts at the size it was dropped at") {
+  REQUIRE(editorPropertyValue(EditorPlacement{}, EditorPropertyField::SCALE) ==
+          Approx(1.0f));
+}
+
+TEST_CASE("a scale is clamped to the slider's range") {
+  // Zero would make a prop invisible and unpickable, and a negative scale
+  // would turn it inside out, so neither is a size that can be written.
+  EditorPlacement placement;
+  setEditorPropertyValue(placement, EditorPropertyField::SCALE, 0.0f);
+  REQUIRE(placement.scale == Approx(EDITOR_SCALE_MIN));
+  setEditorPropertyValue(placement, EditorPropertyField::SCALE, -3.0f);
+  REQUIRE(placement.scale == Approx(EDITOR_SCALE_MIN));
+  setEditorPropertyValue(placement, EditorPropertyField::SCALE, 50.0f);
+  REQUIRE(placement.scale == Approx(EDITOR_SCALE_MAX));
+}
+
+TEST_CASE("scale is a placement's property, listed with its transform") {
+  const auto begin = std::begin(EDITOR_PLACEMENT_FIELDS);
+  const auto end = std::end(EDITOR_PLACEMENT_FIELDS);
+  REQUIRE(std::find(begin, end, EditorPropertyField::SCALE) != end);
+  REQUIRE(editorPropertyFieldIsScale(EditorPropertyField::SCALE));
+  REQUIRE_FALSE(editorPropertyFieldIsScale(EditorPropertyField::RANGE));
 }

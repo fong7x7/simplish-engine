@@ -15,7 +15,7 @@ namespace eng::editor {
 /// The sort of number a property holds.
 ///
 /// Stepping, scrubbing, formatting and clamping are decided from this
-/// rather than from the field itself: there are eight kinds and sixteen
+/// rather than from the field itself: there are nine kinds and seventeen
 /// fields, and a rule written per kind cannot disagree with itself about
 /// two fields that hold the same sort of number.
 /// @thread_safety Immutable value type.
@@ -38,6 +38,10 @@ enum class EditorPropertyKind : uint8_t {
   /// On or off, held as 1 or 0: the panel draws a checkbox for it, and a
   /// click flips it rather than stepping it.
   TOGGLE,
+  /// A size multiplier, clamped to [`EDITOR_SCALE_MIN`, `EDITOR_SCALE_MAX`]:
+  /// the panel draws a slider for it, laid out logarithmically so halving
+  /// and doubling are the same distance either side of 1.
+  SCALE,
 };
 
 /// One property's fixed description.
@@ -73,6 +77,7 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Range", EditorPropertyKind::EXTENT},
     {"Player", EditorPropertyKind::SLOT},
     {"Collides", EditorPropertyKind::TOGGLE},
+    {"Scale", EditorPropertyKind::SCALE},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==
@@ -101,6 +106,12 @@ editorPropertyFieldKind(EditorPropertyField field) {
 [[nodiscard]] constexpr bool
 editorPropertyFieldIsToggle(EditorPropertyField field) {
   return editorPropertyFieldKind(field) == EditorPropertyKind::TOGGLE;
+}
+
+/// Whether a field is a size multiplier, which the panel draws as a slider.
+[[nodiscard]] constexpr bool
+editorPropertyFieldIsScale(EditorPropertyField field) {
+  return editorPropertyFieldKind(field) == EditorPropertyKind::SCALE;
 }
 
 /// Whether a field is an angle, which decides how it is written out and

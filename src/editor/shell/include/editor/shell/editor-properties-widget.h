@@ -6,13 +6,19 @@
 //   - Column down the right of the viewport listing what the editor has
 //     selected: its name, its `kind:id` reference, and one row per
 //     editable number
-//   - A placed asset lists position X, Y, Z, rotation X, Y, Z, and a
-//     Collides checkbox that a click anywhere on its row flips; a light
+//   - A placed asset lists position X, Y, Z, rotation X, Y, Z, a Scale
+//     slider, and a Collides checkbox that a click anywhere on its row
+//     flips; a light
 //     lists the direction, colour, intensity and range its own kind uses;
 //     a player start lists its player, its position, and its character
 //   - Each row is a label, a step-down button, a value box, and a step-up
 //     button; a click on a button steps the value, a drag across the value
 //     box scrubs it
+//   - Scale's value box is a slider instead: pressing it jumps the value to
+//     that point along it and dragging follows the pointer, laid out so 1 is
+//     the middle and halving and doubling are equal distances either side.
+//     Its buttons step between fixed stops, a quarter-doubling apart, which
+//     is how a value dragged near 1 gets back to exactly 1
 //   - One more row may follow the property rows: a choice among names,
 //     whose value box shows the one picked and whose buttons step to the
 //     previous or next, wrapping round. A rigged model's is Animation, its
@@ -180,6 +186,12 @@ private:
   /// Draw the value box a numeric row @p index shows, in @p row.
   void renderValueBox(const GuiDrawContext& ctx, const Rect& row,
                       size_t index) const;
+  /// Draw a scale's slider in @p track: the part travelled, a mark at 1,
+  /// the handle, and the value over them.
+  void renderSlider(const GuiDrawContext& ctx, const Rect& track,
+                    size_t index) const;
+  /// The scale a slider for @p field shows with the pointer at @p x.
+  [[nodiscard]] float sliderValueAt(EditorPropertyField field, float x) const;
   /// Draw the checkbox an on-or-off row @p index shows, in @p row.
   void renderToggle(const GuiDrawContext& ctx, const Rect& row,
                     size_t index) const;
@@ -198,7 +210,8 @@ private:
   /// of them took it.
   bool pressStep(EditorPropertyField field, const Rect& row,
                  const GuiMouseEvent& event);
-  /// Start scrubbing @p field from where it is now.
+  /// Start dragging @p field: scrubbing a value box from where it is now,
+  /// or moving a slider to where it was pressed.
   void beginDrag(EditorPropertyField field, const GuiMouseEvent& event);
   /// Act on a press in row @p index. Returns true when a drag began.
   bool pressRow(size_t index, const GuiMouseEvent& event);

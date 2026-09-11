@@ -235,8 +235,10 @@ each one's parameters; this table is the map.
   above zero, and a player rounds to a whole one from 1 to 4. The response reports what was actually stored, not what was
   asked for.
 - **Fields follow what a kind stores, not what the panel shows.** A light
-  stores everything but a rotation and a player; a placement stores a
-  position, a rotation and whether it collides (`collides`, 1 or 0); a
+  stores everything but a rotation, a scale and a player; a placement
+  stores a position, a rotation, a uniform `scale` (held to 0.125–8, where
+  1 is the size it was dropped at) and whether it collides (`collides`, 1
+  or 0); a
   player start stores a position and a player. A rigged placement's clip is
   a name, not a number, so it has its own tool, `set_animation`, rather
   than a `set_property` field; `get_asset` lists the clip names to pick from.

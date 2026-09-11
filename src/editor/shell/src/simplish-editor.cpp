@@ -94,7 +94,8 @@ namespace {
     return a.position.x == b.position.x && a.position.y == b.position.y &&
            a.position.z == b.position.z && a.rotation.x == b.rotation.x &&
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
-           a.collides == b.collides && a.animation == b.animation;
+           a.scale == b.scale && a.collides == b.collides &&
+           a.animation == b.animation;
   }
 
   /// Whether two lights shine exactly alike, for the same reason

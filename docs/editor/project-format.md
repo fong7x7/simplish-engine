@@ -165,7 +165,7 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
         "at": [3.0, 4.0, 0.0], "rotation": [0.0, 0.0, 45.0],
         "collides": true },
       { "id": "characters_knight_01", "asset": "mesh:characters_knight",
-        "at": [5.0, 4.0, 0.0], "rotation": [0.0, 0.0, 0.0],
+        "at": [5.0, 4.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": 1.5,
         "collides": true, "animation": "walk" }
     ],
     "lights": [
@@ -182,6 +182,8 @@ Three parts of §4 are written — props, lights, and one kind of entity — and
 ```
 
 **A prop carries three rotation angles, not `yaw_steps`.** The properties panel edits rotation X, Y and Z as free degrees and the agent API sets them the same way, so `yaw_steps` would round somebody's authored value away on the first save. The integer stays the right answer for the projection — which has no yaw — and the snap belongs with the tool that enforces it; when that tool arrives, a §10 migration converts a rotation to the steps it was rounding to. `variant` is absent because nothing produces one yet.
+
+**A prop may carry a scale.** `scale` is one uniform size multiplier on the one-tile fit every dropped model gets, so `1` is the size it was dropped at. It is written only when it is not `1`, so a level saved before the key existed saves back unchanged, and a prop without it reads as `1`. Reading holds it to 0.125–8, the range the panel's slider covers — zero would leave nothing to pick or collide with, and a negative scale turns a model inside out. One number rather than three because the renderer's normals are only right under a uniform scale; a per-axis scale needs the mesh shaders to grow a normal matrix first.
 
 **A prop says whether it collides.** `collides` is `true` when players cannot walk through it, which is what every prop dropped starts as, and `false` for the ones they can — grass, a rug, a decal. A prop written before the key existed has none and reads as `true`, so a level saved earlier is as solid as its props look. What collides is the prop's box, the one the viewport outlines; a collision shape authored per asset would go in the asset pipeline, not here.
 

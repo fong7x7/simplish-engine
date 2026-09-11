@@ -41,6 +41,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-layout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-scale-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shape.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"

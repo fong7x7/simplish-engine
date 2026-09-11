@@ -55,6 +55,8 @@ enum class EditorPropertyField : uint8_t {
   PLAYER,
   /// Whether a placed prop blocks players: 1 for solid, 0 for not.
   COLLIDES,
+  /// Uniform size multiplier of a placed prop; 1 is the one-tile fit.
+  SCALE,
 };
 
 /// Every field there is, in the enum's own order.
@@ -71,6 +73,7 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::COLOR_G,     EditorPropertyField::COLOR_B,
     EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
     EditorPropertyField::PLAYER,      EditorPropertyField::COLLIDES,
+    EditorPropertyField::SCALE,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -78,7 +81,7 @@ inline constexpr EditorPropertyField EDITOR_PLACEMENT_FIELDS[] = {
     EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
     EditorPropertyField::POSITION_Z, EditorPropertyField::ROTATION_X,
     EditorPropertyField::ROTATION_Y, EditorPropertyField::ROTATION_Z,
-    EditorPropertyField::COLLIDES,
+    EditorPropertyField::SCALE,      EditorPropertyField::COLLIDES,
 };
 
 /// What the panel lists for a directional light.

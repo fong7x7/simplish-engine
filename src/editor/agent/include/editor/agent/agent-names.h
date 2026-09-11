@@ -27,10 +27,10 @@ namespace eng::editor {
 /// without a name here fails the build rather than being silently
 /// unreachable from the API.
 inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
-    "position_x",  "position_y", "position_z",  "rotation_x",
-    "rotation_y",  "rotation_z", "direction_x", "direction_y",
-    "direction_z", "color_r",    "color_g",     "color_b",
-    "intensity",   "range",      "player",      "collides",
+    "position_x", "position_y",  "position_z",  "rotation_x",  "rotation_y",
+    "rotation_z", "direction_x", "direction_y", "direction_z", "color_r",
+    "color_g",    "color_b",     "intensity",   "range",       "player",
+    "collides",   "scale",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==

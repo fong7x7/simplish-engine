@@ -90,9 +90,11 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "Property name as `get_selection` reports it: position_x, position_y, "
      "position_z, rotation_x, rotation_y, rotation_z, direction_x, "
      "direction_y, direction_z, color_r, color_g, color_b, intensity, "
-     "range, player, or collides. A player start takes the position and "
-     "player only; collides is a placement's, 1 for solid and 0 to let "
-     "players walk through it."},
+     "range, player, collides, or scale. A player start takes the position "
+     "and player only; collides and scale are a placement's — collides is 1 "
+     "for solid and 0 to let players walk through it, and scale is a "
+     "uniform size multiplier where 1 is the size the asset was dropped at, "
+     "clamped to 0.125 through 8."},
     {"value", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
      "The value to write. Angles wrap into [-180, 180), colour channels "
      "and direction components are clamped, a player is rounded into 1 to "

@@ -5,6 +5,7 @@
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
+#include <editor/shell/editor-property-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -95,6 +96,12 @@ namespace {
                            placement.position.z);
     out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
                                  placement.rotation.z);
+    // Only when it is not the size the prop was dropped at, so a level saved
+    // before scale existed saves back byte for byte rather than every prop
+    // in it gaining a line that says nothing.
+    if (placement.scale != 1.0f) {
+      out["scale"] = placement.scale;
+    }
     out["collides"] = placement.collides;
     // Only when it names one: empty means the model's first clip, and a
     // static prop, which is most of them, has no business carrying the key.
@@ -194,6 +201,10 @@ namespace {
     placement.asset = index;
     placement.position = {at[0], at[1], at[2]};
     placement.rotation = {turn[0], turn[1], turn[2]};
+    // Through the panel's own rule, so a hand-edited zero or negative scale
+    // is clamped rather than turning the model inside out.
+    placement.scale = normalizeEditorPropertyValue(
+        EditorPropertyField::SCALE, readNumber(entry, "scale", 1.0f));
     // A prop written before collision existed has no flag, and reads as
     // solid — the default a dropped one gets.
     placement.collides = readBool(entry, "collides").value_or(true);

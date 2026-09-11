@@ -6,6 +6,7 @@
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <editor/shell/editor-scale-slider.h>
 #include <iterator>
 #include <vector>
 
@@ -491,4 +492,92 @@ TEST_CASE("a new selection drops the previous one's choices") {
   REQUIRE(fixture.panel.choiceRowRect().h == 0.0f);
   REQUIRE(fixture.panel.choice().empty());
   REQUIRE(fixture.panel.choiceLabel().empty());
+}
+
+namespace {
+
+/// The track of the scale slider in @p fixture's panel.
+eng::Rect scaleTrack(const PanelFixture& fixture) {
+  return propertyValueRect(fixture.rowOf(EditorPropertyField::SCALE));
+}
+
+}  // namespace
+
+TEST_CASE("a placement's panel lists a scale row") {
+  const PanelFixture fixture;
+  const eng::Rect row = fixture.rowOf(EditorPropertyField::SCALE);
+  REQUIRE(row.w > 0.0f);
+  REQUIRE(fixture.panel.value(EditorPropertyField::SCALE) == Approx(1.0f));
+}
+
+TEST_CASE("pressing the slider jumps the scale to that point on it") {
+  PanelFixture fixture;
+  const eng::Rect track = scaleTrack(fixture);
+
+  // Three quarters along is a doubling and a half up from 1, the middle.
+  REQUIRE(fixture.press(track.x + track.w * 0.75f, midY(track)));
+  REQUIRE(fixture.panel.dragging());
+  REQUIRE(fixture.changes.size() == 1);
+  REQUIRE(fixture.changes[0].field == EditorPropertyField::SCALE);
+  REQUIRE(fixture.changes[0].edit == EditorPropertyEdit::PREVIEW);
+  REQUIRE(fixture.changes[0].value ==
+          Approx(editorScaleFromSliderFraction(0.75f)));
+}
+
+TEST_CASE("dragging the slider follows the pointer, not the distance moved") {
+  // A value box scrubs by how far the pointer has travelled; a slider is
+  // wherever the pointer is. Pressing at one point and moving to another
+  // gives that other point's value, whatever the press gave.
+  PanelFixture fixture;
+  const eng::Rect track = scaleTrack(fixture);
+  fixture.press(track.x + track.w * 0.25f, midY(track));
+  fixture.moveTo(track.x + track.w * 0.5f, midY(track));
+  REQUIRE(fixture.changes.back().value == Approx(1.0f));
+}
+
+TEST_CASE("a slider drag is one committed edit") {
+  PanelFixture fixture;
+  const eng::Rect track = scaleTrack(fixture);
+  fixture.press(track.x + track.w * 0.6f, midY(track));
+  fixture.moveTo(track.x + track.w * 0.7f, midY(track));
+  fixture.moveTo(track.x + track.w * 0.8f, midY(track));
+  fixture.release(track.x + track.w * 0.8f, midY(track));
+
+  REQUIRE(fixture.commits() == 1);
+  REQUIRE(fixture.changes.back().edit == EditorPropertyEdit::COMMIT);
+  REQUIRE(fixture.changes.back().value ==
+          Approx(editorScaleFromSliderFraction(0.8f)));
+}
+
+TEST_CASE("dragging past the slider's end holds at the largest scale") {
+  PanelFixture fixture;
+  const eng::Rect track = scaleTrack(fixture);
+  fixture.press(midX(track), midY(track));
+  fixture.moveTo(track.x + track.w + 300.0f, midY(track));
+  REQUIRE(fixture.changes.back().value == Approx(EDITOR_SCALE_MAX));
+}
+
+TEST_CASE("the scale's step buttons move it between fixed stops") {
+  PanelFixture fixture;
+  const eng::Rect row = fixture.rowOf(EditorPropertyField::SCALE);
+  const eng::Rect up = propertyIncrementRect(row);
+
+  REQUIRE_FALSE(fixture.press(midX(up), midY(up)));
+  REQUIRE(fixture.changes.size() == 1);
+  REQUIRE(fixture.changes[0].edit == EditorPropertyEdit::COMMIT);
+  REQUIRE(fixture.changes[0].value == Approx(editorScaleStepped(1.0f, 1)));
+}
+
+TEST_CASE("a step down from near one lands exactly on one") {
+  // What the step buttons are there for: a slider can almost never be let
+  // go of on exactly 1, and a stop is a fixed point it can be stepped to.
+  PanelFixture fixture;
+  EditorPlacement placement;
+  placement.scale = 1.04f;
+  fixture.panel.setSelection("crate", placement);
+  const eng::Rect down =
+      propertyDecrementRect(fixture.rowOf(EditorPropertyField::SCALE));
+
+  fixture.press(midX(down), midY(down));
+  REQUIRE(fixture.changes.back().value == 1.0f);
 }

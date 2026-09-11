@@ -109,8 +109,11 @@ namespace {
   /// real bounds are not known.
   PlacementBounds unitTileBounds(const EditorPlacement& placement) {
     const Vec3 base = restingPoint(placement);
-    return {{base.x - 0.5f, base.y - 0.5f, base.z},
-            {base.x + 0.5f, base.y + 0.5f, base.z + 1.0f}};
+    // Scaled as the mesh would be, so a placement whose bounds are not
+    // known yet is still picked and collided with at the size it will draw.
+    const float half = 0.5f * placement.scale;
+    return {{base.x - half, base.y - half, base.z},
+            {base.x + half, base.y + half, base.z + placement.scale}};
   }
 
   /// Grow @p bounds to contain @p point.
@@ -139,7 +142,7 @@ Mat4 makePlacementTransform(const EditorAsset& asset,
   // where the placement sits. Written out rather than multiplied so the
   // zero-rotation case stays the plain scale-and-offset it always was.
   Mat4 out = eulerRotation(placement.rotation);
-  scaleBasis(out, footprintScale(asset));
+  scaleBasis(out, footprintScale(asset) * placement.scale);
   setPivotTranslation(out, pivot(asset), restingPoint(placement));
   out(3, 3) = 1.0f;
   return out;

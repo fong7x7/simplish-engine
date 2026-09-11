@@ -1,14 +1,17 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
+#include <editor/shell/editor-property-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <vector>
 
+using Catch::Approx;
 using namespace eng::editor;
 
 namespace {
@@ -305,4 +308,50 @@ TEST_CASE("a hand-written character id reads as the character it names") {
   REQUIRE(read->document.player_starts[0].character == "character:scout");
   // A character the project does not define is kept, not thrown away.
   REQUIRE(read->document.player_starts[1].character == "character:gone");
+}
+
+TEST_CASE("a prop's scale survives a save and a load") {
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[0].scale = 2.5f;
+
+  const std::optional<EditorLevelLoad> read =
+      parseEditorLevel(serializeEditorLevel(written, assets, "P"), assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].scale == Approx(2.5f));
+  REQUIRE(read->document.placements[1].scale == Approx(1.0f));
+}
+
+TEST_CASE("a prop at its dropped size writes no scale at all") {
+  // So a level saved before scale existed saves back byte for byte, rather
+  // than every prop in it gaining a line that says nothing.
+  const std::string text =
+      serializeEditorLevel(testDocument(), testAssets(), "P");
+  REQUIRE(text.find("\"scale\"") == std::string::npos);
+}
+
+TEST_CASE("a prop written before scale existed reads at its dropped size") {
+  const std::vector<EditorAsset> assets = testAssets();
+  const std::string text = serializeEditorLevel(testDocument(), assets, "P");
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, assets);
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].scale == Approx(1.0f));
+}
+
+TEST_CASE("a hand-edited scale out of range is clamped on load") {
+  // Zero or negative would make a model vanish or turn inside out, so the
+  // reader holds it to what the panel could have written.
+  const std::vector<EditorAsset> assets = testAssets();
+  EditorDocument written = testDocument();
+  written.placements[0].scale = 4.0f;
+  std::string text = serializeEditorLevel(written, assets, "P");
+  const size_t at = text.find("\"scale\"");
+  REQUIRE(at != std::string::npos);
+  // Turn the written 4 into a -4, which is valid JSON and nonsense scale.
+  text.insert(text.find_first_of("0123456789", at), "-");
+
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, assets);
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.placements[0].scale == Approx(EDITOR_SCALE_MIN));
 }

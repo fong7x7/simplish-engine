@@ -160,3 +160,55 @@ TEST_CASE("an unmeasured asset reports the unit box on its tile") {
   REQUIRE(bounds.max.y == Approx(3.0f));
   REQUIRE(bounds.max.z == Approx(1.0f));
 }
+
+TEST_CASE("a scale of two doubles the placed model in every direction") {
+  const EditorAsset asset = boxAsset();
+  EditorPlacement placement = placementAt({3.0f, 7.0f});
+  const PlacementBounds normal = placementWorldBounds(asset, placement);
+  placement.scale = 2.0f;
+  const PlacementBounds doubled = placementWorldBounds(asset, placement);
+
+  REQUIRE(doubled.max.x - doubled.min.x ==
+          Approx((normal.max.x - normal.min.x) * 2.0f));
+  REQUIRE(doubled.max.y - doubled.min.y ==
+          Approx((normal.max.y - normal.min.y) * 2.0f));
+  REQUIRE(doubled.max.z - doubled.min.z ==
+          Approx((normal.max.z - normal.min.z) * 2.0f));
+}
+
+TEST_CASE("a scaled model still stands on its tile") {
+  // Scaled about the same point rotation turns about — the footprint's
+  // centre at ground level — so it grows up and out, not into the floor or
+  // off across the grid.
+  const EditorAsset asset = boxAsset();
+  EditorPlacement placement = placementAt({3.0f, 7.0f});
+  placement.scale = 3.0f;
+  const PlacementBounds bounds = placementWorldBounds(asset, placement);
+
+  REQUIRE(bounds.min.z == Approx(0.0f).margin(1e-5));
+  REQUIRE((bounds.min.x + bounds.max.x) * 0.5f == Approx(3.5f));
+  REQUIRE((bounds.min.y + bounds.max.y) * 0.5f == Approx(7.5f));
+}
+
+TEST_CASE("scale and rotation compose about the same point") {
+  const EditorAsset asset = boxAsset();
+  EditorPlacement placement = placementAt({0.0f, 0.0f}, {0, 0, 90.0f});
+  placement.scale = 2.0f;
+  const PlacementBounds bounds = placementWorldBounds(asset, placement);
+
+  // The one-tile width and half-tile depth swap axes under the turn, and
+  // both double.
+  REQUIRE(bounds.max.x - bounds.min.x == Approx(1.0f));
+  REQUIRE(bounds.max.y - bounds.min.y == Approx(2.0f));
+}
+
+TEST_CASE("an unmeasured asset's stand-in box scales with the placement") {
+  // Picked and collided with at the size it will draw, before its mesh has
+  // loaded as well as after.
+  EditorPlacement placement = placementAt({4.0f, 2.0f});
+  placement.scale = 2.0f;
+  const PlacementBounds bounds = placementWorldBounds(EditorAsset{}, placement);
+  REQUIRE(bounds.max.x - bounds.min.x == Approx(2.0f));
+  REQUIRE(bounds.max.z - bounds.min.z == Approx(2.0f));
+  REQUIRE((bounds.min.x + bounds.max.x) * 0.5f == Approx(4.5f));
+}

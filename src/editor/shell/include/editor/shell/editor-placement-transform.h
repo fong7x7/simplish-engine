@@ -21,6 +21,10 @@ namespace eng::editor {
 /// offset drops its lowest point onto the ground plane rather than through
 /// it.
 ///
+/// The placement's own `scale` multiplies that fit, and like rotation it is
+/// applied about the resting point, so a scaled prop still stands on its
+/// tile.
+///
 /// Rotation is applied about that resting point — the centre of the
 /// footprint at ground level — so turning a prop spins it where it stands
 /// instead of swinging it away across the grid. The Euler angles are
