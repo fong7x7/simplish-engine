@@ -61,6 +61,7 @@ Each package declares its module and its test executable in its own `CMakeLists.
 | `headless` | Host | RelWithDebInfo | `STUB` | Determinism and simulation CI — no GPU |
 | `asan` | Host | Debug | Default | Address and UB sanitizers |
 | `opengl` | Desktop | Debug | `OPENGL` | Fallback-backend verification |
+| `vulkan` | Desktop | Debug | `VULKAN` | Linux's default backend; runs on macOS through MoltenVK — see §3.2 |
 | `windows-cross` | Windows x86_64, built on macOS or Linux | Debug | `DX12` | Compile and link the Windows build without a Windows machine — see §3.1. Build only |
 | `ps5` | PlayStation 5 | Release | `GNM` | Requires the private SDK overlay — not yet defined |
 | `xbox-series-x` | Xbox Series X | Release | `DX12` | Requires the private GDK overlay — not yet defined |
@@ -87,6 +88,23 @@ cmake --preset windows-cross && cmake --build --preset windows-cross
 ```
 
 The toolchain file is [`cmake/toolchains/windows-x64-clang-cl.cmake`](../../cmake/toolchains/windows-x64-clang-cl.cmake). Set `SIMPLISH_WINDOWS_SYSROOT` to use a sysroot somewhere other than `~/.xwin/sysroot`. clang-cl sets CMake's `MSVC`, so the build takes the same `/W4 /WX` branch of `SimplishCompilerOptions` a Windows machine does, and it catches the same MSVC-STL and Windows-SDK problems. It does not replace the Windows CI job in §7: it compiles with a different compiler from MSVC and runs nothing.
+
+### 3.2 Running Vulkan on macOS
+
+Unlike `windows-cross`, the `vulkan` preset runs on a Mac: MoltenVK implements Vulkan 1.3 on top of Metal, and the editor, the renderers and the GPU tests in `src/platform/render/test/test_vulkan_*.cpp` all run on it. VulkanMemoryAllocator and glslang are fetched by CMake when the preset is configured; the loader, the headers, MoltenVK and the validation layer come from Homebrew.
+
+```bash
+brew install molten-vk vulkan-loader vulkan-headers vulkan-validationlayers
+cmake --preset vulkan && cmake --build --preset vulkan && ctest --preset vulkan
+```
+
+To run anything under the Khronos validation layer, synchronization checks included:
+
+```bash
+DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib VK_LAYER_PATH=/opt/homebrew/opt/vulkan-validationlayers/share/vulkan/explicit_layer.d VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_KHRONOS_VALIDATION_VALIDATE_SYNC=1 ./build/vulkan/src/bin/editor/simplish-editor
+```
+
+`DYLD_FALLBACK_LIBRARY_PATH` is the one that is easy to miss: the layer's manifest names its library by bare filename, `/opt/homebrew/lib` is not on macOS's default search path, and without it the loader reports only that the layer "failed to load". The layer prints to stdout; an empty log means a clean run. MoltenVK has no `drawIndirectCount`, so `drawIndexedIndirectCount` is a no-op there, as it is on Metal.
 
 ---
 

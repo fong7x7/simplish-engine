@@ -1,4 +1,4 @@
-#include "../../../render/backends/vulkan/src/vulkan-handle-table.h"
+#include "vulkan-handle-table.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>

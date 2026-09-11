@@ -49,7 +49,7 @@ The platform layer builds and its tests pass: 114 tests on macOS/Metal, 66 on th
 |---|---|---|---|
 | `RhiDeviceFactory` | `src/platform/render/` | 2 | Complete — compile-time backend selection, returns an empty optional on failure |
 | Metal backend | `src/platform/render/backends/metal/` | 11 | Device, command list, format and resource maps, type converters; ARC-enabled `.mm` |
-| Vulkan backend | `src/platform/render/backends/vulkan/` | 14 | Device, device init, command list, handle table, format map |
+| Vulkan backend | `src/platform/render/backends/vulkan/` | 29 | Device, command list, handle table, format map; the built-in GUI, static mesh, skinned mesh and outline pipelines compiled from GLSL by glslang; one shared push-descriptor layout for stage bytes and fragment textures; per-frame upload ring; tracked image layouts; deferred destruction. Runs on MoltenVK with its GPU tests passing under validation — see [Development §3.2](../development/REQUIREMENTS.md#32-running-vulkan-on-macos) |
 | DX12 backend | `src/platform/render/backends/dx12/` | 25 | Device, command list, handle table, descriptor heap allocator, frames-in-flight, resource wrappers, shared root signature, built-in GUI, static mesh and skinned mesh pipelines |
 | OpenGL backend | `src/platform/render/backends/opengl/` | 26 | Device, command list, types, full set of `gl-cmd-*` command records |
 | Stub backend | `src/platform/render/backends/stub/` | 2 | Headless `RhiDevice`; selectable via `ENGINE_RENDERER=STUB` — the CI determinism path |

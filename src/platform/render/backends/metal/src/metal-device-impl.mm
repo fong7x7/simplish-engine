@@ -1104,11 +1104,14 @@ namespace {
       if (render_enc_ == nil || idx_buf_ == nil || bound_.render_pso == nil) {
         return;
       }
+      // Metal has no first-index argument; the first index is a byte offset
+      // into the index buffer. Dropping it drew every batch from index 0.
+      const NSUInteger index_size = idx_type_ == MTLIndexTypeUInt32 ? 4 : 2;
       [render_enc_ drawIndexedPrimitives:toMtlPrimitiveType(bound_.topology)
                               indexCount:p.index_count
                                indexType:idx_type_
                              indexBuffer:idx_buf_
-                       indexBufferOffset:idx_off_
+                       indexBufferOffset:idx_off_ + p.first_index * index_size
                            instanceCount:p.instance_count
                               baseVertex:p.vertex_offset
                             baseInstance:p.first_instance];

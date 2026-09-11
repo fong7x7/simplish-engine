@@ -46,6 +46,15 @@
       }
     },
     {
+      "name": "vulkan",
+      "inherits": "base",
+      "displayName": "Vulkan — Linux default; MoltenVK on macOS",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ENGINE_RENDERER": "VULKAN"
+      }
+    },
+    {
       "name": "asan",
       "inherits": "base",
       "displayName": "ASan/UBSan",
@@ -71,6 +80,7 @@
     { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo" },
     { "name": "headless", "configurePreset": "headless" },
     { "name": "opengl", "configurePreset": "opengl" },
+    { "name": "vulkan", "configurePreset": "vulkan" },
     { "name": "asan", "configurePreset": "asan" },
     { "name": "windows-cross", "configurePreset": "windows-cross" }
   ],
@@ -78,6 +88,7 @@
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
     { "name": "headless", "configurePreset": "headless", "output": { "outputOnFailure": true } },
     { "name": "opengl", "configurePreset": "opengl", "output": { "outputOnFailure": true } },
+    { "name": "vulkan", "configurePreset": "vulkan", "output": { "outputOnFailure": true } },
     { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } }
   ]
 }

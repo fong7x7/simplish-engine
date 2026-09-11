@@ -7,10 +7,12 @@
 
 #include "draw-command.h"
 #include "glyph-info.h"
+#include "gui-frame-buffers.h"
 #include "gui-rect.h"
 #include "gui-vertex.h"
 #include "scissor-stack.h"
 
+#include <array>
 #include <cstdint>
 #include <engine/render/rhi-command-list.h>
 #include <engine/render/rhi-device.h>
@@ -28,6 +30,16 @@ inline constexpr uint32_t DEFAULT_VERTEX_CAPACITY = 65536;
 /// Default index buffer capacity (number of indices).
 inline constexpr uint32_t DEFAULT_INDEX_CAPACITY = 98304;
 
+/// How many vertex and index buffer pairs the renderer rotates through.
+///
+/// A frame's draws read its pair on the GPU while the CPU fills the next
+/// frame's, so there must be at least as many pairs as frames a backend keeps
+/// in flight. That is two for every backend today — Vulkan's
+/// `FRAMES_IN_FLIGHT`, `DX12_FRAMES_IN_FLIGHT`, Metal's default
+/// `max_frames_in_flight` — and the third leaves room for one configured a
+/// frame deeper, since the RHI does not report the number.
+inline constexpr uint32_t GUI_FRAME_BUFFER_COUNT = 3;
+
 /// @thread_safety Main thread only.
 class GuiRendererContext {
 public:
@@ -43,17 +55,13 @@ public:
   /// frame marked none.
   size_t scene_split = NO_SCENE_SPLIT;
 
-  /// GPU vertex buffer handle.
-  uint64_t vertex_buffer = 0;
-  /// GPU index buffer handle.
-  uint64_t index_buffer = 0;
+  /// One vertex and index buffer pair per frame in flight, and one spare.
+  std::array<GuiFrameBuffers, GUI_FRAME_BUFFER_COUNT> frame_buffers{};
+  /// Index into `frame_buffers` of the pair this frame writes and binds;
+  /// each `uploadFrame` moves on to the next.
+  uint32_t frame_slot = 0;
   /// GPU pipeline handle for GUI rendering.
   uint64_t pipeline = 0;
-
-  /// Current vertex buffer capacity in vertices.
-  uint32_t vertex_capacity = 0;
-  /// Current index buffer capacity in indices.
-  uint32_t index_capacity = 0;
 
   /// RHI device pointer for GPU resource management (not owned).
   RhiDevice* device = nullptr;
@@ -157,11 +165,14 @@ public:
   /// split was marked, in which case the whole frame draws over the scene.
   [[nodiscard]] size_t sceneSplit() const;
 
-  /// Upload this frame's geometry. Call once, before any submission.
+  /// Upload this frame's geometry into the next buffer pair. Call once per
+  /// device frame, after `RhiDevice::beginFrame` and before any submission:
+  /// each call claims a pair, and the rotation is only safe at one per frame.
   void uploadFrame();
 
-  /// Bind this frame's buffers and pipeline. Needed once per render pass:
-  /// bindings do not survive the end of an encoder.
+  /// Bind this frame's buffers and pipeline — the pair the last
+  /// `uploadFrame` wrote. Needed once per render pass: bindings do not
+  /// survive the end of an encoder.
   void bindFrame(RhiCommandList& cmd_list);
 
   /// Submit the draw commands in `[first, first + count)`.

@@ -67,13 +67,23 @@ namespace {
             static_cast<int>(config.window_height)};
   }
 
+  /// Window flags for the backend compiled in. SDL hands a Vulkan surface
+  /// only to a window created for Vulkan; Metal and the others need nothing.
+  SDL_WindowFlags platformWindowFlags() {
+    SDL_WindowFlags flags =
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#ifdef ENGINE_RENDERER_VULKAN
+    flags |= SDL_WINDOW_VULKAN;
+#endif
+    return flags;
+  }
+
   /// Create an SDL3 window with the given config.
   SDL_Window*
   createPlatformWindow(const eng::client::GameClientConfig& config) {
     auto [w, h] = computeWindowSize(config);
-    auto* win =
-        SDL_CreateWindow(config.window_title.c_str(), w, h,
-                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    auto* win = SDL_CreateWindow(config.window_title.c_str(), w, h,
+                                 platformWindowFlags());
     if (win != nullptr) {
       SDL_SetWindowMinimumSize(win, static_cast<int>(config.min_window_width),
                                static_cast<int>(config.min_window_height));

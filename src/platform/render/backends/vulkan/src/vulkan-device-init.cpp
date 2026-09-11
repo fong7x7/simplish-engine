@@ -4,6 +4,8 @@
 
 #include <SDL3/SDL_vulkan.h>
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <vk_mem_alloc.h>
@@ -17,6 +19,29 @@ namespace eng::render {
 
 namespace {
 
+  /// Bytes of stage bytes one frame can push: a few hundred draws of mesh
+  /// uniforms and lights, with room for a skinned character's palettes.
+  constexpr VkDeviceSize VULKAN_STAGE_BYTES_CAPACITY = 1024 * 1024;
+
+  /// Size of the zeroed uniform buffer bound at an empty slot; large enough
+  /// for the biggest block a built-in shader declares, the joint palette.
+  constexpr VkDeviceSize VULKAN_NULL_UNIFORM_BYTES = 4096;
+
+  /// Name of the portability subset extension, which lives in the beta
+  /// header; an implementation that advertises it must have it enabled.
+  constexpr const char* PORTABILITY_SUBSET_EXTENSION =
+      "VK_KHR_portability_subset";
+
+  /// Device extensions the backend cannot run without.
+  constexpr std::array<const char*, 2> REQUIRED_DEVICE_EXTENSIONS{
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
+
+  bool supportsVulkan13(VkPhysicalDevice dev) {
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(dev, &props);
+    return props.apiVersion >= VK_API_VERSION_1_3;
+  }
+
   VkPhysicalDevice
   pickBestDevice(const std::vector<VkPhysicalDevice>& devices) {
     // NOLINTNEXTLINE(cppcoreguidelines-init-variables) — FP without vulkan.h
@@ -24,6 +49,9 @@ namespace {
     for (auto dev : devices) {
       VkPhysicalDeviceProperties props{};
       vkGetPhysicalDeviceProperties(dev, &props);
+      if (!supportsVulkan13(dev)) {
+        continue;
+      }
       if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
         return dev;
       }
@@ -43,27 +71,26 @@ namespace {
   /// Whether Vulkan validation layers are requested.
   enum class ValidationEnabled { NO, YES };
 
-  /// Append platform-specific surface extensions.
-  void appendPlatformSurfaceExtensions(std::vector<const char*>& exts) {
-    exts.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-#ifdef __APPLE__
-    exts.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-    exts.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-#elifdef _WIN32
-    exts.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#else
-    exts.push_back("VK_KHR_xcb_surface");
-#endif
-  }
-
+  /// What SDL needs to make a surface for this platform's windows. On macOS
+  /// that list includes portability enumeration, without which the loader
+  /// hides MoltenVK.
   std::vector<const char*>
   requiredInstanceExtensions(ValidationEnabled validation) {
+    Uint32 count = 0;
+    const char* const* sdl_exts = SDL_Vulkan_GetInstanceExtensions(&count);
     std::vector<const char*> exts;
-    appendPlatformSurfaceExtensions(exts);
+    if (sdl_exts != nullptr) {
+      exts.assign(sdl_exts, sdl_exts + count);
+    }
     if (validation == ValidationEnabled::YES) {
       exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
     return exts;
+  }
+
+  bool listsName(const std::vector<const char*>& names, const char* name) {
+    return std::ranges::any_of(
+        names, [name](const char* n) { return std::strcmp(n, name) == 0; });
   }
 
   VkApplicationInfo buildAppInfo() {
@@ -85,6 +112,9 @@ namespace {
     info.pApplicationInfo = &app_info;
     info.enabledExtensionCount = static_cast<uint32_t>(exts.size());
     info.ppEnabledExtensionNames = exts.data();
+    if (listsName(exts, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
+      info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
     return info;
   }
 
@@ -132,19 +162,103 @@ namespace {
     return info;
   }
 
-  /// Device extension name constant.
-  constexpr const char* SWAPCHAIN_EXTENSION = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+  std::vector<const char*> supportedDeviceExtensions(VkPhysicalDevice gpu) {
+    uint32_t count = 0;
+    vkEnumerateDeviceExtensionProperties(gpu, nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> props(count);
+    vkEnumerateDeviceExtensionProperties(gpu, nullptr, &count, props.data());
+    // The names live in `props`, which dies here; keep only the ones the
+    // backend asks about, which all have static storage.
+    std::vector<const char*> names;
+    for (const auto& p : props) {
+      if (std::strcmp(p.extensionName, PORTABILITY_SUBSET_EXTENSION) == 0) {
+        names.push_back(PORTABILITY_SUBSET_EXTENSION);
+      }
+      for (const char* wanted : REQUIRED_DEVICE_EXTENSIONS) {
+        if (std::strcmp(p.extensionName, wanted) == 0) {
+          names.push_back(wanted);
+        }
+      }
+    }
+    return names;
+  }
 
-  /// Build a VkDeviceCreateInfo with a single queue and swapchain extension.
+  /// The extensions to enable, or empty when a required one is missing.
+  std::vector<const char*> pickDeviceExtensions(VkPhysicalDevice gpu) {
+    std::vector<const char*> supported = supportedDeviceExtensions(gpu);
+    for (const char* name : REQUIRED_DEVICE_EXTENSIONS) {
+      if (!listsName(supported, name)) {
+        return {};
+      }
+    }
+    return supported;
+  }
+
+  /// A Vulkan 1.0–1.3 feature chain. Its members point at one another, so
+  /// it is filled in place and never copied.
+  struct DeviceFeatures {
+    /// Core features, the head of the chain.
+    VkPhysicalDeviceFeatures2 core{};
+    /// Vulkan 1.2 features.
+    VkPhysicalDeviceVulkan12Features v12{};
+    /// Vulkan 1.3 features.
+    VkPhysicalDeviceVulkan13Features v13{};
+  };
+
+  void chainFeatures(DeviceFeatures& f) {
+    f.core.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    f.v12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    f.v13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    f.core.pNext = &f.v12;
+    f.v12.pNext = &f.v13;
+  }
+
+  /// What to enable: dynamic rendering and synchronization2, which every
+  /// pass and barrier here uses, and indirect count and wireframe where
+  /// the device has them. False when a required one is missing.
+  bool pickFeatures(VkPhysicalDevice gpu, DeviceFeatures& out) {
+    DeviceFeatures supported;
+    chainFeatures(supported);
+    vkGetPhysicalDeviceFeatures2(gpu, &supported.core);
+    if (supported.v13.dynamicRendering != VK_TRUE ||
+        supported.v13.synchronization2 != VK_TRUE) {
+      return false;
+    }
+    chainFeatures(out);
+    out.v13.dynamicRendering = VK_TRUE;
+    out.v13.synchronization2 = VK_TRUE;
+    out.v12.drawIndirectCount = supported.v12.drawIndirectCount;
+    out.core.features.fillModeNonSolid =
+        supported.core.features.fillModeNonSolid;
+    return true;
+  }
+
   VkDeviceCreateInfo
-  buildDeviceCreateInfo(const VkDeviceQueueCreateInfo& queue_info) {
+  buildDeviceCreateInfo(const VkDeviceQueueCreateInfo& queue_info,
+                        const std::vector<const char*>& exts,
+                        const DeviceFeatures& features) {
     VkDeviceCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    info.pNext = &features.core;
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &queue_info;
-    info.enabledExtensionCount = 1;
-    info.ppEnabledExtensionNames = &SWAPCHAIN_EXTENSION;
+    info.enabledExtensionCount = static_cast<uint32_t>(exts.size());
+    info.ppEnabledExtensionNames = exts.data();
     return info;
+  }
+
+  /// One graphics queue from `family`, the given extensions and features.
+  VkDevice createLogicalDevice(VkPhysicalDevice gpu, uint32_t family,
+                               const std::vector<const char*>& exts,
+                               const DeviceFeatures& features) {
+    const float priority = 1.0f;
+    const auto queue_info = buildQueueCreateInfo(family, &priority);
+    const auto info = buildDeviceCreateInfo(queue_info, exts, features);
+    VkDevice device = VK_NULL_HANDLE;
+    if (vkCreateDevice(gpu, &info, nullptr, &device) != VK_SUCCESS) {
+      return VK_NULL_HANDLE;
+    }
+    return device;
   }
 
   bool createCommandPool(VkDevice device, uint32_t queue_family,
@@ -184,7 +298,6 @@ namespace {
   bool createSyncObjects(VkDevice device, PerFrameData& frame) {
     // NOLINTNEXTLINE(cppcoreguidelines-init-variables) — FP; init by call
     bool ok = createSemaphore(device, &frame.image_available);
-    ok = ok && createSemaphore(device, &frame.render_finished);
     ok = ok && createSignaledFence(device, &frame.in_flight_fence);
     return ok;
   }
@@ -217,6 +330,13 @@ namespace {
       }
     }
     return formats.front();
+  }
+
+  VkSurfaceCapabilitiesKHR querySurfaceCapabilities(VkPhysicalDevice gpu,
+                                                    VkSurfaceKHR surface) {
+    VkSurfaceCapabilitiesKHR caps{};
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &caps);
+    return caps;
   }
 
   /// Whether vertical sync is enabled for present mode selection.
@@ -285,6 +405,13 @@ namespace {
     return count;
   }
 
+  /// Colour attachment always; transfer source too when the surface allows
+  /// it, so the capture API can copy the back buffer out.
+  VkImageUsageFlags pickSwapUsage(const VkSurfaceCapabilitiesKHR& caps) {
+    return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+           (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+  }
+
   // Named algorithm: buildSwapchainCreateInfo
   // Stateless assembly of VkSwapchainCreateInfoKHR from pre-selected
   // surface format, present mode, and extent. No side effects; pure struct.
@@ -297,7 +424,7 @@ namespace {
     info.imageColorSpace = p.fmt.colorSpace;
     info.imageExtent = p.extent;
     info.imageArrayLayers = 1;
-    info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    info.imageUsage = pickSwapUsage(p.caps);
     info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     info.preTransform = p.caps.currentTransform;
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -359,9 +486,6 @@ namespace {
     if (frame.in_flight_fence != VK_NULL_HANDLE) {
       vkDestroyFence(device, frame.in_flight_fence, nullptr);
     }
-    if (frame.render_finished != VK_NULL_HANDLE) {
-      vkDestroySemaphore(device, frame.render_finished, nullptr);
-    }
     if (frame.image_available != VK_NULL_HANDLE) {
       vkDestroySemaphore(device, frame.image_available, nullptr);
     }
@@ -372,6 +496,55 @@ namespace {
     return cfg.vsync ? VsyncEnabled::YES : VsyncEnabled::NO;
   }
 
+  /// A mapped, zeroed uniform buffer; its buffer is null on failure.
+  VulkanBuffer createZeroedUniform(VmaAllocator allocator) {
+    VkBufferCreateInfo buf_info{};
+    buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buf_info.size = VULKAN_NULL_UNIFORM_BYTES;
+    buf_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    VmaAllocationCreateInfo alloc_info{};
+    alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+    alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                       VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    VulkanBuffer buf{};
+    VmaAllocationInfo mapped{};
+    if (vmaCreateBuffer(allocator, &buf_info, &alloc_info, &buf.buffer,
+                        &buf.allocation, &mapped) == VK_SUCCESS) {
+      std::memset(mapped.pMappedData, 0, VULKAN_NULL_UNIFORM_BYTES);
+      vmaFlushAllocation(allocator, buf.allocation, 0, VK_WHOLE_SIZE);
+    }
+    return buf;
+  }
+
+  /// A texture's image, as a ref that tracks its layout in place.
+  VulkanImageRef textureRef(VulkanTexture& tex) {
+    VulkanImageRef ref{};
+    ref.image = tex.image;
+    ref.view = tex.view;
+    ref.aspect = tex.aspect;
+    ref.format = tex.format;
+    ref.extent = {tex.width, tex.height};
+    ref.usage = tex.usage;
+    ref.layout = &tex.layout;
+    return ref;
+  }
+
+  void destroyRetiredObject(VkDevice device, VmaAllocator allocator,
+                            const VulkanRetiredObject& object) {
+    if (object.pipeline != VK_NULL_HANDLE) {
+      vkDestroyPipeline(device, object.pipeline, nullptr);
+    }
+    if (object.view != VK_NULL_HANDLE) {
+      vkDestroyImageView(device, object.view, nullptr);
+    }
+    if (object.image != VK_NULL_HANDLE) {
+      vmaDestroyImage(allocator, object.image, object.allocation);
+    }
+    if (object.buffer != VK_NULL_HANDLE) {
+      vmaDestroyBuffer(allocator, object.buffer, object.allocation);
+    }
+  }
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -379,9 +552,15 @@ namespace {
 // ---------------------------------------------------------------------------
 
 bool VulkanDevice::Impl::initAll() {
+  // No window, no surface — and before a Vulkan window exists SDL has no
+  // loader to ask for surface extensions, and crashes if asked.
+  if (config.native_window == nullptr) {
+    return false;
+  }
   bool ok = initInstance() && selectPhysicalDevice() && initSurface();
   ok = ok && initLogicalDevice() && initAllocator();
   ok = ok && initSwapchain() && initPerFrameData();
+  ok = ok && initSharedLayout() && initUploadResources();
   if (ok) {
     populateCapabilities();
   }
@@ -407,7 +586,13 @@ bool VulkanDevice::Impl::selectPhysicalDevice() {
   std::vector<VkPhysicalDevice> devices(count);
   vkEnumeratePhysicalDevices(instance, &count, devices.data());
   physical_device = pickBestDevice(devices);
-  return physical_device != VK_NULL_HANDLE;
+  if (physical_device == VK_NULL_HANDLE) {
+    return false;
+  }
+  VkPhysicalDeviceProperties props{};
+  vkGetPhysicalDeviceProperties(physical_device, &props);
+  uniform_alignment = props.limits.minUniformBufferOffsetAlignment;
+  return true;
 }
 
 void VulkanDevice::Impl::discoverQueueFamilies() {
@@ -424,11 +609,15 @@ void VulkanDevice::Impl::discoverQueueFamilies() {
 
 bool VulkanDevice::Impl::initLogicalDevice() {
   discoverQueueFamilies();
-  float priority = 1.0f;
-  auto queue_info = buildQueueCreateInfo(graphics_family, &priority);
-  auto dev_info = buildDeviceCreateInfo(queue_info);
-  if (vkCreateDevice(physical_device, &dev_info, nullptr, &device) !=
-      VK_SUCCESS) {
+  const std::vector<const char*> exts = pickDeviceExtensions(physical_device);
+  DeviceFeatures features;
+  if (exts.empty() || !pickFeatures(physical_device, features)) {
+    return false;
+  }
+  draw_indirect_count = features.v12.drawIndirectCount == VK_TRUE;
+  device =
+      createLogicalDevice(physical_device, graphics_family, exts, features);
+  if (device == VK_NULL_HANDLE) {
     return false;
   }
   vkGetDeviceQueue(device, graphics_family, 0, &graphics_queue);
@@ -457,15 +646,17 @@ bool VulkanDevice::Impl::initSwapchain() {
   if (surface == VK_NULL_HANDLE) {
     return false;
   }
-  VkSurfaceCapabilitiesKHR caps{};
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &caps);
-
+  const VkSurfaceCapabilitiesKHR surface_caps =
+      querySurfaceCapabilities(physical_device, surface);
   auto fmt = pickSurfaceFormat(physical_device, surface);
   auto mode = pickPresentMode(physical_device, surface, toVsyncEnabled(config));
-  auto extent =
-      pickSwapExtent(caps, config.backbuffer_width, config.backbuffer_height);
-  auto info = buildSwapchainCreateInfo({surface, caps, fmt, mode, extent});
-  return createSwapchainResources(info, fmt.format, extent);
+  auto extent = pickSwapExtent(surface_caps, config.backbuffer_width,
+                               config.backbuffer_height);
+  auto info =
+      buildSwapchainCreateInfo({surface, surface_caps, fmt, mode, extent});
+  swapchain_usage = info.imageUsage;
+  return createSwapchainResources(info, fmt.format, extent) &&
+         createPresentSemaphores();
 }
 
 bool VulkanDevice::Impl::createSwapchainResources(
@@ -480,9 +671,20 @@ bool VulkanDevice::Impl::createSwapchainResources(
   vkGetSwapchainImagesKHR(device, swapchain, &count, nullptr);
   swapchain_images.resize(count);
   vkGetSwapchainImagesKHR(device, swapchain, &count, swapchain_images.data());
+  swapchain_layouts.assign(count, VK_IMAGE_LAYOUT_UNDEFINED);
 
   swapchain_views = createSwapchainImageViews(device, swapchain_images, fmt);
   return !swapchain_views.empty();
+}
+
+bool VulkanDevice::Impl::createPresentSemaphores() {
+  present_ready.assign(swapchain_images.size(), VK_NULL_HANDLE);
+  for (auto& semaphore : present_ready) {
+    if (!createSemaphore(device, &semaphore)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool VulkanDevice::Impl::initPerFrameData() {
@@ -490,8 +692,27 @@ bool VulkanDevice::Impl::initPerFrameData() {
     if (!initSingleFrame(device, graphics_family, frame)) {
       return false;
     }
+    if (!frame.stage_bytes.create(allocator, VULKAN_STAGE_BYTES_CAPACITY,
+                                  uniform_alignment)) {
+      return false;
+    }
   }
   return true;
+}
+
+bool VulkanDevice::Impl::initSharedLayout() {
+  push_descriptor_set = reinterpret_cast<PFN_vkCmdPushDescriptorSetKHR>(
+      vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetKHR"));
+  return push_descriptor_set != nullptr &&
+         createVulkanSharedLayout(device, shared_layout);
+}
+
+bool VulkanDevice::Impl::initUploadResources() {
+  if (!createCommandPool(device, graphics_family, &upload_pool)) {
+    return false;
+  }
+  null_uniform = createZeroedUniform(allocator);
+  return null_uniform.buffer != VK_NULL_HANDLE;
 }
 
 void VulkanDevice::Impl::populateCapabilities() {
@@ -516,6 +737,7 @@ void VulkanDevice::Impl::populateCapabilities() {
 
 void VulkanDevice::Impl::destroyPerFrameData() {
   for (auto& frame : frames) {
+    frame.stage_bytes.destroy(allocator);
     destroySyncObjects(device, frame);
     if (frame.command_pool != VK_NULL_HANDLE) {
       vkDestroyCommandPool(device, frame.command_pool, nullptr);
@@ -527,14 +749,52 @@ void VulkanDevice::Impl::destroySwapchain() {
   for (auto view : swapchain_views) {
     vkDestroyImageView(device, view, nullptr);
   }
+  for (VkSemaphore semaphore : present_ready) {
+    vkDestroySemaphore(device, semaphore, nullptr);
+  }
   if (swapchain != VK_NULL_HANDLE) {
     vkDestroySwapchainKHR(device, swapchain, nullptr);
+  }
+  swapchain = VK_NULL_HANDLE;
+  swapchain_views.clear();
+  swapchain_images.clear();
+  swapchain_layouts.clear();
+  present_ready.clear();
+}
+
+void VulkanDevice::Impl::destroyResources() {
+  releaseRetired(UINT64_MAX);
+  pipelines.forEachAlive(
+      [this](VulkanPipeline& p) { retire({0, {}, {}, {}, {}, p.pipeline}); });
+  shaders.forEachAlive([this](VulkanShader& s) {
+    vkDestroyShaderModule(device, s.module, nullptr);
+  });
+  textures.forEachAlive([this](VulkanTexture& t) {
+    retire({0, {}, t.image, t.view, t.allocation, {}});
+  });
+  buffers.forEachAlive([this](VulkanBuffer& b) {
+    retire({0, b.buffer, {}, {}, b.allocation, {}});
+  });
+  releaseRetired(UINT64_MAX);
+}
+
+void VulkanDevice::Impl::destroyBackendObjects() {
+  destroyVulkanSharedLayout(device, shared_layout);
+  if (upload_pool != VK_NULL_HANDLE) {
+    vkDestroyCommandPool(device, upload_pool, nullptr);
+  }
+  if (null_uniform.buffer != VK_NULL_HANDLE) {
+    vmaDestroyBuffer(allocator, null_uniform.buffer, null_uniform.allocation);
   }
 }
 
 void VulkanDevice::Impl::teardown() {
-  destroyPerFrameData();
-  destroySwapchain();
+  if (device != VK_NULL_HANDLE) {
+    destroyResources();
+    destroyBackendObjects();
+    destroyPerFrameData();
+    destroySwapchain();
+  }
   destroyCoreObjects();
 }
 
@@ -577,7 +837,10 @@ bool VulkanDevice::Impl::createImageView(VulkanTexture& tex) {
   info.image = tex.image;
   info.viewType = VK_IMAGE_VIEW_TYPE_2D;
   info.format = tex.format;
-  info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  // A sampled view of a depth-stencil image may name only one aspect; the
+  // depth is the one the outline pass reads.
+  info.subresourceRange.aspectMask =
+      tex.aspect & ~VkImageAspectFlags{VK_IMAGE_ASPECT_STENCIL_BIT};
   info.subresourceRange.levelCount = 1;
   info.subresourceRange.layerCount = 1;
   return vkCreateImageView(device, &info, nullptr, &tex.view) == VK_SUCCESS;
@@ -587,6 +850,59 @@ void VulkanDevice::Impl::recreateSwapchain() {
   vkDeviceWaitIdle(device);
   destroySwapchain();
   initSwapchain();
+}
+
+VulkanImageRef VulkanDevice::Impl::imageRef(RhiTextureHandle handle) {
+  // Handles 1..N are the swapchain images; see `backbufferTexture`.
+  const auto sc_count = static_cast<RhiTextureHandle>(swapchain_images.size());
+  if (handle > 0 && handle <= sc_count) {
+    const auto i = static_cast<size_t>(handle - 1);
+    return {swapchain_images[i],  swapchain_views[i], VK_IMAGE_ASPECT_COLOR_BIT,
+            swapchain_format,     swapchain_extent,   swapchain_usage,
+            &swapchain_layouts[i]};
+  }
+  auto* tex = textures.lookup(handle);
+  return tex != nullptr ? textureRef(*tex) : VulkanImageRef{};
+}
+
+VkCommandBuffer VulkanDevice::Impl::beginOneShot() {
+  VkCommandBuffer cmd = VK_NULL_HANDLE;
+  if (!allocateCommandBuffer(device, upload_pool, &cmd)) {
+    return VK_NULL_HANDLE;
+  }
+  VkCommandBufferBeginInfo begin{};
+  begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  vkBeginCommandBuffer(cmd, &begin);
+  return cmd;
+}
+
+void VulkanDevice::Impl::submitOneShot(VkCommandBuffer cmd) {
+  vkEndCommandBuffer(cmd);
+  VkSubmitInfo submit{};
+  submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submit.commandBufferCount = 1;
+  submit.pCommandBuffers = &cmd;
+  vkQueueSubmit(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+  vkQueueWaitIdle(graphics_queue);
+  vkFreeCommandBuffers(device, upload_pool, 1, &cmd);
+}
+
+void VulkanDevice::Impl::retire(VulkanRetiredObject object) {
+  object.frame_serial = frame_serial;
+  retired.push_back(object);
+}
+
+void VulkanDevice::Impl::releaseRetired(uint64_t completed_serial) {
+  auto done = [completed_serial](const VulkanRetiredObject& o) {
+    return o.frame_serial <= completed_serial;
+  };
+  for (const auto& object : retired) {
+    if (done(object)) {
+      destroyRetiredObject(device, allocator, object);
+    }
+  }
+  std::erase_if(retired, done);
 }
 
 }  // namespace eng::render

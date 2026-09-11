@@ -74,14 +74,36 @@ endif()
 # --- Vulkan backend ---
 if(ENGINE_PLATFORM_DESKTOP AND ENGINE_RENDERER_RESOLVED STREQUAL "VULKAN")
     find_package(Vulkan REQUIRED)
+    set(_vulkan_src ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src)
     set(_vulkan_sources
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-device.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-device-init.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-command-list.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-device-impl.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-command-list.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-handle-table.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src/vulkan-format-map.h
+        ${_vulkan_src}/vulkan-builtin-pipelines.cpp
+        ${_vulkan_src}/vulkan-command-list.cpp
+        ${_vulkan_src}/vulkan-device.cpp
+        ${_vulkan_src}/vulkan-device-init.cpp
+        ${_vulkan_src}/vulkan-glsl-compiler.cpp
+        ${_vulkan_src}/vulkan-image-transition.cpp
+        ${_vulkan_src}/vulkan-memory-allocator.cpp
+        ${_vulkan_src}/vulkan-shared-layout.cpp
+        ${_vulkan_src}/vulkan-upload-ring.cpp
+        ${_vulkan_src}/vulkan-buffer-resource.h
+        ${_vulkan_src}/vulkan-builtin-pipelines.h
+        ${_vulkan_src}/vulkan-command-list.h
+        ${_vulkan_src}/vulkan-device-impl.h
+        ${_vulkan_src}/vulkan-format-map.h
+        ${_vulkan_src}/vulkan-frames-in-flight.h
+        ${_vulkan_src}/vulkan-glsl-compiler.h
+        ${_vulkan_src}/vulkan-handle-table.h
+        ${_vulkan_src}/vulkan-image-ref.h
+        ${_vulkan_src}/vulkan-image-transition.h
+        ${_vulkan_src}/vulkan-pass-attachments.h
+        ${_vulkan_src}/vulkan-per-frame-data.h
+        ${_vulkan_src}/vulkan-pipeline-resource.h
+        ${_vulkan_src}/vulkan-retired-object.h
+        ${_vulkan_src}/vulkan-shader-resource.h
+        ${_vulkan_src}/vulkan-shared-layout.h
+        ${_vulkan_src}/vulkan-stage-bindings.h
+        ${_vulkan_src}/vulkan-texture-resource.h
+        ${_vulkan_src}/vulkan-upload-ring.h
         ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/include/engine/render/backends/vulkan/vulkan-device.h
     )
     simplish_add_module(simplish-platform-render-backend-vulkan
@@ -89,7 +111,11 @@ if(ENGINE_PLATFORM_DESKTOP AND ENGINE_RENDERER_RESOLVED STREQUAL "VULKAN")
         SOURCES     ${_vulkan_sources}
         DEPENDENCIES simplish-engine-core simplish-engine-render simplish-engine-image SDL3::SDL3 stb::stb
     )
-    target_link_libraries(simplish-platform-render-backend-vulkan PUBLIC Vulkan::Vulkan)
+    # glslang backs the built-in pipelines, which compile their GLSL at
+    # device creation the way the Metal backend compiles its MSL.
+    target_link_libraries(simplish-platform-render-backend-vulkan PUBLIC
+        Vulkan::Vulkan GPUOpen::VulkanMemoryAllocator
+        glslang::glslang glslang::glslang-default-resource-limits)
 endif()
 
 # --- DX12 backend ---
@@ -160,15 +186,33 @@ _drop_tests(_is_opengl "${CMAKE_CURRENT_SOURCE_DIR}/test/test_opengl*.cpp")
 _drop_tests(_is_vulkan "${CMAKE_CURRENT_SOURCE_DIR}/test/test_vulkan*.cpp")
 _drop_tests(_is_dx12   "${CMAKE_CURRENT_SOURCE_DIR}/test/test_dx12*.cpp")
 
+# test_gpu_* run on whichever backend can draw — Metal, Vulkan or DX12 — on a
+# hidden SDL window, and skip where no device answers. The stub and OpenGL
+# builds have nothing for them to draw with.
+set(_has_gpu_tests FALSE)
+if(_is_metal OR _is_vulkan OR _is_dx12)
+    set(_has_gpu_tests TRUE)
+endif()
+_drop_tests(_has_gpu_tests "${CMAKE_CURRENT_SOURCE_DIR}/test/test_gpu*.cpp;${CMAKE_CURRENT_SOURCE_DIR}/test/support/gpu_*.cpp")
+
 if(ENGINE_BUILD_TESTS AND _render_tests)
+    set(_render_test_deps simplish-platform-render)
+    # The GPU tests draw through the real GUI renderer.
+    if(_has_gpu_tests)
+        list(APPEND _render_test_deps simplish-engine-gui)
+    endif()
     simplish_add_test(simplish-platform-render-tests
         SOURCES      ${_render_tests}
-        DEPENDENCIES simplish-platform-render
+        DEPENDENCIES ${_render_test_deps}
     )
     # Backend tests reach their backend's private headers by name, as a
     # package's own tests may (code-layout.md §4).
     if(_is_dx12)
         target_include_directories(simplish-platform-render-tests PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/backends/dx12/src)
+    endif()
+    if(_is_vulkan)
+        target_include_directories(simplish-platform-render-tests PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backends/vulkan/src)
     endif()
 endif()

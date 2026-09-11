@@ -88,10 +88,10 @@ A batch break occurs when either changes. The renderer sorts draw commands by z-
 
 ### 4.2 Vertex Buffer
 
-- A single dynamic vertex buffer is used per frame, sized to hold the maximum expected vertex count (default 64K vertices = ~1 MB).
-- An index buffer provides triangle indices for quad rendering (6 indices per quad: 2 triangles).
-- The buffer is mapped, written CPU-side, then unmapped before draw submission.
-- If the buffer overflows, a second buffer is allocated and a new batch starts.
+- Each frame's geometry goes into one host-visible vertex buffer (default 64K vertices, 40 bytes each) and one index buffer (6 indices per quad: 2 triangles).
+- The renderer keeps `GUI_FRAME_BUFFER_COUNT` (3) such pairs in `GuiRendererContext::frame_buffers` and moves to the next pair on every `uploadFrame`. Every backend keeps two frames in flight, so the GPU can still be drawing from the previous frame's pair while the CPU writes this one; a single shared pair would be overwritten mid-draw (torn quads, wrong glyphs). The third pair covers a backend configured one frame deeper — the RHI does not report its depth. `uploadFrame` must therefore run once per device frame, after `RhiDevice::beginFrame`.
+- A pair is mapped, written CPU-side, then unmapped before draw submission.
+- If a frame overflows its pair, that pair alone is replaced by one twice the size; the old buffers are destroyed at once, which every backend tolerates while a frame in flight still holds them (Metal retains them, Vulkan defers destruction until the frame retires). `test_gui_renderer.cpp` covers the rotation, the growth and shutdown.
 
 ### 4.3 Texture Atlas Batching
 

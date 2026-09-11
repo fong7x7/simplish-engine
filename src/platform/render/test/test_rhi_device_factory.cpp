@@ -50,7 +50,11 @@ TEST_CASE("RhiDeviceFactory::create preserves RenderConfig dimensions",
   config.backbuffer_width = 1280;
   config.backbuffer_height = 720;
   auto result = RhiDeviceFactory::create(config);
-  // When a real device is created, backbuffer dimensions should match.
-  // Stub backend always succeeds — verify it returned something.
-  REQUIRE(result.has_value());
+  // Without a window, Metal and the stub hand back a headless device; the
+  // other backends refuse, as PLT-RHI-3 has a failed creation do. Whatever
+  // does come back carries the size it was asked for.
+  if (result.has_value()) {
+    CHECK((*result)->backbufferWidth() == 1280);
+    CHECK((*result)->backbufferHeight() == 720);
+  }
 }

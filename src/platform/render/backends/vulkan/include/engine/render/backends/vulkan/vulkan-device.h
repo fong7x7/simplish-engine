@@ -13,11 +13,21 @@
 //   - All GPU memory allocated through VulkanMemoryAllocator (VMA)
 //   - Double-buffered frame lifecycle with per-frame sync objects
 //   - Present via VkSwapchainKHR from SDL native window surface
-//   - Support optional ray tracing extensions (VK_KHR_ray_tracing_pipeline)
+//   - Ship the GUI, mesh, skinned mesh and outline pipelines, compiled from
+//     GLSL at creation the way the Metal backend compiles its MSL
+//   - Bind stage bytes and fragment textures by push descriptor against one
+//     shared layout, so the renderers drive it exactly as they drive Metal
+//   - Track every image's layout, since the renderers issue no barriers
+//   - Defer destroying a resource until the frames that used it retire
 //
 // Edge Cases:
 //   - vkCreateInstance / vkCreateDevice fails: create() returns nullopt
-//   - No physical device found: create() returns nullopt
+//   - No Vulkan 1.3 device with dynamic rendering, synchronization2 and
+//     VK_KHR_push_descriptor: create() returns nullopt
+//   - captureFramebuffer() of the back buffer works only between
+//     beginFrame() and present(); after present the image belongs to the
+//     presentation engine and the capture is nullopt. (Metal reads the
+//     drawable after present, which Vulkan does not allow.)
 //   - Swapchain out-of-date: recreate internally on beginFrame(), return false
 //     on present()
 //   - Resource allocation failure: returns RHI_*_INVALID handle
@@ -83,6 +93,12 @@ public:
   createComputePipeline(const RhiComputePipelineDesc& desc) override;
   void destroyPipeline(RhiPipelineHandle handle) override;
 
+  // --- Built-in pipelines (GLSL compiled at creation, as Metal's MSL is) ---
+  bool tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
+
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -114,12 +130,19 @@ public:
   VulkanDevice(const VulkanDevice&) = delete;
   VulkanDevice& operator=(const VulkanDevice&) = delete;
 
+  /// Opaque implementation data (all Vulkan types hidden here). The name is
+  /// public because the backend's own helpers — the command list above all
+  /// — take it as a parameter; the definition lives only in the private
+  /// vulkan-device-impl.h, so nothing outside the backend can use it.
+  // A pImpl is a forward declaration by construction: defining it here
+  // would pull vulkan.h into every includer of this header. The invariant
+  // checker reads only a same-line suppression.
+  struct Impl;  // NOLINT(no-forward-decl)
+
 private:
   /// Private constructor; use create() factory.
   VulkanDevice();
 
-  /// Opaque implementation data (all Vulkan types hidden here).
-  struct Impl;
   /// Pointer to implementation (PIMPL pattern).
   std::unique_ptr<Impl> impl_;
 };

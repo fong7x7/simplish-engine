@@ -23,6 +23,12 @@ struct VulkanTexture {
   VkFormat format = VK_FORMAT_UNDEFINED;
   /// Original RHI format (for updateTexture2D validation).
   RhiFormat rhi_format = RhiFormat::UNDEFINED;
+  /// Colour, or depth (and stencil) for a depth format.
+  VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+  /// Usage the image was created with, the backend's additions included.
+  VkImageUsageFlags usage = 0;
+  /// The layout the backend last left the image in; see `VulkanImageRef`.
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 
 }  // namespace eng::render

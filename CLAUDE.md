@@ -65,7 +65,7 @@ private headers, and never a relative escape into another package.
 
 Raw presets work too: `cmake --preset debug && cmake --build --preset debug && ctest --preset debug`.
 Presets: `debug`, `release`, `relwithdebinfo`, `headless` (stub RHI, determinism CI),
-`opengl`, `asan`.
+`opengl`, `vulkan` (runs on macOS through MoltenVK), `asan`.
 
 ## Invariants — enforced by scripts, not taste
 

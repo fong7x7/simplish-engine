@@ -4,7 +4,7 @@
 // Guard with ENGINE_HAS_VULKAN so the file compiles without the SDK.
 #ifdef ENGINE_RENDERER_VULKAN
 
-#include "../../../render/backends/vulkan/src/vulkan-format-map.h"
+#include "vulkan-format-map.h"
 
 #include <engine/render/rhi-types.h>
 #include <vulkan/vulkan.h>

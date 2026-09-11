@@ -79,6 +79,38 @@ if(ENGINE_PLATFORM_WINDOWS)
 endif()
 
 # ---------------------------------------------------------------------------
+# Vulkan-only dependencies — fetched only when the Vulkan backend is selected
+# ---------------------------------------------------------------------------
+if(ENGINE_RENDERER_RESOLVED STREQUAL "VULKAN")
+    # VulkanMemoryAllocator — the Vulkan backend's counterpart of
+    # D3D12MemoryAllocator: every buffer and image is allocated through it.
+    # Header-only; vulkan-memory-allocator.cpp holds the implementation.
+    FetchContent_Declare(VulkanMemoryAllocator
+        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+        GIT_TAG        v3.3.0
+        GIT_SHALLOW    TRUE
+        SYSTEM
+    )
+
+    # glslang — compiles the backend's built-in GLSL to SPIR-V at device
+    # creation, the way the Metal backend compiles its MSL and the DX12 one
+    # its HLSL. Only the library is built: no optimizer, no HLSL front end,
+    # no command-line tools, no tests.
+    set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+    set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+    set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+    set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
+    set(GLSLANG_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLSLANG_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(glslang
+        GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
+        GIT_TAG        16.5.0
+        GIT_SHALLOW    TRUE
+        SYSTEM
+    )
+endif()
+
+# ---------------------------------------------------------------------------
 # Make all declared dependencies available
 # ---------------------------------------------------------------------------
 message(STATUS "Fetching dependencies...")
@@ -110,6 +142,10 @@ endif()
 
 if(ENGINE_PLATFORM_WINDOWS)
     FetchContent_MakeAvailable(D3D12MemoryAllocator)
+endif()
+
+if(ENGINE_RENDERER_RESOLVED STREQUAL "VULKAN")
+    FetchContent_MakeAvailable(VulkanMemoryAllocator glslang)
 endif()
 
 # stb — header-only, no CMakeLists.txt. Populate and create INTERFACE target.

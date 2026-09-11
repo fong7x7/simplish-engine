@@ -312,39 +312,43 @@ namespace {
     return createDynamicBuffer(device, new_size, usage, name);
   }
 
-  /// Grow vertex buffer if the frame exceeds current capacity.
-  void growVertexBufferIfNeeded(GuiRendererContext& ctx, uint32_t vert_count) {
-    if (vert_count <= ctx.vertex_capacity) {
+  /// Grow a pair's vertex buffer if the frame exceeds its capacity. The
+  /// other pairs keep theirs, and grow only when a frame needs them to.
+  void growVertexBufferIfNeeded(RhiDevice& device, GuiFrameBuffers& pair,
+                                uint32_t vert_count) {
+    if (vert_count <= pair.vertex_capacity) {
       return;
     }
     auto required = static_cast<uint64_t>(vert_count) * gui::GUI_VERTEX_STRIDE;
     auto old_cap =
-        static_cast<uint64_t>(ctx.vertex_capacity) * gui::GUI_VERTEX_STRIDE;
-    ctx.vertex_buffer =
-        growBuffer(*ctx.device, {ctx.vertex_buffer, old_cap, required,
-                                 RhiBufferUsage::VERTEX, "gui_vertex_buffer"});
-    ctx.vertex_capacity = vert_count * 2;
+        static_cast<uint64_t>(pair.vertex_capacity) * gui::GUI_VERTEX_STRIDE;
+    pair.vertex_buffer =
+        growBuffer(device, {pair.vertex_buffer, old_cap, required,
+                            RhiBufferUsage::VERTEX, "gui_vertex_buffer"});
+    pair.vertex_capacity = vert_count * 2;
   }
 
-  /// Grow index buffer if the frame exceeds current capacity.
-  void growIndexBufferIfNeeded(GuiRendererContext& ctx, uint32_t idx_count) {
-    if (idx_count <= ctx.index_capacity) {
+  /// Grow a pair's index buffer if the frame exceeds its capacity.
+  void growIndexBufferIfNeeded(RhiDevice& device, GuiFrameBuffers& pair,
+                               uint32_t idx_count) {
+    if (idx_count <= pair.index_capacity) {
       return;
     }
     auto required = static_cast<uint64_t>(idx_count) * sizeof(uint32_t);
-    auto old_cap = static_cast<uint64_t>(ctx.index_capacity) * sizeof(uint32_t);
-    ctx.index_buffer =
-        growBuffer(*ctx.device, {ctx.index_buffer, old_cap, required,
-                                 RhiBufferUsage::INDEX, "gui_index_buffer"});
-    ctx.index_capacity = idx_count * 2;
+    auto old_cap =
+        static_cast<uint64_t>(pair.index_capacity) * sizeof(uint32_t);
+    pair.index_buffer =
+        growBuffer(device, {pair.index_buffer, old_cap, required,
+                            RhiBufferUsage::INDEX, "gui_index_buffer"});
+    pair.index_capacity = idx_count * 2;
   }
 
-  /// Upload vertex/index data and bind pipeline + buffers.
-  void uploadFrameBuffers(GuiRendererContext& ctx, uint32_t vert_count,
-                          uint32_t idx_count) {
-    uploadBuffer(*ctx.device, ctx.vertex_buffer, ctx.vertices.data(),
+  /// Copy the frame's vertices and indices into `pair`.
+  void uploadFrameBuffers(GuiRendererContext& ctx, const GuiFrameBuffers& pair,
+                          uint32_t vert_count, uint32_t idx_count) {
+    uploadBuffer(*ctx.device, pair.vertex_buffer, ctx.vertices.data(),
                  static_cast<uint64_t>(vert_count) * gui::GUI_VERTEX_STRIDE);
-    uploadBuffer(*ctx.device, ctx.index_buffer, ctx.indices.data(),
+    uploadBuffer(*ctx.device, pair.index_buffer, ctx.indices.data(),
                  static_cast<uint64_t>(idx_count) * sizeof(uint32_t));
   }
 
@@ -352,8 +356,9 @@ namespace {
     if (ctx.pipeline != RHI_PIPELINE_INVALID) {
       cmd_list.bindPipeline(ctx.pipeline);
     }
-    cmd_list.bindVertexBuffer(ctx.vertex_buffer);
-    cmd_list.bindIndexBuffer(ctx.index_buffer, 0, RhiIndexType::UINT32);
+    const GuiFrameBuffers& pair = ctx.frame_buffers[ctx.frame_slot];
+    cmd_list.bindVertexBuffer(pair.vertex_buffer);
+    cmd_list.bindIndexBuffer(pair.index_buffer, 0, RhiIndexType::UINT32);
     GuiNdcScale ndc{};
     const auto vw = std::max(1u, ctx.viewport_width);
     const auto vh = std::max(1u, ctx.viewport_height);
@@ -362,28 +367,48 @@ namespace {
     cmd_list.setVertexStageBytes(&ndc, sizeof(ndc), 1);
   }
 
-  /// Create initial vertex and index buffers on the GPU.
-  void createInitialBuffers(GuiRendererContext& ctx, RhiDevice& device) {
+  /// Create one pair's vertex and index buffers at the default capacities.
+  GuiFrameBuffers createInitialBuffers(RhiDevice& device) {
     auto vb_bytes =
         static_cast<uint64_t>(DEFAULT_VERTEX_CAPACITY) * gui::GUI_VERTEX_STRIDE;
-    ctx.vertex_buffer = createDynamicBuffer(
-        device, vb_bytes, RhiBufferUsage::VERTEX, "gui_vertex_buffer");
-    ctx.vertex_capacity = DEFAULT_VERTEX_CAPACITY;
-
     auto ib_bytes =
         static_cast<uint64_t>(DEFAULT_INDEX_CAPACITY) * sizeof(uint32_t);
-    ctx.index_buffer = createDynamicBuffer(
+    GuiFrameBuffers pair{};
+    pair.vertex_buffer = createDynamicBuffer(
+        device, vb_bytes, RhiBufferUsage::VERTEX, "gui_vertex_buffer");
+    pair.vertex_capacity = DEFAULT_VERTEX_CAPACITY;
+    pair.index_buffer = createDynamicBuffer(
         device, ib_bytes, RhiBufferUsage::INDEX, "gui_index_buffer");
-    ctx.index_capacity = DEFAULT_INDEX_CAPACITY;
+    pair.index_capacity = DEFAULT_INDEX_CAPACITY;
+    return pair;
+  }
+
+  /// Destroy one pair's buffers and forget them.
+  void destroyFrameBuffers(RhiDevice& device, GuiFrameBuffers& pair) {
+    if (pair.vertex_buffer != 0) {
+      device.destroyBuffer(pair.vertex_buffer);
+    }
+    if (pair.index_buffer != 0) {
+      device.destroyBuffer(pair.index_buffer);
+    }
+    pair = GuiFrameBuffers{};
   }
 
   /// Submit a quad batch draw command.
+  ///
+  /// `appendQuadIndices` writes each index as the vertex's position in the
+  /// whole frame, so the batch is selected by its first index alone. A
+  /// vertex offset as well would count the batch's start twice: every batch
+  /// after the first would draw the quads that follow it, dropping its own
+  /// first quad and reading past its last. Metal and OpenGL each used to
+  /// ignore one of the two offsets, which hid that; Vulkan and DX12 honour
+  /// both, as the RHI says to.
   void submitQuadBatch(const DrawCommand& cmd, RhiCommandList& cmd_list) {
     cmd_list.bindFragmentTexture(cmd.batch.texture, 0);
     RhiDrawIndexedParams params{};
     params.index_count = cmd.batch.index_count;
     params.first_index = cmd.batch.index_offset;
-    params.vertex_offset = static_cast<int32_t>(cmd.batch.vertex_offset);
+    params.vertex_offset = 0;
     cmd_list.drawIndexed(params);
   }
 
@@ -474,7 +499,10 @@ bool GuiRendererContext::init(RhiDevice* dev) {
   if (dev == nullptr) {
     return true;
   }
-  createInitialBuffers(*this, *dev);
+  for (GuiFrameBuffers& pair : frame_buffers) {
+    pair = createInitialBuffers(*dev);
+  }
+  frame_slot = 0;
   pipeline = RHI_PIPELINE_INVALID;
   if (dev->tryCreateGuiPipeline(pipeline)) {
     return true;
@@ -489,18 +517,13 @@ void GuiRendererContext::shutdown() {
     return;
   }
 
-  if (vertex_buffer != 0) {
-    device->destroyBuffer(vertex_buffer);
-  }
-  if (index_buffer != 0) {
-    device->destroyBuffer(index_buffer);
+  for (GuiFrameBuffers& pair : frame_buffers) {
+    destroyFrameBuffers(*device, pair);
   }
   if (pipeline != 0) {
     device->destroyPipeline(pipeline);
   }
-
-  vertex_buffer = 0;
-  index_buffer = 0;
+  frame_slot = 0;
   pipeline = 0;
   device = nullptr;
 }
@@ -617,11 +640,16 @@ void GuiRendererContext::uploadFrame() {
   if (vertices.empty() || device == nullptr) {
     return;
   }
+  // Every backend keeps frames in flight, so the pair the last frame wrote
+  // may still be feeding its draws. Write the next one instead; by the time
+  // the rotation comes back round, the frame that used it has retired.
+  frame_slot = (frame_slot + 1) % GUI_FRAME_BUFFER_COUNT;
+  GuiFrameBuffers& pair = frame_buffers[frame_slot];
   const auto vert_count = static_cast<uint32_t>(vertices.size());
   const auto idx_count = static_cast<uint32_t>(indices.size());
-  growVertexBufferIfNeeded(*this, vert_count);
-  growIndexBufferIfNeeded(*this, idx_count);
-  uploadFrameBuffers(*this, vert_count, idx_count);
+  growVertexBufferIfNeeded(*device, pair, vert_count);
+  growIndexBufferIfNeeded(*device, pair, idx_count);
+  uploadFrameBuffers(*this, pair, vert_count, idx_count);
 }
 
 void GuiRendererContext::bindFrame(RhiCommandList& cmd_list) {

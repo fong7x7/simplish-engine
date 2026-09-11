@@ -1,6 +1,8 @@
+#include "vulkan-builtin-pipelines.h"
 #include "vulkan-command-list.h"
 #include "vulkan-device-impl.h"
 #include "vulkan-format-map.h"
+#include "vulkan-image-transition.h"
 
 #ifdef ENGINE_RENDERER_VULKAN
 
@@ -16,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
@@ -36,24 +39,51 @@ namespace eng::render {
 
 namespace {
 
+  /// Every buffer can be copied to and from, as every Metal buffer can be
+  /// blitted; `copyBuffer` would otherwise fail on half of them.
   VkBufferCreateInfo buildBufferCreateInfo(const RhiBufferDesc& desc) {
     VkBufferCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     info.size = desc.size;
-    info.usage = toVkBufferUsage(desc.usage);
+    info.usage = toVkBufferUsage(desc.usage) |
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     return info;
   }
 
   /// Whether a buffer should be host-visible (CPU-mappable).
   enum class HostVisible { NO, YES };
 
+  /// Host-visible buffers are coherent too, since `unmapBuffer` flushes
+  /// nothing and the renderers write them with a plain memcpy.
   VmaAllocationCreateInfo buildBufferAllocInfo(HostVisible host_visible) {
     VmaAllocationCreateInfo info{};
     info.usage = host_visible == HostVisible::YES ? VMA_MEMORY_USAGE_CPU_TO_GPU
                                                   : VMA_MEMORY_USAGE_GPU_ONLY;
+    if (host_visible == HostVisible::YES) {
+      info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    }
     return info;
   }
 
+  /// Which aspects of an image of this format a view or barrier covers.
+  VkImageAspectFlags aspectForFormat(RhiFormat fmt) {
+    switch (fmt) {
+      case RhiFormat::D16_UNORM:
+      case RhiFormat::D32_FLOAT:
+        return VK_IMAGE_ASPECT_DEPTH_BIT;
+      case RhiFormat::D24_UNORM_S8_UINT:
+      case RhiFormat::D32_FLOAT_S8_UINT:
+        return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+      default:
+        return VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+  }
+
+  /// Transfer in both directions on top of what was asked for: uploads need
+  /// the one, capture and `copyTextureToBuffer` the other, and Metal lets
+  /// any texture be blitted either way.
   VkImageCreateInfo buildImageCreateInfo(const RhiTextureDesc& desc) {
     VkImageCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -64,7 +94,9 @@ namespace {
     info.arrayLayers = desc.array_layers;
     info.samples = VK_SAMPLE_COUNT_1_BIT;
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    info.usage = toVkImageUsage(desc.usage);
+    info.usage = toVkImageUsage(desc.usage) | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     return info;
   }
 
@@ -79,6 +111,8 @@ namespace {
     vk_tex.height = desc.height;
     vk_tex.format = img_info.format;
     vk_tex.rhi_format = desc.format;
+    vk_tex.aspect = aspectForFormat(desc.format);
+    vk_tex.usage = img_info.usage;
     vmaCreateImage(alloc, &img_info, &alloc_info, &vk_tex.image,
                    &vk_tex.allocation, nullptr);
     return vk_tex;
@@ -136,6 +170,8 @@ namespace {
 
     VmaAllocationCreateInfo alloc_info{};
     alloc_info.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
+    alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
     VulkanBuffer buf{};
     buf.host_visible = true;
@@ -162,171 +198,87 @@ namespace {
     return encoded;
   }
 
-  /// Parameters for building an image memory barrier.
-  struct ImageBarrierParams {
-    /// The image to transition.
-    VkImage image = VK_NULL_HANDLE;
-    /// Layout before the barrier.
-    VkImageLayout old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    /// Layout after the barrier.
-    VkImageLayout new_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    /// Source access mask.
-    VkAccessFlags src_access = 0;
-    /// Destination access mask.
-    VkAccessFlags dst_access = 0;
-  };
-
-  /// Build a pipeline barrier for image layout transitions.
-  VkImageMemoryBarrier buildImageBarrier(const ImageBarrierParams& p) {
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = p.old_layout;
-    barrier.newLayout = p.new_layout;
-    barrier.srcAccessMask = p.src_access;
-    barrier.dstAccessMask = p.dst_access;
-    barrier.image = p.image;
-    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    return barrier;
+  bool isBgra(VkFormat format) {
+    return format == VK_FORMAT_B8G8R8A8_SRGB ||
+           format == VK_FORMAT_B8G8R8A8_UNORM;
   }
 
-  /// Transition swapchain image from present to transfer source.
-  void barrierPresentToTransferSrc(VkCommandBuffer cmd, VkImage image) {
-    auto barrier = buildImageBarrier({image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                      VK_ACCESS_MEMORY_READ_BIT,
-                                      VK_ACCESS_TRANSFER_READ_BIT});
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
+  /// Swap the red and blue channels in place. The swapchain is BGRA8 and
+  /// the copy moves its bytes untouched, while PNG and JPEG both want RGBA;
+  /// the Metal backend does the same for the same reason.
+  void swizzleBgraToRgba(std::vector<uint8_t>& pixels) {
+    for (size_t i = 0; i + 3 < pixels.size(); i += CAPTURE_CHANNELS) {
+      std::swap(pixels[i], pixels[i + 2]);
+    }
   }
 
-  /// Transition swapchain image from transfer source back to present.
-  void barrierTransferSrcToPresent(VkCommandBuffer cmd, VkImage image) {
-    auto barrier = buildImageBarrier(
-        {image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_TRANSFER_READ_BIT,
-         VK_ACCESS_MEMORY_READ_BIT});
-    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier);
-  }
-
-  /// Parameters for recording an image-to-buffer copy.
-  struct CopyImageToBufferParams {
-    /// Command buffer to record into.
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    /// Source image to copy from.
-    VkImage src_image = VK_NULL_HANDLE;
-    /// Destination buffer to copy into.
-    VkBuffer dst_buffer = VK_NULL_HANDLE;
-    /// Width in pixels.
-    uint32_t width = 0;
-    /// Height in pixels.
-    uint32_t height = 0;
-  };
-
-  /// Record copy from swapchain image to staging buffer.
-  void recordCopyImageToBuffer(const CopyImageToBufferParams& p) {
+  /// Record a full-image copy into a tightly packed buffer.
+  void recordCopyImageToBuffer(VkCommandBuffer cmd, const VulkanImageRef& ref,
+                               VkBuffer dst) {
     VkBufferImageCopy region{};
-    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-    region.imageExtent = {p.width, p.height, 1};
-    vkCmdCopyImageToBuffer(p.cmd, p.src_image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, p.dst_buffer,
-                           1, &region);
+    region.imageSubresource = {ref.aspect, 0, 0, 1};
+    region.imageExtent = {ref.extent.width, ref.extent.height, 1};
+    vkCmdCopyImageToBuffer(cmd, ref.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           dst, 1, &region);
   }
 
-  /// Record full capture command sequence: barrier, copy, barrier.
-  void recordCaptureCommands(const CopyImageToBufferParams& p) {
-    barrierPresentToTransferSrc(p.cmd, p.src_image);
-    recordCopyImageToBuffer(p);
-    barrierTransferSrcToPresent(p.cmd, p.src_image);
-  }
-
-  /// Allocate and begin a one-shot command buffer.
-  VkCommandBuffer beginOneShotCommandBuffer(VkDevice device,
-                                            VkCommandPool pool) {
-    VkCommandBufferAllocateInfo alloc_info{};
-    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.commandPool = pool;
-    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc_info.commandBufferCount = 1;
-
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(device, &alloc_info, &cmd);
-
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &begin_info);
-    return cmd;
-  }
-
-  /// Submit a command buffer and wait for completion.
-  void submitAndWait(VkDevice device, VkQueue queue, VkCommandBuffer cmd) {
-    vkEndCommandBuffer(cmd);
-
-    VkSubmitInfo submit_info{};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
-    vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
-    vkQueueWaitIdle(queue);
-  }
-
-  /// Parameters for pixel readback and encoding.
-  struct ReadbackParams {
-    /// VMA allocator for map/unmap.
-    VmaAllocator alloc = VK_NULL_HANDLE;
-    /// Staging buffer holding pixel data.
-    VulkanBuffer* staging = nullptr;
-    /// Image width in pixels.
-    uint32_t width = 0;
-    /// Image height in pixels.
-    uint32_t height = 0;
-  };
-
-  /// Map staging buffer, encode pixels, and unmap.
-  std::vector<uint8_t> readbackAndEncode(const ReadbackParams& p,
-                                         const RhiCaptureRequest& req) {
+  /// Copy a staging buffer's bytes out to the CPU.
+  std::vector<uint8_t> readStaging(VmaAllocator alloc,
+                                   const VulkanBuffer& staging,
+                                   VkDeviceSize size) {
     void* mapped = nullptr;
-    vmaMapMemory(p.alloc, p.staging->allocation, &mapped);
-    auto encoded = encodePixels(static_cast<const uint8_t*>(mapped), p.width,
-                                p.height, req);
-    vmaUnmapMemory(p.alloc, p.staging->allocation);
-    return encoded;
+    vmaMapMemory(alloc, staging.allocation, &mapped);
+    const auto* bytes = static_cast<const uint8_t*>(mapped);
+    std::vector<uint8_t> pixels(bytes, bytes + size);
+    vmaUnmapMemory(alloc, staging.allocation);
+    return pixels;
   }
 
-  /// Parameters for a full capture operation.
-  struct CaptureParams {
-    /// Device implementation state.
-    VulkanDevice::Impl* impl = nullptr;
-    /// Source swapchain image.
-    VkImage src_image = VK_NULL_HANDLE;
-    /// Capture width in pixels.
-    uint32_t width = 0;
-    /// Capture height in pixels.
-    uint32_t height = 0;
-  };
-
-  /// Record and submit capture commands to the GPU.
-  void submitCaptureCommands(const CaptureParams& p, VkBuffer staging_buf) {
-    auto cmd = beginOneShotCommandBuffer(p.impl->device,
-                                         p.impl->frames[0].command_pool);
-    recordCaptureCommands({cmd, p.src_image, staging_buf, p.width, p.height});
-    submitAndWait(p.impl->device, p.impl->graphics_queue, cmd);
+  /// Copy the image into `staging` and wait, leaving the image in the
+  /// layout it was found in.
+  void copyImageOut(VulkanDevice::Impl& impl, const VulkanImageRef& ref,
+                    VkBuffer staging) {
+    const VkImageLayout resting = *ref.layout;
+    VkCommandBuffer cmd = impl.beginOneShot();
+    transitionVulkanImage(cmd, ref, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    recordCopyImageToBuffer(cmd, ref, staging);
+    transitionVulkanImage(cmd, ref, resting);
+    impl.submitOneShot(cmd);
   }
 
-  /// Execute GPU-side capture: record commands, submit, and readback pixels.
-  std::vector<uint8_t> executeCapture(const CaptureParams& p,
-                                      const RhiCaptureRequest& req) {
-    auto pixel_size =
-        static_cast<VkDeviceSize>(p.width) * p.height * CAPTURE_CHANNELS;
-    auto staging = createCaptureStagingBuffer(p.impl->allocator, pixel_size);
-    submitCaptureCommands(p, staging.buffer);
-    ReadbackParams rb{p.impl->allocator, &staging, p.width, p.height};
-    auto encoded = readbackAndEncode(rb, req);
-    vmaDestroyBuffer(p.impl->allocator, staging.buffer, staging.allocation);
-    return encoded;
+  /// Whether capture may read `handle` now. A swapchain image belongs to
+  /// the presentation engine from `present` until it is acquired again, so
+  /// the back buffer is readable only between `beginFrame` and `present` —
+  /// unlike Metal, whose drawable texture outlives its present.
+  bool isReadableTarget(const VulkanDevice::Impl& impl,
+                        RhiTextureHandle handle) {
+    const auto sc_count =
+        static_cast<RhiTextureHandle>(impl.swapchain_images.size());
+    if (handle == 0 || handle > sc_count) {
+      return true;
+    }
+    return impl.image_acquired &&
+           handle == static_cast<RhiTextureHandle>(impl.image_index) + 1;
+  }
+
+  /// The image's texels as tightly packed four-byte pixels, or nothing when
+  /// it has never been written or cannot be copied from.
+  std::optional<std::vector<uint8_t>>
+  readImagePixels(VulkanDevice::Impl& impl, const VulkanImageRef& ref) {
+    if (ref.layout == nullptr || *ref.layout == VK_IMAGE_LAYOUT_UNDEFINED ||
+        (ref.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == 0) {
+      return std::nullopt;
+    }
+    const VkDeviceSize size = static_cast<VkDeviceSize>(ref.extent.width) *
+                              ref.extent.height * CAPTURE_CHANNELS;
+    VulkanBuffer staging = createCaptureStagingBuffer(impl.allocator, size);
+    if (staging.buffer == VK_NULL_HANDLE) {
+      return std::nullopt;
+    }
+    copyImageOut(impl, ref, staging.buffer);
+    auto pixels = readStaging(impl.allocator, staging, size);
+    vmaDestroyBuffer(impl.allocator, staging.buffer, staging.allocation);
+    return pixels;
   }
 
   // --- Shader validation helpers ---
@@ -353,12 +305,13 @@ namespace {
   // --- Pipeline creation helpers ---
 
   VkPipelineShaderStageCreateInfo
-  buildShaderStageInfo(VkShaderModule module, VkShaderStageFlagBits stage) {
+  buildShaderStageInfo(const VulkanShader& shader,
+                       VkShaderStageFlagBits stage) {
     VkPipelineShaderStageCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     info.stage = stage;
-    info.module = module;
-    info.pName = "main";
+    info.module = shader.module;
+    info.pName = shader.entry_point.c_str();
     return info;
   }
 
@@ -411,23 +364,21 @@ namespace {
     return info;
   }
 
+  /// Alpha blending as the Metal backend's `applyAlphaBlend` sets it: RGB
+  /// by source alpha, alpha passed through.
   VkPipelineColorBlendAttachmentState
   buildColorBlendAttachment(const RhiBlendState& blend) {
     VkPipelineColorBlendAttachmentState state{};
     state.blendEnable = blend.enabled ? VK_TRUE : VK_FALSE;
+    state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    state.colorBlendOp = VK_BLEND_OP_ADD;
+    state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    state.alphaBlendOp = VK_BLEND_OP_ADD;
     state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     return state;
-  }
-
-  VkPipelineLayout createEmptyPipelineLayout(VkDevice device) {
-    VkPipelineLayoutCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    VkPipelineLayout layout = VK_NULL_HANDLE;
-    if (vkCreatePipelineLayout(device, &info, nullptr, &layout) != VK_SUCCESS) {
-      return VK_NULL_HANDLE;
-    }
-    return layout;
   }
 
   // --- Graphics pipeline decomposition ---
@@ -477,18 +428,23 @@ namespace {
   };
 
   /// Populate shader stages in the pipeline state.
-  void populateGraphicsShaderStages(GraphicsPipelineState& s, VkShaderModule vs,
-                                    VkShaderModule fs) {
+  void populateGraphicsShaderStages(GraphicsPipelineState& s,
+                                    const VulkanShader& vs,
+                                    const VulkanShader& fs) {
     s.stages[0] = buildShaderStageInfo(vs, VK_SHADER_STAGE_VERTEX_BIT);
     s.stages[1] = buildShaderStageInfo(fs, VK_SHADER_STAGE_FRAGMENT_BIT);
   }
 
-  /// Populate vertex input state from the RHI vertex layout.
+  /// Populate vertex input state from the RHI vertex layout. A layout with
+  /// no attributes binds no buffer, as Metal leaves out the descriptor.
   void populateGraphicsVertexInput(GraphicsPipelineState& s,
                                    const RhiVertexLayout& layout) {
-    buildVertexInputState(layout, s.attrs, s.binding);
     s.vertex_input.sType =
         VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    if (layout.attribute_count == 0) {
+      return;
+    }
+    buildVertexInputState(layout, s.attrs, s.binding);
     s.vertex_input.vertexBindingDescriptionCount = 1;
     s.vertex_input.pVertexBindingDescriptions = &s.binding;
     s.vertex_input.vertexAttributeDescriptionCount =
@@ -568,72 +524,200 @@ namespace {
     return info;
   }
 
-  /// Submit a VkPipeline create call and insert into the handle table.
-  RhiPipelineHandle
-  submitGraphicsPipeline(VkDevice device, const GraphicsPipelineState& s,
-                         VkPipelineLayout layout,
-                         VulkanHandleTable<VulkanPipeline>& pipelines) {
-    auto info = buildGraphicsPipelineCreateInfo(s, layout);
-    VulkanPipeline vk_pipeline{};
-    vk_pipeline.layout = layout;
-    vk_pipeline.bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    VkResult result = vkCreateGraphicsPipelines(
-        device, VK_NULL_HANDLE, 1, &info, nullptr, &vk_pipeline.pipeline);
-    if (result != VK_SUCCESS) {
-      vkDestroyPipelineLayout(device, layout, nullptr);
+  /// Insert a created pipeline into the handle table, or report failure.
+  RhiPipelineHandle insertPipeline(VulkanDevice::Impl& impl,
+                                   VkPipeline pipeline,
+                                   VkPipelineBindPoint bind_point) {
+    if (pipeline == VK_NULL_HANDLE) {
       return RHI_PIPELINE_INVALID;
     }
-    return pipelines.insert(std::move(vk_pipeline));
+    VkPipelineLayout layout = bind_point == VK_PIPELINE_BIND_POINT_COMPUTE
+                                  ? impl.shared_layout.compute
+                                  : impl.shared_layout.graphics;
+    return impl.pipelines.insert(VulkanPipeline{pipeline, layout, bind_point});
   }
 
-  /// Assemble and create the final VkPipeline from prepared state.
-  RhiPipelineHandle
-  finalizeGraphicsPipeline(VkDevice device, const GraphicsPipelineState& s,
-                           VulkanHandleTable<VulkanPipeline>& pipelines) {
-    VkPipelineLayout layout = createEmptyPipelineLayout(device);
-    if (layout == VK_NULL_HANDLE) {
+  /// Create a graphics pipeline against the shared layout, so it takes
+  /// stage bytes and a fragment texture the way the built-in ones do.
+  RhiPipelineHandle finalizeGraphicsPipeline(VulkanDevice::Impl& impl,
+                                             const GraphicsPipelineState& s) {
+    auto info = buildGraphicsPipelineCreateInfo(s, impl.shared_layout.graphics);
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    if (vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &info,
+                                  nullptr, &pipeline) != VK_SUCCESS) {
       return RHI_PIPELINE_INVALID;
     }
-    return submitGraphicsPipeline(device, s, layout, pipelines);
-  }
-
-  /// Build a VkComputePipelineCreateInfo for a given shader and layout.
-  VkComputePipelineCreateInfo
-  buildComputePipelineCreateInfo(VkShaderModule module,
-                                 VkPipelineLayout layout) {
-    VkComputePipelineCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    info.stage = buildShaderStageInfo(module, VK_SHADER_STAGE_COMPUTE_BIT);
-    info.layout = layout;
-    return info;
-  }
-
-  /// Submit a compute pipeline create call and insert into the handle table.
-  RhiPipelineHandle submitComputePipeline(
-      VkDevice device, const VkComputePipelineCreateInfo& info,
-      VkPipelineLayout layout, VulkanHandleTable<VulkanPipeline>& pipelines) {
-    VulkanPipeline vk_pipeline{};
-    vk_pipeline.layout = layout;
-    vk_pipeline.bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
-    VkResult result = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &info,
-                                               nullptr, &vk_pipeline.pipeline);
-    if (result != VK_SUCCESS) {
-      vkDestroyPipelineLayout(device, layout, nullptr);
-      return RHI_PIPELINE_INVALID;
-    }
-    return pipelines.insert(std::move(vk_pipeline));
+    return insertPipeline(impl, pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
   }
 
   /// Build and create a compute pipeline.
-  RhiPipelineHandle
-  finalizeComputePipeline(VkDevice device, VkShaderModule module,
-                          VulkanHandleTable<VulkanPipeline>& pipelines) {
-    VkPipelineLayout layout = createEmptyPipelineLayout(device);
-    if (layout == VK_NULL_HANDLE) {
+  RhiPipelineHandle finalizeComputePipeline(VulkanDevice::Impl& impl,
+                                            const VulkanShader& shader) {
+    VkComputePipelineCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    info.stage = buildShaderStageInfo(shader, VK_SHADER_STAGE_COMPUTE_BIT);
+    info.layout = impl.shared_layout.compute;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    if (vkCreateComputePipelines(impl.device, VK_NULL_HANDLE, 1, &info, nullptr,
+                                 &pipeline) != VK_SUCCESS) {
       return RHI_PIPELINE_INVALID;
     }
-    auto info = buildComputePipelineCreateInfo(module, layout);
-    return submitComputePipeline(device, info, layout, pipelines);
+    return insertPipeline(impl, pipeline, VK_PIPELINE_BIND_POINT_COMPUTE);
+  }
+
+  /// Hand a built-in pipeline to the caller; false if it failed to build.
+  bool publishBuiltin(VulkanDevice::Impl& impl, VkPipeline pipeline,
+                      RhiPipelineHandle& out) {
+    const RhiPipelineHandle handle =
+        insertPipeline(impl, pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    if (handle == RHI_PIPELINE_INVALID) {
+      return false;
+    }
+    out = handle;
+    return true;
+  }
+
+  // --- Texture upload helpers ---
+
+  /// Validate updateTexture2D parameters against the texture entry, with
+  /// the row-pitch rules `MetalRealDevice::updateTexture2D` applies.
+  bool isValidTextureUpdate(const VulkanTexture& tex,
+                            const RhiTextureUpdate2D& u) {
+    if (u.pixels == nullptr || u.width == 0 || u.height == 0) {
+      return false;
+    }
+    if (u.format == RhiFormat::UNDEFINED || u.format != tex.rhi_format) {
+      return false;
+    }
+    const uint32_t bpp = bytesPerTexel(u.format);
+    if (bpp == 0 || (u.bytes_per_row != 0 && (u.bytes_per_row < u.width * bpp ||
+                                              u.bytes_per_row % bpp != 0))) {
+      return false;
+    }
+    return (u.offset_x + u.width <= tex.width) &&
+           (u.offset_y + u.height <= tex.height);
+  }
+
+  /// Compute row byte stride, defaulting to width × bpp when zero.
+  uint32_t resolveRowBytes(const RhiTextureUpdate2D& u, uint32_t bpp) {
+    if (u.bytes_per_row != 0) {
+      return u.bytes_per_row;
+    }
+    return u.width * bpp;
+  }
+
+  /// Record a staging-to-image copy, honouring a padded row pitch.
+  void recordStagingToImageCopy(VkCommandBuffer cmd, VkBuffer staging,
+                                const VulkanImageRef& ref,
+                                const RhiTextureUpdate2D& u) {
+    VkBufferImageCopy region{};
+    region.bufferRowLength =
+        resolveRowBytes(u, bytesPerTexel(u.format)) / bytesPerTexel(u.format);
+    region.imageSubresource.aspectMask = ref.aspect;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {static_cast<int32_t>(u.offset_x),
+                          static_cast<int32_t>(u.offset_y), 0};
+    region.imageExtent = {u.width, u.height, 1};
+    vkCmdCopyBufferToImage(cmd, staging, ref.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+  }
+
+  /// Staging buffer for texture upload.
+  struct StagingAlloc {
+    /// Vulkan buffer handle.
+    VkBuffer buffer = VK_NULL_HANDLE;
+    /// VMA allocation backing this staging buffer.
+    VmaAllocation allocation = VK_NULL_HANDLE;
+  };
+
+  /// Create a CPU-visible staging buffer of the given size.
+  StagingAlloc createStagingBuffer(VmaAllocator alloc, VkDeviceSize size) {
+    VkBufferCreateInfo buf_info{};
+    buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buf_info.size = size;
+    buf_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    VmaAllocationCreateInfo alloc_info{};
+    alloc_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    StagingAlloc result{};
+    vmaCreateBuffer(alloc, &buf_info, &alloc_info, &result.buffer,
+                    &result.allocation, nullptr);
+    return result;
+  }
+
+  /// Copy CPU pixels into a mapped staging buffer.
+  void uploadToStaging(VmaAllocator alloc, VmaAllocation staging_alloc,
+                       const void* pixels, VkDeviceSize size) {
+    void* mapped = nullptr;
+    vmaMapMemory(alloc, staging_alloc, &mapped);
+    std::memcpy(mapped, pixels, size);
+    vmaUnmapMemory(alloc, staging_alloc);
+  }
+
+  /// Compute total byte size for a 2D texture upload region.
+  VkDeviceSize computeUploadSize(const RhiTextureUpdate2D& u) {
+    auto bpp = bytesPerTexel(u.format);
+    // NOLINTNEXTLINE(*-narrowing-conversions) — FP without vulkan.h
+    return static_cast<VkDeviceSize>(resolveRowBytes(u, bpp)) * u.height;
+  }
+
+  /// Copy `u` into the texture through a staging buffer, leaving it in its
+  /// resting layout. Waits for the copy, as Metal's `replaceRegion` does.
+  bool uploadPixels(VulkanDevice::Impl& impl, RhiTextureHandle handle,
+                    const RhiTextureUpdate2D& u) {
+    const VkDeviceSize size = computeUploadSize(u);
+    const StagingAlloc staging = createStagingBuffer(impl.allocator, size);
+    if (staging.buffer == VK_NULL_HANDLE) {
+      return false;
+    }
+    uploadToStaging(impl.allocator, staging.allocation, u.pixels, size);
+    const VulkanImageRef ref = impl.imageRef(handle);
+    VkCommandBuffer cmd = impl.beginOneShot();
+    transitionVulkanImage(cmd, ref, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    recordStagingToImageCopy(cmd, staging.buffer, ref, u);
+    transitionVulkanImage(cmd, ref, vulkanRestingLayout(ref));
+    impl.submitOneShot(cmd);
+    vmaDestroyBuffer(impl.allocator, staging.buffer, staging.allocation);
+    return true;
+  }
+
+  /// The whole of a new texture, from its `initial_pixels`.
+  RhiTextureUpdate2D fullTextureUpdate(const RhiTextureDesc& desc) {
+    RhiTextureUpdate2D update{};
+    update.pixels = desc.initial_pixels;
+    update.width = desc.width;
+    update.height = desc.height;
+    update.format = desc.format;
+    return update;
+  }
+
+  /// Give a new texture its pixels, or at least its resting layout, so a
+  /// draw can sample it before anything is uploaded — a Metal texture is
+  /// usable from the moment it exists.
+  void settleNewTexture(VulkanDevice::Impl& impl, RhiTextureHandle handle,
+                        const RhiTextureDesc& desc) {
+    if (desc.initial_pixels != nullptr && bytesPerTexel(desc.format) != 0) {
+      uploadPixels(impl, handle, fullTextureUpdate(desc));
+      return;
+    }
+    const VulkanImageRef ref = impl.imageRef(handle);
+    if ((ref.usage & VK_IMAGE_USAGE_SAMPLED_BIT) == 0) {
+      return;
+    }
+    VkCommandBuffer cmd = impl.beginOneShot();
+    transitionVulkanImage(cmd, ref, vulkanRestingLayout(ref));
+    impl.submitOneShot(cmd);
+  }
+
+  /// One opaque white texel: what a draw samples when it bound no texture,
+  /// so the shared layout's image binding is never left empty.
+  RhiTextureHandle createStandInTexture(VulkanDevice& device) {
+    static constexpr std::array<uint8_t, 4> WHITE{255, 255, 255, 255};
+    RhiTextureDesc desc{};
+    desc.format = RhiFormat::RGB_A8_UNORM;
+    desc.usage = RhiTextureUsage::SAMPLED;
+    desc.debug_name = "vulkan_stand_in";
+    desc.initial_pixels = WHITE.data();
+    return device.createTexture(desc);
   }
 
 }  // namespace
@@ -658,9 +742,18 @@ VulkanDevice::~VulkanDevice() {
 
 std::optional<std::unique_ptr<VulkanDevice>>
 VulkanDevice::create(const RenderConfig& config) {
-  auto device = std::unique_ptr<VulkanDevice>(new VulkanDevice());
+  // The constructor is private so that create() is the only way in, which
+  // puts make_unique out of reach; the pointer is owned before the
+  // statement ends.
+  auto device = std::unique_ptr<VulkanDevice>(
+      new VulkanDevice());  // NOLINT(bare-new-delete) — private ctor, owned
+                            // here
   device->impl_->config = config;
   if (!device->impl_->initAll()) {
+    return std::nullopt;
+  }
+  device->impl_->stand_in_texture = createStandInTexture(*device);
+  if (device->impl_->stand_in_texture == RHI_TEXTURE_INVALID) {
     return std::nullopt;
   }
   return device;
@@ -695,7 +788,7 @@ RhiBufferHandle VulkanDevice::createBuffer(const RhiBufferDesc& desc) {
   if (result != VK_SUCCESS) {
     return RHI_BUFFER_INVALID;
   }
-  return impl_->buffers.insert(std::move(vk_buf));
+  return impl_->buffers.insert(vk_buf);
 }
 
 void VulkanDevice::destroyBuffer(RhiBufferHandle handle) {
@@ -703,7 +796,7 @@ void VulkanDevice::destroyBuffer(RhiBufferHandle handle) {
   if (!removed.has_value()) {
     return;
   }
-  vmaDestroyBuffer(impl_->allocator, removed->buffer, removed->allocation);
+  impl_->retire({0, removed->buffer, {}, {}, removed->allocation, {}});
 }
 
 void* VulkanDevice::mapBuffer(RhiBufferHandle handle) {
@@ -718,7 +811,7 @@ void* VulkanDevice::mapBuffer(RhiBufferHandle handle) {
 
 void VulkanDevice::unmapBuffer(RhiBufferHandle handle) {
   auto* buf = impl_->buffers.lookup(handle);
-  if (buf == nullptr) {
+  if (buf == nullptr || !buf->host_visible) {
     return;
   }
   vmaUnmapMemory(impl_->allocator, buf->allocation);
@@ -738,7 +831,9 @@ RhiTextureHandle VulkanDevice::createTexture(const RhiTextureDesc& desc) {
     vmaDestroyImage(impl_->allocator, vk_tex.image, vk_tex.allocation);
     return RHI_TEXTURE_INVALID;
   }
-  return impl_->textures.insert(std::move(vk_tex));
+  const RhiTextureHandle handle = impl_->textures.insert(vk_tex);
+  settleNewTexture(*impl_, handle, desc);
+  return handle;
 }
 
 void VulkanDevice::destroyTexture(RhiTextureHandle handle) {
@@ -746,145 +841,9 @@ void VulkanDevice::destroyTexture(RhiTextureHandle handle) {
   if (!removed.has_value()) {
     return;
   }
-  vkDestroyImageView(impl_->device, removed->view, nullptr);
-  vmaDestroyImage(impl_->allocator, removed->image, removed->allocation);
+  impl_->retire(
+      {0, {}, removed->image, removed->view, removed->allocation, {}});
 }
-
-// ---------------------------------------------------------------------------
-// Texture update
-// ---------------------------------------------------------------------------
-
-namespace {
-
-  /// Validate updateTexture2D parameters against the texture entry.
-  bool isValidTextureUpdate(const VulkanTexture& tex,
-                            const RhiTextureUpdate2D& u) {
-    if (u.pixels == nullptr || u.width == 0 || u.height == 0) {
-      return false;
-    }
-    if (u.format == RhiFormat::UNDEFINED || u.format != tex.rhi_format) {
-      return false;
-    }
-    if (bytesPerTexel(u.format) == 0) {
-      return false;
-    }
-    return (u.offset_x + u.width <= tex.width) &&
-           (u.offset_y + u.height <= tex.height);
-  }
-
-  /// Compute row byte stride, defaulting to width × bpp when zero.
-  uint32_t resolveRowBytes(const RhiTextureUpdate2D& u, uint32_t bpp) {
-    if (u.bytes_per_row != 0) {
-      return u.bytes_per_row;
-    }
-    return u.width * bpp;
-  }
-
-  /// Record a staging-to-image copy via a one-shot command buffer.
-  void recordStagingToImageCopy(VkCommandBuffer cmd, VkBuffer staging,
-                                const VulkanTexture& tex,
-                                const RhiTextureUpdate2D& u) {
-    VkBufferImageCopy region{};
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.layerCount = 1;
-    region.imageOffset = {static_cast<int32_t>(u.offset_x),
-                          static_cast<int32_t>(u.offset_y), 0};
-    region.imageExtent = {u.width, u.height, 1};
-    vkCmdCopyBufferToImage(cmd, staging, tex.image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-  }
-
-}  // namespace
-
-namespace {
-
-  /// Staging buffer for texture upload.
-  struct StagingAlloc {
-    /// Vulkan buffer handle.
-    VkBuffer buffer = VK_NULL_HANDLE;
-    /// VMA allocation backing this staging buffer.
-    VmaAllocation allocation = VK_NULL_HANDLE;
-  };
-
-  /// Create a CPU-visible staging buffer of the given size.
-  StagingAlloc createStagingBuffer(VmaAllocator alloc, VkDeviceSize size) {
-    VkBufferCreateInfo buf_info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-    buf_info.size = size;
-    buf_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    VmaAllocationCreateInfo alloc_info{};
-    alloc_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-    StagingAlloc result{};
-    vmaCreateBuffer(alloc, &buf_info, &alloc_info, &result.buffer,
-                    &result.allocation, nullptr);
-    return result;
-  }
-
-  /// Copy CPU pixels into a mapped staging buffer.
-  void uploadToStaging(VmaAllocator alloc, VmaAllocation staging_alloc,
-                       const void* pixels, VkDeviceSize size) {
-    void* mapped = nullptr;
-    vmaMapMemory(alloc, staging_alloc, &mapped);
-    std::memcpy(mapped, pixels, size);
-    vmaUnmapMemory(alloc, staging_alloc);
-  }
-
-  /// Allocate a one-time-submit command buffer from the current frame's pool.
-  VkCommandBuffer allocateOneShotCmd(VulkanDevice::Impl& impl) {
-    auto& frame = impl.frames[impl.frame_index];
-    VkCommandBufferAllocateInfo cmd_ai{
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    cmd_ai.commandPool = frame.command_pool;
-    cmd_ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmd_ai.commandBufferCount = 1;
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    vkAllocateCommandBuffers(impl.device, &cmd_ai, &cmd);
-    return cmd;
-  }
-
-  /// Begin a one-shot command buffer for recording.
-  VkCommandBuffer beginOneShotCopyCmd(VulkanDevice::Impl& impl) {
-    VkCommandBuffer cmd = allocateOneShotCmd(impl);
-    VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    vkBeginCommandBuffer(cmd, &begin);
-    return cmd;
-  }
-
-  /// Submit a completed command buffer and wait for the queue to become idle.
-  void submitCopyAndWait(VulkanDevice::Impl& impl, VkCommandBuffer cmd) {
-    vkEndCommandBuffer(cmd);
-    VkSubmitInfo submit_info{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &cmd;
-    vkQueueSubmit(impl.graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
-    vkQueueWaitIdle(impl.graphics_queue);
-  }
-
-  /// Submit a one-shot copy command and wait for completion.
-  void submitOneShotCopy(VulkanDevice::Impl& impl, VkBuffer staging,
-                         const VulkanTexture& tex,
-                         const RhiTextureUpdate2D& update) {
-    VkCommandBuffer cmd = beginOneShotCopyCmd(impl);
-    recordStagingToImageCopy(cmd, staging, tex, update);
-    submitCopyAndWait(impl, cmd);
-  }
-
-  /// Upload staging data to a texture and clean up the staging buffer.
-  void uploadAndCleanup(VulkanDevice::Impl& impl, StagingAlloc staging,
-                        const VulkanTexture& tex,
-                        const RhiTextureUpdate2D& update) {
-    submitOneShotCopy(impl, staging.buffer, tex, update);
-    vmaDestroyBuffer(impl.allocator, staging.buffer, staging.allocation);
-  }
-
-  /// Compute total byte size for a 2D texture upload region.
-  VkDeviceSize computeUploadSize(const RhiTextureUpdate2D& u) {
-    auto bpp = bytesPerTexel(u.format);
-    // NOLINTNEXTLINE(*-narrowing-conversions) — FP without vulkan.h
-    return static_cast<VkDeviceSize>(resolveRowBytes(u, bpp)) * u.height;
-  }
-
-}  // namespace
 
 bool VulkanDevice::updateTexture2D(RhiTextureHandle handle,
                                    const RhiTextureUpdate2D& update) {
@@ -892,14 +851,7 @@ bool VulkanDevice::updateTexture2D(RhiTextureHandle handle,
   if (tex == nullptr || !isValidTextureUpdate(*tex, update)) {
     return false;
   }
-  const VkDeviceSize size = computeUploadSize(update);
-  auto staging = createStagingBuffer(impl_->allocator, size);
-  if (staging.buffer == VK_NULL_HANDLE) {
-    return false;
-  }
-  uploadToStaging(impl_->allocator, staging.allocation, update.pixels, size);
-  uploadAndCleanup(*impl_, staging, *tex, update);
-  return true;
+  return uploadPixels(*impl_, handle, update);
 }
 
 // ---------------------------------------------------------------------------
@@ -916,10 +868,15 @@ RhiShaderHandle VulkanDevice::createShader(const RhiShaderDesc& desc) {
       VK_SUCCESS) {
     return RHI_SHADER_INVALID;
   }
+  if (desc.entry_point != nullptr) {
+    vk_shader.entry_point = desc.entry_point;
+  }
   return impl_->shaders.insert(std::move(vk_shader));
 }
 
 void VulkanDevice::destroyShader(RhiShaderHandle handle) {
+  // A module is only read while a pipeline is being created, so no frame
+  // in flight can still need it.
   auto removed = impl_->shaders.remove(handle);
   if (!removed.has_value()) {
     return;
@@ -939,11 +896,11 @@ VulkanDevice::createGraphicsPipeline(const RhiGraphicsPipelineDesc& desc) {
     return RHI_PIPELINE_INVALID;
   }
   GraphicsPipelineState state;
-  populateGraphicsShaderStages(state, vs->module, fs->module);
+  populateGraphicsShaderStages(state, *vs, *fs);
   populateGraphicsVertexInput(state, desc.vertex_layout);
   populateGraphicsFixedFunction(state, desc);
   populateGraphicsDynamicRendering(state, desc);
-  return finalizeGraphicsPipeline(impl_->device, state, impl_->pipelines);
+  return finalizeGraphicsPipeline(*impl_, state);
 }
 
 RhiPipelineHandle
@@ -952,7 +909,7 @@ VulkanDevice::createComputePipeline(const RhiComputePipelineDesc& desc) {
   if (cs == nullptr) {
     return RHI_PIPELINE_INVALID;
   }
-  return finalizeComputePipeline(impl_->device, cs->module, impl_->pipelines);
+  return finalizeComputePipeline(*impl_, *cs);
 }
 
 void VulkanDevice::destroyPipeline(RhiPipelineHandle handle) {
@@ -960,10 +917,46 @@ void VulkanDevice::destroyPipeline(RhiPipelineHandle handle) {
   if (!removed.has_value()) {
     return;
   }
-  vkDestroyPipeline(impl_->device, removed->pipeline, nullptr);
-  if (removed->layout != VK_NULL_HANDLE) {
-    vkDestroyPipelineLayout(impl_->device, removed->layout, nullptr);
-  }
+  // The layout is the device's shared one, so only the pipeline goes.
+  impl_->retire({0, {}, {}, {}, {}, removed->pipeline});
+}
+
+// ---------------------------------------------------------------------------
+// Built-in pipelines
+// ---------------------------------------------------------------------------
+
+bool VulkanDevice::tryCreateGuiPipeline(RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(*impl_,
+                        createVulkanGuiPipeline(impl_->device,
+                                                impl_->shared_layout.graphics,
+                                                impl_->swapchain_format),
+                        out_pipeline);
+}
+
+bool VulkanDevice::tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(*impl_,
+                        createVulkanMeshPipeline(impl_->device,
+                                                 impl_->shared_layout.graphics,
+                                                 impl_->swapchain_format),
+                        out_pipeline);
+}
+
+bool VulkanDevice::tryCreateSkinnedMeshPipeline(
+    RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(*impl_,
+                        createVulkanSkinnedMeshPipeline(
+                            impl_->device, impl_->shared_layout.graphics,
+                            impl_->swapchain_format),
+                        out_pipeline);
+}
+
+bool VulkanDevice::tryCreateMeshOutlinePipeline(
+    RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(
+      *impl_,
+      createVulkanOutlinePipeline(impl_->device, impl_->shared_layout.graphics,
+                                  impl_->swapchain_format),
+      out_pipeline);
 }
 
 // ---------------------------------------------------------------------------
@@ -971,7 +964,7 @@ void VulkanDevice::destroyPipeline(RhiPipelineHandle handle) {
 // ---------------------------------------------------------------------------
 
 RhiTextureHandle VulkanDevice::backbufferTexture() const {
-  return static_cast<RhiTextureHandle>(impl_->image_index + 1);
+  return static_cast<RhiTextureHandle>(impl_->image_index) + 1;
 }
 
 uint32_t VulkanDevice::backbufferWidth() const {
@@ -1000,11 +993,20 @@ bool VulkanDevice::beginFrame() {
   auto& frame = impl_->frames[impl_->frame_index];
   vkWaitForFences(impl_->device, 1, &frame.in_flight_fence, VK_TRUE,
                   UINT64_MAX);
-  vkResetFences(impl_->device, 1, &frame.in_flight_fence);
   if (!impl_->acquireNextImage(frame)) {
     return false;
   }
+  // Reset only with an image in hand: a frame that stops above submits
+  // nothing, and a fence reset then would never be signalled again.
+  impl_->image_acquired = true;
+  vkResetFences(impl_->device, 1, &frame.in_flight_fence);
   vkResetCommandPool(impl_->device, frame.command_pool, 0);
+  frame.stage_bytes.reset();
+  // The fence waited on is this slot's last frame, FRAMES_IN_FLIGHT back;
+  // it and everything before it are done.
+  const uint64_t serial = ++impl_->frame_serial;
+  impl_->releaseRetired(serial > FRAMES_IN_FLIGHT ? serial - FRAMES_IN_FLIGHT
+                                                  : 0);
   return true;
 }
 
@@ -1018,16 +1020,16 @@ void VulkanDevice::submit(RhiCommandList& cmd) {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
   auto info = buildSubmitInfo(&cmd_buf, &frame.image_available, &wait_stage,
-                              &frame.render_finished);
+                              &impl_->present_ready[impl_->image_index]);
   vkQueueSubmit(impl_->graphics_queue, 1, &info, frame.in_flight_fence);
 }
 
 bool VulkanDevice::present() {
-  auto& frame = impl_->frames[impl_->frame_index];
-  auto info = buildPresentInfo(&frame.render_finished, &impl_->swapchain,
-                               &impl_->image_index);
+  auto info = buildPresentInfo(&impl_->present_ready[impl_->image_index],
+                               &impl_->swapchain, &impl_->image_index);
 
   VkResult result = vkQueuePresentKHR(impl_->present_queue, &info);
+  impl_->image_acquired = false;
   impl_->frame_index = (impl_->frame_index + 1) % FRAMES_IN_FLIGHT;
 
   // F6: SUBOPTIMAL is still usable; only OUT_OF_DATE signals loss
@@ -1053,11 +1055,23 @@ std::unique_ptr<RhiCommandList> VulkanDevice::createCommandList() {
 std::optional<RhiCaptureResult>
 VulkanDevice::captureFramebuffer(const RhiCaptureRequest& request) {
   waitIdle();
-  auto w = request.width > 0 ? request.width : impl_->swapchain_extent.width;
-  auto h = request.height > 0 ? request.height : impl_->swapchain_extent.height;
-  auto src_image = impl_->swapchain_images[impl_->image_index];
-  CaptureParams cap{impl_.get(), src_image, w, h};
-  auto encoded = executeCapture(cap, request);
+  const RhiTextureHandle target = request.target != RHI_TEXTURE_INVALID
+                                      ? request.target
+                                      : backbufferTexture();
+  if (!isReadableTarget(*impl_, target)) {
+    return std::nullopt;
+  }
+  const VulkanImageRef ref = impl_->imageRef(target);
+  auto pixels = readImagePixels(*impl_, ref);
+  if (!pixels.has_value()) {
+    return std::nullopt;
+  }
+  if (isBgra(ref.format)) {
+    swizzleBgraToRgba(*pixels);
+  }
+  const uint32_t w = ref.extent.width;
+  const uint32_t h = ref.extent.height;
+  auto encoded = encodePixels(pixels->data(), w, h, request);
   if (encoded.empty()) {
     return std::nullopt;
   }
