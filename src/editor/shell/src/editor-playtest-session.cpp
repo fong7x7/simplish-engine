@@ -10,6 +10,7 @@
 #include <fstream>
 #include <game/combat/combat-system.h>
 #include <game/content/character-lookup.h>
+#include <game/fx/combat-fx.h>
 #include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
@@ -238,6 +239,19 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
   const sim::TickResult result = simulation_.step(input);
   recorder_.record(input, result);
   last_hash_ = result.hash;
+  playCues();
+}
+
+void EditorPlaytestSession::playCues() {
+  const std::span<const game::CombatCue> cues = world_->combatCues();
+  game::playCombatCues(fx_, cues);
+  for (const game::CombatCue& cue : cues) {
+    ++cues_played_[static_cast<size_t>(cue.kind)];
+  }
+}
+
+void EditorPlaytestSession::stepEffects(float seconds) {
+  stepFxWorld(fx_, seconds);
 }
 
 void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
@@ -247,6 +261,13 @@ void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
   publishPlayers(state);
   publishActors(state);
   publishCombat(state);
+  publishEffects(state);
+}
+
+void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
+  state.effects.particles = fx_.particles.live;
+  state.effects.lights = fx_.lights.live;
+  state.effects.cues = cues_played_;
 }
 
 void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {

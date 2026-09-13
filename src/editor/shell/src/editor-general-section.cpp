@@ -44,6 +44,11 @@ size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_shape,
   const size_t tools = addFolder(tree, section, EDITOR_TOOLS_FOLDER_NAME);
   fillFolder(tree, tools, first_item + EDITOR_GENERAL_LIGHT_COUNT,
              EDITOR_GENERAL_TOOL_COUNT);
+  const size_t effects = addFolder(tree, section, EDITOR_EFFECTS_FOLDER_NAME);
+  fillFolder(tree, effects,
+             first_item + EDITOR_GENERAL_LIGHT_COUNT +
+                 EDITOR_GENERAL_TOOL_COUNT,
+             EDITOR_GENERAL_EFFECT_COUNT);
   // In front of the assets root: the pane lists the sections in this order,
   // which is the one decision about them the tree carries.
   tree.sections.insert(tree.sections.begin(), section);

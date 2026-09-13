@@ -103,6 +103,17 @@ public:
   /// Backends without one return `false` and meshes draw unoutlined.
   virtual bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional particle pipeline for effects: `FxVertex` triangles already
+  /// in clip space, drawn with no depth attachment in the pass after the
+  /// scene's, reading the scene's `D32_FLOAT` depth at fragment texture
+  /// slot 0 to hide and soften whatever is behind geometry, and its
+  /// parameters from fragment stage bytes at slot 0. Premultiplied blend —
+  /// one, one minus source alpha — so the same draw carries additive glows
+  /// (alpha zero) and smoke that hides what is behind it. A builtin for the
+  /// same reason the mesh pipeline is. Backends without one return `false`
+  /// and effects light the scene but draw no particles.
+  virtual bool tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline);
+
   // --- Swap chain ---
   virtual RhiTextureHandle
   backbufferTexture() const = 0;  // Current frame's backbuffer
@@ -166,6 +177,11 @@ RhiDevice::tryCreateSkinnedMeshPipeline(RhiPipelineHandle& /*out_pipeline*/) {
 
 inline bool
 RhiDevice::tryCreateMeshOutlinePipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateFxParticlePipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

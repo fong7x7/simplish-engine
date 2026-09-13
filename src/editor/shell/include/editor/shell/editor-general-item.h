@@ -28,16 +28,17 @@ enum class EditorGeneralItem : uint8_t {
   PLAYER_START,
   /// A point of a patrol route.
   WAYPOINT,
+  /// A point that throws bursts of particles.
+  PARTICLE_EMITTER,
 };
 
 /// Every built-in item, in the order the section numbers them: the lights,
-/// then the tools. Each subsection holds a run of this list, so the order
-/// is also the grouping.
+/// then the tools, then the effects. Each subsection holds a run of this list,
+/// so the order is also the grouping.
 inline constexpr EditorGeneralItem EDITOR_GENERAL_ITEMS[] = {
-    EditorGeneralItem::DIRECTIONAL_LIGHT,
-    EditorGeneralItem::POINT_LIGHT,
-    EditorGeneralItem::PLAYER_START,
-    EditorGeneralItem::WAYPOINT,
+    EditorGeneralItem::DIRECTIONAL_LIGHT, EditorGeneralItem::POINT_LIGHT,
+    EditorGeneralItem::PLAYER_START,      EditorGeneralItem::WAYPOINT,
+    EditorGeneralItem::PARTICLE_EMITTER,
 };
 
 /// How many built-in items there are.
@@ -48,10 +49,16 @@ inline constexpr size_t EDITOR_GENERAL_ITEM_COUNT =
 /// lighting subsection holds.
 inline constexpr size_t EDITOR_GENERAL_LIGHT_COUNT = 2;
 
+/// How many of those, from the back, show effects: the run the effects
+/// subsection holds.
+inline constexpr size_t EDITOR_GENERAL_EFFECT_COUNT = 1;
+
 /// How many follow the lights as tools — things that mark the level for
-/// the game rather than showing in it: the run the tools subsection holds.
-inline constexpr size_t EDITOR_GENERAL_TOOL_COUNT =
-    EDITOR_GENERAL_ITEM_COUNT - EDITOR_GENERAL_LIGHT_COUNT;
+/// the game rather than showing in it: the run the tools subsection holds,
+/// between the lights and the effects.
+inline constexpr size_t EDITOR_GENERAL_TOOL_COUNT = EDITOR_GENERAL_ITEM_COUNT -
+                                                    EDITOR_GENERAL_LIGHT_COUNT -
+                                                    EDITOR_GENERAL_EFFECT_COUNT;
 
 /// The kind of light an item drops, or nothing for an item that is not a
 /// light — which is the question a drop has to ask first.
@@ -64,6 +71,7 @@ editorGeneralItemLightKind(EditorGeneralItem item) {
       return EditorLightKind::POINT;
     case EditorGeneralItem::PLAYER_START:
     case EditorGeneralItem::WAYPOINT:
+    case EditorGeneralItem::PARTICLE_EMITTER:
       return std::nullopt;
   }
   return std::nullopt;
@@ -81,6 +89,8 @@ editorGeneralItemName(EditorGeneralItem item) {
       return "Player Start";
     case EditorGeneralItem::WAYPOINT:
       return "Waypoint";
+    case EditorGeneralItem::PARTICLE_EMITTER:
+      return "Particle Emitter";
   }
   return {};
 }

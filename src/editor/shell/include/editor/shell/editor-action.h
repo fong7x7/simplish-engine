@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <editor/shell/editor-action-kind.h>
+#include <editor/shell/editor-emitter.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
@@ -54,6 +55,11 @@ struct EditorAction {
   EditorWaypoint waypoint{};
   /// The waypoint as it was before a transform, unused by every other kind.
   EditorWaypoint waypoint_prior{};
+  /// The particle emitter the operation names, for the three kinds that
+  /// name one.
+  EditorEmitter emitter{};
+  /// The emitter as it was before a transform, unused by every other kind.
+  EditorEmitter emitter_prior{};
 };
 
 }  // namespace eng::editor

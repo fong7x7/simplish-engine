@@ -40,6 +40,10 @@ enum class AgentTool : uint8_t {
   LIST_PLAYER_STARTS,
   /// Every waypoint in the level, and the patrol routes they lay out.
   LIST_WAYPOINTS,
+  /// Every particle emitter in the level, and the presets they start from.
+  LIST_EMITTERS,
+  /// What the viewport's effects are doing, while editing or playing.
+  GET_EFFECTS,
   /// Every character the project defines.
   LIST_CHARACTERS,
   /// Every behavior a prop can run: the built-in ones and the project's.
@@ -70,6 +74,8 @@ enum class AgentTool : uint8_t {
   /// Add a waypoint to a patrol route, as dragging one from general >
   /// tools would.
   ADD_WAYPOINT,
+  /// Add a particle emitter, as dragging one from general > effects would.
+  ADD_EMITTER,
   /// Set one property of a placement, a light or a player start to an
   /// absolute value.
   SET_PROPERTY,
@@ -79,6 +85,10 @@ enum class AgentTool : uint8_t {
   SET_CHARACTER,
   /// Give a placed prop a behavior and a faction, making it an actor.
   SET_BEHAVIOR,
+  /// Start a particle emitter from one of the built-in presets.
+  SET_EFFECT,
+  /// Play an effect once, now, where the viewport can show it.
+  PLAY_EFFECT,
   /// Move a placement, a light or a player start by a delta, in tiles.
   TRANSLATE,
   /// Take a placement, a light or a player start back out of the level.
@@ -127,24 +137,26 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::LIST_ASSETS,    AgentTool::GET_ASSET,
     AgentTool::LIST_FOLDERS,   AgentTool::LIST_PLACEMENTS,
     AgentTool::LIST_LIGHTS,    AgentTool::LIST_PLAYER_STARTS,
-    AgentTool::LIST_WAYPOINTS, AgentTool::LIST_CHARACTERS,
+    AgentTool::LIST_WAYPOINTS, AgentTool::LIST_EMITTERS,
+    AgentTool::GET_EFFECTS,    AgentTool::LIST_CHARACTERS,
     AgentTool::LIST_BEHAVIORS, AgentTool::LIST_ENEMIES,
     AgentTool::GET_NAVIGATION, AgentTool::FIND_PATH,
     AgentTool::GET_SELECTION,  AgentTool::GET_HISTORY,
     AgentTool::GET_LEVEL,      AgentTool::LIST_LEVELS,
     AgentTool::LIST_COMMANDS,  AgentTool::PLACE_ASSET,
     AgentTool::ADD_LIGHT,      AgentTool::ADD_PLAYER_START,
-    AgentTool::ADD_WAYPOINT,   AgentTool::SET_PROPERTY,
-    AgentTool::SET_ANIMATION,  AgentTool::SET_CHARACTER,
-    AgentTool::SET_BEHAVIOR,   AgentTool::TRANSLATE,
-    AgentTool::DELETE_ENTRY,   AgentTool::SELECT,
-    AgentTool::SET_TOOL,       AgentTool::RUN_COMMAND,
-    AgentTool::UNDO,           AgentTool::REDO,
-    AgentTool::OPEN_PROJECT,   AgentTool::RESCAN_ASSETS,
-    AgentTool::CREATE_LEVEL,   AgentTool::OPEN_LEVEL,
-    AgentTool::GET_PLAYTEST,   AgentTool::START_PLAYTEST,
-    AgentTool::STOP_PLAYTEST,  AgentTool::SEND_INPUT,
-    AgentTool::STEP_PLAYTEST,
+    AgentTool::ADD_WAYPOINT,   AgentTool::ADD_EMITTER,
+    AgentTool::SET_PROPERTY,   AgentTool::SET_ANIMATION,
+    AgentTool::SET_CHARACTER,  AgentTool::SET_BEHAVIOR,
+    AgentTool::SET_EFFECT,     AgentTool::PLAY_EFFECT,
+    AgentTool::TRANSLATE,      AgentTool::DELETE_ENTRY,
+    AgentTool::SELECT,         AgentTool::SET_TOOL,
+    AgentTool::RUN_COMMAND,    AgentTool::UNDO,
+    AgentTool::REDO,           AgentTool::OPEN_PROJECT,
+    AgentTool::RESCAN_ASSETS,  AgentTool::CREATE_LEVEL,
+    AgentTool::OPEN_LEVEL,     AgentTool::GET_PLAYTEST,
+    AgentTool::START_PLAYTEST, AgentTool::STOP_PLAYTEST,
+    AgentTool::SEND_INPUT,     AgentTool::STEP_PLAYTEST,
 };
 
 }  // namespace eng::editor

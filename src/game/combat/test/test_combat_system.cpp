@@ -1,6 +1,9 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <game/combat/combat-system.h>
 #include <vector>
+
+using Catch::Approx;
 
 using namespace eng;
 using namespace eng::game;
@@ -14,7 +17,9 @@ struct CombatRig {
   explicit CombatRig(std::vector<physics::CollisionBox> boxes = {})
     : obstacles(std::move(boxes)), broadphase(obstacles),
       workspace(16, {.origin = {-10, -10}, .width = 80, .height = 80},
-                broadphase) {}
+                broadphase) {
+    cues.reserve(32);
+  }
 
   /// Add a body at @p at on @p side, as actor @p slot; its index.
   uint32_t addBody(Vec2 at, Faction side, uint32_t slot) {
@@ -25,14 +30,14 @@ struct CombatRig {
 
   /// This tick's scene.
   CombatScene scene() {
-    return {tick, obstacles, broadphase, workspace, effects};
+    return {tick, obstacles, broadphase, workspace, effects, cues};
   }
 
   /// Spawn what the effects ask for and step everything @p ticks ticks.
   void step(uint32_t ticks = 1) {
     indexCombatBodies(workspace);
     for (uint32_t t = 0; t < ticks; ++t) {
-      spawnCombatEffects(projectiles, hazards, effects);
+      game::spawnCombatEffects(projectiles, hazards, effects, cues);
       effects.shots.clear();
       effects.hazards.clear();
       stepProjectiles(projectiles, scene());
@@ -51,6 +56,8 @@ struct CombatRig {
   CombatWorkspace workspace;
   /// The effects buffer.
   CombatEffects effects;
+  /// Every cue since the rig was made, with room for 32.
+  std::vector<CombatCue> cues;
   /// Projectiles in flight.
   ProjectilePool projectiles{4};
   /// Hazards on the floor.
@@ -142,4 +149,81 @@ TEST_CASE("a shot or pool past what the pools hold is dropped") {
   }
   rig.step();
   REQUIRE(rig.projectiles.slots.size() == 4);
+}
+
+TEST_CASE("a shot spawned is cued as fired, where it leaves and which way") {
+  CombatRig rig;
+  rig.effects.shots.push_back(shot({1, 2}, {0.5F, 0}));
+  rig.step();
+
+  REQUIRE(rig.cues.size() == 1);
+  const CombatCue& fired = rig.cues[0];
+  REQUIRE(fired.kind == CombatCueKind::SHOT_FIRED);
+  REQUIRE(fired.at.x == 1.0F);
+  REQUIRE(fired.at.y == 2.0F);
+  REQUIRE(fired.at.z == PROJECTILE_Z_TILES);
+  REQUIRE(fired.heading.x == 0.5F);
+  REQUIRE(fired.side == Faction::HOSTILE);
+}
+
+TEST_CASE("a shot that hits someone is cued where it reached them") {
+  CombatRig rig;
+  rig.addBody({6.0F, 0.0F}, Faction::FRIENDLY, 1);
+  rig.effects.shots.push_back(shot({0, 0}, {0.5F, 0}));
+  rig.step(12);
+
+  REQUIRE(rig.cues.size() == 2);
+  const CombatCue& hit = rig.cues[1];
+  REQUIRE(hit.kind == CombatCueKind::SHOT_HIT_BODY);
+  // The shot's edge meets the body's: their two radii short of its centre.
+  REQUIRE(hit.at.x == Approx(6.0F - 0.4F - PROJECTILE_RADIUS_TILES));
+  REQUIRE(hit.at.z == PROJECTILE_Z_TILES);
+}
+
+TEST_CASE("a shot a wall stops is cued at the wall; one that falls is not") {
+  CombatRig rig({{{2.0F, -1.0F, 0.0F}, {2.5F, 1.0F, 2.0F}}});
+  rig.effects.shots.push_back(shot({0, 0}, {0.5F, 0}));
+  rig.effects.shots.push_back(shot({0, 5}, {0.01F, 0}));
+  rig.step(PROJECTILE_FLIGHT_TICKS);
+
+  REQUIRE(rig.projectiles.slots.size() == 0);
+  REQUIRE(rig.cues.size() == 3);
+  const CombatCue& wall = rig.cues[2];
+  REQUIRE(wall.kind == CombatCueKind::SHOT_HIT_WALL);
+  REQUIRE(wall.at.x == Approx(2.0F - PROJECTILE_RADIUS_TILES));
+}
+
+TEST_CASE("a blast is cued where it goes off, with its reach") {
+  CombatRig rig;
+  indexCombatBodies(rig.workspace);
+  rig.effects.blasts.push_back({{3, 4}, 1.5F, 3, {}});
+  resolveBlasts(rig.scene());
+
+  REQUIRE(rig.cues.size() == 1);
+  REQUIRE(rig.cues[0].kind == CombatCueKind::BLAST);
+  REQUIRE(rig.cues[0].at.x == 3.0F);
+  REQUIRE(rig.cues[0].at.z == 0.0F);
+  REQUIRE(rig.cues[0].radius == 1.5F);
+}
+
+TEST_CASE("a shot the pool has no room for is not cued") {
+  CombatRig rig;
+  for (int i = 0; i < 6; ++i) {
+    rig.effects.shots.push_back(shot({0, 0}, {0.01F, 0}));
+  }
+  rig.step();
+  REQUIRE(rig.cues.size() == 4);
+}
+
+TEST_CASE("a cue past the room reserved is dropped, never grown into") {
+  std::vector<CombatCue> cues;
+  cueCombat(cues, {});
+  REQUIRE(cues.empty());
+  cues.reserve(2);
+  const size_t room = cues.capacity();
+  for (size_t i = 0; i < room + 3; ++i) {
+    cueCombat(cues, {});
+  }
+  REQUIRE(cues.size() == room);
+  REQUIRE(cues.capacity() == room);
 }

@@ -743,15 +743,15 @@ TEST_CASE("the general section is the first row, above the assets") {
       makeBrowserWithGeneral({"crate.obj"});
   const auto& rows = browser.folderRows();
 
-  // The section opens on its own, so its three subsections are listed
+  // The section opens on its own, so its four subsections are listed
   // under it and the assets root follows them.
-  REQUIRE(rows.size() == 5);
+  REQUIRE(rows.size() == 6);
   REQUIRE(rows[0].depth == 0);
-  REQUIRE(rows[1].depth == 1);
-  REQUIRE(rows[2].depth == 1);
-  REQUIRE(rows[3].depth == 1);
-  REQUIRE(rows[4].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[4].depth == 0);
+  for (size_t row = 1; row <= 4; ++row) {
+    REQUIRE(rows[row].depth == 1);
+  }
+  REQUIRE(rows[5].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[5].depth == 0);
 }
 
 TEST_CASE("the browser opens on the assets, not on the built-in section") {

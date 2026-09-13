@@ -18,6 +18,7 @@
 #include <engine/core/fixed-step-clock.h>
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
+#include <engine/render-fx/fx-world.h>
 #include <engine/sim/player-input.h>
 #include <engine/sim/replay-recorder.h>
 #include <engine/sim/replay.h>
@@ -26,6 +27,7 @@
 #include <engine/sim/tick-input.h>
 #include <filesystem>
 #include <game/actors/actor-pool.h>
+#include <game/combat/combat-cue-kind.h>
 #include <game/content/behavior-state.h>
 #include <game/content/character-definition.h>
 #include <game/content/game-content.h>
@@ -116,9 +118,22 @@ public:
   FixedStepAdvance advance(uint64_t elapsed_ns, const sim::PlayerInput& live,
                            std::vector<EditorScriptedInput>& scripted);
 
-  /// Runs exactly one tick, as `advance` does for each tick it runs.
+  /// Runs exactly one tick, as `advance` does for each tick it runs, and
+  /// plays the effects of whatever that tick's combat cued.
   void step(const sim::PlayerInput& live,
             std::vector<EditorScriptedInput>& scripted);
+
+  /// Move every effect on by @p seconds of the frame's time. Presentation:
+  /// the simulation never sees it, so paused, the effects can simply be
+  /// left where they are.
+  void stepEffects(float seconds);
+
+  /// The effects playing: what the viewport draws and lights the scene by.
+  [[nodiscard]] const FxWorld& effects() const { return fx_; }
+
+  /// The same, for the level's emitters to burst into: presentation, which
+  /// the simulation never reads, so nothing outside a tick is changing it.
+  [[nodiscard]] FxWorld& effects() { return fx_; }
 
   /// Copies what the rest of the editor may know — tick, hash, where the
   /// players are and what every actor is doing — into @p state.
@@ -190,6 +205,10 @@ private:
   [[nodiscard]] std::string overlayLabel(uint32_t index) const;
   /// The projectiles', the hazards' and the run's part of `publish`.
   void publishCombat(EditorPlaytestState& state) const;
+  /// The effects' part of `publish`.
+  void publishEffects(EditorPlaytestState& state) const;
+  /// Play the effects of every cue the last tick left, and count them.
+  void playCues();
   /// Fill every stand-in's slot of @p input with what their stand-in does.
   void addStandInInput(sim::TickInput& input) const;
   /// The id of the prop the actor @p handle names became, or empty.
@@ -221,6 +240,12 @@ private:
   uint64_t dropped_ticks_ = 0;
   /// The hash the last tick ended on.
   std::optional<sim::TickHash> last_hash_;
+  /// Every effect playing. Seeded like the run, so a playtest's sparks fly
+  /// the same way each time — though nothing depends on it, since effects
+  /// are never state.
+  FxWorld fx_{EDITOR_PLAYTEST_SEED};
+  /// Cues played since the playtest started, by kind.
+  std::array<uint64_t, game::COMBAT_CUE_KIND_COUNT> cues_played_{};
 };
 
 }  // namespace eng::editor

@@ -163,6 +163,8 @@ each one's parameters; this table is the map.
 | `list_lights` | Every light: kind, position, direction, colour, intensity, range |
 | `list_player_starts` | Every player start: the player it is for, its position, its default character, and how many players a session holds |
 | `list_waypoints` | Every waypoint: its route (1 to 9), its place in it, and its position; and every route in use, with its points in walking order and the actors that patrol it |
+| `list_emitters` | Every particle emitter: the preset it was started from and whether it still is exactly that preset, its position, direction, flash tint, and every number of its burst by the name `set_property` writes it under; and every preset an emitter can be started from |
+| `get_effects` | What the viewport's effects are doing now, while editing or playing: whose they are, particles and flashes alive, the bursts each emitter has thrown, and how many effects `play_effect` has played |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states, its initial state and whom it targets (`players` or `opponents`); and the behaviors table's path and anything wrong with it |
 | `list_enemies` | Every enemy archetype in the project's enemies table — id, name, model, health, body radius and height, behavior and whether it resolves, faction — with the file's path and anything wrong with it |
@@ -183,13 +185,16 @@ each one's parameters; this table is the map.
 | `add_light` | Adds a directional or point light and selects it |
 | `add_player_start` | Marks where a player spawns and selects it, for a named player or the lowest one with no start yet |
 | `add_waypoint` | Adds a waypoint to a patrol route and selects it: to the route named, or the selected waypoint's, after its last waypoint unless a place is named |
+| `add_emitter` | Adds a particle emitter and selects it, started from a named preset or the default sparks, as dragging the Particle Emitter from general › effects does |
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |
 | `set_behavior` | Gives a placed prop a behavior, a faction and a patrol route — making it an actor in a playtest — or takes its behavior away |
-| `translate` | Moves a placement, a light, a player start or a waypoint by a delta in tiles |
-| `delete` | Removes a placement, a light, a player start or a waypoint, as the Delete key does |
-| `select` | Selects a placement, a light, a player start or a waypoint, or clears the selection |
+| `set_effect` | Starts a particle emitter from a named preset, as its Effect row does: its burst and flash become the preset's |
+| `play_effect` | Plays an effect once, now, into the viewport's effects — a preset burst, a whole combat effect (`shot_fired`, `shot_hit_body`, `shot_hit_wall`, `blast`), or a placed emitter's own burst. Not an edit: nothing is recorded, and it works while playing |
+| `translate` | Moves a placement, a light, a player start, a waypoint or an emitter by a delta in tiles |
+| `delete` | Removes a placement, a light, a player start, a waypoint or an emitter, as the Delete key does |
+| `select` | Selects a placement, a light, a player start, a waypoint or an emitter, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
 | `undo` / `redo` | Walks the same history the Edit menu walks |

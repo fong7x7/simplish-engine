@@ -1,3 +1,4 @@
+#include "agent-emitters.h"
 #include "agent-json-values.h"
 
 #include <algorithm>
@@ -10,6 +11,7 @@
 #include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-choices.h>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-io.h>
@@ -219,6 +221,21 @@ namespace {
     return out;
   }
 
+  /// The selected particle emitter, as the panel shows it.
+  json emitterSelectionJson(const EditorShellState& state, size_t index) {
+    const EditorEmitter& emitter = state.document.emitters[index];
+    json out = agentEmitterValue(emitter);
+    out["target"] = "emitter";
+    out["index"] = index;
+    out["name"] = editorEmitterName(emitter);
+    json fields = json::array();
+    for (EditorPropertyField field : EDITOR_EMITTER_FIELDS) {
+      fields.push_back(fieldValue(field, editorEmitterValue(emitter, field)));
+    }
+    out["fields"] = std::move(fields);
+    return out;
+  }
+
   /// The ids of the actors in @p document patrolling @p route.
   json patrolledBy(const EditorDocument& document, uint8_t route) {
     json ids = json::array();
@@ -287,6 +304,8 @@ namespace {
         return playerStartSelectionJson(state, index);
       case EditorSelectionKind::WAYPOINT:
         return waypointSelectionJson(state, index);
+      case EditorSelectionKind::EMITTER:
+        return emitterSelectionJson(state, index);
       case EditorSelectionKind::NONE:
         break;
     }
@@ -363,6 +382,19 @@ namespace {
     return {{"projectiles", projectiles}, {"hazards", hazards}};
   }
 
+  /// The effects a playtest is playing, and every cue it has played, as
+  /// the agent API reports them.
+  json playtestEffectsJson(const EditorPlaytestEffects& effects) {
+    json cues = json::object();
+    for (size_t kind = 0; kind < effects.cues.size(); ++kind) {
+      cues[std::string(agentCombatCueName(
+          static_cast<game::CombatCueKind>(kind)))] = effects.cues[kind];
+    }
+    return {{"particles", effects.particles},
+            {"lights", effects.lights},
+            {"cues", cues}};
+  }
+
   /// Ticks of scripted input still waiting to run.
   uint64_t queuedInputTicks(const EditorPlaytestState& playtest) {
     uint64_t ticks = 0;
@@ -404,6 +436,7 @@ std::string agentStateJson(const EditorShellState& state) {
               {"light_count", state.document.lights.size()},
               {"player_start_count", state.document.player_starts.size()},
               {"waypoint_count", state.document.waypoints.size()},
+              {"emitter_count", state.document.emitters.size()},
               {"can_undo", canUndoEditorAction(state.history)},
               {"can_redo", canRedoEditorAction(state.history)},
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
@@ -422,7 +455,8 @@ std::string agentLevelJson(const EditorShellState& state) {
               {"prop_count", state.document.placements.size()},
               {"light_count", state.document.lights.size()},
               {"player_start_count", state.document.player_starts.size()},
-              {"waypoint_count", state.document.waypoints.size()}};
+              {"waypoint_count", state.document.waypoints.size()},
+              {"emitter_count", state.document.emitters.size()}};
   // Only where there is a project to be relative to; an absolute path made
   // from an empty root would name the working directory, not a level.
   out["path"] = loaded ? editorLevelPath(state).generic_string() : "";
@@ -512,6 +546,18 @@ std::string agentWaypointsJson(const EditorShellState& state) {
       .dump(2);
 }
 
+std::string agentEmittersJson(const EditorShellState& state) {
+  json emitters = json::array();
+  const auto& list = state.document.emitters;
+  for (size_t i = 0; i < list.size(); ++i) {
+    json entry = agentEmitterValue(list[i]);
+    entry["index"] = i;
+    emitters.push_back(entry);
+  }
+  return json{{"emitters", emitters}, {"effects", agentEffectPresetsJson()}}
+      .dump(2);
+}
+
 std::string agentPlaytestJson(const EditorShellState& state) {
   const EditorPlaytestState& playtest = state.playtest;
   json out = {{"mode", agentPlayModeName(playtest.mode)},
@@ -524,6 +570,7 @@ std::string agentPlaytestJson(const EditorShellState& state) {
               {"run_over", playtest.run_over},
               {"stand_ins", state.playtest_stand_ins}};
   out.update(playtestCombatJson(playtest));
+  out["effects"] = playtestEffectsJson(playtest.effects);
   out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
   return out.dump(2);
 }

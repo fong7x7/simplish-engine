@@ -153,7 +153,7 @@ The AI stream's state is its own section, `ai_rng`. It is drawn from only in den
 
 The flow fields are the section `flow`, hashed by what determines them — each field's goal, clearance and whether it is complete, and the builder's goal and how many cells it has expanded — not cell by cell: a field is a pure function of the grid, its goal and its clearance.
 
-The projectiles and hazard pools are the sections `projectiles` and `hazards`, every field of each. The effects buffer is empty between ticks and is not state; nor is the combat workspace the world lists who can be hurt in.
+The projectiles and hazard pools are the sections `projectiles` and `hazards`, every field of each. The effects buffer is empty between ticks and is not state; nor is the combat workspace the world lists who can be hurt in; nor are the combat cues — a shot fired, a shot landing, a blast — that the world lists for presentation each tick and no phase reads back ([fx.md §2](../engine/fx.md#2-cues-how-the-simulation-says-what-happened)).
 
 `ActorIntent`, the candidate list, the neighbour grid and the path finder's scratch are recomputed each tick before they are read and are not hashed.
 

@@ -15,7 +15,7 @@ namespace eng::editor {
 /// The sort of number a property holds.
 ///
 /// Stepping, scrubbing, formatting and clamping are decided from this
-/// rather than from the field itself: there are nine kinds and seventeen
+/// rather than from the field itself: there are thirteen kinds and forty-two
 /// fields, and a rule written per kind cannot disagree with itself about
 /// two fields that hold the same sort of number.
 /// @thread_safety Immutable value type.
@@ -43,6 +43,17 @@ enum class EditorPropertyKind : uint8_t {
   /// the panel draws a slider for it, laid out logarithmically so halving
   /// and doubling are the same distance either side of 1.
   SCALE,
+  /// A time in seconds, which cannot be negative: how long a particle
+  /// lives. Stepped in twentieths, since the quickest effects last a few.
+  DURATION,
+  /// Degrees either side of a direction, clamped to [0, 180]: 180 is every
+  /// way. Not an `ANGLE`, which would wrap 180 round to -180.
+  HALF_ANGLE,
+  /// A small length that cannot be negative, stepped in hundredths: a
+  /// particle's radius, a few hundredths of a tile.
+  FINE,
+  /// An acceleration, either way: gravity, negative for what rises.
+  ACCELERATION,
 };
 
 /// One property's fixed description.
@@ -83,6 +94,29 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Scale", EditorPropertyKind::SCALE},
     {"Route", EditorPropertyKind::COUNT, 9.0f},
     {"Order", EditorPropertyKind::COUNT, 99.0f},
+    {"Interval", EditorPropertyKind::FACTOR},
+    {"Particles", EditorPropertyKind::COUNT, 200.0f},
+    {"Spread", EditorPropertyKind::HALF_ANGLE},
+    {"Speed Min", EditorPropertyKind::EXTENT},
+    {"Speed Max", EditorPropertyKind::EXTENT},
+    {"Life Min", EditorPropertyKind::DURATION},
+    {"Life Max", EditorPropertyKind::DURATION},
+    {"Size Start", EditorPropertyKind::FINE},
+    {"Size End", EditorPropertyKind::FINE},
+    {"Start R", EditorPropertyKind::UNIT},
+    {"Start G", EditorPropertyKind::UNIT},
+    {"Start B", EditorPropertyKind::UNIT},
+    {"Start Hide", EditorPropertyKind::UNIT},
+    {"End R", EditorPropertyKind::UNIT},
+    {"End G", EditorPropertyKind::UNIT},
+    {"End B", EditorPropertyKind::UNIT},
+    {"End Hide", EditorPropertyKind::UNIT},
+    {"Gravity", EditorPropertyKind::ACCELERATION},
+    {"Drag", EditorPropertyKind::FACTOR},
+    {"Stretch", EditorPropertyKind::FINE},
+    {"Flash", EditorPropertyKind::FACTOR},
+    {"Flash Range", EditorPropertyKind::EXTENT},
+    {"Flash Time", EditorPropertyKind::DURATION},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

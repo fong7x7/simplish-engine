@@ -4,6 +4,7 @@
 /// @brief Everything the editor has authored into the level so far.
 /// @par Threading Main-thread-only.
 
+#include <editor/shell/editor-emitter.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
@@ -13,7 +14,8 @@
 namespace eng::editor {
 
 /// The level as the editor holds it: what has been placed, what lights it,
-/// where the players enter it, and the routes its actors patrol.
+/// where the players enter it, the routes its actors patrol, and the
+/// particle emitters that show effects in it.
 ///
 /// One record rather than a list per kind passed around separately, because
 /// the history describes all of it: an action names a list and a slot in
@@ -29,6 +31,8 @@ struct EditorDocument {
   std::vector<EditorPlayerStart> player_starts;
   /// The points of the level's patrol routes, in the order they were added.
   std::vector<EditorWaypoint> waypoints;
+  /// Particle emitters, in the order they were added.
+  std::vector<EditorEmitter> emitters;
 };
 
 }  // namespace eng::editor

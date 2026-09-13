@@ -226,6 +226,9 @@ void SimplishEditor::beginPlaytestState() {
   playtest_frame_ = std::chrono::steady_clock::now();
   playtest_alpha_ = 0.0f;
   held_actions_.releaseAll();
+  // The playtest's effects start empty; its emitters burst into them at
+  // once, as they did when they were dropped.
+  resetEditEffects();
 }
 
 void SimplishEditor::stopPlaytest() {
@@ -235,6 +238,7 @@ void SimplishEditor::stopPlaytest() {
   }
   saveLastPlaytestReplay();
   playtest_.reset();
+  resetEditEffects();
   state_.playtest = EditorPlaytestState{};
   held_actions_.releaseAll();
   applyPlayModeToChrome();
@@ -266,6 +270,9 @@ void SimplishEditor::tickPlaytest() {
   const FixedStepAdvance due =
       playtest_->advance(elapsed, livePlayerInput(), state_.playtest.scripted);
   playtest_alpha_ = due.interpolation;
+  // Effects run on the frame's own time, as clips do, and stop with a
+  // pause so a paused frame can be looked at.
+  advancePlaytestEffects(static_cast<float>(elapsed) * 1e-9f);
   afterPlaytestTicks();
 }
 
@@ -294,6 +301,8 @@ void SimplishEditor::stepPlaytest(uint32_t ticks) {
   state_.playtest.clock = EditorPlaytestClock::PAUSED;
   for (uint32_t i = 0; i < ticks; ++i) {
     playtest_->step(livePlayerInput(), state_.playtest.scripted);
+    // A step is a tick's worth of time for the effects too.
+    advancePlaytestEffects(1.0f / static_cast<float>(TICK_RATE_HZ));
   }
   // Drawn where the last tick left everything, not partway to a next tick
   // that is not coming.

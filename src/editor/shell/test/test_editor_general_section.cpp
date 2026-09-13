@@ -41,15 +41,32 @@ TEST_CASE("the general section stands beside the assets root, not under it") {
   REQUIRE(tree.folders[EDITOR_ASSET_FOLDER_ROOT].child_folders.empty());
 }
 
-TEST_CASE("the section holds three subsections and nothing itself") {
+TEST_CASE("the section holds four subsections and nothing itself") {
   const EditorAssetTree tree = treeWithSection(0);
   const size_t section = folderNamed(tree, EDITOR_GENERAL_FOLDER_NAME);
 
-  // Three kinds of built-in thing in one grid of cards would read as a
+  // Four kinds of built-in thing in one grid of cards would read as a
   // pile; the subsections are what somebody reaching for a light navigates
   // by.
   REQUIRE(tree.folders[section].assets.empty());
-  REQUIRE(tree.folders[section].child_folders.size() == 3);
+  REQUIRE(tree.folders[section].child_folders.size() == 4);
+}
+
+TEST_CASE("the effects subsection holds the particle emitter, last") {
+  const EditorAssetTree tree = treeWithSection(3);
+  const size_t effects = folderNamed(tree, EDITOR_EFFECTS_FOLDER_NAME);
+
+  REQUIRE(effects != EDITOR_ASSET_FOLDER_NONE);
+  REQUIRE(tree.folders[effects].parent ==
+          folderNamed(tree, EDITOR_GENERAL_FOLDER_NAME));
+  REQUIRE(tree.folders[effects].assets.size() == EDITOR_GENERAL_EFFECT_COUNT);
+  const size_t first_item = 3 + EDITOR_SHAPE_COUNT;
+  const size_t entry = tree.folders[effects].assets.front();
+  REQUIRE(entry - first_item < EDITOR_GENERAL_ITEM_COUNT);
+  REQUIRE(EDITOR_GENERAL_ITEMS[entry - first_item] ==
+          EditorGeneralItem::PARTICLE_EMITTER);
+  REQUIRE(editorGeneralItemName(EditorGeneralItem::PARTICLE_EMITTER) ==
+          "Particle Emitter");
 }
 
 TEST_CASE("the lighting subsection holds every light") {
@@ -121,17 +138,16 @@ TEST_CASE("an open section lists its subsections under it") {
   const size_t section = folderNamed(tree, EDITOR_GENERAL_FOLDER_NAME);
   const auto rows = flattenAssetFolderRows(tree, {section});
 
-  REQUIRE(rows.size() == 5);
+  REQUIRE(rows.size() == 6);
   REQUIRE(tree.folders[rows[1].folder].name == EDITOR_LIGHTING_FOLDER_NAME);
-  REQUIRE(rows[1].depth == 1);
   REQUIRE(tree.folders[rows[2].folder].name == EDITOR_SHAPES_FOLDER_NAME);
-  REQUIRE(rows[2].depth == 1);
   REQUIRE(tree.folders[rows[3].folder].name == EDITOR_TOOLS_FOLDER_NAME);
-  REQUIRE(rows[3].depth == 1);
+  REQUIRE(tree.folders[rows[4].folder].name == EDITOR_EFFECTS_FOLDER_NAME);
+  REQUIRE(rows[4].depth == 1);
   // The assets root keeps its place at the bottom, whatever the section
   // above it is showing.
-  REQUIRE(rows[4].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[4].depth == 0);
+  REQUIRE(rows[5].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[5].depth == 0);
 }
 
 TEST_CASE("expanding the assets root does not push the section around") {

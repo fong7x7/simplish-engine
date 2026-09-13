@@ -25,6 +25,8 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-enemy-table.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-player.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"
@@ -58,6 +60,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
 )
 
@@ -71,12 +74,14 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-gltf
         simplish-engine-gui
         simplish-engine-render
+        simplish-engine-render-fx
         simplish-engine-render-mesh
         simplish-engine-sim
         simplish-engine-spatial
         simplish-engine-input
         simplish-game-actors
         simplish-game-content
+        simplish-game-fx
         simplish-game-world
         simplish-platform-client
         nlohmann_json::nlohmann_json

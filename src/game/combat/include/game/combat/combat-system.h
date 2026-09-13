@@ -7,9 +7,11 @@
 
 #include <cstdint>
 #include <engine/sim/state-hasher.h>
+#include <game/combat/combat-cue.h>
 #include <game/combat/combat-scene.h>
 #include <game/combat/hazard-pool.h>
 #include <game/combat/projectile-pool.h>
+#include <vector>
 
 namespace eng::game {
 
@@ -29,13 +31,16 @@ inline constexpr uint32_t HAZARD_BITE_INTERVAL_TICKS = 30;
 
 /// §4.1 step 4: spawn every projectile and hazard the tick's attacks asked
 /// for, in the order they were asked. One the pool has no room for is
-/// dropped.
+/// dropped. Every projectile spawned is cued in @p cues as fired.
 void spawnCombatEffects(ProjectilePool& projectiles, HazardPool& hazards,
-                        const CombatEffects& effects);
+                        const CombatEffects& effects,
+                        std::vector<CombatCue>& cues);
 
 /// §4.1 step 5: move every projectile one tick. The first opposing body
 /// its step reaches — before any box — is hit and it is gone; one a box
-/// stops, or that runs out of flight, is gone too.
+/// stops, or that runs out of flight, is gone too. A hit on a body or a
+/// box is cued where the projectile reached it; running out of flight is
+/// not.
 void stepProjectiles(ProjectilePool& projectiles, const CombatScene& scene);
 
 /// §4.1 step 5: age every hazard one tick, biting the opposing bodies in
@@ -43,7 +48,8 @@ void stepProjectiles(ProjectilePool& projectiles, const CombatScene& scene);
 void stepHazards(HazardPool& hazards, const CombatScene& scene);
 
 /// Turn every blast in the scene's effects into hits on everyone it
-/// reaches, in the order the blasts were set off, and clear the blasts.
+/// reaches, in the order the blasts were set off, cue each, and clear the
+/// blasts.
 void resolveBlasts(const CombatScene& scene);
 
 /// Destroy the projectiles marked for it.

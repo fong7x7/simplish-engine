@@ -15,7 +15,8 @@ namespace eng::editor {
 /// not: the camera lives in a widget, opening a project touches the disk
 /// and the window title, a rescan destroys and rebuilds GPU textures, and
 /// switching level uploads the new level's meshes and re-reads the panels
-/// from a document that has been replaced wholesale.
+/// from a document that has been replaced wholesale, and the effects the
+/// viewport draws live in the editor, not in its state.
 /// Rather than drag the whole editor into the dispatcher, a tool that needs
 /// one of those leaves this behind and the editor runs it on the tick that
 /// drained the request.
@@ -37,6 +38,8 @@ enum class AgentHostRequestKind : uint8_t {
   START_PLAYTEST,
   /// Pause the running playtest and run `AgentHostRequest::ticks` ticks.
   STEP_PLAYTEST,
+  /// Play `AgentHostRequest::effect` once, into the viewport's effects.
+  PLAY_EFFECT,
 };
 
 }  // namespace eng::editor

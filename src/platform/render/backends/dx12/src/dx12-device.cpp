@@ -944,6 +944,17 @@ bool Dx12Device::tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) {
   return true;
 }
 
+bool Dx12Device::tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline) {
+  auto* state =
+      createDx12FxPipelineState(impl_->device, impl_->graphics_root_signature,
+                                impl_->swapchain_rtv_format);
+  if (state == nullptr) {
+    return false;
+  }
+  out_pipeline = insertBuiltinPipeline(*impl_, state, dx12FxVertexStride());
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

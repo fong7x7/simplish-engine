@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
@@ -123,24 +124,23 @@ namespace {
   }
 
   /// The entry a viewport marker stands for. Markers are the placements,
-  /// then the lights, then the player starts — the order
+  /// then the lights, the player starts, the waypoints and the emitters —
+  /// the order
   /// `refreshPlacementMarkers` pushes them in.
   EditorSelection markerSelection(const EditorDocument& document,
                                   size_t marker) {
-    const size_t placements = document.placements.size();
-    if (marker < placements) {
-      return {EditorSelectionKind::PLACEMENT, marker};
+    constexpr std::array<EditorSelectionKind, 5> MARKED{
+        EditorSelectionKind::PLACEMENT, EditorSelectionKind::LIGHT,
+        EditorSelectionKind::PLAYER_START, EditorSelectionKind::WAYPOINT,
+        EditorSelectionKind::EMITTER};
+    for (const EditorSelectionKind kind : MARKED) {
+      const size_t count = editorListSize(document, kind);
+      if (marker < count) {
+        return {kind, marker};
+      }
+      marker -= count;
     }
-    const size_t light = marker - placements;
-    if (light < document.lights.size()) {
-      return {EditorSelectionKind::LIGHT, light};
-    }
-    const size_t start = light - document.lights.size();
-    if (start < document.player_starts.size()) {
-      return {EditorSelectionKind::PLAYER_START, start};
-    }
-    return {EditorSelectionKind::WAYPOINT,
-            start - document.player_starts.size()};
+    return {};
   }
 
   /// Whether two waypoints stand at the same place in the same route, for
@@ -286,14 +286,23 @@ void SimplishEditor::initSceneRenderers() {
     LOG_WARN("editor", "Backend has no mesh pipeline; assets will not draw");
     return;
   }
-  if (!outline_renderer_.init(*device)) {
+  initOptionalSceneRenderers(*device);
+}
+
+void SimplishEditor::initOptionalSceneRenderers(RhiDevice& device) {
+  if (!outline_renderer_.init(device)) {
     // Cel shading still bands the light; it only loses its line.
     LOG_WARN("editor", "Backend has no outline pipeline; cel shading will "
                        "draw without outlines");
   }
-  if (!skinned_renderer_.init(*device)) {
+  if (!skinned_renderer_.init(device)) {
     LOG_WARN("editor", "Backend has no skinned mesh pipeline; rigged models "
                        "will not load");
+  }
+  if (!fx_renderer_.init(device)) {
+    // Flashes still light the scene; only the particles are missing.
+    LOG_WARN("editor", "Backend has no effects pipeline; shots and blasts "
+                       "will light the scene but throw no particles");
   }
 }
 
@@ -994,6 +1003,8 @@ void SimplishEditor::placeGeneralItem(EditorGeneralItem item, WorldPoint tile) {
     placeLight(*kind, tile);
   } else if (item == EditorGeneralItem::WAYPOINT) {
     placeWaypoint(tile);
+  } else if (item == EditorGeneralItem::PARTICLE_EMITTER) {
+    placeEmitter(tile);
   } else {
     placePlayerStart(tile);
   }
@@ -1159,16 +1170,25 @@ void SimplishEditor::applySelectionToChrome() {
   }
   if (state_.selection.index >= selectionCount()) {
     panel->clearSelection();
-  } else if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
-    showPlacementSelection(*panel);
-  } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
-    showLightSelection(*panel);
-  } else if (selectionIs(state_.selection, EditorSelectionKind::WAYPOINT)) {
-    showWaypointSelection(*panel);
   } else {
-    showPlayerStartSelection(*panel);
+    showSelection(*panel);
   }
   refreshPlacementMarkers();
+}
+
+void SimplishEditor::showSelection(EditorPropertiesWidget& panel) {
+  const EditorSelection& selection = state_.selection;
+  if (selectionIs(selection, EditorSelectionKind::PLACEMENT)) {
+    showPlacementSelection(panel);
+  } else if (selectionIs(selection, EditorSelectionKind::LIGHT)) {
+    showLightSelection(panel);
+  } else if (selectionIs(selection, EditorSelectionKind::WAYPOINT)) {
+    showWaypointSelection(panel);
+  } else if (selectionIs(selection, EditorSelectionKind::EMITTER)) {
+    showEmitterSelection(panel);
+  } else {
+    showPlayerStartSelection(panel);
+  }
 }
 
 void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
@@ -1176,16 +1196,24 @@ void SimplishEditor::applyPropertyEdit(EditorPropertyField field, float value,
   if (isPlaying() || state_.selection.index >= selectionCount()) {
     return;
   }
-  if (selectionIs(state_.selection, EditorSelectionKind::PLACEMENT)) {
+  applySelectedEdit(field, value, edit);
+  refreshPlacementMarkers();
+}
+
+void SimplishEditor::applySelectedEdit(EditorPropertyField field, float value,
+                                       EditorPropertyEdit edit) {
+  const EditorSelection& selection = state_.selection;
+  if (selectionIs(selection, EditorSelectionKind::PLACEMENT)) {
     applyPlacementEdit(field, value, edit);
-  } else if (selectionIs(state_.selection, EditorSelectionKind::LIGHT)) {
+  } else if (selectionIs(selection, EditorSelectionKind::LIGHT)) {
     applyLightEdit(field, value, edit);
-  } else if (selectionIs(state_.selection, EditorSelectionKind::WAYPOINT)) {
+  } else if (selectionIs(selection, EditorSelectionKind::WAYPOINT)) {
     applyWaypointEdit(field, value, edit);
+  } else if (selectionIs(selection, EditorSelectionKind::EMITTER)) {
+    applyEmitterEdit(field, value, edit);
   } else {
     applyPlayerStartEdit(field, value, edit);
   }
-  refreshPlacementMarkers();
 }
 
 void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
@@ -1215,6 +1243,9 @@ void SimplishEditor::applyChoiceEdit(EditorChoiceKind kind, size_t index) {
     case EditorChoiceKind::FACTION:
     case EditorChoiceKind::ROUTE:
       applyActorChoice(kind, index);
+      break;
+    case EditorChoiceKind::EFFECT:
+      applyEffectChoice(index);
       break;
   }
 }
@@ -1369,6 +1400,7 @@ void SimplishEditor::commitPendingEdit() {
   commitLightEdit();
   commitPlayerStartEdit();
   commitWaypointEdit();
+  commitEmitterEdit();
 }
 
 void SimplishEditor::applyWaypointEdit(EditorPropertyField field, float value,
@@ -1564,7 +1596,7 @@ void SimplishEditor::refreshPlacementMarkers() {
   if (viewport == nullptr) {
     return;
   }
-  // Placements, then lights, then player starts, then waypoints: the
+  // Placements, then lights, player starts, waypoints and emitters: the
   // order `markerSelection` reads a pick back in.
   std::vector<EditorPlacementMarker>& markers = viewport->placement_markers;
   markers.clear();
@@ -1585,6 +1617,9 @@ void SimplishEditor::appendEntityMarkers(
   }
   for (size_t i = 0; i < state_.document.waypoints.size(); ++i) {
     markers.push_back(waypointMarker(i));
+  }
+  for (size_t i = 0; i < state_.document.emitters.size(); ++i) {
+    markers.push_back(emitterMarker(i));
   }
 }
 
@@ -1608,6 +1643,21 @@ void SimplishEditor::buildSceneLights() {
     }
     scene_lights_.push_back(makeMeshLight(light));
   }
+  appendEffectLights();
+}
+
+void SimplishEditor::appendEffectLights() {
+  if (activeEffects().lights.live == 0) {
+    return;
+  }
+  // A level with no lights of its own is lit by the built-in key light,
+  // which only an empty list brings; a flash must not put the level out.
+  if (scene_lights_.empty()) {
+    scene_lights_.push_back(MeshLight{});
+  }
+  appendBrightestFxLights(activeEffects().lights,
+                          MESH_MAX_LIGHTS - scene_lights_.size(),
+                          scene_lights_);
 }
 
 void SimplishEditor::appendSkinnedInstance(const EditorAsset& asset,
@@ -1662,8 +1712,11 @@ RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   // Nothing to draw means no scene pass at all, which leaves the frame
   // exactly as it was before any of this existed. A playtest always has
   // one: the players are drawn in it.
-  if (device == nullptr || (state_.document.placements.empty() &&
-                            !isPlaying() && characterFigures().empty())) {
+  // An emitter needs one too: its particles read the depth the pass leaves,
+  // cleared to nothing, however little else there is to draw.
+  if (device == nullptr ||
+      (state_.document.placements.empty() && state_.document.emitters.empty() &&
+       !isPlaying() && characterFigures().empty())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -1749,12 +1802,37 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   skinned_renderer_.draw(cmd, skinnedDrawParams(*viewport));
 }
 
-void SimplishEditor::recordSceneOverlay(RhiCommandList& cmd) {
-  EditorViewportWidget* viewport = viewportWidget();
-  if (viewport == nullptr || sceneStyle().outline_width <= 0.0f) {
+FxRenderer::DrawParams
+SimplishEditor::fxDrawParams(const EditorViewportWidget& viewport) {
+  const MeshRenderer::DrawParams scene = sceneDrawParams(viewport);
+  FxRenderer::DrawParams params{};
+  params.particles = &activeEffects().particles;
+  params.depth = sceneDepthTarget();
+  params.view_projection = scene.view_projection;
+  params.viewport = scene.viewport;
+  params.scissor = scene.scissor;
+  return params;
+}
+
+void SimplishEditor::recordEffects(RhiCommandList& cmd,
+                                   const EditorViewportWidget& viewport) {
+  RhiDevice* device = rhiDevice();
+  if (device == nullptr) {
     return;
   }
-  outline_renderer_.draw(cmd, outlineDrawParams(*viewport));
+  fx_renderer_.draw(*device, cmd, fxDrawParams(viewport));
+}
+
+void SimplishEditor::recordSceneOverlay(RhiCommandList& cmd) {
+  EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    return;
+  }
+  if (sceneStyle().outline_width > 0.0f) {
+    outline_renderer_.draw(cmd, outlineDrawParams(*viewport));
+  }
+  // After the outline, so no line lands on a glow (Engine §5.3).
+  recordEffects(cmd, *viewport);
 }
 
 void SimplishEditor::refreshToolbar() {
@@ -1881,6 +1959,8 @@ bool SimplishEditor::onTick(float dt) {
     status_override_left_ -= dt;
   }
   animation_clock_ += dt;
+  tickEditEffects(dt);
+  publishEffects();
   tickMenuBar();
   refreshToolbar();
   pumpThumbnails();
@@ -2340,6 +2420,7 @@ void SimplishEditor::onShutdown() {
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     outline_renderer_.shutdown(*rhiDevice());
+    fx_renderer_.shutdown(*rhiDevice());
     skinned_renderer_.shutdown(*rhiDevice());
     mesh_renderer_.shutdown(*rhiDevice());
   }

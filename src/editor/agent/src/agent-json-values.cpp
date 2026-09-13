@@ -1,6 +1,7 @@
 #include "agent-json-values.h"
 
 #include <editor/agent/agent-names.h>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
@@ -49,6 +50,32 @@ nlohmann::json agentWaypointValue(const EditorWaypoint& waypoint) {
           {"route", waypoint.route},
           {"order", waypoint.order},
           {"position", agentPointJson(waypoint.position)}};
+}
+
+namespace {
+
+  /// Every number the panel lists for @p emitter past its position and
+  /// direction, by wire name.
+  nlohmann::json emitterNumbers(const EditorEmitter& emitter) {
+    nlohmann::json numbers = nlohmann::json::object();
+    for (const EditorPropertyField field : EDITOR_EMITTER_FIELDS) {
+      numbers[std::string(agentPropertyFieldName(field))] =
+          editorEmitterValue(emitter, field);
+    }
+    return numbers;
+  }
+
+}  // namespace
+
+nlohmann::json agentEmitterValue(const EditorEmitter& emitter) {
+  return {{"id", emitter.id},
+          {"ref", editorEmitterRef(emitter)},
+          {"effect", emitter.effect},
+          {"is_preset", editorEmitterIsPreset(emitter)},
+          {"position", agentPointJson(emitter.position)},
+          {"direction", agentVec3Json(emitter.direction)},
+          {"flash_color", agentVec3Json(emitter.flash.color)},
+          {"properties", emitterNumbers(emitter)}};
 }
 
 }  // namespace eng::editor

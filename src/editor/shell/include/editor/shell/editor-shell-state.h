@@ -12,6 +12,7 @@
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-document.h>
+#include <editor/shell/editor-effects-state.h>
 #include <editor/shell/editor-enemy-table.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
@@ -85,6 +86,9 @@ struct EditorShellState {
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;
+  /// What the viewport's effects are doing — its emitters' while editing,
+  /// the playtest's while playing — refreshed by the editor every frame.
+  EditorEffectsState effects;
   /// How many stand-in players the next playtest adds beside player 1, 0
   /// to 3: the multi-player preview (Editor §7). Kept here rather than in
   /// `playtest`, which every Play starts afresh.

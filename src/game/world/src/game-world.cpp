@@ -57,6 +57,13 @@ namespace {
     effects.hazards.reserve(actors + 8);
   }
 
+  /// Cues a tick is given room for: every projectile in flight landing,
+  /// every volley the effects have room for fired, and a blast apiece. A
+  /// cue past this is dropped, never grown into.
+  size_t cueRoom(size_t actors) {
+    return PROJECTILE_POOL_CAPACITY + actors * 5 + 64;
+  }
+
   /// The navigation grid for @p setup's actors, or one with no cells when
   /// there are none to plan across it.
   spatial::NavGrid navGridFor(const GameSetup& setup) {
@@ -80,9 +87,11 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content)
   }
   spawnActors(setup, content);
   reserveEffects(effects_, setup.actors.size());
+  cues_.reserve(cueRoom(setup.actors.size()));
 }
 
 void GameWorld::playerControl(const sim::TickContext& context) {
+  cues_.clear();
   movePlayers(players_, context.input, obstacles_);
 }
 
@@ -102,7 +111,7 @@ void GameWorld::enemyAi(const sim::TickContext& context) {
 }
 
 void GameWorld::weaponFire([[maybe_unused]] const sim::TickContext& context) {
-  spawnCombatEffects(projectiles_, hazards_, effects_);
+  spawnCombatEffects(projectiles_, hazards_, effects_, cues_);
   effects_.shots.clear();
   effects_.hazards.clear();
 }
@@ -157,7 +166,7 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
 CombatScene GameWorld::combatScene(uint64_t tick) {
   listBodies();
   indexCombatBodies(combat_);
-  return {tick, obstacles_, broadphase_, combat_, effects_};
+  return {tick, obstacles_, broadphase_, combat_, effects_, cues_};
 }
 
 void GameWorld::listBodies() {

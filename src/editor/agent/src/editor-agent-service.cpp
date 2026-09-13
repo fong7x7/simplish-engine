@@ -109,12 +109,17 @@ void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
     case AgentHostRequestKind::OPEN_LEVEL:
     case AgentHostRequestKind::START_PLAYTEST:
     case AgentHostRequestKind::STEP_PLAYTEST:
+    case AgentHostRequestKind::PLAY_EFFECT:
       break;
   }
 }
 
 void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
   if (editor_ == nullptr || runLevelRequest(request)) {
+    return;
+  }
+  if (request.kind == AgentHostRequestKind::PLAY_EFFECT) {
+    editor_->playEffectShot(request.effect);
     return;
   }
   runProjectRequest(request);

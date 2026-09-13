@@ -41,6 +41,12 @@ enum class EditorActionKind : uint8_t {
   TRANSFORM_WAYPOINT,
   /// A waypoint was taken back out of the level.
   REMOVE_WAYPOINT,
+  /// A particle emitter was added to the level.
+  ADD_EMITTER,
+  /// A particle emitter was moved, or its burst changed.
+  TRANSFORM_EMITTER,
+  /// A particle emitter was taken back out of the level.
+  REMOVE_EMITTER,
 };
 
 }  // namespace eng::editor

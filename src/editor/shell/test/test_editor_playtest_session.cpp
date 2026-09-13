@@ -426,3 +426,72 @@ TEST_CASE("a stand-in plays their player, and says so") {
   REQUIRE(state.players[1].position.x < setup.spawns[1].x);
   REQUIRE_FALSE(state.run_over);
 }
+
+namespace {
+
+/// How many shots the effects of @p state say were fired.
+uint64_t shotsFired(const EditorPlaytestState& state) {
+  return state.effects
+      .cues[static_cast<size_t>(game::CombatCueKind::SHOT_FIRED)];
+}
+
+/// A playtest with a skirmisher in it, stepped until it has fired — at
+/// most 400 ticks — and what it reports then.
+EditorPlaytestState untilFired(EditorPlaytestSession& session) {
+  std::vector<EditorScriptedInput> none;
+  EditorPlaytestState state;
+  for (int tick = 0; tick < 400 && shotsFired(state) == 0; ++tick) {
+    session.step({}, none);
+    session.publish(state);
+  }
+  return state;
+}
+
+/// A playtest of the skirmisher document.
+EditorPlaytestSession skirmisherSession() {
+  return {
+      makeEditorPlaytestSetup(documentWithActor("behavior:skirmisher"), {}, {}),
+      {},
+      "main"};
+}
+
+}  // namespace
+
+TEST_CASE("a shot fired in a playtest throws particles and a flash") {
+  EditorPlaytestSession session = skirmisherSession();
+  EditorPlaytestState state = untilFired(session);
+
+  REQUIRE(shotsFired(state) > 0);
+  REQUIRE(state.effects.particles > 0);
+  REQUIRE(state.effects.lights > 0);
+  REQUIRE(session.effects().particles.live == state.effects.particles);
+}
+
+TEST_CASE("a playtest's effects age on the frame's time, not the tick's") {
+  EditorPlaytestSession session = skirmisherSession();
+  (void)untilFired(session);
+  session.stepEffects(5.0F);
+  EditorPlaytestState state;
+  session.publish(state);
+
+  REQUIRE(state.effects.particles == 0);
+  REQUIRE(state.effects.lights == 0);
+  // What was played is still counted after it has died away.
+  REQUIRE(shotsFired(state) > 0);
+}
+
+TEST_CASE("however a playtest's effects are aged, its ticks hash the same") {
+  EditorPlaytestSession aged = skirmisherSession();
+  EditorPlaytestSession untouched = skirmisherSession();
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 240; ++tick) {
+    aged.step({}, none);
+    aged.stepEffects(0.1F);
+    untouched.step({}, none);
+  }
+  EditorPlaytestState a;
+  EditorPlaytestState b;
+  aged.publish(a);
+  untouched.publish(b);
+  REQUIRE(a.hash == b.hash);
+}

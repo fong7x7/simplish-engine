@@ -13,7 +13,8 @@
 //   - All GPU memory allocated through VulkanMemoryAllocator (VMA)
 //   - Double-buffered frame lifecycle with per-frame sync objects
 //   - Present via VkSwapchainKHR from SDL native window surface
-//   - Ship the GUI, mesh, skinned mesh and outline pipelines, compiled from
+//   - Ship the GUI, mesh, skinned mesh, outline and effects pipelines, compiled
+//   from
 //     GLSL at creation the way the Metal backend compiles its MSL
 //   - Bind stage bytes and fragment textures by push descriptor against one
 //     shared layout, so the renderers drive it exactly as they drive Metal
@@ -98,6 +99,7 @@ public:
   bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;

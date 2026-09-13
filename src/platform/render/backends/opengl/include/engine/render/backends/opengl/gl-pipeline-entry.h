@@ -42,8 +42,15 @@ struct GlPipelineEntry {
   /// `u_outline` uniform array location; -1 if unused. The outline
   /// pipeline's whole stage-bytes payload, as three `vec4`s.
   GLint loc_u_outline = -1;
+  /// `u_fx` uniform location; -1 if unused. The effects pipeline's whole
+  /// stage-bytes payload, as one `vec4`.
+  GLint loc_u_fx = -1;
   /// Blend state snapshot.
   bool blend_enabled = false;
+  /// Whether the colour a blended pipeline writes is already multiplied by
+  /// its alpha — the effects pipeline's — so it is added as it is rather
+  /// than scaled by alpha first.
+  bool blend_premultiplied = false;
   /// Depth test enabled.
   bool depth_test = true;
   /// Depth write enabled.

@@ -959,6 +959,15 @@ bool VulkanDevice::tryCreateMeshOutlinePipeline(
       out_pipeline);
 }
 
+bool VulkanDevice::tryCreateFxParticlePipeline(
+    RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(*impl_,
+                        createVulkanFxPipeline(impl_->device,
+                                               impl_->shared_layout.graphics,
+                                               impl_->swapchain_format),
+                        out_pipeline);
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

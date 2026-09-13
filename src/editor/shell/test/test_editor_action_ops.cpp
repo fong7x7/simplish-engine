@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
@@ -723,4 +724,38 @@ TEST_CASE("a waypoint is added, moved and removed as undoable edits") {
   REQUIRE(fx.undo());
   REQUIRE(fx.document.waypoints.empty());
   REQUIRE(editorListSize(fx.document, EditorSelectionKind::WAYPOINT) == 0);
+}
+
+namespace {
+
+/// Add a sparks emitter to @p fx, then start it from smoke, as two edits.
+void addAndResmokeEmitter(HistoryFixture& fx) {
+  const EditorEmitter dropped = makeEditorEmitter("wall_sparks", {1, 1, 1});
+  performEditorAction(
+      fx.history, fx.document,
+      {.kind = EditorActionKind::ADD_EMITTER, .index = 0, .emitter = dropped});
+  EditorEmitter smoky = dropped;
+  (void)applyEditorEmitterEffect(smoky, "smoke");
+  performEditorAction(fx.history, fx.document,
+                      {.kind = EditorActionKind::TRANSFORM_EMITTER,
+                       .index = 0,
+                       .emitter = smoky,
+                       .emitter_prior = dropped});
+}
+
+}  // namespace
+
+TEST_CASE("an emitter is added, changed and removed as undoable edits") {
+  HistoryFixture fx;
+  addAndResmokeEmitter(fx);
+  const EditorAction removed = fx.remove({EditorSelectionKind::EMITTER, 0});
+
+  REQUIRE(removed.kind == EditorActionKind::REMOVE_EMITTER);
+  REQUIRE(fx.document.emitters.empty());
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.emitters[0].effect == "smoke");
+  REQUIRE(fx.undo());
+  REQUIRE(fx.document.emitters[0].effect == "wall_sparks");
+  REQUIRE(fx.undo());
+  REQUIRE(editorListSize(fx.document, EditorSelectionKind::EMITTER) == 0);
 }

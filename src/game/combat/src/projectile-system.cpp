@@ -2,6 +2,7 @@
 #include <engine/physics/segment-queries.h>
 #include <engine/sim/slot-move.h>
 #include <game/combat/combat-system.h>
+#include <optional>
 #include <span>
 
 namespace eng::game {
@@ -62,6 +63,49 @@ namespace {
     (void)projectiles.slots.destroy(projectiles.slots.handleAt(i));
   }
 
+  /// Where a projectile's step ended early, and on what.
+  struct Landing {
+    /// A body, or a box.
+    CombatCueKind kind = CombatCueKind::SHOT_HIT_WALL;
+    /// Where the projectile reached it, on the floor.
+    Vec2 at{};
+    /// The body's index in the workspace, when it was one.
+    uint32_t body = 0;
+  };
+
+  /// What @p sweep, the step of a projectile on @p side, reaches first: the
+  /// first opposing body before any box, then a box, or nothing.
+  std::optional<Landing> firstLanding(const physics::SegmentSweep& sweep,
+                                      Faction side, const CombatScene& scene) {
+    const float wall = boxHit(sweep, scene);
+    const BodyHit body = bodyHit(sweep, side, scene);
+    const Vec2 step = sweep.to - sweep.from;
+    if (body.at <= std::min(wall, 1.0F)) {
+      return Landing{CombatCueKind::SHOT_HIT_BODY, sweep.from + step * body.at,
+                     body.body};
+    }
+    if (wall <= 1.0F) {
+      return Landing{CombatCueKind::SHOT_HIT_WALL, sweep.from + step * wall};
+    }
+    return std::nullopt;
+  }
+
+  /// Land the projectile at dense index @p i as @p landing says: hurt the
+  /// body it reached, if it reached one, and cue where.
+  void landAt(ProjectilePool& projectiles, uint32_t i, const CombatScene& scene,
+              const Landing& landing) {
+    if (landing.kind == CombatCueKind::SHOT_HIT_BODY) {
+      scene.effects.damage.push_back(
+          {scene.workspace.bodies[landing.body].who, projectiles.damage[i]});
+    }
+    cueCombat(scene.cues, {landing.kind,
+                           {landing.at.x, landing.at.y, PROJECTILE_Z_TILES},
+                           projectiles.velocity[i],
+                           0.0F,
+                           projectiles.side[i]});
+    land(projectiles, i);
+  }
+
   /// Move the projectile at dense index @p i one tick, or land it.
   void stepOne(ProjectilePool& projectiles, uint32_t i,
                const CombatScene& scene) {
@@ -69,13 +113,9 @@ namespace {
     const physics::SegmentSweep sweep{from, from + projectiles.velocity[i],
                                       PROJECTILE_RADIUS_TILES,
                                       PROJECTILE_Z_TILES};
-    const float wall = boxHit(sweep, scene);
-    const BodyHit body = bodyHit(sweep, projectiles.side[i], scene);
-    if (body.at <= std::min(wall, 1.0F)) {
-      scene.effects.damage.push_back(
-          {scene.workspace.bodies[body.body].who, projectiles.damage[i]});
-      land(projectiles, i);
-    } else if (wall <= 1.0F || --projectiles.ticks_left[i] == 0) {
+    if (const auto landing = firstLanding(sweep, projectiles.side[i], scene)) {
+      landAt(projectiles, i, scene, *landing);
+    } else if (--projectiles.ticks_left[i] == 0) {
       land(projectiles, i);
     } else {
       projectiles.position[i] = sweep.to;

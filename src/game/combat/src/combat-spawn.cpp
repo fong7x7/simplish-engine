@@ -4,10 +4,11 @@ namespace eng::game {
 
 namespace {
 
-  /// Spawn one projectile as @p shot asks, if the pool has room.
-  void spawnShot(ProjectilePool& projectiles, const ShotRequest& shot) {
+  /// Spawn one projectile as @p shot asks, if the pool has room. Whether
+  /// it had.
+  bool spawnShot(ProjectilePool& projectiles, const ShotRequest& shot) {
     if (!projectiles.slots.spawn()) {
-      return;
+      return false;
     }
     // `spawn` always places a new entity at the end of the dense range.
     const uint32_t i = projectiles.slots.size() - 1U;
@@ -16,6 +17,16 @@ namespace {
     projectiles.ticks_left[i] = PROJECTILE_FLIGHT_TICKS;
     projectiles.damage[i] = shot.damage;
     projectiles.side[i] = shot.side;
+    return true;
+  }
+
+  /// The cue for @p shot leaving whoever fired it.
+  CombatCue firedCue(const ShotRequest& shot) {
+    return {CombatCueKind::SHOT_FIRED,
+            {shot.from.x, shot.from.y, PROJECTILE_Z_TILES},
+            shot.velocity,
+            0.0F,
+            shot.side};
   }
 
   /// Spawn one hazard as @p request asks, if the pool has room.
@@ -35,9 +46,12 @@ namespace {
 }  // namespace
 
 void spawnCombatEffects(ProjectilePool& projectiles, HazardPool& hazards,
-                        const CombatEffects& effects) {
+                        const CombatEffects& effects,
+                        std::vector<CombatCue>& cues) {
   for (const ShotRequest& shot : effects.shots) {
-    spawnShot(projectiles, shot);
+    if (spawnShot(projectiles, shot)) {
+      cueCombat(cues, firedCue(shot));
+    }
   }
   for (const HazardRequest& request : effects.hazards) {
     spawnHazard(hazards, request);

@@ -31,20 +31,31 @@ enum class EditorChoiceKind : uint8_t {
   FACTION,
   /// The patrol route an actor walks.
   ROUTE,
+  /// The preset a particle emitter's burst was started from.
+  EFFECT,
 };
 
 /// What each kind's row is labelled, in enumerator order.
 inline constexpr std::string_view EDITOR_CHOICE_LABELS[] = {
-    "Animation", "Character", "Behavior", "Faction", "Route"};
+    "Animation", "Character", "Behavior", "Faction", "Route", "Effect"};
 
 static_assert(std::size(EDITOR_CHOICE_LABELS) ==
-                  static_cast<size_t>(EditorChoiceKind::ROUTE) + 1,
+                  static_cast<size_t>(EditorChoiceKind::EFFECT) + 1,
               "every choice row needs a label");
 
 /// What @p kind's row is labelled.
 [[nodiscard]] constexpr std::string_view
 editorChoiceLabel(EditorChoiceKind kind) {
   return EDITOR_CHOICE_LABELS[static_cast<size_t>(kind)];
+}
+
+/// Whether @p kind's row goes above the property rows rather than below.
+///
+/// An emitter's Effect row is the one that replaces every number under it,
+/// and there are enough of those that the panel scrolls: at the top, it is
+/// the first thing seen and never the last thing scrolled to.
+[[nodiscard]] constexpr bool editorChoiceLeads(EditorChoiceKind kind) {
+  return kind == EditorChoiceKind::EFFECT;
 }
 
 }  // namespace eng::editor

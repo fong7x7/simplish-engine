@@ -31,6 +31,22 @@ inline constexpr float EDITOR_UNIT_STEP = 0.05f;
 
 /// How far one step button moves a player: to the next one.
 inline constexpr float EDITOR_SLOT_STEP = 1.0f;
+/// How far one step button moves a duration, in seconds.
+inline constexpr float EDITOR_DURATION_STEP = 0.05f;
+/// How far one step button widens or narrows a cone, in degrees.
+inline constexpr float EDITOR_SPREAD_STEP = 5.0f;
+/// How far one step button moves a small length, in tiles.
+inline constexpr float EDITOR_FINE_STEP = 0.01f;
+/// How far one step button moves an acceleration.
+inline constexpr float EDITOR_ACCELERATION_STEP = 0.5f;
+/// Seconds a duration moves per pixel dragged.
+inline constexpr float EDITOR_DURATION_DRAG_PER_PIXEL = 1.0f / 200.0f;
+/// Degrees a cone widens per pixel dragged.
+inline constexpr float EDITOR_SPREAD_DRAG_PER_PIXEL = 0.5f;
+/// Tiles a small length moves per pixel dragged.
+inline constexpr float EDITOR_FINE_DRAG_PER_PIXEL = 1.0f / 256.0f;
+/// How far an acceleration moves per pixel dragged.
+inline constexpr float EDITOR_ACCELERATION_DRAG_PER_PIXEL = 1.0f / 16.0f;
 
 /// Smallest a placed prop can be scaled to: an eighth of its one-tile fit.
 ///
@@ -95,7 +111,8 @@ void setEditorPropertyValue(EditorPlacement& placement,
 [[nodiscard]] float editorPropertyDragPerPixel(EditorPropertyField field);
 
 /// The value as the panel writes it: a whole number for a player, one
-/// decimal for an angle, two for everything else. Fixed-point rather than the
+/// decimal for an angle or a spread, three for a small length, two for
+/// everything else. Fixed-point rather than the
 /// shortest round-trip, so a column of values lines up and a number does not
 /// change width as it is dragged.
 [[nodiscard]] std::string formatEditorPropertyValue(float value,

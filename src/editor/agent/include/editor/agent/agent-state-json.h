@@ -38,6 +38,10 @@ namespace eng::editor {
 /// in walking order and the actors that patrol it.
 [[nodiscard]] std::string agentWaypointsJson(const EditorShellState& state);
 
+/// Every particle emitter in the level, and every preset one can be
+/// started from.
+[[nodiscard]] std::string agentEmittersJson(const EditorShellState& state);
+
 /// Whether the level is being played, and what the playtest has done.
 [[nodiscard]] std::string agentPlaytestJson(const EditorShellState& state);
 

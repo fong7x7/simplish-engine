@@ -20,6 +20,7 @@ these rules.
 | Skeletons, animation clips, glTF rigs, skinned drawing | [docs/engine/animation.md](docs/engine/animation.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters) that limits it to a handful of characters |
 | Enemies and NPCs: perception, behaviors, steering, attacks and damage, the Behavior row | [docs/game/actors.md](docs/game/actors.md) and [ADR-009](docs/decisions/ADR-009-actor-behavior-state-machines.md) — an actor's intelligence is a data state machine over closed sets, never a script |
 | Navigation grid, line of sight, path planning | [docs/engine/spatial.md](docs/engine/spatial.md) |
+| Particles, flashes of light, combat cues, the effects pass | [docs/engine/fx.md](docs/engine/fx.md) — effects read the simulation's cues and never write it |
 | GUI: widgets, layout, text, docking, theming, markdown | [docs/engine/gui/README.md](docs/engine/gui/README.md) — one technical doc per subsystem, each naming its source files |
 | Editor: authoring, viewport, assets, project format | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md), [project-format.md](docs/editor/project-format.md) |
 | Adding **any** editor tool, panel, or command | [docs/editor/agent-api.md](docs/editor/agent-api.md) §6 — the same change exposes it to agents, and [capabilities.md](docs/editor/capabilities.md) records it |
@@ -130,7 +131,8 @@ above. A bare `NOLINT` is a review rejection.
 ## State of the tree
 
 Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
-`render-mesh` (static and skinned), `animation` and `gltf` (rigged models
+`render-mesh` (static and skinned), `render-fx` (particles and flashes,
+[docs/engine/fx.md](docs/engine/fx.md)), `animation` and `gltf` (rigged models
 posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (held
@@ -138,18 +140,20 @@ actions to a quantised `PlayerInput`), `physics` (a first slice: cylinder
 against boxes, and a static-box broadphase), `spatial` (navigation grid,
 line of sight, A*, flow fields, a neighbour grid —
 [docs/engine/spatial.md](docs/engine/spatial.md)); game `content`,
-`player`, `combat`, `actors` and `world` (character and behavior
+`player`, `combat`, `actors`, `world` and `fx` (character and behavior
 definitions, players moving on the tick at their character's speed, stopped
 by props, hurt, downed and revived; actors that perceive, plan paths, move
 and attack by their behavior, 2,000 of them inside the AI budget —
 [docs/game/actors.md](docs/game/actors.md); projectiles, hazard pools and
-blasts through an effects buffer the damage phase applies; stand-in
-players; and the `SimulationSystems` composing them); platform
+blasts through an effects buffer the damage phase applies, each cued
+for presentation; stand-in players; the `SimulationSystems` composing
+them; and the effect each combat cue plays); platform
 `render` (five backends), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest) and `agent`; `bin/editor`.
 
 Not written yet: the rest of `engine/spatial` (per-objective fields, the
-tile grid), `render-iso`, `render-sprite`, `render-fx`, `audio`, `content`, `net`,
+tile grid), `render-iso`, `render-sprite`, the rest of `render-fx` (decals,
+trails, screen shake), `audio`, `content`, `net`,
 `debug`, the rest of `physics`, and everything in `src/game/` past
 characters, players, actors and what actors' attacks do — weapons,
 loadouts, the director, the run's structure. The isometric renderer is ahead, not behind — check

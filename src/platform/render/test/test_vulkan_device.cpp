@@ -194,7 +194,7 @@ TEST_CASE("VulkanDevice: createShader rejects missing or unaligned SPIR-V",
   CHECK(ctx.device()->createShader(desc) == RHI_SHADER_INVALID);
 }
 
-TEST_CASE("VulkanDevice: builds all four built-in pipelines",
+TEST_CASE("VulkanDevice: builds all five built-in pipelines",
           "[vulkan][device][gpu]") {
   // Req: the built-in pipelines Metal compiles from MSL and DX12 from HLSL
   // exist here too, compiled from GLSL (vulkan-builtin-pipelines.h).
@@ -203,11 +203,12 @@ TEST_CASE("VulkanDevice: builds all four built-in pipelines",
     SKIP("no Vulkan device on this machine");
   }
   RhiDevice& device = *ctx.device();
-  std::array<RhiPipelineHandle, 4> pipelines{};
+  std::array<RhiPipelineHandle, 5> pipelines{};
   CHECK(device.tryCreateGuiPipeline(pipelines[0]));
   CHECK(device.tryCreateMeshPipeline(pipelines[1]));
   CHECK(device.tryCreateSkinnedMeshPipeline(pipelines[2]));
   CHECK(device.tryCreateMeshOutlinePipeline(pipelines[3]));
+  CHECK(device.tryCreateFxParticlePipeline(pipelines[4]));
   for (const RhiPipelineHandle pipeline : pipelines) {
     CHECK(pipeline != RHI_PIPELINE_INVALID);
     device.destroyPipeline(pipeline);

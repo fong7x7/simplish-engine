@@ -29,6 +29,8 @@ enum class EditorSelectionKind : uint8_t {
   PLAYER_START,
   /// A patrol route's waypoint, indexed into `EditorDocument::waypoints`.
   WAYPOINT,
+  /// A particle emitter, indexed into `EditorDocument::emitters`.
+  EMITTER,
 };
 
 /// The one thing the properties panel is editing.

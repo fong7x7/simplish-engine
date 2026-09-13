@@ -822,6 +822,127 @@ fragment float4 outline_fs_main(OutlineVsOut in [[stage_in]],
     return *out_pso != nil;
   }
 
+  /// MSL for effects particles. `fx-renderer.h` explains the method: each
+  /// vertex arrives already in clip space, and the fragment stage reads the
+  /// scene's depth under it to hide the particle behind geometry and fade
+  /// it just in front. `FxVertexIn` is `FxVertex` in `fx-vertex.h` and
+  /// `FxUniforms` the struct of that name in `fx-renderer.cpp`, neither of
+  /// which this can include; FX_HLSL_SOURCE and the GLSL mirror it.
+  constexpr const char FX_MSL_SOURCE[] = R"msl(
+#include <metal_stdlib>
+using namespace metal;
+
+struct FxVertexIn {
+  float4 clip [[attribute(0)]];
+  float4 color [[attribute(1)]];
+  float2 uv [[attribute(2)]];
+};
+
+struct FxUniforms {
+  float softness;
+  float pad0;
+  float pad1;
+  float pad2;
+};
+
+struct FxVsOut {
+  float4 position [[position]];
+  float4 color;
+  float2 uv;
+};
+
+vertex FxVsOut fx_vs_main(FxVertexIn in [[stage_in]]) {
+  FxVsOut out;
+  out.position = in.clip;
+  out.color = in.color;
+  out.uv = in.uv;
+  return out;
+}
+
+fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
+                           constant FxUniforms& u [[buffer(0)]],
+                           depth2d<float> depth [[texture(0)]]) {
+  // Behind the scene's nearest surface it is hidden; in front, it fades in
+  // over the first stretch of depth rather than being cut off by it.
+  float scene = depth.read(uint2(in.position.xy));
+  float soft = saturate((scene - in.position.z) * u.softness);
+  // A soft disc: full at the centre of the quad, nothing at its edge.
+  float disc = saturate(1.0f - dot(in.uv, in.uv));
+  float cover = disc * disc * soft;
+  if (cover <= 0.0f) {
+    discard_fragment();
+  }
+  return in.color * cover;
+}
+)msl";
+
+  /// Byte stride of `FxVertex`, and where its colour and uv sit —
+  /// `fx-vertex.h` asserts the same three numbers.
+  constexpr NSUInteger FX_VERTEX_STRIDE = 40;
+  constexpr NSUInteger FX_COLOR_OFFSET = 16;
+  constexpr NSUInteger FX_UV_OFFSET = 32;
+
+  MTLVertexDescriptor* makeFxVertexDescriptor() {
+    auto* vd = [[MTLVertexDescriptor alloc] init];
+    vd.layouts[0].stride = FX_VERTEX_STRIDE;
+    vd.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    vd.attributes[0].format = MTLVertexFormatFloat4;
+    vd.attributes[0].offset = 0;
+    vd.attributes[0].bufferIndex = 0;
+    vd.attributes[1].format = MTLVertexFormatFloat4;
+    vd.attributes[1].offset = FX_COLOR_OFFSET;
+    vd.attributes[1].bufferIndex = 0;
+    vd.attributes[2].format = MTLVertexFormatFloat2;
+    vd.attributes[2].offset = FX_UV_OFFSET;
+    vd.attributes[2].bufferIndex = 0;
+    return vd;
+  }
+
+  /// Premultiplied compositing: the colour is added as it is and the target
+  /// kept by what the particle does not hide, so a glow of alpha zero is
+  /// purely additive and smoke of alpha one covers what is behind it.
+  void applyPremultipliedBlend(MTLRenderPipelineColorAttachmentDescriptor* ca) {
+    ca.blendingEnabled = YES;
+    ca.rgbBlendOperation = MTLBlendOperationAdd;
+    ca.alphaBlendOperation = MTLBlendOperationAdd;
+    ca.sourceRGBBlendFactor = MTLBlendFactorOne;
+    ca.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    ca.sourceAlphaBlendFactor = MTLBlendFactorOne;
+    ca.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  }
+
+  /// The effects pipeline: `FxVertex` input, no depth attachment — the
+  /// depth is the texture being read — and premultiplied blending.
+  id<MTLLibrary> compileFxShaderLibrary(id<MTLDevice> mtl_device) {
+    NSError* err = nil;
+    NSString* src = [NSString stringWithUTF8String:FX_MSL_SOURCE];
+    id<MTLLibrary> lib = [mtl_device newLibraryWithSource:src
+                                                  options:nil
+                                                    error:&err];
+    (void)err;
+    return lib;
+  }
+
+  bool buildFxPipelinePso(id<MTLDevice> mtl_device,
+                          id<MTLRenderPipelineState>* out_pso) {
+    id<MTLLibrary> lib = compileFxShaderLibrary(mtl_device);
+    id<MTLFunction> vs = [lib newFunctionWithName:@"fx_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"fx_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    pd.vertexFunction = vs;
+    pd.fragmentFunction = fs;
+    pd.vertexDescriptor = makeFxVertexDescriptor();
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    applyPremultipliedBlend(pd.colorAttachments[0]);
+    NSError* err = nil;
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
   bool compileGuiShaderLibrary(id<MTLDevice> mtl_device,
                                id<MTLLibrary>* out_lib) {
     NSError* err = nil;
@@ -921,6 +1042,7 @@ public:
   bool tryCreateMeshPipeline(RhiPipelineHandle& out) override;
   bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) override;
+  bool tryCreateFxParticlePipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -1630,6 +1752,18 @@ bool MetalRealDevice::tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) {
     if (!buildOutlinePipelinePso(device_, &pso)) {
       return false;
     }
+    return insertOutlinePipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::tryCreateFxParticlePipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildFxPipelinePso(device_, &pso)) {
+      return false;
+    }
+    // The same fixed state as the outline's: the pass it draws in has no
+    // depth attachment, since the scene's depth is the texture it reads.
     return insertOutlinePipelineFromPso(pso, out);
   }
 }

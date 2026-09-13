@@ -4,6 +4,7 @@
 /// @brief Shared JSON shapes for the agent API's own serialisers.
 /// @par Threading Thread-safe (pure functions over value types).
 
+#include <editor/shell/editor-emitter.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
@@ -41,5 +42,11 @@ agentPlayerStartValue(const EditorPlayerStart& start);
 /// One waypoint: its id, the route it belongs to, its place in it, and
 /// where.
 [[nodiscard]] nlohmann::json agentWaypointValue(const EditorWaypoint& waypoint);
+
+/// One particle emitter: its id, the preset it was started from and
+/// whether it is still exactly that preset, where it stands, which way it
+/// throws, its flash's tint, and every number the panel lists for it under
+/// the name `set_property` writes it by.
+[[nodiscard]] nlohmann::json agentEmitterValue(const EditorEmitter& emitter);
 
 }  // namespace eng::editor

@@ -147,9 +147,13 @@ Projectile rendering never round-trips through the CPU per-instance: the simulat
 
 The outline sits after the opaque passes because it needs their finished depth, and before projectiles and effects so that nothing it draws lands on them: a hostile projectile keeps its reserved hue (§5.5) whatever style the game is drawn in. Any later full-screen filter that changes colour, rather than adding lines, belongs at the same point for the same reason.
 
+**Transparent effects, as built** ([fx.md](fx.md)): particles draw straight after the outline, in the same pass with no depth attachment, and read the scene's depth as a texture — hidden behind geometry, and faded over the last stretch in front of it, without writing or testing depth. They are laid out as camera-facing quads on the CPU, sorted back to front, and drawn in one call through a backend builtin, `RhiDevice::tryCreateFxParticlePipeline`, with premultiplied blending, so additive glows and smoke that hides what is behind it share the draw.
+
 ### 5.4 Lighting
 
 A clustered forward path sized for a dark, wet, post-collapse palette: one directional key light, plus up to 256 dynamic point and spot lights per frame, with muzzle flashes, fires, and explosions all contributing. Shadows are limited to a single cascaded map for the key light plus screen-space contact shadows — with a fixed camera and mostly-static geometry, most shadow work is cacheable and re-rendered only on structural change.
+
+Built so far: muzzle flashes, hits and blasts already light meshes, as short-lived point lights (`FxFlash`) handed to the mesh shader beside the level's placed lights. That shader takes `MESH_MAX_LIGHTS` (eight) lights a draw, placed lights first and the brightest flashes in whatever slots are left ([fx.md §5](fx.md#5-flashes)); the clustered path is what lifts that to 256.
 
 ### 5.5 Readability Rules
 
@@ -174,7 +178,7 @@ Legibility is a rendering requirement, not an art note:
 | Sprite system (atlases, 8-direction facing, animation clips, batcher) | `rendering/sprites.md` | M1 |
 | Skeletal animation (skeletons, clips, crossfades and pose blending, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
 | Lighting and shadows | `rendering/lighting.md` | M5 |
-| Effects (GPU particles, decals, trails, screen shake) | `rendering/fx.md` | M5 |
+| Effects (GPU particles, decals, trails, screen shake) | [fx.md](fx.md) | M5 — first slice built: `engine/render-fx` throws bursts of particles, simulated on the CPU and drawn in one call over the scene's depth, and flashes that light meshes; `game/fx` plays one on every shot fired, every shot that lands and every blast, from the combat cues each tick leaves. Metal, Vulkan, DX12 and OpenGL pipelines. Decals, trails, screen shake and the effect budget are not written |
 | Spatial structures (uniform grid, spatial hash, tile grid, flow fields) | [spatial.md](spatial.md) | M2 — built for actors: `engine/spatial` builds a navigation grid from the level's solid boxes, with clearance per cell, line of sight, deterministic A* with an expansion budget, path smoothing, reachability, flow fields built a budget of cells a tick, and a neighbour grid rebuilt each tick by counting sort. Per-objective fields, incremental updates and the tile grid are not written |
 | Projectile simulation (integration, swept collision, penetration, homing) | `physics/projectiles.md` | M2 — first slice: `engine/physics` sweeps a small sphere against boxes and upright bodies (`segment-queries.h`), and `src/game/combat` flies actors' straight-line shots on it, hitting the first opposing body or box. Penetration, homing, the 20,000-projectile budget and the engine-side pool wait on weapons |
 | Collision and queries (character sweep, overlap, line-of-sight) | `physics/collision.md` | M2 — first slice built: `engine/physics` resolves an upright cylinder out of axis-aligned boxes, deterministically, and a static-box broadphase gathers the boxes near a mover so a horde does not test every box every tick. Sweeps and projectile queries are not written |

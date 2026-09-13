@@ -373,6 +373,60 @@ void main() {
 }
 )glsl";
 
+  /// GLSL for effects particles' vertex stage: each vertex arrives already
+  /// in clip space. Mirrors `fx_vs_main`; the input is `FxVertex`.
+  constexpr const char FX_VERT_GLSL[] = R"glsl(
+#version 450
+
+layout(location = 0) in vec4 in_clip;
+layout(location = 1) in vec4 in_color;
+layout(location = 2) in vec2 in_uv;
+
+layout(location = 0) out vec4 out_color;
+layout(location = 1) out vec2 out_uv;
+
+void main() {
+  gl_Position = in_clip;
+  out_color = in_color;
+  out_uv = in_uv;
+}
+)glsl";
+
+  /// GLSL for effects particles' fragment stage, which reads the scene's
+  /// depth under each fragment to hide it behind geometry and fade it just
+  /// in front. Mirrors `fx_fs_main`; `FxUniforms` is the C++ struct in
+  /// `fx-renderer.cpp`.
+  constexpr const char FX_FRAG_GLSL[] = R"glsl(
+#version 450
+
+layout(set = 0, binding = 3, std140) uniform FxUniforms {
+  float softness;
+  float pad0;
+  float pad1;
+  float pad2;
+} u;
+
+layout(set = 0, binding = 5) uniform texture2D fx_depth;
+layout(set = 0, binding = 6) uniform sampler fx_sampler;
+
+layout(location = 0) in vec4 in_color;
+layout(location = 1) in vec2 in_uv;
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+  float scene = texelFetch(sampler2D(fx_depth, fx_sampler),
+                           ivec2(gl_FragCoord.xy), 0).r;
+  float soft = clamp((scene - gl_FragCoord.z) * u.softness, 0.0, 1.0);
+  float disc = clamp(1.0 - dot(in_uv, in_uv), 0.0, 1.0);
+  float cover = disc * disc * soft;
+  if (cover <= 0.0) {
+    discard;
+  }
+  out_color = in_color * cover;
+}
+)glsl";
+
   // -------------------------------------------------------------------------
   // Vertex layouts, restated from the C++ vertex structs the way the Metal
   // backend's vertex descriptors restate them.
@@ -415,12 +469,24 @@ void main() {
   /// How many of `SKINNED_ATTRIBUTES` a static mesh vertex has.
   constexpr uint32_t MESH_ATTRIBUTE_COUNT = 3;
 
+  /// Byte stride of `eng::FxVertex`: clip position, colour, uv, as
+  /// `fx-vertex.h` asserts.
+  constexpr uint32_t FX_VERTEX_STRIDE = 40;
+
+  /// `FxVertex`: clip position, premultiplied colour, uv.
+  constexpr std::array<Attribute, 3> FX_ATTRIBUTES{{
+      {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
+      {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 16},
+      {2, 0, VK_FORMAT_R32G32_SFLOAT, 32},
+  }};
+
   // -------------------------------------------------------------------------
   // Pipeline assembly
   // -------------------------------------------------------------------------
 
-  /// How a pipeline writes colour.
-  enum class BlendMode { OPAQUE, OVER };
+  /// How a pipeline writes colour: not blended, blended "over" by source
+  /// alpha, or blended with colour already multiplied by it.
+  enum class BlendMode { OPAQUE, OVER, PREMULTIPLIED };
 
   /// Whether a pipeline draws into a depth attachment.
   enum class DepthMode { NONE, TEST_AND_WRITE };
@@ -563,12 +629,21 @@ void main() {
     a.alphaBlendOp = VK_BLEND_OP_ADD;
   }
 
+  /// Premultiplied compositing for effects: the colour added as it is, and
+  /// the target kept by what the particle does not hide.
+  void applyPremultipliedBlend(VkPipelineColorBlendAttachmentState& a) {
+    applyOverBlend(a);
+    a.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+  }
+
   void fillBlend(PipelineParts& p, BlendMode mode) {
     p.blend_attachment.colorWriteMask =
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     if (mode == BlendMode::OVER) {
       applyOverBlend(p.blend_attachment);
+    } else if (mode == BlendMode::PREMULTIPLIED) {
+      applyPremultipliedBlend(p.blend_attachment);
     }
     p.blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     p.blend.attachmentCount = 1;
@@ -697,6 +772,18 @@ VkPipeline createVulkanOutlinePipeline(VkDevice device, VkPipelineLayout layout,
   // draws in has no depth attachment, since that one is being sampled.
   const BuiltinSpec spec{OUTLINE_VERT_GLSL, OUTLINE_FRAG_GLSL, nullptr, 0, 0,
                          BlendMode::OVER,   DepthMode::NONE};
+  return createBuiltin({device, layout, color_format}, spec);
+}
+
+VkPipeline createVulkanFxPipeline(VkDevice device, VkPipelineLayout layout,
+                                  VkFormat color_format) {
+  // Like the outline, it reads the scene's depth as a texture, so the pass
+  // it draws in has no depth attachment.
+  const BuiltinSpec spec{
+      FX_VERT_GLSL,         FX_FRAG_GLSL,
+      FX_ATTRIBUTES.data(), static_cast<uint32_t>(FX_ATTRIBUTES.size()),
+      FX_VERTEX_STRIDE,     BlendMode::PREMULTIPLIED,
+      DepthMode::NONE};
   return createBuiltin({device, layout, color_format}, spec);
 }
 

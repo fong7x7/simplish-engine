@@ -1,6 +1,8 @@
 // Consequences, end to end: the presets' attacks landing on players and
-// actors through the effects buffer, the damage phase and the pools.
+// actors through the effects buffer, the damage phase and the pools, and
+// the cues that report them.
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <engine/sim/simulation.h>
 #include <game/content/character-lookup.h>
@@ -92,4 +94,69 @@ TEST_CASE("a defender takes on a hostile actor and kills it") {
   run(world, 600);
   REQUIRE(world.actors().slots.size() == 1);
   REQUIRE(world.actors().faction[0] == Faction::FRIENDLY);
+}
+
+namespace {
+
+/// Every cue @p ticks ticks of @p world make, in order.
+std::vector<CombatCue> cuesOver(GameWorld& world, int ticks) {
+  std::vector<CombatCue> cues;
+  sim::Simulation simulation(world, sim::TickHashing::OFF);
+  for (int t = 0; t < ticks; ++t) {
+    (void)simulation.step({});
+    const auto tick = world.combatCues();
+    cues.insert(cues.end(), tick.begin(), tick.end());
+  }
+  return cues;
+}
+
+/// How many of @p cues are of @p kind.
+size_t countOf(const std::vector<CombatCue>& cues, CombatCueKind kind) {
+  return static_cast<size_t>(
+      std::count_if(cues.begin(), cues.end(),
+                    [kind](const CombatCue& cue) { return cue.kind == kind; }));
+}
+
+}  // namespace
+
+TEST_CASE("a skirmisher's volleys are cued as they fire and as they land") {
+  GameWorld world(playerAnd({at(-5.0F, "skirmisher")}), {});
+  const std::vector<CombatCue> cues = cuesOver(world, 400);
+
+  REQUIRE(countOf(cues, CombatCueKind::SHOT_FIRED) > 0);
+  REQUIRE(countOf(cues, CombatCueKind::SHOT_HIT_BODY) > 0);
+  // Every shot that landed was fired first, and none is cued twice.
+  REQUIRE(countOf(cues, CombatCueKind::SHOT_HIT_BODY) +
+              countOf(cues, CombatCueKind::SHOT_HIT_WALL) <=
+          countOf(cues, CombatCueKind::SHOT_FIRED));
+  REQUIRE(cues.front().kind == CombatCueKind::SHOT_FIRED);
+  REQUIRE(cues.front().side == Faction::HOSTILE);
+}
+
+TEST_CASE("a bloater's blast is cued on the tick it goes off, and only then") {
+  GameWorld world(playerAnd({at(4.0F, "bloater")}), {});
+  sim::Simulation simulation(world, sim::TickHashing::OFF);
+  int blast_ticks = 0;
+  for (int t = 0; t < 400; ++t) {
+    (void)simulation.step({});
+    const auto cues = world.combatCues();
+    blast_ticks += std::any_of(cues.begin(), cues.end(), [](const auto& c) {
+      return c.kind == CombatCueKind::BLAST;
+    });
+  }
+  REQUIRE(blast_ticks == 1);
+}
+
+TEST_CASE("the same run cues the same things in the same order") {
+  GameWorld first(playerAnd({at(-5.0F, "skirmisher")}), {});
+  GameWorld second(playerAnd({at(-5.0F, "skirmisher")}), {});
+  const std::vector<CombatCue> a = cuesOver(first, 300);
+  const std::vector<CombatCue> b = cuesOver(second, 300);
+
+  REQUIRE(a.size() == b.size());
+  for (size_t i = 0; i < a.size(); ++i) {
+    REQUIRE(a[i].kind == b[i].kind);
+    REQUIRE(a[i].at.x == b[i].at.x);
+    REQUIRE(a[i].at.y == b[i].at.y);
+  }
 }

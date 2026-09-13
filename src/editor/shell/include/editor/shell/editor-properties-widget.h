@@ -19,6 +19,9 @@
 //     the middle and halving and doubling are equal distances either side.
 //     Its buttons step between fixed stops, a quarter-doubling apart, which
 //     is how a value dragged near 1 gets back to exactly 1
+//   - A particle emitter lists where it stands and which way it throws,
+//     how often, and every number of its burst and its flash — under an
+//     Effect choice row that leads the list, since it replaces them all
 //   - Choice rows may follow the property rows: each a choice among names,
 //     whose value box shows the one picked and whose buttons step to the
 //     previous or next, wrapping round. A rigged model's Animation row
@@ -41,9 +44,12 @@
 //     leave the document in the state the pointer happened to be over
 //   - A selection cleared mid-drag ends the drag without committing, since
 //     there is no longer anything the value belongs to
-//   - Panel too short for every row: the rows past the bottom are drawn and
-//     hit tested as usual and clipped by the panel, which is what a
-//     scrollable panel would do before it had a scrollbar
+//   - Panel too short for every row: the rows scroll under the wheel, are
+//     clipped to the area they are laid out in, and a thumb down its right
+//     edge says how far through them the panel is. A press on a row
+//     scrolled out of sight hits nothing. Showing another selection starts
+//     back at the top; showing the same one again, as every edit does,
+//     keeps its place
 //   - A field the current selection does not list has no row, and asking
 //     for its rect gives an empty one rather than another field's
 //
@@ -65,6 +71,7 @@
 #include <cstddef>
 #include <editor/shell/editor-choice-kind.h>
 #include <editor/shell/editor-choice-row.h>
+#include <editor/shell/editor-emitter.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
@@ -103,6 +110,13 @@ public:
   /// Finish a scrub, committing the value it reached.
   void handleMouseUp(const GuiMouseEvent& event) override;
 
+  /// Scroll the rows, when there are more than the panel shows.
+  bool handleScroll(const GuiScrollEvent& event) override;
+
+  /// How far the rows are scrolled, in layout pixels: 0 at the top, and
+  /// never past the last row.
+  [[nodiscard]] float scrollOffset() const;
+
   /// Show a placement's properties. The name is the asset's, for the line
   /// under the header.
   void setSelection(std::string name, const EditorPlacement& placement);
@@ -116,8 +130,13 @@ public:
   /// Show a waypoint's properties: its route, its place in it, and where.
   void setSelection(std::string name, const EditorWaypoint& waypoint);
 
-  /// Offer @p choices as the @p kind row, below the property rows and any
-  /// choice rows already offered, showing the one at @p current — or the
+  /// Show a particle emitter's properties: where, which way, how often,
+  /// and its burst and flash.
+  void setSelection(std::string name, const EditorEmitter& emitter);
+
+  /// Offer @p choices as the @p kind row — below the property rows and any
+  /// choice rows already offered, or above them all for a kind that leads
+  /// (`editorChoiceLeads`) — showing the one at @p current — or the
   /// first, when that is out of range. Called after `setSelection`, which
   /// drops every choice row a previous selection had; an empty list shows
   /// no row, and offering a kind again replaces its row where it stands.
@@ -238,8 +257,26 @@ private:
   [[nodiscard]] size_t choiceRowOf(EditorChoiceKind kind) const;
   /// Rect of choice row @p index, in layout pixels.
   [[nodiscard]] Rect choiceRowRectAt(size_t index) const;
-  /// Rows the panel lists: the property rows, then the choice rows.
+  /// Rows the panel lists: the leading choice rows, the property rows, then
+  /// the rest of the choice rows.
   [[nodiscard]] size_t rowCount() const;
+  /// Put @p row in its place: over the row of its kind already offered,
+  /// else after the leading rows if it leads, else last.
+  void placeChoiceRow(EditorChoiceRow row);
+  /// How many choice rows lead, above the property rows.
+  [[nodiscard]] size_t leadingChoiceCount() const;
+  /// Where property row @p row is laid out, counting every row above it.
+  [[nodiscard]] size_t fieldSlot(size_t row) const;
+  /// Where choice row @p index is laid out, counting every row above it.
+  [[nodiscard]] size_t choiceSlot(size_t index) const;
+  /// The area rows are laid out down, moved up by how far it is scrolled.
+  [[nodiscard]] Rect scrolledBody() const;
+  /// The furthest the rows can scroll: none, when they all fit.
+  [[nodiscard]] float maxScroll() const;
+  /// Draw the thumb that says how far through the rows the panel is.
+  void renderScrollbar(const GuiDrawContext& ctx) const;
+  /// Act on a press at layout slot @p slot.
+  bool pressSlot(size_t slot, const GuiMouseEvent& event);
   /// Move a value by one step and commit it.
   void stepField(EditorPropertyField field, float steps);
   /// Report a value, and remember it as what the panel shows.
@@ -268,6 +305,9 @@ private:
   float drag_start_value_ = 0.0f;
   /// Cursor X the scrub started at.
   float drag_start_x_ = 0.0f;
+  /// How far the rows are scrolled, in layout pixels, as last asked for;
+  /// `scrollOffset` holds it to what the panel's size allows.
+  float scroll_ = 0.0f;
 };
 
 }  // namespace eng::editor

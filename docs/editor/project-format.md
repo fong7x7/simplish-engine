@@ -154,7 +154,7 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 
 File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/<id>.level.json` for the level the Level menu has open, and opening a project reads one back. `main` is where a new project starts and where an opened one goes back to when it has such a level; every other id is authored, through Level > New Level, which turns a typed name into an id the rules above allow. Its `name` is its id, because nothing in the editor shows or edits a level name yet — writing the project's name there instead would put the same name in every level file of a project holding several.
 
-Three parts of §4 are written — props, lights, and two kinds of entity — and one of them differs from the shape above:
+Three parts of §4 are written — props, lights, and three kinds of entity — and one of them differs from the shape above:
 
 ```json
 {
@@ -182,7 +182,17 @@ Three parts of §4 are written — props, lights, and two kinds of entity — an
       { "id": "waypoint_01", "definition": "entity:waypoint",
         "at": [6.5, 4.5, 0.0], "properties": { "route": 1, "order": 1 } },
       { "id": "waypoint_02", "definition": "entity:waypoint",
-        "at": [6.5, 9.5, 0.0], "properties": { "route": 1, "order": 2 } }
+        "at": [6.5, 9.5, 0.0], "properties": { "route": 1, "order": 2 } },
+      { "id": "emitter_01", "definition": "entity:fx_emitter",
+        "at": [4.5, 2.5, 0.9],
+        "properties": { "effect": "wall_sparks", "direction": [0.0, 0.0, 1.0],
+          "flash_color": [1.0, 0.95, 0.8], "interval": 1.0, "particles": 10,
+          "spread": 70.0, "speed_min": 2.5, "speed_max": 6.0,
+          "life_min": 0.15, "life_max": 0.35, "size_start": 0.03,
+          "size_end": 0.02, "start_r": 1.0, "start_g": 0.97, "start_b": 0.8,
+          "start_hide": 0.0, "end_r": 0.35, "end_g": 0.3, "end_b": 0.1,
+          "end_hide": 0.0, "gravity": 9.0, "drag": 1.5, "stretch": 0.04,
+          "flash": 1.2, "flash_range": 1.8, "flash_time": 0.08 } }
     ]
   }
 }
@@ -200,9 +210,11 @@ Three parts of §4 are written — props, lights, and two kinds of entity — an
 
 **Lights are the array §4 does not list**, because the editor's lighting arrived before this document did ([Editor §1](REQUIREMENTS.md#1-overview)). A light is one record for both kinds — `kind` is `"directional"` or `"point"` — and a field the kind ignores is written anyway rather than left as a hole. An unrecognised `kind` reads as directional, on the same rule an unrecognised `projection` reads as dimetric.
 
-**The editor knows two entity definitions: the player start and the waypoint.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names who the player who spawns there plays as unless they pick someone else — a row of the characters table (§8.1), by reference: `"character": "character:scout"`. It is written only when there is one; a bare id reads as `character:<id>`, and a reference to a character the table no longer has is kept as written rather than dropped — the start is still a start without it, and its player picks as though it named none. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
+**The editor knows three entity definitions: the player start, the waypoint and the particle emitter.** It is dragged from the browser's general › tools section and marks where a player spawns: `player` is which of the session's four players, 1 to 4, and more than one start may name the same player — which of them the game uses is the game's decision. It has no facing, because the camera never rotates and players aim freely. An optional `character` property names who the player who spawns there plays as unless they pick someone else — a row of the characters table (§8.1), by reference: `"character": "character:scout"`. It is written only when there is one; a bare id reads as `character:<id>`, and a reference to a character the table no longer has is kept as written rather than dropped — the start is still a start without it, and its player picks as though it named none. Its id is numbered from `start` rather than from its player (`start_01`), since the player can be changed and an id cannot; another file references it as `player_start:start_01`. Reading holds `player` to 1–4 and gives a start with no id one, and an entity whose `definition` is anything else is dropped and counted, as a prop naming a missing asset is — so a hand-written `entity:spawn_point` does not survive a save until the editor has a definition for it.
 
 **A waypoint is a point of a patrol route.** Dragged from general › tools like the player start; `route` is which of a level's nine routes it belongs to, 1 to 9, and `order` its place in it, 1 to 99. An actor walks a route's waypoints by `order`, and in file order where two share one, so a hand-written route need not be numbered without gaps. Reading holds both to their ranges — a waypoint with neither is the first place of route 1 — and gives one with no id one, numbered from `waypoint` (`waypoint_01`); another file references it as `waypoint:waypoint_01`. A waypoint's height is kept but walks nowhere: patrols walk the floor. Routes are the level's, not an actor's, so two guards can share one and moving a waypoint moves every patrol that walks it.
+
+**A particle emitter throws a burst of particles every `interval` seconds** and flashes a light with each, in the editor's viewport and in a playtest; the simulation never sees one ([fx.md](../engine/fx.md)). Dragged from general › effects. `effect` names the built-in preset it was last started from — `muzzle_flash`, `muzzle_sparks`, `wall_sparks`, `grit`, `hit_spray`, `fireball`, `embers` or `smoke` — and every number of the burst is written beside it, since the burst is the emitter's own and may have been changed from the preset's: one key per row of its properties panel, under the names the agent API's `set_property` uses, plus `direction` (which way the burst points; zero throws every way) and `flash_color`. Reading starts from the preset `effect` names and then takes every key the block holds, each held to what the panel allows — a `spread` of 999 reads as 180, `particles` as a whole number from 1 to 200 — so a hand-written emitter need only name its preset. An `effect` the editor has no preset for is kept as written, and its numbers still load; an emitter with no id is given one numbered from `emitter` (`emitter_01`), which another file references as `emitter:emitter_01`.
 
 Everything else in §4 — bounds, the tile palette, the RLE layers, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
 

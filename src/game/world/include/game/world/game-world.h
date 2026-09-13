@@ -18,6 +18,7 @@
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-workspace.h>
+#include <game/combat/combat-cue.h>
 #include <game/combat/combat-effects.h>
 #include <game/combat/combat-scene.h>
 #include <game/combat/combat-workspace.h>
@@ -56,7 +57,8 @@ public:
   GameWorld(const GameSetup& setup, const GameContent& content);
 
   /// Moves every player by its stick, and keeps them out of the level's
-  /// solid geometry.
+  /// solid geometry. The first phase, so it also empties the last tick's
+  /// cues.
   void playerControl(const sim::TickContext& context) override;
   /// Every actor perceives, decides, plans, attacks, moves and turns.
   void enemyAi(const sim::TickContext& context) override;
@@ -104,6 +106,12 @@ public:
   /// The hazard pools on the floor, for whatever draws them. Read-only.
   [[nodiscard]] const HazardPool& hazardPool() const { return hazards_; }
 
+  /// What the last tick's combat did that is worth seeing or hearing —
+  /// shots fired, hits, blasts — in the order it happened. Emptied when
+  /// the next tick starts, so read it after every tick. Not state, and
+  /// never hashed.
+  [[nodiscard]] std::span<const CombatCue> combatCues() const { return cues_; }
+
 private:
   /// Spawn one actor per spawn of @p setup, compiling the brains they run.
   void spawnActors(const GameSetup& setup, const GameContent& content);
@@ -148,6 +156,8 @@ private:
   HazardPool hazards_;
   /// What this tick's attacks asked for; empty between ticks.
   CombatEffects effects_;
+  /// What the last tick's combat did, for presentation; not state.
+  std::vector<CombatCue> cues_;
   /// Who can be hurt this tick, and scratch to find them with; not state.
   CombatWorkspace combat_;
   /// Scratch the actor passes work in; not state.

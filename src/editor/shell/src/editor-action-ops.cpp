@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <editor/shell/editor-action-ops.h>
@@ -70,10 +71,13 @@ namespace {
       {EditorSelectionKind::WAYPOINT, ListEdit::INSERT},
       {EditorSelectionKind::WAYPOINT, ListEdit::WRITE},
       {EditorSelectionKind::WAYPOINT, ListEdit::ERASE},
+      {EditorSelectionKind::EMITTER, ListEdit::INSERT},
+      {EditorSelectionKind::EMITTER, ListEdit::WRITE},
+      {EditorSelectionKind::EMITTER, ListEdit::ERASE},
   };
 
   static_assert(std::size(ACTION_SHAPES) ==
-                    static_cast<size_t>(EditorActionKind::REMOVE_WAYPOINT) + 1,
+                    static_cast<size_t>(EditorActionKind::REMOVE_EMITTER) + 1,
                 "every action kind needs a list and an edit");
 
   /// Which of the document's lists @p kind names.
@@ -123,24 +127,42 @@ namespace {
   /// leaves behind, or — for undoing a transform — the one it replaced.
   enum class ActionValue : uint8_t { CURRENT, PRIOR };
 
+  /// The half of an action @p value names: @p current, or @p before.
+  template <typename T>
+  T pick(ActionValue value, const T& current, const T& before) {
+    return value == ActionValue::PRIOR ? before : current;
+  }
+
+  /// `editDocument` for the lists of things that mark the level rather
+  /// than stand in it: player starts, waypoints and particle emitters.
+  void editMarkerList(const EditorAction& action, ListEdit edit,
+                      ActionValue value, EditorDocument& document) {
+    const EditorSelectionKind list = actionList(action.kind);
+    if (list == EditorSelectionKind::PLAYER_START) {
+      editList(document.player_starts, edit, action.index,
+               pick(value, action.player_start, action.player_start_prior));
+    } else if (list == EditorSelectionKind::WAYPOINT) {
+      editList(document.waypoints, edit, action.index,
+               pick(value, action.waypoint, action.waypoint_prior));
+    } else {
+      editList(document.emitters, edit, action.index,
+               pick(value, action.emitter, action.emitter_prior));
+    }
+  }
+
   /// Do @p edit to the list @p action names, writing the value @p value
   /// picks out of the action.
   void editDocument(const EditorAction& action, ListEdit edit,
                     ActionValue value, EditorDocument& document) {
-    const bool prior = value == ActionValue::PRIOR;
     const EditorSelectionKind list = actionList(action.kind);
     if (list == EditorSelectionKind::PLACEMENT) {
       editList(document.placements, edit, action.index,
-               prior ? action.prior : action.placement);
+               pick(value, action.placement, action.prior));
     } else if (list == EditorSelectionKind::LIGHT) {
       editList(document.lights, edit, action.index,
-               prior ? action.light_prior : action.light);
-    } else if (list == EditorSelectionKind::PLAYER_START) {
-      editList(document.player_starts, edit, action.index,
-               prior ? action.player_start_prior : action.player_start);
+               pick(value, action.light, action.light_prior));
     } else {
-      editList(document.waypoints, edit, action.index,
-               prior ? action.waypoint_prior : action.waypoint);
+      editMarkerList(action, edit, value, document);
     }
   }
 
@@ -171,6 +193,9 @@ namespace {
     if (kind == EditorSelectionKind::WAYPOINT) {
       return EditorActionKind::REMOVE_WAYPOINT;
     }
+    if (kind == EditorSelectionKind::EMITTER) {
+      return EditorActionKind::REMOVE_EMITTER;
+    }
     return kind == EditorSelectionKind::PLAYER_START
                ? EditorActionKind::REMOVE_PLAYER_START
                : EditorActionKind::REMOVE_PLACEMENT;
@@ -186,8 +211,10 @@ namespace {
       action.light = document.lights[action.index];
     } else if (list == EditorSelectionKind::PLAYER_START) {
       action.player_start = document.player_starts[action.index];
-    } else {
+    } else if (list == EditorSelectionKind::WAYPOINT) {
       action.waypoint = document.waypoints[action.index];
+    } else {
+      action.emitter = document.emitters[action.index];
     }
   }
 
@@ -274,19 +301,19 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
 
 size_t editorListSize(const EditorDocument& document,
                       EditorSelectionKind kind) {
-  switch (kind) {
-    case EditorSelectionKind::PLACEMENT:
-      return document.placements.size();
-    case EditorSelectionKind::LIGHT:
-      return document.lights.size();
-    case EditorSelectionKind::PLAYER_START:
-      return document.player_starts.size();
-    case EditorSelectionKind::WAYPOINT:
-      return document.waypoints.size();
-    case EditorSelectionKind::NONE:
-      return 0;
-  }
-  return 0;
+  // In `EditorSelectionKind` order, nothing selected first.
+  const std::array<size_t, 6> sizes{
+      0,
+      document.placements.size(),
+      document.lights.size(),
+      document.player_starts.size(),
+      document.waypoints.size(),
+      document.emitters.size(),
+  };
+  static_assert(static_cast<size_t>(EditorSelectionKind::EMITTER) + 1 == 6,
+                "every list the document holds has a size here");
+  const auto at = static_cast<size_t>(kind);
+  return at < sizes.size() ? sizes[at] : 0;
 }
 
 std::optional<EditorAction> editorDeleteAction(const EditorDocument& document,

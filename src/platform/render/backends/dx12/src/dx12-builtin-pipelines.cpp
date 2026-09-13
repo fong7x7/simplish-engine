@@ -345,6 +345,50 @@ float4 outline_ps_main(float4 position : SV_Position) : SV_Target {
 }
 )hlsl";
 
+  /// HLSL for effects particles. Mirrors `FX_MSL_SOURCE`: each vertex is
+  /// `FxVertex`, already in clip space, and the cbuffer is `FxUniforms` in
+  /// `fx-renderer.cpp`. The depth texture is the scene's, read to hide a
+  /// particle behind geometry and fade it just in front.
+  constexpr const char FX_HLSL_SOURCE[] = R"hlsl(
+cbuffer FxUniforms : register(b0) {
+  float fx_softness;
+  float3 fx_pad;
+};
+
+Texture2D<float> fx_depth : register(t0);
+
+struct FxVsIn {
+  float4 clip : ATTR0;
+  float4 color : ATTR1;
+  float2 uv : ATTR2;
+};
+
+struct FxVsOut {
+  float4 position : SV_Position;
+  float4 color : COLOR0;
+  float2 uv : TEXCOORD0;
+};
+
+FxVsOut fx_vs_main(FxVsIn input) {
+  FxVsOut output;
+  output.position = input.clip;
+  output.color = input.color;
+  output.uv = input.uv;
+  return output;
+}
+
+float4 fx_ps_main(FxVsOut input) : SV_Target {
+  float scene = fx_depth.Load(int3(int2(input.position.xy), 0));
+  float soft = saturate((scene - input.position.z) * fx_softness);
+  float disc = saturate(1.0f - dot(input.uv, input.uv));
+  float cover = disc * disc * soft;
+  if (cover <= 0.0f) {
+    discard;
+  }
+  return input.color * cover;
+}
+)hlsl";
+
   /// Vertex input elements for `eng::GuiVertex`, in `buildInputLayout`'s
   /// "ATTR<location>" semantic convention.
   constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 7> GUI_INPUT_ELEMENTS{{
@@ -390,6 +434,19 @@ float4 outline_ps_main(float4 position : SV_Position) : SV_Target {
       {"ATTR", 3, DXGI_FORMAT_R8G8B8A8_UINT, 0, 32,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 36,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+  }};
+
+  /// Byte stride of `eng::FxVertex`, as `fx-vertex.h` asserts.
+  constexpr uint32_t FX_VERTEX_STRIDE = 40;
+
+  /// Vertex input elements for `eng::FxVertex`: clip position, colour, uv.
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 3> FX_INPUT_ELEMENTS{{
+      {"ATTR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 2, DXGI_FORMAT_R32G32_FLOAT, 0, 32,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
   }};
 
@@ -450,6 +507,14 @@ float4 outline_ps_main(float4 position : SV_Position) : SV_Target {
     rt.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
     rt.BlendOpAlpha = D3D12_BLEND_OP_ADD;
     rt.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    return desc;
+  }
+
+  /// Premultiplied compositing for effects: the colour added as it is, and
+  /// the target kept by what the particle does not hide.
+  D3D12_BLEND_DESC buildPremultipliedBlendDesc() {
+    D3D12_BLEND_DESC desc = buildGuiBlendDesc();
+    desc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
     return desc;
   }
 
@@ -590,6 +655,32 @@ createDx12OutlinePipelineState(ID3D12Device5* device,
   ID3D12PipelineState* state = createPso(device, pso);
   releasePair(shaders);
   return state;
+}
+
+ID3D12PipelineState* createDx12FxPipelineState(ID3D12Device5* device,
+                                               ID3D12RootSignature* root_sig,
+                                               DXGI_FORMAT color_format) {
+  const ShaderPair shaders =
+      compilePair(FX_HLSL_SOURCE, "fx_vs_main", "fx_ps_main");
+  if (shaders.vs == nullptr) {
+    return nullptr;
+  }
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+  pso.pRootSignature = root_sig;
+  fillCommonPsoFields(pso, shaders, color_format);
+  pso.BlendState = buildPremultipliedBlendDesc();
+  pso.InputLayout = {FX_INPUT_ELEMENTS.data(),
+                     static_cast<UINT>(FX_INPUT_ELEMENTS.size())};
+  // No depth attachment: like the outline, it reads the scene's depth.
+  pso.DSVFormat = DXGI_FORMAT_UNKNOWN;
+  ID3D12PipelineState* state = createPso(device, pso);
+  releasePair(shaders);
+  return state;
+}
+
+/// Byte stride the command list binds effects vertex buffers with.
+uint32_t dx12FxVertexStride() {
+  return FX_VERTEX_STRIDE;
 }
 
 /// Byte stride the command list binds GUI vertex buffers with.

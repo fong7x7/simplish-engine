@@ -23,8 +23,9 @@ namespace {
     return (wrapped < 0.0f ? wrapped + FULL_TURN : wrapped) - HALF_TURN;
   }
 
-  /// Write @p value into @p text as @p field is shown: a whole number for a
-  /// player, one decimal for an angle, two for everything else. Returns
+  /// Write @p value into @p text as @p field is shown: on or off for a
+  /// toggle, a whole number for a count, one decimal for an angle or a
+  /// spread, three for a small length, two for everything else. Returns
   /// what snprintf returns.
   int writeValue(std::array<char, VALUE_TEXT_CAPACITY>& text, float value,
                  EditorPropertyField field) {
@@ -32,13 +33,17 @@ namespace {
       return std::snprintf(text.data(), text.size(), "%s",
                            value != 0.0f ? "on" : "off");
     }
-    if (editorPropertyFieldKind(field) == EditorPropertyKind::COUNT) {
-      return std::snprintf(text.data(), text.size(), "%.0f", value);
+    switch (editorPropertyFieldKind(field)) {
+      case EditorPropertyKind::COUNT:
+        return std::snprintf(text.data(), text.size(), "%.0f", value);
+      case EditorPropertyKind::ANGLE:
+      case EditorPropertyKind::HALF_ANGLE:
+        return std::snprintf(text.data(), text.size(), "%.1f", value);
+      case EditorPropertyKind::FINE:
+        return std::snprintf(text.data(), text.size(), "%.3f", value);
+      default:
+        return std::snprintf(text.data(), text.size(), "%.2f", value);
     }
-    if (editorPropertyFieldIsAngle(field)) {
-      return std::snprintf(text.data(), text.size(), "%.1f", value);
-    }
-    return std::snprintf(text.data(), text.size(), "%.2f", value);
   }
 
   /// How one kind of number moves under a step button and a drag.
@@ -60,11 +65,16 @@ namespace {
       {EDITOR_SLOT_STEP, 0.0f},                                // TOGGLE
       // A scale is set by where on its slider it is pressed, never stepped
       // or scrubbed — see `editor-scale-slider.h`.
-      {0.0f, 0.0f},  // SCALE
+      {0.0f, 0.0f},                                            // SCALE
+      {EDITOR_DURATION_STEP, EDITOR_DURATION_DRAG_PER_PIXEL},  // DURATION
+      {EDITOR_SPREAD_STEP, EDITOR_SPREAD_DRAG_PER_PIXEL},      // HALF_ANGLE
+      {EDITOR_FINE_STEP, EDITOR_FINE_DRAG_PER_PIXEL},          // FINE
+      {EDITOR_ACCELERATION_STEP,
+       EDITOR_ACCELERATION_DRAG_PER_PIXEL},  // ACCELERATION
   };
 
   static_assert(std::size(KIND_TUNING) ==
-                    static_cast<size_t>(EditorPropertyKind::SCALE) + 1,
+                    static_cast<size_t>(EditorPropertyKind::ACCELERATION) + 1,
                 "every property kind needs a step and a drag rate");
 
   const KindTuning& kindTuning(EditorPropertyKind kind) {
@@ -104,7 +114,11 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return std::clamp(value, -1.0f, 1.0f);
     case EditorPropertyKind::EXTENT:
     case EditorPropertyKind::FACTOR:
+    case EditorPropertyKind::DURATION:
+    case EditorPropertyKind::FINE:
       return std::max(0.0f, value);
+    case EditorPropertyKind::HALF_ANGLE:
+      return std::clamp(value, 0.0f, HALF_TURN);
     case EditorPropertyKind::UNIT:
       return std::clamp(value, 0.0f, 1.0f);
     case EditorPropertyKind::COUNT:
@@ -117,6 +131,7 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
     case EditorPropertyKind::SCALE:
       return std::clamp(value, EDITOR_SCALE_MIN, EDITOR_SCALE_MAX);
     case EditorPropertyKind::DISTANCE:
+    case EditorPropertyKind::ACCELERATION:
       return value;
   }
   return value;

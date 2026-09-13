@@ -16,8 +16,9 @@ namespace eng::editor {
 /// enum, so a light's intensity is another entry here and another arm in
 /// `editor-property-ops.cpp` rather than a second panel.
 ///
-/// One enum covers placements, lights and player starts together, so a field
-/// two of them share — a position — is one row definition and one edit path.
+/// One enum covers placements, lights, player starts, waypoints and particle
+/// emitters together, so a field two of them share — a position — is one row
+/// definition and one edit path.
 /// The three members of every triple are declared in component order, which is
 /// what lets `editor-property-ops.cpp` take a component index by subtraction
 /// rather than a case per axis.
@@ -61,6 +62,52 @@ enum class EditorPropertyField : uint8_t {
   ROUTE,
   /// Where a waypoint comes in its route, 1 to `EDITOR_WAYPOINT_MAX_ORDER`.
   ORDER,
+  /// Seconds between a particle emitter's bursts.
+  EMIT_INTERVAL,
+  /// Particles an emitter throws in each burst.
+  PARTICLES,
+  /// Half-angle of the cone a burst is thrown in, in degrees.
+  SPREAD,
+  /// Slowest a particle leaves, in tiles per second.
+  SPEED_MIN,
+  /// Fastest a particle leaves, in tiles per second.
+  SPEED_MAX,
+  /// Shortest a particle lives, in seconds.
+  LIFE_MIN,
+  /// Longest a particle lives, in seconds.
+  LIFE_MAX,
+  /// A particle's radius at birth, in tiles.
+  SIZE_START,
+  /// A particle's radius when it dies, in tiles.
+  SIZE_END,
+  /// Red light a particle adds at birth.
+  START_R,
+  /// Green light a particle adds at birth.
+  START_G,
+  /// Blue light a particle adds at birth.
+  START_B,
+  /// How much of what is behind it a particle hides at birth.
+  START_HIDE,
+  /// Red light a particle adds when it dies.
+  END_R,
+  /// Green light a particle adds when it dies.
+  END_G,
+  /// Blue light a particle adds when it dies.
+  END_B,
+  /// How much of what is behind it a particle hides when it dies.
+  END_HIDE,
+  /// How hard particles fall, in tiles per second squared; negative rises.
+  GRAVITY,
+  /// How quickly particles slow down.
+  DRAG,
+  /// Seconds of its travel a particle is drawn stretched along.
+  STRETCH,
+  /// Brightness of the flash each burst lights the scene with.
+  FLASH,
+  /// How far that flash reaches, in tiles.
+  FLASH_RANGE,
+  /// How long that flash lasts, in seconds.
+  FLASH_TIME,
 };
 
 /// Every field there is, in the enum's own order.
@@ -78,7 +125,18 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::INTENSITY,   EditorPropertyField::RANGE,
     EditorPropertyField::PLAYER,      EditorPropertyField::COLLIDES,
     EditorPropertyField::SCALE,       EditorPropertyField::ROUTE,
-    EditorPropertyField::ORDER,
+    EditorPropertyField::ORDER,       EditorPropertyField::EMIT_INTERVAL,
+    EditorPropertyField::PARTICLES,   EditorPropertyField::SPREAD,
+    EditorPropertyField::SPEED_MIN,   EditorPropertyField::SPEED_MAX,
+    EditorPropertyField::LIFE_MIN,    EditorPropertyField::LIFE_MAX,
+    EditorPropertyField::SIZE_START,  EditorPropertyField::SIZE_END,
+    EditorPropertyField::START_R,     EditorPropertyField::START_G,
+    EditorPropertyField::START_B,     EditorPropertyField::START_HIDE,
+    EditorPropertyField::END_R,       EditorPropertyField::END_G,
+    EditorPropertyField::END_B,       EditorPropertyField::END_HIDE,
+    EditorPropertyField::GRAVITY,     EditorPropertyField::DRAG,
+    EditorPropertyField::STRETCH,     EditorPropertyField::FLASH,
+    EditorPropertyField::FLASH_RANGE, EditorPropertyField::FLASH_TIME,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -128,6 +186,30 @@ inline constexpr EditorPropertyField EDITOR_WAYPOINT_FIELDS[] = {
     EditorPropertyField::ROUTE,      EditorPropertyField::ORDER,
     EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
     EditorPropertyField::POSITION_Z,
+};
+
+/// What the panel lists for a particle emitter: where it stands and which
+/// way it throws, how often, then its burst from the cone out — speed, life,
+/// size, colour, how it moves — and last the flash each burst lights.
+///
+/// Long enough that the panel scrolls; the Effect row that starts it from a
+/// preset sits above all of these, so it is the one row always in reach.
+inline constexpr EditorPropertyField EDITOR_EMITTER_FIELDS[] = {
+    EditorPropertyField::POSITION_X,    EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z,    EditorPropertyField::DIRECTION_X,
+    EditorPropertyField::DIRECTION_Y,   EditorPropertyField::DIRECTION_Z,
+    EditorPropertyField::EMIT_INTERVAL, EditorPropertyField::PARTICLES,
+    EditorPropertyField::SPREAD,        EditorPropertyField::SPEED_MIN,
+    EditorPropertyField::SPEED_MAX,     EditorPropertyField::LIFE_MIN,
+    EditorPropertyField::LIFE_MAX,      EditorPropertyField::SIZE_START,
+    EditorPropertyField::SIZE_END,      EditorPropertyField::START_R,
+    EditorPropertyField::START_G,       EditorPropertyField::START_B,
+    EditorPropertyField::START_HIDE,    EditorPropertyField::END_R,
+    EditorPropertyField::END_G,         EditorPropertyField::END_B,
+    EditorPropertyField::END_HIDE,      EditorPropertyField::GRAVITY,
+    EditorPropertyField::DRAG,          EditorPropertyField::STRETCH,
+    EditorPropertyField::FLASH,         EditorPropertyField::FLASH_RANGE,
+    EditorPropertyField::FLASH_TIME,
 };
 
 /// How many rows a placement's properties fill.

@@ -432,3 +432,24 @@ TEST_CASE("get_playtest reports health, who is down, and what is flying") {
   REQUIRE(read.at("hazards").at(0).at("ticks_left") == 120);
   REQUIRE(read.at("run_over") == true);
 }
+
+TEST_CASE("get_playtest reports the effects playing and the cues played") {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.effects.particles = 12;
+  state.playtest.effects.lights = 2;
+  state.playtest.effects
+      .cues[static_cast<size_t>(game::CombatCueKind::SHOT_FIRED)] = 3;
+  state.playtest.effects.cues[static_cast<size_t>(game::CombatCueKind::BLAST)] =
+      1;
+
+  const nlohmann::json read = nlohmann::json::parse(agentPlaytestJson(state));
+
+  const nlohmann::json& effects = read.at("effects");
+  REQUIRE(effects.at("particles") == 12);
+  REQUIRE(effects.at("lights") == 2);
+  REQUIRE(effects.at("cues").at("shot_fired") == 3);
+  REQUIRE(effects.at("cues").at("shot_hit_body") == 0);
+  REQUIRE(effects.at("cues").at("shot_hit_wall") == 0);
+  REQUIRE(effects.at("cues").at("blast") == 1);
+}

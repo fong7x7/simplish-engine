@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
@@ -42,6 +44,13 @@ namespace {
   DrawPos textPos(const Rect& rect, float inset_x) {
     return drawPosInset(rect, inset_x, TEXT_BASELINE);
   }
+
+  /// Distance from one row's top to the next row's.
+  constexpr float ROW_PITCH = PROPERTIES_ROW_HEIGHT + PROPERTIES_ROW_GAP;
+  /// Width of the scroll thumb down the rows' right edge.
+  constexpr float SCROLL_THUMB_WIDTH = 3.0f;
+  /// The thumb, over the panel's own colour.
+  constexpr GuiColor SCROLL_THUMB{110, 110, 118, 200};
 
   /// The choice @p steps along from @p current among @p count, wrapping
   /// round at either end whichever way it stepped and however far.
@@ -94,12 +103,17 @@ Rect EditorPropertiesWidget::fieldRowRect(EditorPropertyField field) const {
   if (row >= fields_.size()) {
     return {};
   }
-  return propertyRowRect(layout().body, row);
+  return propertyRowRect(scrolledBody(), fieldSlot(row));
 }
 
 void EditorPropertiesWidget::beginSelection(
     std::string name, std::string reference,
     std::span<const EditorPropertyField> fields) {
+  // Another selection starts at the top; the same one shown again — as it
+  // is after every edit — keeps its place in a long list.
+  if (reference != reference_) {
+    scroll_ = 0.0f;
+  }
   name_ = std::move(name);
   reference_ = std::move(reference);
   fields_.assign(fields.begin(), fields.end());
@@ -145,6 +159,15 @@ void EditorPropertiesWidget::setSelection(std::string name,
   }
 }
 
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorEmitter& emitter) {
+  beginSelection(std::move(name), editorEmitterRef(emitter),
+                 EDITOR_EMITTER_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorEmitterValue(emitter, fields_[row]);
+  }
+}
+
 void EditorPropertiesWidget::addChoices(EditorChoiceKind kind,
                                         std::vector<std::string> choices,
                                         size_t current) {
@@ -156,12 +179,21 @@ void EditorPropertiesWidget::addChoices(EditorChoiceKind kind,
     return;
   }
   const size_t shown = current < choices.size() ? current : 0;
-  EditorChoiceRow row{kind, std::move(choices), shown};
+  placeChoiceRow({kind, std::move(choices), shown});
+}
+
+void EditorPropertiesWidget::placeChoiceRow(EditorChoiceRow row) {
+  const size_t at = choiceRowOf(row.kind);
   if (at < choice_rows_.size()) {
     choice_rows_[at] = std::move(row);
-  } else {
-    choice_rows_.push_back(std::move(row));
+    return;
   }
+  // A leading row goes after those that already lead and before the rest,
+  // so the list stays leading rows first, which is what the slots count on.
+  const size_t before =
+      editorChoiceLeads(row.kind) ? leadingChoiceCount() : choice_rows_.size();
+  choice_rows_.insert(choice_rows_.begin() + static_cast<long>(before),
+                      std::move(row));
 }
 
 size_t EditorPropertiesWidget::choiceRowOf(EditorChoiceKind kind) const {
@@ -193,8 +225,38 @@ size_t EditorPropertiesWidget::rowCount() const {
   return fields_.size() + choice_rows_.size();
 }
 
+size_t EditorPropertiesWidget::leadingChoiceCount() const {
+  return static_cast<size_t>(
+      std::ranges::count_if(choice_rows_, [](const EditorChoiceRow& row) {
+        return editorChoiceLeads(row.kind);
+      }));
+}
+
+size_t EditorPropertiesWidget::fieldSlot(size_t row) const {
+  return leadingChoiceCount() + row;
+}
+
+size_t EditorPropertiesWidget::choiceSlot(size_t index) const {
+  return index < leadingChoiceCount() ? index : fields_.size() + index;
+}
+
+float EditorPropertiesWidget::maxScroll() const {
+  const float content = static_cast<float>(rowCount()) * ROW_PITCH;
+  return std::max(0.0f, content - PROPERTIES_ROW_GAP - layout().body.h);
+}
+
+float EditorPropertiesWidget::scrollOffset() const {
+  return std::clamp(scroll_, 0.0f, maxScroll());
+}
+
+Rect EditorPropertiesWidget::scrolledBody() const {
+  Rect body = layout().body;
+  body.y -= scrollOffset();
+  return body;
+}
+
 Rect EditorPropertiesWidget::choiceRowRectAt(size_t index) const {
-  return propertyRowRect(layout().body, fields_.size() + index);
+  return propertyRowRect(scrolledBody(), choiceSlot(index));
 }
 
 Rect EditorPropertiesWidget::choiceRowRect(EditorChoiceKind kind) const {
@@ -263,7 +325,7 @@ void EditorPropertiesWidget::renderToggle(const GuiDrawContext& ctx,
 void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
                                        size_t index) const {
   const EditorPropertyField field = fields_[index];
-  const Rect row = propertyRowRect(layout().body, index);
+  const Rect row = propertyRowRect(scrolledBody(), fieldSlot(index));
   ctx.drawText(GuiColor::applyOpacity(THEME_TEXT, opacity),
                textPos(propertyLabelRect(row), 0.0f),
                editorPropertyFieldLabel(field));
@@ -315,12 +377,34 @@ void EditorPropertiesWidget::renderValueBox(const GuiDrawContext& ctx,
 }
 
 void EditorPropertiesWidget::renderRows(const GuiDrawContext& ctx) const {
+  // Clipped to the area the rows are laid out in, so a row scrolled half
+  // out of it does not draw over the id line or off the panel's foot.
+  if (ctx.renderer != nullptr) {
+    ctx.renderer->pushScissor(layout().body);
+  }
   for (size_t row = 0; row < fields_.size(); ++row) {
     renderRow(ctx, row);
   }
   for (size_t row = 0; row < choice_rows_.size(); ++row) {
     renderChoiceRow(ctx, row);
   }
+  if (ctx.renderer != nullptr) {
+    ctx.renderer->popScissor();
+  }
+}
+
+void EditorPropertiesWidget::renderScrollbar(const GuiDrawContext& ctx) const {
+  const float most = maxScroll();
+  if (most <= 0.0f) {
+    return;
+  }
+  const Rect body = layout().body;
+  const float shown = body.h / (body.h + most);
+  const float thumb = body.h * shown;
+  const float y = body.y + (body.h - thumb) * (scrollOffset() / most);
+  ctx.drawFilledRect(makeRect(body.x + body.w - SCROLL_THUMB_WIDTH, y,
+                              SCROLL_THUMB_WIDTH, thumb),
+                     GuiColor::applyOpacity(SCROLL_THUMB, opacity));
 }
 
 void EditorPropertiesWidget::renderChoiceRow(const GuiDrawContext& ctx,
@@ -348,6 +432,7 @@ void EditorPropertiesWidget::render(const GuiDrawContext& ctx) const {
   renderNameLine(ctx);
   renderIdLine(ctx);
   renderRows(ctx);
+  renderScrollbar(ctx);
 }
 
 void EditorPropertiesWidget::applyValue(EditorPropertyField field, float value,
@@ -420,7 +505,7 @@ bool EditorPropertiesWidget::pressRow(size_t index,
                EditorPropertyEdit::COMMIT);
     return false;
   }
-  const Rect row = propertyRowRect(layout().body, index);
+  const Rect row = propertyRowRect(scrolledBody(), fieldSlot(index));
   // A step is done the moment it is pressed, so it never takes capture.
   if (pressStep(field, row, event) ||
       !containsPoint(propertyValueRect(row), event.x, event.y)) {
@@ -450,22 +535,39 @@ void EditorPropertiesWidget::pressChoiceRow(size_t index,
   }
 }
 
+bool EditorPropertiesWidget::pressSlot(size_t slot,
+                                       const GuiMouseEvent& event) {
+  const size_t leading = leadingChoiceCount();
+  if (slot >= leading && slot < leading + fields_.size()) {
+    return pressRow(slot - leading, event);
+  }
+  // A choice row: a step is done the moment it is pressed, so it never
+  // takes capture.
+  pressChoiceRow(slot < leading ? slot : slot - fields_.size(), event);
+  return false;
+}
+
 bool EditorPropertiesWidget::handleMouseDown(const GuiMouseEvent& event) {
-  if (!has_selection_ || event.button != GuiMouseButton::LEFT) {
+  // A row scrolled out of the area the rows are shown in is out of reach.
+  if (!has_selection_ || event.button != GuiMouseButton::LEFT ||
+      !containsPoint(layout().body, event.x, event.y)) {
     return false;
   }
-  const int row =
-      hitTestPropertyRow(layout().body, rowCount(), event.x, event.y);
-  if (row < 0) {
+  const int slot =
+      hitTestPropertyRow(scrolledBody(), rowCount(), event.x, event.y);
+  return slot >= 0 && pressSlot(static_cast<size_t>(slot), event);
+}
+
+bool EditorPropertiesWidget::handleScroll(const GuiScrollEvent& event) {
+  if (!has_selection_ || maxScroll() <= 0.0f ||
+      !containsPoint(layout().body, event.x, event.y)) {
     return false;
   }
-  if (static_cast<size_t>(row) >= fields_.size()) {
-    // A choice row: a step is done the moment it is pressed, so it never
-    // takes capture.
-    pressChoiceRow(static_cast<size_t>(row) - fields_.size(), event);
-    return false;
-  }
-  return pressRow(static_cast<size_t>(row), event);
+  // Positive delta_y is away from the user, which walks the rows back up;
+  // a notch of the wheel is a row.
+  scroll_ =
+      std::clamp(scrollOffset() - event.delta_y * ROW_PITCH, 0.0f, maxScroll());
+  return true;
 }
 
 void EditorPropertiesWidget::handleMouseMove(const GuiMouseEvent& event) {

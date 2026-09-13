@@ -8,6 +8,7 @@
 #include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-playtest-actor.h>
 #include <editor/shell/editor-playtest-clock.h>
+#include <editor/shell/editor-playtest-effects.h>
 #include <editor/shell/editor-playtest-hazard.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
@@ -44,6 +45,8 @@ struct EditorPlaytestState {
   std::vector<WorldPoint> projectiles;
   /// Every hazard pool on the floor.
   std::vector<EditorPlaytestHazard> hazards;
+  /// The effects shots, hits and blasts have played.
+  EditorPlaytestEffects effects{};
   /// Whether the run is over: no player is up.
   bool run_over = false;
   /// Input queued for player 1, oldest first. While any is queued it runs

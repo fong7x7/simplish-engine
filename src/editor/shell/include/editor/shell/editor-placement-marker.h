@@ -39,6 +39,9 @@ enum class EditorMarkerStyle : uint8_t {
   /// The footprint, in an acid green — a hazard pool on the floor in a
   /// playtest.
   HAZARD,
+  /// The whole box, in violet — a particle emitter, which has nothing to
+  /// see it by between bursts.
+  EMITTER,
 };
 
 /// One thing in the level, as much of it as the viewport needs.

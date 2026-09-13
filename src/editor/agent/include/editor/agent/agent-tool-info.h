@@ -99,10 +99,73 @@ inline constexpr AgentParam AGENT_PARAMS_ADD_WAYPOINT[] = {
      "after the route's last waypoint."},
 };
 
+/// `add_emitter` places a particle emitter.
+inline constexpr AgentParam AGENT_PARAMS_ADD_EMITTER[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X its bursts start from, in tiles. A whole number and a half is "
+     "the middle of a tile, which is where a drag from the browser puts "
+     "one."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y its bursts start from, in tiles."},
+    {"z", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Height above the floor, in tiles. Defaults to 0.9, chest height, where "
+     "a drag from the browser puts one."},
+    {"effect", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The preset its burst and flash start from, by id — list_emitters "
+     "lists them under effects: muzzle_flash, muzzle_sparks, wall_sparks, "
+     "grit, hit_spray, fireball, embers, smoke. Defaults to wall_sparks."},
+};
+
+/// `set_effect` starts an emitter from a preset.
+inline constexpr AgentParam AGENT_PARAMS_SET_EFFECT[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"emitter\", or \"selection\" when an emitter is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the emitter list. Not needed when target is "
+     "\"selection\"."},
+    {"effect", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The preset, by id, as list_emitters lists them under effects. Its "
+     "burst and flash replace the emitter's; where it stands, which way it "
+     "points and how often it bursts are kept."},
+};
+
+/// `play_effect` fires an effect once.
+inline constexpr AgentParam AGENT_PARAMS_PLAY_EFFECT[] = {
+    {"effect", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "What to play: a preset id, as list_emitters lists them under "
+     "effects — one burst and its flash — or a whole combat effect: "
+     "shot_fired, shot_hit_body, shot_hit_wall or blast. Needed unless "
+     "emitter is given."},
+    {"emitter", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Index of a placed particle emitter, to fire its own burst once, "
+     "where it stands, as it is now — edits and all. Takes the place of "
+     "effect, x, y and the rest."},
+    {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World X it goes off at, in tiles. Needed with effect."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World Y it goes off at, in tiles. Needed with effect."},
+    {"z", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Height above the floor, in tiles. Defaults to 0.9, chest height, "
+     "where shots fly — or 0 for a blast, which goes off on the floor."},
+    {"dx", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "With dy and dz, which way it points; any length. A preset defaults "
+     "to straight up; a shot to +X, and its sparks and spray follow the "
+     "shot, so this is the way the shot was travelling. Those not given "
+     "are 0 once any is."},
+    {"dy", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Y of that direction."},
+    {"dz", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Z of that direction."},
+    {"scale", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Multiplies every particle's speed and size and the flash's reach; a "
+     "blast's radius is 1.5 tiles times it. Defaults to 1."},
+};
+
 /// `set_property` writes one number on one entry.
 inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", "
+     "\"emitter\", or "
      "\"selection\" for whatever the properties panel is currently "
      "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
@@ -112,9 +175,14 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "Property name as `get_selection` reports it: position_x, position_y, "
      "position_z, rotation_x, rotation_y, rotation_z, direction_x, "
      "direction_y, direction_z, color_r, color_g, color_b, intensity, "
-     "range, player, collides, scale, route, or order. A player start takes "
-     "the position and player only, and a waypoint the position, route and "
-     "order; collides and scale are a placement's — collides is 1 for "
+     "range, player, collides, scale, route, order, or one of a particle "
+     "emitter's: interval, particles, spread, speed_min, speed_max, "
+     "life_min, life_max, size_start, size_end, start_r, start_g, start_b, "
+     "start_hide, end_r, end_g, end_b, end_hide, gravity, drag, stretch, "
+     "flash, flash_range, flash_time. A player start takes "
+     "the position and player only, a waypoint the position, route and "
+     "order, and an emitter its position, direction and its own; collides "
+     "and scale are a placement's — collides is 1 for "
      "solid and 0 to let players walk through it, and scale is a uniform "
      "size multiplier where 1 is the size the asset was dropped at, "
      "clamped to 0.125 through 8."},
@@ -122,8 +190,10 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "The value to write. Angles wrap into [-180, 180), colour channels "
      "and direction components are clamped, a player is rounded into 1 to "
      "4, a route into 1 to 9 and an order into 1 to 99, collides is 1 at "
-     "0.5 and above, and the response reports what was "
-     "actually stored."},
+     "0.5 and above; an emitter's particles are rounded into 1 to 200, its "
+     "spread held to 0 to 180 degrees, and its lengths, times and colours "
+     "kept from going below zero — gravity alone may be negative. The "
+     "response reports what was actually stored."},
 };
 
 /// `set_animation` names the clip a placed rigged model plays.
@@ -192,7 +262,8 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
 /// `translate` moves an entry by a delta rather than to a position.
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", "
+     "\"emitter\", or "
      "\"selection\"."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"selection\"."},
@@ -208,7 +279,8 @@ inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
 /// `delete` takes an entry back out of the level.
 inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", "
+     "\"emitter\", or "
      "\"selection\" for whatever the properties panel is currently "
      "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
@@ -220,7 +292,8 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 /// `select` names an entry, or clears the selection.
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "\"placement\", \"light\", \"player_start\", \"waypoint\", or "
+     "\"placement\", \"light\", \"player_start\", \"waypoint\", "
+     "\"emitter\", or "
      "\"none\" to clear the selection."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"none\"."},
@@ -394,6 +467,26 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "actor walks them and the ids of the actors that patrol it.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_EMITTERS,
+     "list_emitters",
+     "Every particle emitter in the level with its index, id, the preset "
+     "it was started from and whether it is still exactly that preset, "
+     "position, direction, flash tint, and every number of its burst under "
+     "the name set_property writes it by; and every preset an emitter can "
+     "be started from, by id and name.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::GET_EFFECTS,
+     "get_effects",
+     "What the effects the viewport draws are doing right now, while the "
+     "level is edited or played: whose they are (source: editor or "
+     "playtest), particles and flashes alive, every emitter with the "
+     "bursts it has thrown since it was placed, the level opened, or a "
+     "playtest last started or stopped, and how many effects play_effect "
+     "has played. Refreshed every frame; to see a burst land, poll it just "
+     "after play_effect or while an emitter runs.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::LIST_CHARACTERS,
      "list_characters",
      "Every character the project defines — id, name, model, move speed "
@@ -500,10 +593,24 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "in order, looping or turning back as the state says. Recorded as one "
      "undoable edit, and saved with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_ADD_WAYPOINT},
+    {AgentTool::ADD_EMITTER, "add_emitter",
+     "Add a particle emitter, exactly as dragging the Particle Emitter from "
+     "the browser's general > effects section would, and select it. It "
+     "throws a burst of particles every interval, and flashes a light over "
+     "the meshes near it — in the viewport while the level is edited, and "
+     "in a playtest. Start it from a preset, then change any number of its "
+     "burst with set_property. Recorded as one undoable edit, and saved "
+     "with the level; the simulation never sees it.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_ADD_EMITTER},
     {AgentTool::SET_PROPERTY, "set_property",
-     "Set one property of a placement, a light, a player start or a "
-     "waypoint to an absolute value, as typing it into the properties panel "
-     "would. "
+     "Set one property of a placement, a light, a player start, a "
+     "waypoint or a particle emitter to an absolute value, as typing it "
+     "into the properties panel would. An emitter's burst is interval, "
+     "particles, spread, speed_min, speed_max, life_min, life_max, "
+     "size_start, size_end, start_r/g/b and start_hide (how much of what "
+     "is behind a particle it hides: 0 is a pure glow), the same for end_, "
+     "gravity (negative rises), drag, stretch (seconds of travel drawn as "
+     "a streak), and its flash, flash_range and flash_time. "
      "Recorded as one undoable edit, and a write that changes nothing "
      "records nothing.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_PROPERTY},
@@ -529,23 +636,40 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "collision box for players. Recorded as one undoable edit, and saved "
      "with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_BEHAVIOR},
+    {AgentTool::SET_EFFECT, "set_effect",
+     "Start a particle emitter from one of the built-in presets — the "
+     "bursts shots, hits and blasts throw — as the properties panel's "
+     "Effect row does: its burst and flash become the preset's. Recorded "
+     "as one undoable edit.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_EFFECT},
+    {AgentTool::PLAY_EFFECT, "play_effect",
+     "Play an effect once, now, where the viewport shows it: a preset "
+     "burst, a whole combat effect (a muzzle flash, a hit, a blast), or a "
+     "placed emitter's own burst as it stands — for trying one out without "
+     "waiting on an emitter's interval or an actor's volley. Goes into the "
+     "editor's effects while the level is edited and the playtest's while "
+     "it is played, where a paused playtest holds it until stepped. Not "
+     "an edit: nothing is recorded or saved, and it works while playing. "
+     "Carried out by the running editor on its next frame; get_effects "
+     "shows it land.",
+     AgentToolEffect::HOST, AGENT_PARAMS_PLAY_EFFECT},
     {AgentTool::TRANSLATE, "translate",
-     "Move a placement, a light, a player start or a waypoint by a delta in "
-     "tiles — "
+     "Move a placement, a light, a player start, a waypoint or a particle "
+     "emitter by a delta in tiles — "
      "the tool to reach for when asked to shift something in a direction "
      "rather than to a coordinate. Recorded as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_TRANSLATE},
     {AgentTool::DELETE_ENTRY, "delete",
-     "Remove a placement, a light, a player start or a waypoint from the "
-     "level, as the "
+     "Remove a placement, a light, a player start, a waypoint or a particle "
+     "emitter from the level, as the "
      "Delete key does to what is selected. Recorded as one undoable edit, so "
      "undo puts the "
      "entry back where it was; the selection is cleared, and everything "
      "after it in that list is renumbered down one.",
      AgentToolEffect::EDIT, AGENT_PARAMS_DELETE},
     {AgentTool::SELECT, "select",
-     "Select a placement, a light, a player start or a waypoint, which "
-     "opens the "
+     "Select a placement, a light, a player start, a waypoint or a particle "
+     "emitter, which opens the "
      "properties panel on it, or clear the selection.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SELECT},
     {AgentTool::SET_TOOL, "set_tool", "Choose the active toolbar tool.",
@@ -594,11 +718,13 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "simulation is on, where each player is, who they play as, their "
      "health, whether they are down or out and whether a stand-in plays "
      "them; every actor with its state, target and health; every "
-     "projectile in flight and hazard pool on the floor; whether the run "
-     "is over (no player up); the latest tick hash, how many ticks the "
-     "frame clock has dropped, and how many ticks of queued input are "
-     "left. Poll it after start_playtest or send_input to watch the game "
-     "run.",
+     "projectile in flight and hazard pool on the floor; the effects "
+     "shots, hits and blasts are playing — particles and flashes live now, "
+     "and how many shot_fired, shot_hit_body, shot_hit_wall and blast cues "
+     "the run has played; whether the run is over (no player up); the "
+     "latest tick hash, how many ticks the frame clock has dropped, and "
+     "how many ticks of queued input are left. Poll it after "
+     "start_playtest or send_input to watch the game run.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::START_PLAYTEST, "start_playtest",

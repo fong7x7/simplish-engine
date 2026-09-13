@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
@@ -172,6 +173,66 @@ namespace {
     return out;
   }
 
+  /// The key each of an emitter's numbers is saved under, past where it
+  /// stands and which way it points: the panel's rows, one key each, so a
+  /// file edited by hand reads as the panel does.
+  struct EmitterKey {
+    /// The row.
+    EditorPropertyField field;
+    /// Its key in the entity's property block.
+    const char* key;
+  };
+
+  /// Every one of those, in the panel's order.
+  constexpr EmitterKey EMITTER_KEYS[] = {
+      {EditorPropertyField::EMIT_INTERVAL, "interval"},
+      {EditorPropertyField::PARTICLES, "particles"},
+      {EditorPropertyField::SPREAD, "spread"},
+      {EditorPropertyField::SPEED_MIN, "speed_min"},
+      {EditorPropertyField::SPEED_MAX, "speed_max"},
+      {EditorPropertyField::LIFE_MIN, "life_min"},
+      {EditorPropertyField::LIFE_MAX, "life_max"},
+      {EditorPropertyField::SIZE_START, "size_start"},
+      {EditorPropertyField::SIZE_END, "size_end"},
+      {EditorPropertyField::START_R, "start_r"},
+      {EditorPropertyField::START_G, "start_g"},
+      {EditorPropertyField::START_B, "start_b"},
+      {EditorPropertyField::START_HIDE, "start_hide"},
+      {EditorPropertyField::END_R, "end_r"},
+      {EditorPropertyField::END_G, "end_g"},
+      {EditorPropertyField::END_B, "end_b"},
+      {EditorPropertyField::END_HIDE, "end_hide"},
+      {EditorPropertyField::GRAVITY, "gravity"},
+      {EditorPropertyField::DRAG, "drag"},
+      {EditorPropertyField::STRETCH, "stretch"},
+      {EditorPropertyField::FLASH, "flash"},
+      {EditorPropertyField::FLASH_RANGE, "flash_range"},
+      {EditorPropertyField::FLASH_TIME, "flash_time"},
+  };
+
+  /// A particle emitter, as the entity shape: the preset it was started
+  /// from, which way it points, the flash's tint, and every number of its
+  /// burst — all of them, since the burst is its own, not the preset's.
+  json vec3Json(const Vec3& vec) {
+    return tripleJson(vec.x, vec.y, vec.z);
+  }
+
+  json emitterJson(const EditorEmitter& emitter) {
+    json properties = {{"effect", emitter.effect},
+                       {"direction", vec3Json(emitter.direction)},
+                       {"flash_color", vec3Json(emitter.flash.color)}};
+    for (const EmitterKey& entry : EMITTER_KEYS) {
+      properties[entry.key] = editorEmitterValue(emitter, entry.field);
+    }
+    json out;
+    out["id"] = emitter.id;
+    out["definition"] = EDITOR_EMITTER_DEFINITION;
+    out["at"] =
+        tripleJson(emitter.position.x, emitter.position.y, emitter.position.z);
+    out["properties"] = std::move(properties);
+    return out;
+  }
+
   json entitiesJson(const EditorDocument& document) {
     json entities = json::array();
     for (const EditorPlayerStart& start : document.player_starts) {
@@ -179,6 +240,9 @@ namespace {
     }
     for (const EditorWaypoint& waypoint : document.waypoints) {
       entities.push_back(waypointJson(waypoint));
+    }
+    for (const EditorEmitter& emitter : document.emitters) {
+      entities.push_back(emitterJson(emitter));
     }
     return entities;
   }
@@ -341,6 +405,46 @@ namespace {
     return waypoint;
   }
 
+  /// Every number of an emitter the property block holds, into @p emitter,
+  /// each through the panel's own rule so a hand-edited one is held to what
+  /// the panel would allow. What the block leaves out keeps the preset's.
+  void readEmitterNumbers(const json& properties, EditorEmitter& emitter) {
+    const Vec3& aim = emitter.direction;
+    const Triple way =
+        readTriple(properties, "direction", {aim.x, aim.y, aim.z});
+    emitter.direction = {way[0], way[1], way[2]};
+    const Vec3& tint = emitter.flash.color;
+    const Triple color =
+        readTriple(properties, "flash_color", {tint.x, tint.y, tint.z});
+    emitter.flash.color = {color[0], color[1], color[2]};
+    for (const EmitterKey& entry : EMITTER_KEYS) {
+      setEditorEmitterValue(
+          emitter, entry.field,
+          readNumber(properties, entry.key,
+                     editorEmitterValue(emitter, entry.field)));
+    }
+  }
+
+  /// One particle emitter: started from the preset it names, then given
+  /// every number the file holds. A preset the editor does not have is
+  /// kept as written, so the Effect row can say so, and the numbers still
+  /// load.
+  EditorEmitter readEmitter(const json& entry, const EditorDocument& document) {
+    const Triple at = readTriple(entry, "at", ZERO_TRIPLE);
+    const json properties = entry.value("properties", json::object());
+    const std::string effect = readString(properties, "effect");
+    EditorEmitter emitter = makeEditorEmitter(effect, {at[0], at[1], at[2]});
+    if (!effect.empty()) {
+      emitter.effect = effect;
+    }
+    readEmitterNumbers(properties, emitter);
+    emitter.id = readString(entry, "id");
+    if (emitter.id.empty()) {
+      emitter.id = mintEditorEmitterId(document);
+    }
+    return emitter;
+  }
+
   /// The array under @p key, or an empty one when the file has no such
   /// array. A level with no lights in it is an ordinary level.
   json arrayAt(const json& content, const char* key) {
@@ -365,19 +469,32 @@ namespace {
     }
   }
 
-  /// Every entity the editor has a definition for: player starts and
-  /// waypoints. Any other is dropped and counted, as a prop naming a
-  /// missing asset is, rather than silently rewritten into something else.
+  /// One entity of @p definition into @p load — false when the editor has
+  /// no definition by that name.
+  bool readEntity(const json& entry, const std::string& definition,
+                  EditorLevelLoad& load) {
+    EditorDocument& document = load.document;
+    if (definition == EDITOR_PLAYER_START_DEFINITION) {
+      document.player_starts.push_back(readPlayerStart(entry, document));
+    } else if (definition == EDITOR_WAYPOINT_DEFINITION) {
+      document.waypoints.push_back(readWaypoint(entry, document));
+    } else if (definition == EDITOR_EMITTER_DEFINITION) {
+      document.emitters.push_back(readEmitter(entry, document));
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  /// Every entity the editor has a definition for: player starts,
+  /// waypoints and particle emitters. Any other is dropped and counted, as
+  /// a prop naming a missing asset is, rather than silently rewritten into
+  /// something else.
   void readEntities(const json& content, EditorLevelLoad& load) {
     for (const json& entry : arrayAt(content, "entities")) {
       const std::string definition =
           entry.is_object() ? readString(entry, "definition") : std::string{};
-      if (definition == EDITOR_PLAYER_START_DEFINITION) {
-        load.document.player_starts.push_back(
-            readPlayerStart(entry, load.document));
-      } else if (definition == EDITOR_WAYPOINT_DEFINITION) {
-        load.document.waypoints.push_back(readWaypoint(entry, load.document));
-      } else {
+      if (!readEntity(entry, definition, load)) {
         ++load.dropped_entities;
       }
     }

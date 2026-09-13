@@ -12,6 +12,8 @@ set(_agent_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-dispatch.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-json-values.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-state-json.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-effects.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-emitters.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-waypoints.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-agent-service.cpp"
 )

@@ -8,11 +8,14 @@
 # a CombatEffects, the world spawns shots and hazards from it, steps them,
 # and applies the hits in its damage phase. Nothing here sees a player or
 # actor pool — the world lists who can be hurt as CombatBody records —
-# so weapons can fire through the same path when they exist.
+# so weapons can fire through the same path when they exist. Shots fired,
+# hits and blasts are also reported as CombatCues, for effects and sound;
+# no phase reads them back.
 
 simplish_add_module(simplish-game-combat
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
-    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/combat-pools.cpp
+    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/combat-cue.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/combat-pools.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/combat-spawn.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/hazard-system.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/projectile-system.cpp

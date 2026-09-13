@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <editor/agent/agent-host-request-kind.h>
+#include <editor/shell/editor-effect-shot.h>
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-command.h>
 #include <string>
@@ -38,6 +39,8 @@ struct AgentHostRequest {
   std::string character{};
   /// Ticks to run, meaningful only for `STEP_PLAYTEST`.
   uint32_t ticks = 0;
+  /// The effect to play, meaningful only for `PLAY_EFFECT`.
+  EditorEffectShot effect{};
 };
 
 }  // namespace eng::editor

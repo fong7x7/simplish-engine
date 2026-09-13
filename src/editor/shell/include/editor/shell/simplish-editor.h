@@ -116,6 +116,8 @@
 #include <editor/shell/editor-character-select-widget.h>
 #include <editor/shell/editor-choice-kind.h>
 #include <editor/shell/editor-dialog-purpose.h>
+#include <editor/shell/editor-effect-shot.h>
+#include <editor/shell/editor-emitter-player.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-level-result.h>
 #include <editor/shell/editor-level-unsaved.h>
@@ -135,6 +137,8 @@
 #include <engine/gui/image-data.h>
 #include <engine/input/held-actions.h>
 #include <engine/math/vec2.h>
+#include <engine/render-fx/fx-renderer.h>
+#include <engine/render-fx/fx-world.h>
 #include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <engine/render-mesh/mesh-style.h>
@@ -220,6 +224,12 @@ public:
   /// one tick, and how an agent reaches an exact tick. A no-op when no
   /// playtest is running.
   void stepPlaytest(uint32_t ticks);
+
+  /// Play @p shot once, now, into the effects the viewport is drawing: the
+  /// editor's own while the level is edited, the playtest's while it is
+  /// played. Presentation — nothing records it, and a paused playtest
+  /// holds it where it starts until it is stepped or resumed.
+  void playEffectShot(const EditorEffectShot& shot);
 
 protected:
   bool onInit() override;
@@ -440,6 +450,9 @@ private:
   /// one is selected — so a route is laid out by dropping one after
   /// another — and to route 1 otherwise, after its last waypoint.
   void placeWaypoint(WorldPoint tile);
+  /// Add a particle emitter over @p tile, started from the default preset,
+  /// as an action the user can undo, and select it.
+  void placeEmitter(WorldPoint tile);
   /// Carry out the Edit menu's undo, redo and delete. Returns false when
   /// the command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
@@ -479,6 +492,14 @@ private:
   void showPlayerStartSelection(EditorPropertiesWidget& panel);
   /// Show the selected waypoint's route, place and position in @p panel.
   void showWaypointSelection(EditorPropertiesWidget& panel);
+  /// Show the selected emitter's Effect row and every number of its burst
+  /// in @p panel.
+  void showEmitterSelection(EditorPropertiesWidget& panel);
+  /// Show whatever is selected — which is there — in @p panel.
+  void showSelection(EditorPropertiesWidget& panel);
+  /// Apply one property change to whatever is selected, which is there.
+  void applySelectedEdit(EditorPropertyField field, float value,
+                         EditorPropertyEdit edit);
   /// Apply one property change to whatever is selected, recording history
   /// when the gesture that produced it has finished.
   void applyPropertyEdit(EditorPropertyField field, float value,
@@ -544,6 +565,14 @@ private:
   /// Apply one property change to the selected waypoint.
   void applyWaypointEdit(EditorPropertyField field, float value,
                          EditorPropertyEdit edit);
+  /// Record the emitter gesture in flight, if it changed anything.
+  void commitEmitterEdit();
+  /// Apply one property change to the selected emitter.
+  void applyEmitterEdit(EditorPropertyField field, float value,
+                        EditorPropertyEdit edit);
+  /// Start the selected emitter from the preset at @p index of its Effect
+  /// row, as one undoable edit.
+  void applyEffectChoice(size_t index);
   /// Have the selected placement patrol the route at @p index of its Route
   /// row.
   void applyRouteChoice(size_t index);
@@ -610,11 +639,25 @@ private:
   /// the scene pass's so the line sits exactly on what it outlines.
   [[nodiscard]] MeshOutlineRenderer::DrawParams
   outlineDrawParams(const EditorViewportWidget& viewport);
+  /// Build the draw parameters for this frame's effects, which match the
+  /// scene pass's so a spark sits where the thing it flew off is drawn.
+  [[nodiscard]] FxRenderer::DrawParams
+  fxDrawParams(const EditorViewportWidget& viewport);
+  /// Draw the playtest's effects over the finished scene. Nothing while
+  /// editing.
+  void recordEffects(RhiCommandList& cmd, const EditorViewportWidget& viewport);
+  /// Add the playtest's brightest flashes to `scene_lights_`, in whatever
+  /// slots the level's own lights leave.
+  void appendEffectLights();
   /// The style the open project's meshes are drawn with.
   [[nodiscard]] MeshStyle sceneStyle() const;
   /// Create the mesh and outline pipelines, warning about whichever the
   /// backend lacks. Neither is fatal: the editor runs without geometry.
   void initSceneRenderers();
+  /// Create the pipelines the mesh pipeline can do without — outlines,
+  /// skinned meshes and effects — warning about whichever the backend
+  /// lacks.
+  void initOptionalSceneRenderers(RhiDevice& device);
   /// Rebuild `scene_instances_` and `skinned_instances_` from the current
   /// placements.
   void buildSceneInstances();
@@ -681,6 +724,25 @@ private:
   /// The viewport's marker for the waypoint at @p index: a short post in
   /// its route's colour.
   [[nodiscard]] EditorPlacementMarker waypointMarker(size_t index);
+  /// The viewport's marker for the emitter at @p index: a small box where
+  /// its bursts start, in violet.
+  [[nodiscard]] EditorPlacementMarker emitterMarker(size_t index);
+  /// The effects the viewport draws and lights by: the playtest's while
+  /// playing, and the editor's own emitters' otherwise.
+  [[nodiscard]] const FxWorld& activeEffects() const;
+  /// The same, to play into.
+  [[nodiscard]] FxWorld& activeEffects();
+  /// Copy what the viewport's effects are doing into shell state, for the
+  /// agent API.
+  void publishEffects();
+  /// Move the editor's own effects on by @p seconds, and let every emitter
+  /// burst that is due — while editing; a playtest runs its own.
+  void tickEditEffects(float seconds);
+  /// Move the playtest's effects on by @p seconds, emitters included.
+  void advancePlaytestEffects(float seconds);
+  /// Stop every effect playing outside a playtest, and let each emitter
+  /// burst afresh.
+  void resetEditEffects();
   /// Every leg of every patrol route, for the viewport to draw.
   [[nodiscard]] std::vector<EditorRouteLine> routeLines() const;
   /// Whether anything the chrome's layout depends on has changed.
@@ -816,6 +878,9 @@ private:
   /// Skinned-mesh pipeline and the rigged models' uploaded meshes. Draws
   /// in the same pass, against the same depth, as `mesh_renderer_`.
   SkinnedMeshRenderer skinned_renderer_{};
+  /// Effects pipeline, which reads `mesh_renderer_`'s depth target after
+  /// the outline has drawn.
+  FxRenderer fx_renderer_{};
   /// Rigged placements, posed, rebuilt each frame as `scene_instances_` is.
   std::vector<SkinnedMeshInstance> skinned_instances_{};
   /// Every rigged placement's clip playback, kept between frames so that a
@@ -865,6 +930,13 @@ private:
   std::optional<EditorPlayerStart> player_start_prior_{};
   /// The selected waypoint as it was when the gesture now in flight began.
   std::optional<EditorWaypoint> waypoint_prior_{};
+  /// The selected emitter as it was when the gesture now in flight began.
+  std::optional<EditorEmitter> emitter_prior_{};
+  /// What the level's emitters throw while it is being edited, drawn and
+  /// lit by when no playtest is running. Presentation, on the frame clock.
+  FxWorld edit_fx_{0};
+  /// When each of the level's emitters bursts next.
+  EditorEmitterPlayer emitter_player_{};
   /// The level being played, or nothing while editing.
   std::unique_ptr<EditorPlaytestSession> playtest_{};
   /// When the last frame of play ran, for the playtest's clock.

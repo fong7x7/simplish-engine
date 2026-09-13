@@ -27,6 +27,8 @@ namespace {
   constexpr GuiColor PROJECTILE_OUTLINE{255, 140, 40, 255};
   /// A hazard pool: an acid green nothing else in the level is drawn in.
   constexpr GuiColor HAZARD_OUTLINE{150, 230, 60, 220};
+  /// A particle emitter: a violet no prop, light or route is drawn in.
+  constexpr GuiColor EMITTER_OUTLINE{170, 130, 255, 230};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -177,6 +179,8 @@ namespace {
         return PROJECTILE_OUTLINE;
       case EditorMarkerStyle::HAZARD:
         return HAZARD_OUTLINE;
+      case EditorMarkerStyle::EMITTER:
+        return EMITTER_OUTLINE;
       default:
         return PLACEMENT_OUTLINE;
     }
@@ -221,7 +225,8 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
     // geometry drawn by the scene pass.
     if (marker.style == EditorMarkerStyle::PLAYER_START ||
         marker.style == EditorMarkerStyle::WAYPOINT ||
-        marker.style == EditorMarkerStyle::PROJECTILE) {
+        marker.style == EditorMarkerStyle::PROJECTILE ||
+        marker.style == EditorMarkerStyle::EMITTER) {
       renderBoxOutline(renderer, view, marker.bounds, color);
     } else {
       renderFootprintOutline(renderer, view, marker.bounds, color);

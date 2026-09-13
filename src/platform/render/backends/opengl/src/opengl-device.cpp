@@ -769,8 +769,8 @@ void OpenGlDevice::applyPipelineState(const GlPipelineEntry& entry) {
 void OpenGlDevice::applyBlendDepthState(const GlPipelineEntry& entry) {
   if (entry.blend_enabled) {
     glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
-                        GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFuncSeparate(entry.blend_premultiplied ? GL_ONE : GL_SRC_ALPHA,
+                        GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   } else {
     glDisable(GL_BLEND);
   }
@@ -893,6 +893,9 @@ namespace {
   /// The outline block's size in bytes.
   constexpr uint32_t OUTLINE_BLOCK_BYTES =
       static_cast<uint32_t>(OUTLINE_VECTORS) * 16U;
+  /// The effects block's size in bytes — `FxUniforms` in `fx-renderer.cpp`,
+  /// one `vec4`.
+  constexpr uint32_t FX_BLOCK_BYTES = 16U;
 
 }  // namespace
 
@@ -944,12 +947,15 @@ void OpenGlDevice::executeCommand(const GlCmdSetFragmentStageBytes& cmd) {
   const auto& pe = pipelines_[current_pipeline_];
   glUseProgram(pe.program);
   // As on the vertex stage, the uniforms the program resolved say what the
-  // payload is: the mesh's lights, or the outline's three vectors.
+  // payload is: the mesh's lights, the outline's three vectors, or the
+  // effects' one.
   if (pe.loc_u_light_count >= 0 && cmd.size >= MESH_LIGHT_BLOCK_BYTES) {
     setMeshLights(pe, cmd.data);
   } else if (pe.loc_u_outline >= 0 && cmd.size >= OUTLINE_BLOCK_BYTES) {
     glUniform4fv(pe.loc_u_outline, OUTLINE_VECTORS,
                  reinterpret_cast<const float*>(cmd.data));
+  } else if (pe.loc_u_fx >= 0 && cmd.size >= FX_BLOCK_BYTES) {
+    glUniform4fv(pe.loc_u_fx, 1, reinterpret_cast<const float*>(cmd.data));
   }
 }
 
@@ -1355,6 +1361,49 @@ void main() {
 }
 )glsl";
 
+  /// Effects shaders, mirroring FX_MSL_SOURCE in the Metal backend and
+  /// FX_HLSL_SOURCE in the DX12 one. `fx-renderer.h` has the method; the
+  /// input is `FxVertex`, already in clip space, and `u_fx` is
+  /// `FxUniforms`, one vec4.
+  constexpr const char FX_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+layout(location = 0) in vec4 a_clip;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_uv;
+out vec4 v_color;
+out vec2 v_uv;
+void main() {
+  gl_Position = a_clip;
+  v_color = a_color;
+  v_uv = a_uv;
+}
+)glsl";
+
+  constexpr const char FX_FRAGMENT_SHADER_GLSL[] = R"glsl(
+#version 460 core
+// The softness, then the rest of the register.
+uniform vec4 u_fx;
+layout(binding = 0) uniform sampler2D u_depth;
+in vec4 v_color;
+in vec2 v_uv;
+out vec4 frag_color;
+
+void main() {
+  // GL counts rows from the bottom, and so does the depth copied out of its
+  // framebuffer, so the fragment's own coordinates find the depth under it.
+  float scene = texelFetch(u_depth, ivec2(gl_FragCoord.xy), 0).r;
+  // GL's default depth range stores half the clip depth plus a half, so a
+  // depth difference here is half what the softness was measured against.
+  float soft = clamp(2.0 * (scene - gl_FragCoord.z) * u_fx.x, 0.0, 1.0);
+  float disc = clamp(1.0 - dot(v_uv, v_uv), 0.0, 1.0);
+  float cover = disc * disc * soft;
+  if (cover <= 0.0) {
+    discard;
+  }
+  frag_color = v_color * cover;
+}
+)glsl";
+
   constexpr const char GUI_VERTEX_SHADER_GLSL[] = R"glsl(
 #version 460 core
 layout(location = 0) in vec2 a_pos;
@@ -1485,6 +1534,27 @@ void main() {
     glBindVertexArray(0);
   }
 
+  /// Size of one `eng::FxVertex`, and where its colour and uv sit —
+  /// `fx-vertex.h` asserts the same three numbers.
+  constexpr uint32_t FX_VERTEX_STRIDE_BYTES = 40;
+  constexpr uint32_t FX_COLOR_OFFSET = 16;
+  constexpr uint32_t FX_UV_OFFSET = 32;
+
+  /// Vertex array for `eng::FxVertex`: clip position, colour and uv.
+  void setupFxVertexArray(GLuint vao) {
+    glBindVertexArray(vao);
+    glEnableVertexAttribArray(0);
+    glVertexAttribFormat(0, 4, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribBinding(0, 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribFormat(1, 4, GL_FLOAT, GL_FALSE, FX_COLOR_OFFSET);
+    glVertexAttribBinding(1, 0);
+    glEnableVertexAttribArray(2);
+    glVertexAttribFormat(2, 2, GL_FLOAT, GL_FALSE, FX_UV_OFFSET);
+    glVertexAttribBinding(2, 0);
+    glBindVertexArray(0);
+  }
+
   void setupGuiVertexArray(GLuint vao) {
     glBindVertexArray(vao);
     glEnableVertexAttribArray(0);
@@ -1581,6 +1651,15 @@ namespace {
     return desc;
   }
 
+  /// Fixed function state for the effects pipeline: premultiplied blending
+  /// over the scene, and — like the outline — neither testing nor writing
+  /// depth, since the depth it reads is a texture.
+  RhiGraphicsPipelineDesc fxPipelineDesc() {
+    RhiGraphicsPipelineDesc desc = outlinePipelineDesc();
+    desc.vertex_layout.stride = FX_VERTEX_STRIDE_BYTES;
+    return desc;
+  }
+
   /// A vertex array for a freshly linked program, or zero — with the
   /// program deleted, since nothing will own it — when GL cannot make one.
   GLuint createVertexArrayFor(GLuint program) {
@@ -1627,6 +1706,26 @@ bool OpenGlDevice::tryCreateMeshOutlinePipeline(
   GlPipelineEntry entry =
       buildGraphicsEntry(program, vao, outlinePipelineDesc());
   entry.loc_u_outline = glGetUniformLocation(program, "u_outline");
+  out_pipeline = allocHandle();
+  pipelines_[out_pipeline] = entry;
+  return true;
+}
+
+bool OpenGlDevice::tryCreateFxParticlePipeline(
+    RhiPipelineHandle& out_pipeline) {
+  const GLuint program =
+      linkShaderSource(FX_VERTEX_SHADER_GLSL, FX_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  const GLuint vao = createVertexArrayFor(program);
+  if (vao == 0) {
+    return false;
+  }
+  setupFxVertexArray(vao);
+  GlPipelineEntry entry = buildGraphicsEntry(program, vao, fxPipelineDesc());
+  entry.blend_premultiplied = true;
+  entry.loc_u_fx = glGetUniformLocation(program, "u_fx");
   out_pipeline = allocHandle();
   pipelines_[out_pipeline] = entry;
   return true;

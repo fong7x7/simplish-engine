@@ -1,6 +1,7 @@
 #include "agent-commands.h"
 
 #include "agent-call.h"
+#include "agent-emitters.h"
 #include "agent-json-values.h"
 #include "agent-waypoints.h"
 
@@ -110,6 +111,9 @@ namespace {
     if (target == "waypoint") {
       return EditorSelectionKind::WAYPOINT;
     }
+    if (target == "emitter") {
+      return EditorSelectionKind::EMITTER;
+    }
     return std::nullopt;
   }
 
@@ -127,8 +131,8 @@ namespace {
       return agentFailure(
           AgentStatus::BAD_PARAMS,
           "expected target \"placement\", \"light\", \"player_start\", "
-          "\"waypoint\" or \"selection\", with an index for all but the "
-          "last");
+          "\"waypoint\", \"emitter\" or \"selection\", with an index for "
+          "all but the last");
     }
     entry = {*kind, *index};
     return entryInRange(state, entry);
@@ -289,6 +293,9 @@ namespace {
     }
     if (entry.kind == EditorSelectionKind::WAYPOINT) {
       return setAgentWaypointField(state, entry.index, field, value);
+    }
+    if (entry.kind == EditorSelectionKind::EMITTER) {
+      return setAgentEmitterField(state, entry.index, field, value);
     }
     return setLightField(state, entry.index, field, value);
   }
@@ -473,6 +480,9 @@ namespace {
     }
     if (action.kind == EditorActionKind::REMOVE_WAYPOINT) {
       return agentWaypointValue(action.waypoint);
+    }
+    if (action.kind == EditorActionKind::REMOVE_EMITTER) {
+      return agentEmitterValue(action.emitter);
     }
     return action.kind == EditorActionKind::REMOVE_LIGHT
                ? agentLightValue(action.light)
@@ -951,22 +961,36 @@ AgentResult runAgentSetBehavior(EditorShellState& state, const json& params) {
   return recordPlacement(state, entry.index, prior, next);
 }
 
+namespace {
+
+  /// Move whichever entry @p entry names by the call's deltas.
+  AgentResult translateEntry(EditorShellState& state, EditorSelection entry,
+                             const json& params) {
+    switch (entry.kind) {
+      case EditorSelectionKind::PLACEMENT:
+        return translatePlacement(state, entry.index, params);
+      case EditorSelectionKind::PLAYER_START:
+        return translatePlayerStart(state, entry.index, params);
+      case EditorSelectionKind::WAYPOINT:
+        return translateAgentWaypoint(state, entry.index, params);
+      case EditorSelectionKind::EMITTER:
+        return translateAgentEmitter(state, entry.index, params);
+      case EditorSelectionKind::LIGHT:
+      case EditorSelectionKind::NONE:
+        break;
+    }
+    return translateLight(state, entry.index, params);
+  }
+
+}  // namespace
+
 AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
-  if (entry.kind == EditorSelectionKind::PLACEMENT) {
-    return translatePlacement(state, entry.index, params);
-  }
-  if (entry.kind == EditorSelectionKind::PLAYER_START) {
-    return translatePlayerStart(state, entry.index, params);
-  }
-  if (entry.kind == EditorSelectionKind::WAYPOINT) {
-    return translateAgentWaypoint(state, entry.index, params);
-  }
-  return translateLight(state, entry.index, params);
+  return translateEntry(state, entry, params);
 }
 
 AgentResult runAgentDelete(EditorShellState& state, const json& params) {

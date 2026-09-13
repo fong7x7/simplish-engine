@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-light-ops.h>
@@ -452,4 +453,56 @@ TEST_CASE("a hand-written waypoint is held to a route and a place a level "
   REQUIRE(waypoints[1].order == 1);
   REQUIRE(waypoints[1].id != waypoints[0].id);
   REQUIRE(read->document.placements[0].route == EDITOR_ROUTE_COUNT);
+}
+
+namespace {
+
+/// A document holding one particle emitter, turned sideways and changed
+/// from its preset.
+EditorDocument emitterDocument() {
+  EditorDocument document;
+  EditorEmitter emitter = makeEditorEmitter("embers", {3.5f, 4.5f, 1.25f});
+  emitter.id = "emitter_01";
+  emitter.direction = {1.0f, 0.0f, 0.5f};
+  emitter.interval = 0.25f;
+  emitter.burst.count = 42;
+  emitter.burst.look.color_end = {0.1f, 0.2f, 0.3f, 0.4f};
+  emitter.flash.color = {0.5f, 0.6f, 0.7f};
+  document.emitters.push_back(emitter);
+  return document;
+}
+
+}  // namespace
+
+TEST_CASE("a level round-trips a particle emitter, burst and all") {
+  const std::vector<EditorAsset> assets = testAssets();
+  const EditorDocument written = emitterDocument();
+
+  const std::string text = serializeEditorLevel(written, assets, "main");
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->dropped_entities == 0);
+  REQUIRE(read->document.emitters.size() == 1);
+  REQUIRE(sameEditorEmitter(read->document.emitters[0], written.emitters[0]));
+  REQUIRE(text.find("entity:fx_emitter") != std::string::npos);
+}
+
+TEST_CASE("a hand-written emitter keeps an unknown preset and is held to "
+          "what the panel allows") {
+  const std::string text = R"({"schema": "simplish/level/1.0", "id": "main",
+    "content": {"entities": [{"definition": "entity:fx_emitter",
+      "at": [1, 2, 3],
+      "properties": {"effect": "plasma", "spread": 999, "particles": 12}}]}})";
+  const std::optional<EditorLevelLoad> read =
+      parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.emitters.size() == 1);
+  const EditorEmitter& emitter = read->document.emitters[0];
+  REQUIRE(emitter.effect == "plasma");
+  REQUIRE(emitter.id == "emitter_01");
+  REQUIRE(emitter.burst.spread_degrees == 180.0f);
+  REQUIRE(emitter.burst.count == 12);
+  REQUIRE(emitter.position.z == 3.0f);
 }

@@ -70,6 +70,10 @@ void assignEditorAssetIds(std::vector<EditorAsset>& assets);
 /// `waypoint:waypoint_01`.
 [[nodiscard]] std::string editorWaypointRef(const EditorWaypoint& waypoint);
 
+/// How another file references the particle emitter @p emitter:
+/// `emitter:emitter_01`.
+[[nodiscard]] std::string editorEmitterRef(const EditorEmitter& emitter);
+
 /// Point every placement in @p document at its asset's index in @p assets,
 /// given the ids those indices meant before. Returns how many placements
 /// were dropped, which is zero for the ordinary case of a file added.
@@ -108,5 +112,9 @@ mintEditorPlayerStartId(const EditorDocument& document);
 /// An id for a new waypoint, free in @p document: `waypoint_01` — not
 /// numbered by its route or place, which the panel can change.
 [[nodiscard]] std::string mintEditorWaypointId(const EditorDocument& document);
+
+/// An id for a new particle emitter, free in @p document: `emitter_01` —
+/// not named for its effect, which the panel can change.
+[[nodiscard]] std::string mintEditorEmitterId(const EditorDocument& document);
 
 }  // namespace eng::editor

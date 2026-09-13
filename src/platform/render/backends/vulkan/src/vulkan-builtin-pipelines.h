@@ -3,8 +3,8 @@
 #ifdef ENGINE_RENDERER_VULKAN
 
 /// @file vulkan-builtin-pipelines.h
-/// @brief The GUI, mesh, skinned mesh and outline pipelines the backend
-/// ships itself.
+/// @brief The GUI, mesh, skinned mesh, outline and effects pipelines the
+/// backend ships itself.
 /// @par Threading Main-thread-only.
 
 #include <vulkan/vulkan.h>
@@ -44,6 +44,12 @@ VkPipeline createVulkanSkinnedMeshPipeline(VkDevice device,
 /// depth attachment, blended over what the scene drew.
 VkPipeline createVulkanOutlinePipeline(VkDevice device, VkPipelineLayout layout,
                                        VkFormat color_format);
+
+/// Effects particles: `FxVertex` triangles already in clip space, no depth
+/// attachment — the scene's depth is read as a texture — and premultiplied
+/// blending.
+VkPipeline createVulkanFxPipeline(VkDevice device, VkPipelineLayout layout,
+                                  VkFormat color_format);
 
 }  // namespace eng::render
 

@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-properties-layout.h>
@@ -7,6 +8,7 @@
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
 #include <editor/shell/editor-scale-slider.h>
+#include <engine/gui/gui-scroll-event.h>
 #include <iterator>
 #include <vector>
 
@@ -611,4 +613,83 @@ TEST_CASE("a step down from near one lands exactly on one") {
 
   fixture.press(midX(down), midY(down));
   REQUIRE(fixture.changes.back().value == 1.0f);
+}
+
+namespace {
+
+/// The panel of @p fx showing a particle emitter, with its Effect row.
+void showEmitter(PanelFixture& fx) {
+  const EditorEmitter emitter = makeEditorEmitter("wall_sparks", {});
+  fx.panel.setSelection("Particle Emitter", emitter);
+  fx.panel.addChoices(EditorChoiceKind::EFFECT, {"Sparks", "Smoke"}, 0);
+}
+
+/// Scroll @p fx's panel by @p notches of the wheel over its rows; positive
+/// is towards the user, which walks further down the list.
+bool scrollRows(PanelFixture& fx, float notches) {
+  const eng::Rect body = fx.panel.layout().body;
+  eng::GuiScrollEvent event{};
+  event.x = body.x + body.w * 0.5f;
+  event.y = body.y + body.h * 0.5f;
+  event.delta_y = -notches;
+  return fx.panel.handleScroll(event);
+}
+
+}  // namespace
+
+TEST_CASE("an emitter lists its burst under an Effect row that leads") {
+  PanelFixture fx;
+  showEmitter(fx);
+
+  REQUIRE(fx.panel.fields().size() == std::size(EDITOR_EMITTER_FIELDS));
+  REQUIRE(fx.panel.reference() == "emitter:");
+  REQUIRE(fx.panel.choiceRowRect(EditorChoiceKind::EFFECT).y <
+          fx.panel.fieldRowRect(EditorPropertyField::POSITION_X).y);
+  REQUIRE(fx.panel.value(EditorPropertyField::PARTICLES) ==
+          static_cast<float>(makeEditorEmitter("wall_sparks", {}).burst.count));
+}
+
+TEST_CASE("a list longer than the panel scrolls, and holds at its ends") {
+  PanelFixture fx;
+  showEmitter(fx);
+  const float top = fx.panel.fieldRowRect(EditorPropertyField::POSITION_X).y;
+
+  REQUIRE(scrollRows(fx, 2.0f));
+  const float moved = fx.panel.scrollOffset();
+  REQUIRE(moved > 0.0f);
+  REQUIRE(fx.panel.fieldRowRect(EditorPropertyField::POSITION_X).y ==
+          Approx(top - moved));
+
+  REQUIRE(scrollRows(fx, 100.0f));
+  const eng::Rect body = fx.panel.layout().body;
+  const eng::Rect last = fx.panel.fieldRowRect(EditorPropertyField::FLASH_TIME);
+  REQUIRE(last.y + last.h == Approx(body.y + body.h));
+  REQUIRE(scrollRows(fx, -100.0f));
+  REQUIRE(fx.panel.scrollOffset() == 0.0f);
+}
+
+TEST_CASE("a row scrolled out of sight cannot be pressed") {
+  PanelFixture fx;
+  showEmitter(fx);
+  REQUIRE(scrollRows(fx, 100.0f));
+
+  const eng::Rect row = fx.panel.fieldRowRect(EditorPropertyField::POSITION_X);
+  const eng::Rect step = propertyIncrementRect(row);
+  fx.press(step.x + step.w * 0.5f, step.y + step.h * 0.5f);
+  REQUIRE(fx.changes.empty());
+}
+
+TEST_CASE("the same selection shown again keeps its place; another starts "
+          "at the top") {
+  PanelFixture fx;
+  showEmitter(fx);
+  REQUIRE(scrollRows(fx, 3.0f));
+  const float kept = fx.panel.scrollOffset();
+
+  showEmitter(fx);
+  REQUIRE(fx.panel.scrollOffset() == kept);
+  fx.panel.setSelection("crate", EditorPlacement{});
+  REQUIRE(fx.panel.scrollOffset() == 0.0f);
+  // A list that fits has nothing to scroll.
+  REQUIRE_FALSE(scrollRows(fx, 3.0f));
 }

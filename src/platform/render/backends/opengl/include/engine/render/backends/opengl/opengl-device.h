@@ -95,6 +95,7 @@ public:
   bool tryCreateMeshPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;

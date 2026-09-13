@@ -61,6 +61,11 @@ void resolveBlasts(const CombatScene& scene) {
     hitWithin(scene, blast, [&blast](const CombatBody& body) {
       return !same(body.who, blast.source);
     });
+    cueCombat(scene.cues, {CombatCueKind::BLAST,
+                           {blast.at.x, blast.at.y, 0.0F},
+                           {},
+                           blast.radius,
+                           Faction::HOSTILE});
   }
   scene.effects.blasts.clear();
 }

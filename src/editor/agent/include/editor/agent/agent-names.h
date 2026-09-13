@@ -14,6 +14,7 @@
 #include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
+#include <game/combat/combat-cue-kind.h>
 #include <iterator>
 #include <optional>
 #include <string_view>
@@ -27,10 +28,15 @@ namespace eng::editor {
 /// without a name here fails the build rather than being silently
 /// unreachable from the API.
 inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
-    "position_x", "position_y",  "position_z",  "rotation_x",  "rotation_y",
-    "rotation_z", "direction_x", "direction_y", "direction_z", "color_r",
-    "color_g",    "color_b",     "intensity",   "range",       "player",
-    "collides",   "scale",       "route",       "order",
+    "position_x",  "position_y",  "position_z",  "rotation_x",  "rotation_y",
+    "rotation_z",  "direction_x", "direction_y", "direction_z", "color_r",
+    "color_g",     "color_b",     "intensity",   "range",       "player",
+    "collides",    "scale",       "route",       "order",       "interval",
+    "particles",   "spread",      "speed_min",   "speed_max",   "life_min",
+    "life_max",    "size_start",  "size_end",    "start_r",     "start_g",
+    "start_b",     "start_hide",  "end_r",       "end_g",       "end_b",
+    "end_hide",    "gravity",     "drag",        "stretch",     "flash",
+    "flash_range", "flash_time",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -125,6 +131,8 @@ agentSelectionKindName(EditorSelectionKind kind) {
       return "player_start";
     case EditorSelectionKind::WAYPOINT:
       return "waypoint";
+    case EditorSelectionKind::EMITTER:
+      return "emitter";
     case EditorSelectionKind::NONE:
       return "none";
   }
@@ -141,16 +149,43 @@ inline constexpr std::string_view AGENT_ACTION_KIND_NAMES[] = {
     "add_light",        "transform_light",        "remove_light",
     "add_player_start", "transform_player_start", "remove_player_start",
     "add_waypoint",     "transform_waypoint",     "remove_waypoint",
+    "add_emitter",      "transform_emitter",      "remove_emitter",
 };
 
 static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorActionKind::REMOVE_WAYPOINT) + 1,
+                  static_cast<size_t>(EditorActionKind::REMOVE_EMITTER) + 1,
               "every recorded edit needs a name the agent API reports it by");
 
 /// Wire name of one recorded edit.
 [[nodiscard]] constexpr std::string_view
 agentActionKindName(EditorActionKind kind) {
   return AGENT_ACTION_KIND_NAMES[static_cast<size_t>(kind)];
+}
+
+/// Wire name of every kind of combat cue, indexed by the kind's own value:
+/// what `get_playtest` counts the effects a playtest has played by.
+inline constexpr std::string_view AGENT_COMBAT_CUE_NAMES[] = {
+    "shot_fired", "shot_hit_body", "shot_hit_wall", "blast"};
+
+static_assert(
+    std::size(AGENT_COMBAT_CUE_NAMES) == game::COMBAT_CUE_KIND_COUNT,
+    "every kind of combat cue needs a name the agent API counts it by");
+
+/// Wire name of one kind of combat cue.
+[[nodiscard]] constexpr std::string_view
+agentCombatCueName(game::CombatCueKind kind) {
+  return AGENT_COMBAT_CUE_NAMES[static_cast<size_t>(kind)];
+}
+
+/// The kind of combat cue called @p name, or nothing when none is.
+[[nodiscard]] constexpr std::optional<game::CombatCueKind>
+findAgentCombatCue(std::string_view name) {
+  for (size_t kind = 0; kind < std::size(AGENT_COMBAT_CUE_NAMES); ++kind) {
+    if (AGENT_COMBAT_CUE_NAMES[kind] == name) {
+      return static_cast<game::CombatCueKind>(kind);
+    }
+  }
+  return std::nullopt;
 }
 
 /// Wire name of whether the level is being edited, played, or is waiting on
