@@ -81,14 +81,14 @@ namespace {
   }
 
   /// Toward where the target was seen, stopping `near_tiles` short — or
-  /// where it would touch them, if that is further.
-  void approach(const ActorRef& a,
-                [[maybe_unused]] const ActorTickContext& context,
+  /// where it would touch them, if that is further — down their flow field
+  /// while it knows where they are.
+  void approach(const ActorRef& a, const ActorTickContext& context,
                 const BehaviorState& state, ActorIntent& intent) {
     if (hasTarget(a)) {
       goTo(a, intent, a.pool.last_seen[a.i],
            std::max(state.near_tiles, touching(a)));
-      intent.chases = a.pool.sees_target[a.i] | a.pool.hears_target[a.i];
+      intent.chases = knowsWhereTargetIs(a, context) ? 1 : 0;
     }
   }
 
@@ -104,13 +104,12 @@ namespace {
 
   /// Toward where the target was seen, to touching them — or `near_tiles`
   /// short, if that is further: a melee's approach.
-  void closeIn(const ActorRef& a,
-               [[maybe_unused]] const ActorTickContext& context,
+  void closeIn(const ActorRef& a, const ActorTickContext& context,
                const BehaviorState& state, ActorIntent& intent) {
     if (hasTarget(a)) {
       const float touch = a.pool.radius[a.i] + targetRadius(a);
       goTo(a, intent, a.pool.last_seen[a.i], std::max(state.near_tiles, touch));
-      intent.chases = a.pool.sees_target[a.i] | a.pool.hears_target[a.i];
+      intent.chases = knowsWhereTargetIs(a, context) ? 1 : 0;
     }
   }
 

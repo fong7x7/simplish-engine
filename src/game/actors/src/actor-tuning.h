@@ -22,11 +22,26 @@ inline constexpr float ACTOR_WAYPOINT_TILES = 0.35F;
 /// inside one — looks for the nearest spot it can: two tiles.
 inline constexpr uint32_t ACTOR_SNAP_RINGS = 8;
 
-/// Ticks between replans of a path whose goal has moved: a quarter second.
-/// A pursuer's goal moves with its quarry every few ticks; replanning each
-/// time would be wasted, and a straight walk takes over anyway once the
-/// quarry is in view.
+/// Ticks between replans of a path whose goal has moved and could not be
+/// re-aimed or mended: a quarter second. A pursuer's goal moves with its
+/// quarry every few ticks; replanning each time would be wasted, and a
+/// straight walk takes over anyway once the quarry is in view.
 inline constexpr uint64_t ACTOR_REPLAN_TICKS = 15;
+
+/// Most cells one search mending a path's end may expand: enough to take
+/// it round a pillar or through a doorway after its goal, and a fraction
+/// of planning the whole path again.
+inline constexpr uint32_t ACTOR_REPAIR_EXPANSIONS = 2048;
+
+/// Furthest a path's goal may have gone from the path's end, in tiles, and
+/// the path still be mended from there: any further, and the detour by
+/// way of the old end would be worth a plan from where the actor stands.
+inline constexpr float ACTOR_REPAIR_TILES = 6.0F;
+
+/// How long after a path is planned, in ticks, it is still mended rather
+/// than planned again when its goal moves: a second, so what detours
+/// mending leaves are straightened out once a second at most.
+inline constexpr uint64_t ACTOR_REPAIR_TICKS = 60;
 
 /// How near a player an actor is in the near tier, in tiles: about as far
 /// as the camera shows. A near actor perceives every tick.

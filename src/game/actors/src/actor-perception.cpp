@@ -188,23 +188,35 @@ namespace {
     a.pool.hears_target[a.i] = sighting.heard;
   }
 
-  /// Whether actor @p a's target is still in the game — and, a player, up:
-  /// one who is down is nobody's target.
-  bool targetExists(const ActorRef& a, const ActorTickContext& context) {
+  /// Where actor @p a's target stands now, while they are still in the
+  /// game — and, a player, up: one who is down is nobody's target.
+  std::optional<Vec2> targetNow(const ActorRef& a,
+                                const ActorTickContext& context) {
     const sim::EntityHandle target = a.pool.target[a.i];
     if (a.pool.target_kind[a.i] == CombatantKind::ACTOR) {
-      return a.pool.slots.denseIndex(target).has_value();
+      const auto other = a.pool.slots.denseIndex(target);
+      return other ? std::optional(flat(a.pool.position[*other]))
+                   : std::nullopt;
     }
     const auto player = context.players.slots.denseIndex(target);
-    return player && playerIsUp(context.players, *player);
+    if (!player || !playerIsUp(context.players, *player)) {
+      return std::nullopt;
+    }
+    return flat(context.players.position[*player]);
   }
 
-  /// Whether actor @p a's memory of its target has lapsed: too long ago,
-  /// or of someone no longer in the game.
-  bool memoryLapsed(const ActorRef& a, const ActorTickContext& context) {
+  /// Actor @p a, which perceived nobody this tick, forgets its target when
+  /// it last perceived them too long ago or they have left the game — and
+  /// otherwise, within its tracking time, keeps up with where they went.
+  void recall(const ActorRef& a, const ActorTickContext& context) {
+    const BehaviorSenses& senses = brainOf(a, context).behavior.senses;
     const uint64_t since = context.tick - a.pool.last_seen_tick[a.i];
-    return since > brainOf(a, context).behavior.senses.memory_ticks ||
-           !targetExists(a, context);
+    const std::optional<Vec2> now = targetNow(a, context);
+    if (!now || since > senses.memory_ticks) {
+      forget(a);
+    } else if (since <= senses.track_ticks) {
+      a.pool.last_seen[a.i] = *now;
+    }
   }
 
   /// Whether actor @p a perceives this tick. One near a player does every
@@ -240,8 +252,8 @@ void perceiveActor(const ActorRef& a, const ActorTickContext& context,
   const std::optional<Sighting> best = bestSighting(a, context, workspace);
   if (best) {
     remember(a, context, *best);
-  } else if (a.pool.remembers_target[a.i] != 0 && memoryLapsed(a, context)) {
-    forget(a);
+  } else if (a.pool.remembers_target[a.i] != 0) {
+    recall(a, context);
   }
 }
 

@@ -30,6 +30,11 @@ namespace eng::game {
 [[nodiscard]] const BehaviorState& stateOf(const ActorRef& a,
                                            const ActorTickContext& context);
 
+/// Whether actor @p a knows where its target is this tick: it perceives
+/// them, or lost them no longer ago than its behavior's tracking time.
+[[nodiscard]] bool knowsWhereTargetIs(const ActorRef& a,
+                                      const ActorTickContext& context);
+
 /// The clearance actor @p a needs to stand in a cell of @p grid.
 [[nodiscard]] uint8_t clearanceOf(const ActorRef& a,
                                   const spatial::NavGrid& grid);

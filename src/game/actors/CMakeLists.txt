@@ -22,6 +22,7 @@ simplish_add_module(simplish-game-actors
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-planning.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-pool.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-queries.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-retarget.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-steering.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-system.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-workspace.cpp
@@ -46,6 +47,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_movement.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_patrol.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_perception.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_pursuit.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_states.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_system.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_actor_targets.cpp

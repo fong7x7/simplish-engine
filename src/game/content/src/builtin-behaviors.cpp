@@ -112,6 +112,7 @@ namespace {
                 onTicks(Cond::IN_STATE_FOR, 300, IDLE)})});
     made.senses.sight_range = 14.0F;
     made.senses.view_degrees = 360.0F;
+    made.senses.track_ticks = 180;
     made.movement.speed = 4.0F;
     return made;
   }

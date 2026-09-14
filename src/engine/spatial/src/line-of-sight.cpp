@@ -25,7 +25,7 @@ namespace {
   struct CellWalk {
     /// The cell the walk is in.
     GridCell cell{};
-    /// The cell the segment ends in.
+    /// The cell holding the segment's end, which bounds how far it walks.
     GridCell end{};
     /// Progress along X.
     AxisWalk x{};
@@ -105,13 +105,24 @@ namespace {
             .y = beginAxis(a.y, b.y)};
   }
 
-  /// Walk @p walk to its end cell, or until a cell refuses it.
+  /// Whether @p walk is in the last cell its segment crosses: no boundary
+  /// is left before the end. Asked rather than comparing with the end's
+  /// cell, because an end on a boundary lies in the cell beyond it, which
+  /// a segment arriving from that side never enters.
+  bool atEnd(const CellWalk& walk) {
+    return walk.x.next >= 1.0F && walk.y.next >= 1.0F;
+  }
+
+  /// Walk @p walk to the last cell its segment crosses, or until a cell
+  /// refuses it.
   bool walkToEnd(CellWalk walk, const NavGrid& grid, uint8_t clearance) {
-    // Exactly this many steps reach the end; more means a rounding lost it.
+    // A segment crosses at most this many boundaries; more means a rounding
+    // lost the way.
     int64_t steps = std::abs(static_cast<int64_t>(walk.end.x) - walk.cell.x) +
-                    std::abs(static_cast<int64_t>(walk.end.y) - walk.cell.y);
+                    std::abs(static_cast<int64_t>(walk.end.y) - walk.cell.y) +
+                    2;
     while (passes(grid, walk.cell, clearance)) {
-      if (walk.cell == walk.end) {
+      if (atEnd(walk)) {
         return true;
       }
       if (steps-- <= 0 || !advance(walk, grid, clearance)) {

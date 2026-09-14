@@ -19,6 +19,15 @@ const BehaviorState& stateOf(const ActorRef& a,
   return brainOf(a, context).behavior.states[a.pool.state[a.i]];
 }
 
+bool knowsWhereTargetIs(const ActorRef& a, const ActorTickContext& context) {
+  if (a.pool.sees_target[a.i] != 0 || a.pool.hears_target[a.i] != 0) {
+    return true;
+  }
+  const uint64_t since = context.tick - a.pool.last_seen_tick[a.i];
+  return a.pool.remembers_target[a.i] != 0 &&
+         since <= brainOf(a, context).behavior.senses.track_ticks;
+}
+
 uint8_t clearanceOf(const ActorRef& a, const spatial::NavGrid& grid) {
   return grid.requiredClearance(a.pool.radius[a.i]);
 }

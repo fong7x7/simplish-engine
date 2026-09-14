@@ -71,23 +71,25 @@ namespace {
     }
   }
 
-  /// Plan actor @p a a path toward @p goal, which it cannot walk straight
-  /// to, when it needs one and the tick's budget has any left.
+  /// Take actor @p a toward @p goal, which it cannot walk straight to: by
+  /// the path it has, re-aimed or mended if the goal has moved, or by a
+  /// new plan when it needs one and the tick's budget has any left.
   void planToward(const ActorRef& a, const ActorTickContext& context,
                   ActorWorkspace& workspace, Vec2 goal) {
     const auto goal_cell =
         openCellNear(context.grid, goal, clearanceOf(a, context.grid));
     if (!goal_cell) {
       markNoPath(a, {}, context.tick);
-    } else if (needsPlan(a, context.tick, *goal_cell) &&
+    } else if (!retargetPath(a, context, workspace, *goal_cell) &&
+               needsPlan(a, context.tick, *goal_cell) &&
                workspace.path_budget > 0) {
       plan(a, context, workspace, *goal_cell);
     }
   }
 
   /// The complete flow field toward the player actor @p a is chasing, when
-  /// it perceives them this tick and is no wider than the field allows;
-  /// null otherwise.
+  /// it knows where they are this tick and is no wider than the field
+  /// allows; null otherwise.
   const spatial::FlowField* fieldFor(const ActorRef& a,
                                      const ActorTickContext& context,
                                      const ActorIntent& intent) {

@@ -402,7 +402,8 @@ Reading is forgiving, as the level reader is, because the file is written by han
     "entries": [
       { "id": "sentry", "name": "Sentry",
         "senses": { "sight_range": 12, "view_degrees": 120,
-                    "hearing_range": 6, "memory_ticks": 300 },
+                    "hearing_range": 6, "memory_ticks": 300,
+                    "track_ticks": 60 },
         "movement": { "speed": 3.0, "turn_degrees_per_second": 270 },
         "initial": "watch",
         "interrupts": [ { "when": "far_from_home", "tiles": 15, "to": "go_home" } ],
@@ -427,7 +428,7 @@ Reading is forgiving, as the level reader is, because the file is written by han
 |---|---|---|
 | `id` | What a prop names it by: `behavior:sentry` | The row is skipped |
 | `name` | What the Behavior row calls it | The id |
-| `senses` | `sight_range` and `hearing_range` in tiles, `view_degrees` (360 sees all round), `memory_ticks`, and `targets` — whom it takes as a target: `players`, or `opponents` (for a hostile actor the players and friendly actors, for a friendly one hostile actors; an unknown word is `players`) | 10, 6, 180, 300, `players` |
+| `senses` | `sight_range` and `hearing_range` in tiles, `view_degrees` (360 sees all round), `memory_ticks`, `track_ticks` — how long after it loses its target it still knows where they are, so it follows them round a corner (0: only to where it lost them) — and `targets` — whom it takes as a target: `players`, or `opponents` (for a hostile actor the players and friendly actors, for a friendly one hostile actors; an unknown word is `players`) | 10, 6, 180, 300, 60, `players` |
 | `movement` | `speed` in tiles a second, as a character's; `turn_degrees_per_second` | 3.5, 360 |
 | `initial` | The state an actor starts in | The first state |
 | `interrupts` | Exits tested before the current state's own, in every state | None |

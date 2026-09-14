@@ -31,7 +31,8 @@ bool mentions(const std::vector<std::string>& problems,
 /// A sentry: watches, then pursues, stopping a tile and a half short.
 constexpr const char* SENTRY = R"([{
   "id": "sentry", "name": "Sentry",
-  "senses": {"sight_range": 12, "view_degrees": 120, "memory_ticks": 90},
+  "senses": {"sight_range": 12, "view_degrees": 120, "memory_ticks": 90,
+             "track_ticks": 45},
   "movement": {"speed": 2.5, "turn_degrees_per_second": 180},
   "initial": "watch",
   "interrupts": [{"when": "blocked", "to": "watch"}],
@@ -55,6 +56,7 @@ TEST_CASE("a behaviors table reads every part of a behavior") {
   REQUIRE(sentry.senses.sight_range == 12.0F);
   REQUIRE(sentry.senses.view_degrees == 120.0F);
   REQUIRE(sentry.senses.memory_ticks == 90);
+  REQUIRE(sentry.senses.track_ticks == 45);
   REQUIRE(sentry.movement.speed == 2.5F);
   REQUIRE(sentry.initial == 1);
   REQUIRE(sentry.interrupts.size() == 1);
