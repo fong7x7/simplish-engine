@@ -8,6 +8,7 @@
 #include "actor-ref.h"
 
 #include <engine/spatial/flow-field.h>
+#include <engine/spatial/grid-cell.h>
 #include <game/actors/actor-intent.h>
 #include <game/actors/actor-tick-context.h>
 #include <game/actors/actor-workspace.h>
@@ -52,6 +53,16 @@ void planActor(const ActorRef& a, const ActorTickContext& context,
 /// straight when it can walk straight, else by A*.
 void planWith(const ActorRef& a, const ActorTickContext& context,
               ActorWorkspace& workspace, const spatial::FlowField* field);
+
+/// Keep actor @p a's path leading to @p goal now its goal has moved there,
+/// without planning it again: re-aimed from the earliest of its last
+/// waypoints with a straight walk to the goal, or else mended by a short
+/// search from its end (`ACTOR_REPAIR_EXPANSIONS`, out of the tick's
+/// budget) while it was planned recently and its goal went only a little
+/// way. False when it has no path left to keep or neither will do, and it
+/// needs planning again.
+bool retargetPath(const ActorRef& a, const ActorTickContext& context,
+                  ActorWorkspace& workspace, spatial::GridCell goal);
 
 /// Carry out actor @p a's state's attack, if it attacks and can: into the
 /// tick's effects buffer, never onto anyone directly.

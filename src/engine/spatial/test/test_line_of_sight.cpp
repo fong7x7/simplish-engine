@@ -64,3 +64,25 @@ TEST_CASE("off the grid nothing is in the way") {
   const NavGrid grid(square(4), {});
   REQUIRE(hasLineOfSight(grid, {-2.0F, 0.5F}, {3.0F, 0.5F}, 1));
 }
+
+TEST_CASE("a line ending on a cell's corner or edge sees its end, whichever "
+          "way it comes from") {
+  // (2, 2) is where four cells meet, and x = 2.1 runs through cells, so a
+  // line to (2.1, 2) ends on an edge: where an actor finds a player
+  // standing on whole tiles.
+  const NavGrid grid(square(16), {});
+  const std::array<eng::Vec2, 8> starts{{{1.4F, 2.9F},
+                                         {2.6F, 2.9F},
+                                         {1.4F, 1.1F},
+                                         {2.6F, 1.1F},
+                                         {2.0F, 3.0F},
+                                         {3.0F, 2.0F},
+                                         {2.0F, 1.0F},
+                                         {1.0F, 2.0F}}};
+  for (const eng::Vec2 start : starts) {
+    CAPTURE(start.x, start.y);
+    REQUIRE(hasLineOfSight(grid, start, {2.0F, 2.0F}, 1));
+    REQUIRE(hasLineOfSight(grid, start, {2.1F, 2.0F}, 1));
+    REQUIRE(hasLineOfSight(grid, {2.0F, 2.1F}, start, 1));
+  }
+}

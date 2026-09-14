@@ -23,6 +23,11 @@ struct BehaviorSenses {
   /// How long it remembers a target it has stopped perceiving, in ticks,
   /// before it forgets them.
   uint32_t memory_ticks = 300;
+  /// How long after it stops perceiving its target it still knows where
+  /// they are, in ticks — it saw which way they went — so a pursuit
+  /// follows them round a corner rather than only to it. 0 knows only
+  /// where they were last perceived.
+  uint32_t track_ticks = 60;
   /// Whom it takes as a target.
   BehaviorTargets targets = BehaviorTargets::PLAYERS;
 };

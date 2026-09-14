@@ -24,6 +24,8 @@ BehaviorDefinition watcher() {
   behavior.senses.view_degrees = 180.0F;
   behavior.senses.hearing_range = 4.0F;
   behavior.senses.memory_ticks = 60;
+  // It knows only where it last perceived someone, not where they went.
+  behavior.senses.track_ticks = 0;
   return behavior;
 }
 

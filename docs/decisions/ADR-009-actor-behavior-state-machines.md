@@ -22,7 +22,7 @@ Four existing decisions constrain how that intelligence is written down before t
 
 **A behavior is a small state machine written as data. Each state does one action from a closed set, and leaves by exits whose conditions come from another closed set.**
 
-- A `BehaviorDefinition` holds senses (sight range, view cone, hearing, memory), movement (speed, turn rate), an initial state, a list of **interrupts**, and at most 32 **states**.
+- A `BehaviorDefinition` holds senses (sight range, view cone, hearing, memory, tracking), movement (speed, turn rate), an initial state, a list of **interrupts**, and at most 32 **states**.
 - A state names one **action** — `idle`, `hold`, `wander`, `pursue`, `keep_distance`, `flee`, `follow`, `search`, `return_home`, `charge` — its distances (how short a pursuit stops, how far a wander strays), a **facing** (`movement`, `target`, `locked`), a speed multiplier in permille, and an optional presentation-only animation clip.
 - An **exit** names one **condition** — `always`, `sees_target`, `hears_target`, `lost_target_for`, `target_within`, `target_beyond`, `in_state_for`, `arrived`, `no_path`, `blocked`, `far_from_home`, `chance` — with the one number it compares against (tiles, ticks, or permille), and the state it leads to.
 - Each tick, interrupts are tested before the current state's own exits, all in authored order, and the first that holds is taken. An exit leading to the state the actor is already in is skipped. One transition per tick at most.

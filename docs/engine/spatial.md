@@ -58,7 +58,7 @@ A `NavGrid` covers a rectangle of floor in square cells a **quarter tile** acros
 
 `hasLineOfSight(grid, from, to, clearance)` walks exactly the cells the segment crosses, in order, stepping to whichever cell boundary it meets first (Amanatides–Woo). Where the segment passes exactly through a corner, both cells beside the corner must pass too, so a line cannot slip between two solid cells touching diagonally — the same rule A*'s diagonal steps follow. Cells off the grid pass: the grid covers everything solid with a margin, so off it there is nothing in the way, and a grid with no cells blocks nothing.
 
-The walk's step count is bounded by the cells between its ends; a rounding that loses the end cell returns false rather than walking on.
+The walk stops when no cell boundary is left before the segment's end, not when it reaches the cell holding the end: an end exactly on a boundary lies, by rounding down, in the cell beyond it, which a segment arriving from that side never enters. Before that rule, a line ending on a cell corner from below or to the right was reported blocked across open floor — and cells are a quarter tile, so every whole-tile position is a corner, and an actor could stand beside a player on one and not see them. The walk's step count is bounded by the boundaries between its ends; a rounding that would go past them returns false rather than walking on.
 
 ---
 

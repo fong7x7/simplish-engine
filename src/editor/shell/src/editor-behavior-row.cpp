@@ -111,20 +111,28 @@ namespace {
     return targets.value_or(game::BehaviorTargets::PLAYERS);
   }
 
+  /// The ticks under @p key of @p senses, or @p fallback when absent.
+  uint32_t ticksAt(const json& senses, const char* key, uint32_t fallback,
+                   const RowRead& row) {
+    return static_cast<uint32_t>(numberAt(
+        senses, key, {static_cast<float>(fallback), 0.0F, MAX_TICKS}, row));
+  }
+
   /// A row's senses, from its `senses` object.
   game::BehaviorSenses readSenses(const json& entry, const RowRead& row) {
     const json senses = objectAt(entry, "senses");
     const game::BehaviorSenses base{};
-    return {numberAt(senses, "sight_range",
-                     {base.sight_range, 0.0F, MAX_RANGE_TILES}, row),
-            numberAt(senses, "view_degrees", {base.view_degrees, 0.0F, 360.0F},
-                     row),
+    return {
+        .sight_range = numberAt(senses, "sight_range",
+                                {base.sight_range, 0.0F, MAX_RANGE_TILES}, row),
+        .view_degrees = numberAt(senses, "view_degrees",
+                                 {base.view_degrees, 0.0F, 360.0F}, row),
+        .hearing_range =
             numberAt(senses, "hearing_range",
                      {base.hearing_range, 0.0F, MAX_RANGE_TILES}, row),
-            static_cast<uint32_t>(numberAt(
-                senses, "memory_ticks",
-                {static_cast<float>(base.memory_ticks), 0.0F, MAX_TICKS}, row)),
-            readTargets(senses, row)};
+        .memory_ticks = ticksAt(senses, "memory_ticks", base.memory_ticks, row),
+        .track_ticks = ticksAt(senses, "track_ticks", base.track_ticks, row),
+        .targets = readTargets(senses, row)};
   }
 
   /// A row's movement, from its `movement` object.
