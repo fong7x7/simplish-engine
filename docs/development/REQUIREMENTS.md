@@ -120,7 +120,7 @@ cmake --build --preset debug --target format
 
 ### 4.2 Static Analysis
 
-`.clang-tidy` enables `*` minus a curated exclusion list. New code must be clean. Suppressions require a `// NOLINTNEXTLINE(check-name)` with a comment stating why on the line above — a bare `NOLINT` is a review rejection.
+`.clang-tidy` enables `*` minus a curated exclusion list. New code must be clean. A check a newer clang-tidy than CI's adds or renames is excluded when it would contradict a decision already made or the formatter, so a local LLVM agrees with CI: `bugprone-signed-bitwise` is LLVM 23's name for `hicpp-signed-bitwise`, excluded from the start, and `readability-trailing-comma` wants trailing commas on braced lists the code base writes without them, which `.clang-format` leaves as written. Suppressions require a `// NOLINTNEXTLINE(check-name)` with a comment stating why on the line above — a bare `NOLINT` is a review rejection.
 
 ```bash
 cmake --build --preset debug --target lint
