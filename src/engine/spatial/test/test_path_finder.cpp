@@ -1,6 +1,7 @@
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
+#include <engine/core/pcg32.h>
 #include <engine/spatial/path-finder.h>
 #include <vector>
 
@@ -10,6 +11,7 @@ using eng::spatial::NavGrid;
 using eng::spatial::NavGridSpec;
 using eng::spatial::PathFinder;
 using eng::spatial::PathRequest;
+using eng::spatial::PathResult;
 using eng::spatial::PathStatus;
 
 namespace {
@@ -41,6 +43,67 @@ bool stepsAreLegal(const NavGrid& grid, const std::vector<GridCell>& cells) {
     }
   }
   return true;
+}
+
+/// A 48 × 48 grid strewn with two dozen of @p rng's boxes, from slivers to
+/// walls three tiles long.
+NavGrid strewn(eng::Pcg32& rng) {
+  std::vector<CollisionBox> boxes;
+  for (int k = 0; k < 24; ++k) {
+    const float x = 12.0F * rng.nextUnitFloat();
+    const float y = 12.0F * rng.nextUnitFloat();
+    const float w = 0.25F + 3.0F * rng.nextUnitFloat();
+    const float h = 0.25F + 3.0F * rng.nextUnitFloat();
+    boxes.push_back({{x, y, 0.0F}, {x + w, y + h, 1.0F}});
+  }
+  return {square(48), boxes};
+}
+
+/// One of @p rng's cells of @p grid that a walker needing @p clearance can
+/// stand in, drawn again until one is — or the last drawn, after twenty.
+GridCell openCell(eng::Pcg32& rng, const NavGrid& grid, uint8_t clearance) {
+  GridCell cell{};
+  for (int tries = 0; tries < 20; ++tries) {
+    cell = {static_cast<int32_t>(rng.nextBelow(48)),
+            static_cast<int32_t>(rng.nextBelow(48))};
+    if (grid.isOpen(cell, clearance)) {
+      break;
+    }
+  }
+  return cell;
+}
+
+/// A request across @p grid between two of @p rng's open cells, for one of
+/// three widths, every fifth cut short at 60 expansions.
+PathRequest anyRequest(eng::Pcg32& rng, const NavGrid& grid, int nth) {
+  const auto clearance = static_cast<uint8_t>(1 + rng.nextBelow(3));
+  const GridCell from = openCell(rng, grid, clearance);
+  return {.from = from,
+          .to = openCell(rng, grid, clearance),
+          .clearance = clearance,
+          .max_expansions =
+              nth % 5 == 0 ? 60 : eng::spatial::PATH_DEFAULT_MAX_EXPANSIONS};
+}
+
+/// @p digest with @p value folded in, FNV-1a a byte at a time.
+uint64_t fold(uint64_t digest, uint64_t value) {
+  for (int byte = 0; byte < 8; ++byte) {
+    digest ^= (value >> (8 * byte)) & 0xFFU;
+    digest *= 0x100000001B3ULL;
+  }
+  return digest;
+}
+
+/// @p digest with everything @p result says folded in.
+uint64_t foldResult(uint64_t digest, const PathResult& result) {
+  digest = fold(digest, static_cast<uint64_t>(result.status));
+  digest = fold(digest, result.expanded);
+  digest = fold(digest, result.cost);
+  for (const GridCell cell : result.cells) {
+    digest = fold(digest, (static_cast<uint64_t>(cell.x) << 32U) |
+                              static_cast<uint32_t>(cell.y));
+  }
+  return digest;
 }
 
 }  // namespace
@@ -155,4 +218,20 @@ TEST_CASE("a path from a cell to itself is that cell") {
   REQUIRE(result.status == PathStatus::FOUND);
   REQUIRE(result.cost == 0);
   REQUIRE(result.cells.size() == 1);
+}
+
+TEST_CASE("a thousand searches find what they always have, tie for tie") {
+  // Which of two equal paths is found, and how many cells it takes to find
+  // it, is part of the determinism contract: a replay recorded before a
+  // change to the finder must plan the same paths after it.
+  eng::Pcg32 rng(11, 3);
+  PathFinder finder;
+  uint64_t digest = 0xCBF29CE484222325ULL;
+  for (int g = 0; g < 40; ++g) {
+    const NavGrid grid = strewn(rng);
+    for (int s = 0; s < 25; ++s) {
+      digest = foldResult(digest, finder.find(grid, anyRequest(rng, grid, s)));
+    }
+  }
+  REQUIRE(digest == 0x44F80D364840F431ULL);
 }

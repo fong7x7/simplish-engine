@@ -23,6 +23,7 @@ simplish_add_module(simplish-engine-spatial
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/nearest-open-cell.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/neighbor-grid.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/path-finder.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/path-open-list.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/path-smoothing.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/reachability.cpp
     DEPENDENCIES simplish-engine-math
@@ -38,6 +39,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_nearest_open_cell.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_neighbor_grid.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_path_finder.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_path_open_list.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_path_smoothing.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_reachability.cpp
         DEPENDENCIES simplish-engine-spatial

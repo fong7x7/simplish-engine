@@ -62,6 +62,11 @@ public:
 
   /// @p cell's clearance; 0 for a cell off the grid.
   [[nodiscard]] uint8_t clearance(GridCell cell) const;
+  /// Every cell's clearance, row-major: for a loop over many cells that
+  /// would otherwise ask `clearance` a cell at a time.
+  [[nodiscard]] std::span<const uint8_t> clearances() const {
+    return clearance_;
+  }
   /// Whether @p cell is on the grid with at least @p required clearance.
   [[nodiscard]] bool isOpen(GridCell cell, uint8_t required) const;
   /// The clearance a character of @p radius tiles needs to stand in a cell:

@@ -31,8 +31,9 @@ points ──► NeighborGrid (rebuilt each tick by counting sort) ──► who
 | `hasLineOfSight` | `line-of-sight.h` | Whether a segment crosses only cells with enough clearance |
 | `nearestOpenCell` | `nearest-open-cell.h` | The nearest cell a character of a given size can stand in |
 | `PathFinder`, `PathRequest`, `PathResult`, `PathStatus` | `path-finder.h` … | A* over the grid, with scratch memory reused across searches |
+| `PathOpenList` | `path-open-list.h` | A*'s open list: cells bucketed by estimated total, in the order a search expands them |
 | `smoothPath` | `path-smoothing.h` | Cells to waypoints: the furthest cell a straight walk reaches, repeatedly |
-| `canGridStep`, `GRID_STEPS` | `grid-step.h` | The eight steps between neighbouring cells, and whether one is open — the one rule A* and reachability share |
+| `canGridStep`, `GRID_STEPS` | `grid-step.h` | The eight steps between neighbouring cells, and whether one is open — the rule A* and reachability share; A* applies it inline, away from the grid's edge, and the search digest holds it to the same answers |
 | `reachableCells` | `reachability.h` | Every cell a character of a given size can walk to from any of a set of cells |
 | `FlowField`, `FlowFieldBuilder` | `flow-field.h`, `flow-field-builder.h` | Every cell's cost to one goal, built a budget of cells at a time; the next cell downhill |
 | `NeighborGrid` | `neighbor-grid.h` | Points bucketed a tile to a bucket, for "who is near here" without testing every pair |
@@ -72,7 +73,12 @@ The walk stops when no cell boundary is left before the segment's end, not when 
 | Ties go to the smaller estimated remainder, then the smaller row-major index; neighbours are visited in a fixed order | Two equal paths resolve the same way on every machine |
 | A diagonal step needs both cells beside it open | A character never clips the corner it rounds |
 | Scratch is sized once and stamped per search rather than cleared | No allocation during a tick; starting a search costs nothing in the grid's size |
+| The open list (`PathOpenList`) is a ring of 32 buckets by estimated total, each a binary heap of remainder-then-index packed into one 64-bit key | With a consistent heuristic every open cell's total is within 28 — two diagonal steps — of the smallest, so buckets replace one heap of every open cell: a few levels of integer comparisons a pop rather than a dozen of two-part ones |
+| A cell whose cost improves is pushed again, and its older entry skipped when it comes first | No entry is moved within a heap; the order is total and the improved entry always comes first, so cells are expanded in exactly the order moving it would give |
+| A cell's mark — open or closed in this search — and its best cost share one word; straight neighbours are read once and reused for the diagonals beside them | One read judges a neighbour; eight neighbours cost six reads, not sixteen calls |
 | `max_expansions` bounds a search; `OVER_BUDGET` says it was cut short | One request cannot blow a tick; the caller decides whether to try again |
+
+All of it is measured and pinned. `test_path_finder.cpp` folds a thousand seeded searches — cluttered grids, three widths, some cut short by their budget — into one digest that must not change: which of two equal paths is found, and after how many expansions, is part of the determinism contract, and the rewrite that took A* from 81 ns an expansion to 24 kept it to the bit. `test_horde_budget.cpp` times a tick's whole budget spent ([actors.md §7](../game/actors.md#7-budget)).
 
 `PathResult` carries a status — `FOUND`, `UNREACHABLE`, `OVER_BUDGET`, or `BLOCKED_ENDPOINT` for a start or goal off the grid or too narrow — the number of cells expanded, the cost, and the path as a view of the finder's own buffer, valid until it searches again.
 
@@ -99,9 +105,9 @@ When a goal is somewhere a character cannot stand — a player backed against a 
 | Requirement ([§4.3](REQUIREMENTS.md#43-determinism-contract)) | Where it is kept |
 |---|---|
 | No libm transcendentals | `sinCosDegrees` reduces whole quadrants in degrees with `fmod` and `nearbyint`, then evaluates Taylor series to r¹³ and r¹⁴ in double — only operations IEEE-754 rounds exactly, with FMA contraction off. 90° gives exactly 1 and +0. `test_sin_cos` pins golden bits |
-| Ordered iteration | Rasterizing visits boxes in setup order; both clearance sweeps are fixed raster order; A*'s and the flow-field builder's heap orders are total; neighbour buckets list points in index order and are visited row by row |
+| Ordered iteration | Rasterizing visits boxes in setup order; both clearance sweeps are fixed raster order; A*'s open list and the flow-field builder's heap order by total keys — A* by estimated total, remainder, then index — so no heap's layout decides anything; neighbour buckets list points in index order and are visited row by row |
 | Integer where discrete | Path costs, clearance, cell coordinates |
-| No allocation in a tick | `PathFinder` scratch, the smoothing buffer, the flow-field builder and the neighbour grid are sized outside the tick. The flow-field heap is reserved for twice the cells; a level that pushes more grows it once |
+| No allocation in a tick | `PathFinder` scratch (its open list's buckets keep the most any search has needed), the smoothing buffer, the flow-field builder and the neighbour grid are sized outside the tick. The flow-field heap is reserved for twice the cells; a level that pushes more grows it once |
 
 Nothing here is hashed: the grid is a pure function of the setup, a path lives in the caller's state, and a flow field is a pure function of the grid, its goal and its clearance — the caller hashes those, and how far a build has got, not the costs.
 

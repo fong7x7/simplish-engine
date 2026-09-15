@@ -5,11 +5,16 @@
 /// @par Threading
 /// One instance per thread: a search writes the finder's scratch memory.
 
+#include <array>
 #include <cstdint>
 #include <engine/spatial/grid-cell.h>
+#include <engine/spatial/grid-step.h>
 #include <engine/spatial/nav-grid.h>
+#include <engine/spatial/path-open-list.h>
 #include <engine/spatial/path-request.h>
 #include <engine/spatial/path-result.h>
+#include <optional>
+#include <span>
 #include <vector>
 
 namespace eng::spatial {
@@ -30,11 +35,22 @@ namespace eng::spatial {
 /// beside it are open too, so a character never clips the corner of a prop
 /// it rounds.
 ///
+/// **Cheap per cell.** The open list (`PathOpenList`) buckets cells by
+/// estimated total, each bucket a small heap of one-number keys. A cell
+/// whose cost improves is pushed again rather than moved, and its older
+/// entry is skipped when it comes first: the order is total and an improved
+/// entry always comes before the old one, so cells are expanded in exactly
+/// the order a single heap that moved them would give. A cell's mark and
+/// cost share one word, neighbours are read straight from the grid's
+/// clearances, and the heuristic comes from coordinates already in hand.
+///
 /// **No allocation per search.** Scratch memory is sized to the grid once
 /// and reused; the finder grows only if handed a larger grid than it has
 /// seen, which a caller does outside a tick. Per-cell state is stamped with
 /// a search number rather than cleared, so starting a search costs nothing
-/// in the size of the grid.
+/// in the size of the grid. The open list's buckets grow to the most a
+/// search has needed and keep that, so a search that needs more than any
+/// before it grows them once.
 class PathFinder {
 public:
   /// A finder with no scratch yet; it sizes itself on its first search.
@@ -51,53 +67,70 @@ private:
   void newSearch(uint32_t cells);
   /// Size the scratch for @p grid, open a new search, and push its start.
   void begin(const NavGrid& grid, const PathRequest& request);
-  /// Expand open cells until the goal is closed, the heap empties, or the
+  /// Expand open cells until the goal is closed, none is left, or the
   /// request's budget is spent.
   [[nodiscard]] PathResult search(const NavGrid& grid,
                                   const PathRequest& request);
-  /// Close @p index and relax every neighbour a step from it may reach.
-  void expand(const NavGrid& grid, uint32_t index, uint8_t clearance);
-  /// Offer @p to a path through @p from by the step in direction @p dir.
-  void relax(uint32_t from, uint32_t to, uint8_t dir);
-  /// The octile distance from the cell at @p index to the goal.
-  [[nodiscard]] uint32_t heuristic(uint32_t index) const;
-  /// Whether the open cell @p a is expanded before the open cell @p b.
-  [[nodiscard]] bool before(uint32_t a, uint32_t b) const;
-  /// Put @p index on the open heap.
-  void push(uint32_t index);
-  /// Take the first open cell off the heap.
-  uint32_t pop();
-  /// Move the heap entry at @p slot up until its parent comes first.
-  void siftUp(uint32_t slot);
-  /// Move the heap entry at @p slot down until its children come after.
-  void siftDown(uint32_t slot);
-  /// Put @p index at heap position @p slot.
-  void place(uint32_t slot, uint32_t index);
+  /// Close @p index and offer every neighbour a step from it may reach.
+  void expand(uint32_t index);
+  /// The steps a walker at @p index, in cell @p at, may take: bit `d` set
+  /// for `GRID_STEPS[d]`. Away from the grid's edge, each straight
+  /// neighbour is read once and a diagonal reuses the two beside it.
+  [[nodiscard]] uint32_t stepsFrom(uint32_t index, GridCell at) const;
+  /// `stepsFrom` for a cell on the grid's edge, where a step may leave it.
+  [[nodiscard]] uint32_t stepsAtEdge(GridCell at) const;
+  /// Whether the cell a step in direction @p dir from @p index reaches is
+  /// open; the step must stay on the grid.
+  [[nodiscard]] bool openAt(uint32_t index, uint32_t dir) const;
+  /// Whether a walker in @p at may take @p step: onto an open cell of the
+  /// grid and, for a diagonal, past two open cells beside it.
+  [[nodiscard]] bool canStep(GridCell at, const GridStep& step) const;
+  /// Offer the cell at @p to, which is @p cell, a path costing @p cost;
+  /// whether it was better than any the cell had.
+  bool offer(uint32_t to, uint32_t cost, GridCell cell);
+  /// The octile distance from @p cell to the goal.
+  [[nodiscard]] uint32_t heuristic(GridCell cell) const;
+  /// Take the next cell to expand off the open list, skipping entries for
+  /// cells already closed; nothing when none is left.
+  std::optional<uint32_t> nextOpen();
+  /// Whether the current search has closed the cell at @p index.
+  [[nodiscard]] bool closed(uint32_t index) const;
+  /// The mark of a cell the current search has reached and not closed.
+  [[nodiscard]] uint32_t openMark() const;
+  /// The state of a cell the current search reached for @p cost, open.
+  [[nodiscard]] uint64_t openState(uint32_t cost) const;
+  /// The best cost the current search has found to the cell at @p index.
+  [[nodiscard]] uint32_t costOf(uint32_t index) const;
   /// The path from the start to @p goal, into the path buffer.
   [[nodiscard]] std::span<const GridCell> trace(const NavGrid& grid,
                                                 uint32_t goal);
 
-  /// Cost of the best path found so far to each cell.
-  std::vector<uint32_t> cost_;
-  /// Each cell's cost plus its heuristic: the heap's key.
-  std::vector<uint32_t> total_;
+  /// Each cell's state, in one word so a neighbour is judged with one
+  /// read: in the high half its mark — twice the number of the search that
+  /// last reached it while it is open, one more once it is closed — and in
+  /// the low half the cost of the best path to it that search found.
+  std::vector<uint64_t> state_;
   /// The direction of the step that reached each cell, to trace back.
   std::vector<uint8_t> via_;
-  /// The search in which each cell's cost was last set.
-  std::vector<uint32_t> seen_;
-  /// The search in which each cell was last closed.
-  std::vector<uint32_t> done_;
-  /// Where each open cell sits in the heap.
-  std::vector<uint32_t> slot_;
-  /// The open cells, as a binary heap ordered by `before`.
-  std::vector<uint32_t> heap_;
+  /// The cells reached and not yet expanded; entries for cells since closed
+  /// are skipped.
+  PathOpenList open_;
   /// The last path found, start first.
   std::vector<GridCell> path_;
-  /// The current search's number; 0 is never used, so fresh scratch is
-  /// never mistaken for part of a search.
+  /// The current search's grid clearances, row-major.
+  std::span<const uint8_t> cells_{};
+  /// The current search's number, below 2³¹ so twice it fits a mark; 0 is
+  /// never used, so fresh scratch is never mistaken for part of a search.
   uint32_t search_ = 0;
   /// The grid width, for turning an index back into a cell.
   uint32_t width_ = 0;
+  /// The grid height.
+  uint32_t height_ = 0;
+  /// The clearance every cell of the current search's path must have.
+  uint8_t need_ = 1;
+  /// How far each of `GRID_STEPS` moves along the current grid's row-major
+  /// order.
+  std::array<int32_t, GRID_STEPS.size()> offsets_{};
   /// The goal of the current search.
   GridCell goal_{};
   /// The row-major index of the current search's goal.

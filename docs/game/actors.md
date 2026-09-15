@@ -161,13 +161,15 @@ The projectiles and hazard pools are the sections `projectiles` and `hazards`, e
 
 ## 7. Budget
 
-Engine §7 gives enemy AI and steering **2.5 ms for 2,000 actors**, and it is measured: `./scripts/perf-gate.sh` builds `relwithdebinfo` and runs the hidden `[perf]` case in `test_horde_budget.cpp` — 2,000 swarmers in a walled, pillared 64-tile arena closing on four circling players, seeing the whole room — and fails when the median tick of `enemyAi` is over budget. Its swarmers bite, and its players are too sturdy to go down, so the horde keeps coming for every timed tick. On an Apple M-series laptop the actors' median is about **1.1 ms**, the 99th percentile about 1.3–1.8 ms; the combat phases — weapon fire, projectiles, damage — about 0.03 ms.
+Engine §7 gives enemy AI and steering **2.5 ms for 2,000 actors**, and it is measured: `./scripts/perf-gate.sh` builds `relwithdebinfo` and runs the hidden `[perf]` case in `test_horde_budget.cpp` — 2,000 swarmers in a walled, pillared 64-tile arena closing on four circling players, seeing the whole room — and fails when the median tick of `enemyAi` is over budget. Its swarmers bite, and its players are too sturdy to go down, so the horde keeps coming for every timed tick. On an Apple M-series laptop the actors' median is about **1.0–1.1 ms**, the 99th percentile about 1.1–1.8 ms; the combat phases — weapon fire, projectiles, damage — about 0.03 ms.
+
+The horde walks flow fields, so it hardly plans; the path budget is what bounds a tick of actors that do. A second `[perf]` case times a search that spends all of `ACTOR_PATH_BUDGET_PER_TICK` — 32,768 expansions, trapped in a cup forty tiles across on a grid the arena's size — and fails over **1.0 ms**, so the horde and a tick of planning at its ceiling together stay inside 2.5 ms. It takes about **0.8 ms**, 24 ns an expansion; before the open list was bucketed (spatial.md §4) it took 2.65 ms, more than the whole AI budget. A horde whose every actor is too wide for the fields, and so plans with A*, takes about 1.5 ms a tick (1.9 before).
 
 | Cost | How it is held down | Before |
 |---|---|---|
 | Separation | the neighbour grid: each actor tests the few in the buckets it reaches | every pair — 90% of an 18.9 ms tick |
 | Perception | ranked candidates, so one line walk rather than one per player; far actors every sixth tick | a line walk per player per actor |
-| Planning | a pursuer walks its quarry's flow field: a few lookups a tick. A* for everything else, capped at 32,768 expansions a tick shared, 16,384 a search; a path whose goal moves is re-aimed by a line walk or two, or mended in at most 2,048 expansions, rather than planned again | A* per actor, a line walk to the goal each tick; a moved goal planned again from scratch every quarter second |
+| Planning | a pursuer walks its quarry's flow field: a few lookups a tick. A* for everything else, capped at 32,768 expansions a tick shared, 16,384 a search, at about 24 ns an expansion; a path whose goal moves is re-aimed by a line walk or two, or mended in at most 2,048 expansions, rather than planned again | A* per actor, a line walk to the goal each tick; a moved goal planned again from scratch every quarter second; 81 ns an expansion |
 | Flow fields | 4,096 cells a tick, one field at a time, none for a player who has not changed cell | — |
 | Collision | the broadphase's candidates within a tile | every prop box |
 | Arithmetic | `Vec2` operators `constexpr` in the header, so they inline | a call per `+` |
