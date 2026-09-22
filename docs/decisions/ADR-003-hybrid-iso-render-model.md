@@ -178,3 +178,25 @@ It also serves [open question 2](../../REQUIREMENTS.md#8-open-questions). A rig 
 
 **Where it lives.** `src/engine/animation/` holds skeletons, skins, clips, and pose sampling — pure math, no GPU. `src/engine/gltf/` reads rigged `.gltf` and `.glb` files. `src/engine/render-mesh/` gains the skinned vertex, `SkinPalette`, and `SkinnedMeshRenderer`. [animation.md](../engine/animation.md) is the technical write-up.
 
+
+---
+
+## Amendment (2026-09-22): a billboard is an upright quad, not a depth ramp
+
+Requested as a feature: drag a sprite billboard into the editor and point it at a sprite sheet. Building the first one settled how a billboard takes part in the depth buffer, which the Decision had answered one way and this answers another.
+
+**What changed.** A billboard is a **quad standing upright in the world**, one tile wide and however many tall, turned so its width runs along the screen and its height straight up it. It is drawn through the ordinary mesh pipeline, with a per-frame texture rectangle out of its sheet, and it writes depth like any other mesh. The Decision's per-pixel depth write and per-archetype **height ramp are not built, and are not needed**.
+
+**Why.** The ramp exists to give a *screen-aligned* sprite a depth it does not otherwise have: a quad facing the camera in screen space is all at one depth, so a tall sprite either sinks into the floor or floats in front of everything, and the ramp is what puts its top further back than its feet. An upright world-space quad already has that depth, because the projection is oblique: points higher up the quad are further along the view ray than its base, by exactly the pitch of the camera. The ramp the Decision would have declared per archetype is the one the geometry produces for free, and it is linear, which is what a sprite of a standing figure wants.
+
+Two things follow. The billboard occludes and is occluded per pixel against meshes and against other billboards, with no ordering rule and no CPU sort — which is what the Decision asked for. And the cost the Decision listed as its main negative goes away: nothing writes depth from the fragment stage, so early-Z stays on for the whole pass.
+
+**Alpha-test cutout is unchanged, and is what makes this work.** The mesh fragment stage drops texels below `MESH_ALPHA_CUTOFF` (a half) rather than blending them, so a sprite's empty corners produce no fragments and no depth. That is a five-line change to the one fragment shader every backend already had, not a pipeline of its own. Opaque geometry never reaches the branch: an image with no alpha channel loads with every texel at 1.
+
+**What it costs.**
+
+- **Both facings are the projection's, not the sprite's.** The quad is turned by the projection's own screen-right axis, so it faces the camera exactly under either of the two yaws and would not under a third. That is the fixed-camera constraint this ADR already takes, used rather than worked around.
+- **One ramp, and it is linear.** A sprite that wanted its own — a figure lying down, a sprite drawn in forced perspective — has no way to say so. The shader path the Decision describes is still the answer if one ever does; nothing here forecloses it.
+- **A quad per frame of a sheet, not a ramp per archetype.** Each frame's texture rectangle is baked into four vertices, so a sheet playing twelve frames a second uploads twelve small vertex buffers and then nothing. Sheets and grids are shared, so two billboards cut alike share every quad.
+
+**Where it lives.** `src/engine/render-sprite/` holds the sheet grid, which frame a clock is showing, and the quad one frame is drawn on; `MESH_ALPHA_CUTOFF` is in `src/engine/render-mesh/include/engine/render-mesh/mesh-alpha-cutoff.h` and restated in each backend's mesh shader. The editor turns and sizes one in `editor-sprite-transform.h`, which is also where the 2026-09-09 amendment's missing sprite-scale factor finally lands: a frame's world width is derived from its pixel shape, `isoAcrossPixels` and `IsoAxes::z_up`, so a square frame draws square and a sprite one tile tall is exactly as tall as a one-tile cube. [sprites.md](../engine/sprites.md) is the technical write-up.

@@ -30,9 +30,14 @@ inline constexpr std::string_view EDITOR_TOOLS_FOLDER_NAME = "tools";
 /// light — shown in the level, but no part of what the game simulates.
 inline constexpr std::string_view EDITOR_EFFECTS_FOLDER_NAME = "effects";
 
+/// The subsection holding sprites: 2D art standing in the level, drawn on
+/// billboards against the same depth buffer the meshes use (ADR-003).
+inline constexpr std::string_view EDITOR_SPRITES_FOLDER_NAME = "sprites";
+
 /// Add the general section to @p tree as a top-level folder above the
-/// assets root, holding a folder of lights, a folder of shapes, a folder
-/// of tools and a folder of effects, and return the section's index.
+/// assets root, holding a folder of lights, a folder of shapes, a folder of
+/// tools, a folder of effects and a folder of sprites, and return the
+/// section's index.
 ///
 /// A sibling of the assets root rather than a folder inside it: nothing in
 /// it comes from the project's assets directory, and listing it under that
@@ -41,7 +46,7 @@ inline constexpr std::string_view EDITOR_EFFECTS_FOLDER_NAME = "effects";
 /// root is a tree that grows — a fixed row is easier to reach at the top
 /// than after however many folders a project has.
 ///
-/// The section holds nothing itself. Four kinds of built-in thing are too
+/// The section holds nothing itself. Five kinds of built-in thing are too
 /// many for a single grid of cards to read as anything but a pile, and the
 /// subsections are what a designer reaching for a light rather than a box
 /// actually navigates by.

@@ -3,6 +3,7 @@
 #include "agent-call.h"
 #include "agent-emitters.h"
 #include "agent-json-values.h"
+#include "agent-sprites.h"
 #include "agent-waypoints.h"
 
 #include <algorithm>
@@ -27,6 +28,7 @@
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <game/content/behavior-names.h>
+#include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -98,21 +100,16 @@ namespace {
   }
 
   /// The list a target word names.
+  ///
+  /// Read back out of the same table the API reports a selection's kind
+  /// with, so the word a tool takes and the word it answers with cannot
+  /// drift apart. `none` is not a list, so it is not one of the answers.
   std::optional<EditorSelectionKind> targetKind(std::string_view target) {
-    if (target == "placement") {
-      return EditorSelectionKind::PLACEMENT;
-    }
-    if (target == "light") {
-      return EditorSelectionKind::LIGHT;
-    }
-    if (target == "player_start") {
-      return EditorSelectionKind::PLAYER_START;
-    }
-    if (target == "waypoint") {
-      return EditorSelectionKind::WAYPOINT;
-    }
-    if (target == "emitter") {
-      return EditorSelectionKind::EMITTER;
+    for (size_t kind = 1; kind < std::size(AGENT_SELECTION_KIND_NAMES);
+         ++kind) {
+      if (AGENT_SELECTION_KIND_NAMES[kind] == target) {
+        return static_cast<EditorSelectionKind>(kind);
+      }
     }
     return std::nullopt;
   }
@@ -131,8 +128,8 @@ namespace {
       return agentFailure(
           AgentStatus::BAD_PARAMS,
           "expected target \"placement\", \"light\", \"player_start\", "
-          "\"waypoint\", \"emitter\" or \"selection\", with an index for "
-          "all but the last");
+          "\"waypoint\", \"emitter\", \"sprite\" or \"selection\", with "
+          "an index for all but the last");
     }
     entry = {*kind, *index};
     return entryInRange(state, entry);
@@ -296,6 +293,9 @@ namespace {
     }
     if (entry.kind == EditorSelectionKind::EMITTER) {
       return setAgentEmitterField(state, entry.index, field, value);
+    }
+    if (entry.kind == EditorSelectionKind::SPRITE) {
+      return setAgentSpriteField(state, entry.index, field, value);
     }
     return setLightField(state, entry.index, field, value);
   }
@@ -483,6 +483,9 @@ namespace {
     }
     if (action.kind == EditorActionKind::REMOVE_EMITTER) {
       return agentEmitterValue(action.emitter);
+    }
+    if (action.kind == EditorActionKind::REMOVE_SPRITE) {
+      return agentSpriteValue(action.sprite);
     }
     return action.kind == EditorActionKind::REMOVE_LIGHT
                ? agentLightValue(action.light)
@@ -975,6 +978,8 @@ namespace {
         return translateAgentWaypoint(state, entry.index, params);
       case EditorSelectionKind::EMITTER:
         return translateAgentEmitter(state, entry.index, params);
+      case EditorSelectionKind::SPRITE:
+        return translateAgentSprite(state, entry.index, params);
       case EditorSelectionKind::LIGHT:
       case EditorSelectionKind::NONE:
         break;

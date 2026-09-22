@@ -8,14 +8,16 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 #include <vector>
 
 namespace eng::editor {
 
 /// The level as the editor holds it: what has been placed, what lights it,
-/// where the players enter it, the routes its actors patrol, and the
-/// particle emitters that show effects in it.
+/// where the players enter it, the routes its actors patrol, the particle
+/// emitters that show effects in it, and the sprite billboards standing in
+/// it.
 ///
 /// One record rather than a list per kind passed around separately, because
 /// the history describes all of it: an action names a list and a slot in
@@ -33,6 +35,8 @@ struct EditorDocument {
   std::vector<EditorWaypoint> waypoints;
   /// Particle emitters, in the order they were added.
   std::vector<EditorEmitter> emitters;
+  /// Sprite billboards, in the order they were added.
+  std::vector<EditorSprite> sprites;
 };
 
 }  // namespace eng::editor

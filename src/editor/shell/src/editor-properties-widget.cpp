@@ -6,6 +6,7 @@
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-scale-slider.h>
+#include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-theme-constants.h>
@@ -165,6 +166,15 @@ void EditorPropertiesWidget::setSelection(std::string name,
                  EDITOR_EMITTER_FIELDS);
   for (size_t row = 0; row < fields_.size(); ++row) {
     values_[row] = editorEmitterValue(emitter, fields_[row]);
+  }
+}
+
+void EditorPropertiesWidget::setSelection(std::string name,
+                                          const EditorSprite& sprite) {
+  beginSelection(std::move(name), editorSpriteRef(sprite),
+                 EDITOR_SPRITE_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorSpriteValue(sprite, fields_[row]);
   }
 }
 

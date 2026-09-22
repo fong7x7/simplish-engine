@@ -109,6 +109,16 @@ std::optional<MeshGpuId> MeshRenderer::upload(RhiDevice& device,
   return id;
 }
 
+void MeshRenderer::release(RhiDevice& device, MeshGpuId mesh) {
+  const auto found = meshes_.find(mesh);
+  if (found == meshes_.end()) {
+    return;
+  }
+  device.destroyBuffer(found->second.vertices);
+  device.destroyBuffer(found->second.indices);
+  meshes_.erase(found);
+}
+
 RhiTextureHandle MeshRenderer::depthTarget(RhiDevice& device, uint32_t width,
                                            uint32_t height) {
   if (!ready() || width == 0 || height == 0) {

@@ -129,10 +129,10 @@ namespace {
   /// `refreshPlacementMarkers` pushes them in.
   EditorSelection markerSelection(const EditorDocument& document,
                                   size_t marker) {
-    constexpr std::array<EditorSelectionKind, 5> MARKED{
-        EditorSelectionKind::PLACEMENT, EditorSelectionKind::LIGHT,
+    constexpr std::array<EditorSelectionKind, 6> MARKED{
+        EditorSelectionKind::PLACEMENT,    EditorSelectionKind::LIGHT,
         EditorSelectionKind::PLAYER_START, EditorSelectionKind::WAYPOINT,
-        EditorSelectionKind::EMITTER};
+        EditorSelectionKind::EMITTER,      EditorSelectionKind::SPRITE};
     for (const EditorSelectionKind kind : MARKED) {
       const size_t count = editorListSize(document, kind);
       if (marker < count) {
@@ -581,11 +581,13 @@ void SimplishEditor::clearDocument() {
   placement_prior_.reset();
   light_prior_.reset();
   player_start_prior_.reset();
+  sprite_prior_.reset();
   clearEditorActions(state_.history);
 }
 
 void SimplishEditor::adoptAssetScan(EditorAssetScan scan) {
   state_.asset_tree = buildEditorAssetTree(scan);
+  state_.sheets = std::move(scan.sheets);
   state_.assets = std::move(scan.assets);
   // The built-in shapes go on the end of the asset list, so a placement
   // names one exactly as it names a scanned model; the lights are numbered
@@ -603,6 +605,9 @@ void SimplishEditor::reloadAssets() {
   // will ever hold their handles again.
   releaseAssetThumbnails();
   releaseAssetTextures();
+  // The sheets belong to the project being replaced, and a path under the
+  // new one that happens to read the same names a different file.
+  releaseSpriteCache();
   adoptAssetScan(state_.project.loaded
                      ? scanEditorAssets(projectAssetsPath(state_.project.root))
                      : EditorAssetScan{});
@@ -866,10 +871,10 @@ ImageData SimplishEditor::buildAssetThumbnail(const EditorAsset& asset) {
     return buildCachedThumbnail(asset);
   }
   return renderAssetThumbnail(makeEditorShapeMesh(*asset.shape),
-                              ASSET_THUMBNAIL_SIZE, thumbnailAxes());
+                              ASSET_THUMBNAIL_SIZE, projectionAxes());
 }
 
-IsoAxes SimplishEditor::thumbnailAxes() const {
+IsoAxes SimplishEditor::projectionAxes() const {
   return isoAxesFor(state_.project.metadata.projection);
 }
 
@@ -886,7 +891,7 @@ ImageData SimplishEditor::buildCachedThumbnail(const EditorAsset& asset) {
     return {};
   }
   ImageData image =
-      renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE, thumbnailAxes());
+      renderAssetThumbnail(*mesh, ASSET_THUMBNAIL_SIZE, projectionAxes());
   storeCachedThumbnail(entry, image);
   return image;
 }
@@ -1005,6 +1010,8 @@ void SimplishEditor::placeGeneralItem(EditorGeneralItem item, WorldPoint tile) {
     placeWaypoint(tile);
   } else if (item == EditorGeneralItem::PARTICLE_EMITTER) {
     placeEmitter(tile);
+  } else if (item == EditorGeneralItem::SPRITE_BILLBOARD) {
+    placeSprite(tile);
   } else {
     placePlayerStart(tile);
   }
@@ -1186,6 +1193,8 @@ void SimplishEditor::showSelection(EditorPropertiesWidget& panel) {
     showWaypointSelection(panel);
   } else if (selectionIs(selection, EditorSelectionKind::EMITTER)) {
     showEmitterSelection(panel);
+  } else if (selectionIs(selection, EditorSelectionKind::SPRITE)) {
+    showSpriteSelection(panel);
   } else {
     showPlayerStartSelection(panel);
   }
@@ -1211,6 +1220,8 @@ void SimplishEditor::applySelectedEdit(EditorPropertyField field, float value,
     applyWaypointEdit(field, value, edit);
   } else if (selectionIs(selection, EditorSelectionKind::EMITTER)) {
     applyEmitterEdit(field, value, edit);
+  } else if (selectionIs(selection, EditorSelectionKind::SPRITE)) {
+    applySpriteEdit(field, value, edit);
   } else {
     applyPlayerStartEdit(field, value, edit);
   }
@@ -1233,20 +1244,26 @@ void SimplishEditor::applyPlacementEdit(EditorPropertyField field, float value,
 
 void SimplishEditor::applyChoiceEdit(EditorChoiceKind kind, size_t index) {
   switch (kind) {
-    case EditorChoiceKind::ANIMATION:
-      applyClipChoice(index);
-      break;
-    case EditorChoiceKind::CHARACTER:
-      applyCharacterChoice(index);
-      break;
     case EditorChoiceKind::BEHAVIOR:
     case EditorChoiceKind::FACTION:
     case EditorChoiceKind::ROUTE:
       applyActorChoice(kind, index);
       break;
-    case EditorChoiceKind::EFFECT:
-      applyEffectChoice(index);
+    default:
+      applyEntryChoice(kind, index);
       break;
+  }
+}
+
+void SimplishEditor::applyEntryChoice(EditorChoiceKind kind, size_t index) {
+  if (kind == EditorChoiceKind::ANIMATION) {
+    applyClipChoice(index);
+  } else if (kind == EditorChoiceKind::CHARACTER) {
+    applyCharacterChoice(index);
+  } else if (kind == EditorChoiceKind::EFFECT) {
+    applyEffectChoice(index);
+  } else {
+    applySheetChoice(index);
   }
 }
 
@@ -1401,6 +1418,7 @@ void SimplishEditor::commitPendingEdit() {
   commitPlayerStartEdit();
   commitWaypointEdit();
   commitEmitterEdit();
+  commitSpriteEdit();
 }
 
 void SimplishEditor::applyWaypointEdit(EditorPropertyField field, float value,
@@ -1621,6 +1639,9 @@ void SimplishEditor::appendEntityMarkers(
   for (size_t i = 0; i < state_.document.emitters.size(); ++i) {
     markers.push_back(emitterMarker(i));
   }
+  for (size_t i = 0; i < state_.document.sprites.size(); ++i) {
+    markers.push_back(spriteMarker(i));
+  }
 }
 
 void SimplishEditor::refreshOverlays() {
@@ -1694,6 +1715,7 @@ void SimplishEditor::buildSceneInstances() {
       appendPlacementInstance(state_.document.placements[i]);
     }
   }
+  appendSpriteInstances();
   appendCharacterInstances();
   // Players for props deleted since the last frame go; a prop brought back
   // by an undo gets a fresh one, which cuts in rather than fading. The
@@ -1716,7 +1738,8 @@ RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   // cleared to nothing, however little else there is to draw.
   if (device == nullptr ||
       (state_.document.placements.empty() && state_.document.emitters.empty() &&
-       !isPlaying() && characterFigures().empty())) {
+       state_.document.sprites.empty() && !isPlaying() &&
+       characterFigures().empty())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -2417,6 +2440,7 @@ void SimplishEditor::handleToolKey(uint32_t key) {
 void SimplishEditor::onShutdown() {
   releaseAssetThumbnails();
   releaseAssetTextures();
+  releaseSpriteCache();
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     outline_renderer_.shutdown(*rhiDevice());

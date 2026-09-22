@@ -1,5 +1,6 @@
 #include "agent-emitters.h"
 #include "agent-json-values.h"
+#include "agent-sprites.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -23,6 +24,7 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/behavior-names.h>
@@ -236,6 +238,21 @@ namespace {
     return out;
   }
 
+  /// The selected sprite billboard, as the panel shows it.
+  json spriteSelectionJson(const EditorShellState& state, size_t index) {
+    const EditorSprite& sprite = state.document.sprites[index];
+    json out = agentSpriteValue(sprite);
+    out["target"] = "sprite";
+    out["index"] = index;
+    out["name"] = editorSpriteName(sprite);
+    json fields = json::array();
+    for (EditorPropertyField field : EDITOR_SPRITE_FIELDS) {
+      fields.push_back(fieldValue(field, editorSpriteValue(sprite, field)));
+    }
+    out["fields"] = std::move(fields);
+    return out;
+  }
+
   /// The ids of the actors in @p document patrolling @p route.
   json patrolledBy(const EditorDocument& document, uint8_t route) {
     json ids = json::array();
@@ -291,25 +308,35 @@ namespace {
     return out;
   }
 
-  /// What is selected, as the panel shows it. Only asked of a selection
-  /// naming an entry that is there.
-  json selectedEntryJson(const EditorShellState& state) {
-    const size_t index = state.selection.index;
+  /// The selected entry of one of the lists the level holds beside its
+  /// props and lights, as the panel shows it.
+  json selectedMarkerJson(const EditorShellState& state, size_t index) {
     switch (state.selection.kind) {
-      case EditorSelectionKind::PLACEMENT:
-        return placementSelectionJson(state, index);
-      case EditorSelectionKind::LIGHT:
-        return lightSelectionJson(state, index);
       case EditorSelectionKind::PLAYER_START:
         return playerStartSelectionJson(state, index);
       case EditorSelectionKind::WAYPOINT:
         return waypointSelectionJson(state, index);
       case EditorSelectionKind::EMITTER:
         return emitterSelectionJson(state, index);
-      case EditorSelectionKind::NONE:
+      case EditorSelectionKind::SPRITE:
+        return spriteSelectionJson(state, index);
+      default:
         break;
     }
     return {{"target", agentSelectionKindName(EditorSelectionKind::NONE)}};
+  }
+
+  /// What is selected, as the panel shows it. Only asked of a selection
+  /// naming an entry that is there.
+  json selectedEntryJson(const EditorShellState& state) {
+    const size_t index = state.selection.index;
+    if (state.selection.kind == EditorSelectionKind::PLACEMENT) {
+      return placementSelectionJson(state, index);
+    }
+    if (state.selection.kind == EditorSelectionKind::LIGHT) {
+      return lightSelectionJson(state, index);
+    }
+    return selectedMarkerJson(state, index);
   }
 
   /// A 64-bit hash as sixteen hex digits. As a JSON number it would be
@@ -555,6 +582,18 @@ std::string agentEmittersJson(const EditorShellState& state) {
     emitters.push_back(entry);
   }
   return json{{"emitters", emitters}, {"effects", agentEffectPresetsJson()}}
+      .dump(2);
+}
+
+std::string agentSpritesJson(const EditorShellState& state) {
+  json sprites = json::array();
+  const auto& list = state.document.sprites;
+  for (size_t i = 0; i < list.size(); ++i) {
+    json entry = agentSpriteValue(list[i]);
+    entry["index"] = i;
+    sprites.push_back(entry);
+  }
+  return json{{"sprites", sprites}, {"sheets", agentSpriteSheetsJson(state)}}
       .dump(2);
 }
 

@@ -108,6 +108,16 @@ enum class EditorPropertyField : uint8_t {
   FLASH_RANGE,
   /// How long that flash lasts, in seconds.
   FLASH_TIME,
+  /// How tall a sprite billboard stands, in tiles.
+  HEIGHT,
+  /// Frames across a sprite sheet.
+  COLUMNS,
+  /// Frames down a sprite sheet.
+  ROWS,
+  /// How many of a sheet's cells hold a frame.
+  FRAMES,
+  /// How many frames a second a sheet plays.
+  FPS,
 };
 
 /// Every field there is, in the enum's own order.
@@ -137,6 +147,9 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::GRAVITY,     EditorPropertyField::DRAG,
     EditorPropertyField::STRETCH,     EditorPropertyField::FLASH,
     EditorPropertyField::FLASH_RANGE, EditorPropertyField::FLASH_TIME,
+    EditorPropertyField::HEIGHT,      EditorPropertyField::COLUMNS,
+    EditorPropertyField::ROWS,        EditorPropertyField::FRAMES,
+    EditorPropertyField::FPS,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -210,6 +223,21 @@ inline constexpr EditorPropertyField EDITOR_EMITTER_FIELDS[] = {
     EditorPropertyField::DRAG,          EditorPropertyField::STRETCH,
     EditorPropertyField::FLASH,         EditorPropertyField::FLASH_RANGE,
     EditorPropertyField::FLASH_TIME,
+};
+
+/// What the panel lists for a sprite billboard: where it stands and how
+/// tall, then how its sheet is cut and how fast it runs.
+///
+/// No width: a frame is whatever shape it was drawn, and the width that
+/// keeps that shape is derived from the height
+/// (`editor-sprite-transform.h`). A row that could stretch a sprite is a
+/// row that will. The Sheet row that picks the image itself leads the list,
+/// above all of these.
+inline constexpr EditorPropertyField EDITOR_SPRITE_FIELDS[] = {
+    EditorPropertyField::POSITION_X, EditorPropertyField::POSITION_Y,
+    EditorPropertyField::POSITION_Z, EditorPropertyField::HEIGHT,
+    EditorPropertyField::COLUMNS,    EditorPropertyField::ROWS,
+    EditorPropertyField::FRAMES,     EditorPropertyField::FPS,
 };
 
 /// How many rows a placement's properties fill.

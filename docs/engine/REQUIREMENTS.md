@@ -128,7 +128,7 @@ A **static mesh path** exists as a first slice of that camera's use: `render-mes
 
 Terrain, structures, and large static props are **3D meshes**, drawn instanced with a real depth buffer. Characters, small props, and effects are **camera-facing billboarded sprites**. The two are interleaved in a single depth-sorted pass rather than layered, so a player sprite standing behind a wall mesh is occluded by it correctly and without a special case.
 
-Sprites participate in depth by writing a per-pixel depth derived from their world footprint and the sprite's declared height ramp, with alpha-test cutout for hard edges. This is the load-bearing technical decision of the renderer — see [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md).
+Sprites participate in depth as upright world-space quads with alpha-test cutout for hard edges: the projection is oblique, so a point higher up a standing quad is further along the view ray than its base, and the depth a declared height ramp would have given is the depth the geometry has. This is the load-bearing technical decision of the renderer — see [ADR-003](../decisions/ADR-003-hybrid-iso-render-model.md) and its [2026-09-22 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-22-a-billboard-is-an-upright-quad-not-a-depth-ramp), which replaced the per-pixel depth write the original decision called for.
 
 ### 5.3 Draw Submission
 
@@ -175,7 +175,7 @@ Legibility is a rendering requirement, not an art note:
 | Replay recording and playback | [simulation.md §5](simulation.md#5-replay) | **Built** (engine side) |
 | Isometric camera, projection, depth policy | `rendering/isometric.md` | M0 |
 | Mesh rendering (instanced terrain, structures, props) | `rendering/mesh.md` | M1 |
-| Sprite system (atlases, 8-direction facing, animation clips, batcher) | `rendering/sprites.md` | M1 |
+| Sprite system (atlases, 8-direction facing, animation clips, batcher) | [sprites.md](sprites.md) | M1 — first slice built: `engine/render-sprite` cuts a sheet into frames and builds the quad one frame is drawn on, and the editor stands a billboard in a level on it. Upright quads through the mesh pipeline's alpha-test cutout ([ADR-003 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-22-a-billboard-is-an-upright-quad-not-a-depth-ramp)), one draw each. Atlas packing, eight-direction facing and the batcher are not written |
 | Skeletal animation (skeletons, clips, crossfades and pose blending, glTF rigs, GPU skinning) for a handful of characters | [animation.md](animation.md) | **Built** — `engine/animation`, `engine/gltf`, and `render-mesh`'s skinned renderer; Metal, DX12 and OpenGL pipelines. Nothing in the game uses it yet |
 | Lighting and shadows | `rendering/lighting.md` | M5 |
 | Effects (GPU particles, decals, trails, screen shake) | [fx.md](fx.md) | M5 — first slice built: `engine/render-fx` throws bursts of particles, simulated on the CPU and drawn in one call over the scene's depth, and flashes that light meshes; `game/fx` plays one on every shot fired, every shot that lands and every blast, from the combat cues each tick leaves. Metal, Vulkan, DX12 and OpenGL pipelines. Decals, trails, screen shake and the effect budget are not written |

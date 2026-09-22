@@ -3,6 +3,7 @@
 #include <editor/agent/agent-names.h>
 #include <editor/shell/editor-emitter-ops.h>
 #include <editor/shell/editor-entity-id.h>
+#include <editor/shell/editor-sprite-ops.h>
 #include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
 
@@ -66,6 +67,19 @@ namespace {
   }
 
 }  // namespace
+
+nlohmann::json agentSpriteValue(const EditorSprite& sprite) {
+  nlohmann::json numbers = nlohmann::json::object();
+  for (const EditorPropertyField field : EDITOR_SPRITE_FIELDS) {
+    numbers[std::string(agentPropertyFieldName(field))] =
+        editorSpriteValue(sprite, field);
+  }
+  return {{"id", sprite.id},
+          {"ref", editorSpriteRef(sprite)},
+          {"sheet", sprite.sheet},
+          {"position", agentPointJson(sprite.position)},
+          {"properties", std::move(numbers)}};
+}
 
 nlohmann::json agentEmitterValue(const EditorEmitter& emitter) {
   return {{"id", emitter.id},

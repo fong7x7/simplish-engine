@@ -144,6 +144,15 @@ namespace {
     return taken;
   }
 
+  /// Every id the document's sprite billboards hold.
+  std::unordered_set<std::string> spriteIds(const EditorDocument& document) {
+    std::unordered_set<std::string> taken;
+    for (const EditorSprite& sprite : document.sprites) {
+      taken.insert(sprite.id);
+    }
+    return taken;
+  }
+
   /// Every id the document's lights hold.
   std::unordered_set<std::string> lightIds(const EditorDocument& document) {
     std::unordered_set<std::string> taken;
@@ -224,6 +233,10 @@ std::string editorEmitterRef(const EditorEmitter& emitter) {
   return editorQualifiedId(EditorIdKind::EMITTER, emitter.id);
 }
 
+std::string editorSpriteRef(const EditorSprite& sprite) {
+  return editorQualifiedId(EditorIdKind::SPRITE, sprite.id);
+}
+
 size_t rebindPlacementAssets(EditorDocument& document,
                              const std::vector<std::string>& previous_ids,
                              const std::vector<EditorAsset>& assets) {
@@ -266,6 +279,10 @@ std::string mintEditorWaypointId(const EditorDocument& document) {
 
 std::string mintEditorEmitterId(const EditorDocument& document) {
   return firstFreeOrdinal("emitter", emitterIds(document));
+}
+
+std::string mintEditorSpriteId(const EditorDocument& document) {
+  return firstFreeOrdinal("sprite", spriteIds(document));
 }
 
 }  // namespace eng::editor

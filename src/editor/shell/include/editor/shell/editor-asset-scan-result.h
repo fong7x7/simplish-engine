@@ -10,7 +10,8 @@
 
 namespace eng::editor {
 
-/// The assets and the directories a scan turned up, in one result.
+/// The assets, the sprite sheets and the directories a scan turned up, in
+/// one result.
 ///
 /// Directories are carried alongside the assets rather than derived from
 /// them, because a directory holding nothing yet is still somewhere to drop
@@ -21,6 +22,13 @@ struct EditorAssetScan {
   std::vector<EditorAsset> assets;
   /// Every directory found, as paths relative to the assets root, sorted.
   std::vector<std::filesystem::path> folders;
+  /// Every sprite sheet found, as paths relative to the assets root,
+  /// sorted.
+  ///
+  /// Paths rather than `EditorAsset`s: a sheet is not placeable and has no
+  /// mesh, no thumbnail and no index for a placement to name. What points
+  /// at one is a billboard's `sheet` field, which holds this path.
+  std::vector<std::filesystem::path> sheets;
 };
 
 }  // namespace eng::editor

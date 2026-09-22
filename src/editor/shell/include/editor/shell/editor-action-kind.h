@@ -47,6 +47,12 @@ enum class EditorActionKind : uint8_t {
   TRANSFORM_EMITTER,
   /// A particle emitter was taken back out of the level.
   REMOVE_EMITTER,
+  /// A sprite billboard was added to the level.
+  ADD_SPRITE,
+  /// A billboard was moved, resized, or pointed at another sheet.
+  TRANSFORM_SPRITE,
+  /// A sprite billboard was taken back out of the level.
+  REMOVE_SPRITE,
 };
 
 }  // namespace eng::editor

@@ -8,6 +8,7 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
@@ -42,6 +43,11 @@ agentPlayerStartValue(const EditorPlayerStart& start);
 /// One waypoint: its id, the route it belongs to, its place in it, and
 /// where.
 [[nodiscard]] nlohmann::json agentWaypointValue(const EditorWaypoint& waypoint);
+
+/// One sprite billboard: its id, the sheet it shows, where it stands, and
+/// every number the panel lists for it under the name `set_property`
+/// writes it by.
+[[nodiscard]] nlohmann::json agentSpriteValue(const EditorSprite& sprite);
 
 /// One particle emitter: its id, the preset it was started from and
 /// whether it is still exactly that preset, where it stands, which way it

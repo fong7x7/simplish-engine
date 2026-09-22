@@ -69,6 +69,37 @@ struct WorldPoint {
   return {-axes.y_across, axes.x_across, det / axes.z_up};
 }
 
+/// The world direction drawn straight across the screen, to the right.
+///
+/// Solving `worldToIso`'s screen-Y row for zero: a ground direction with no
+/// downward component is one the projection draws level. It is world +X
+/// under the dimetric axes and the diagonal between +X and -Y under the
+/// isometric ones, which is the axis an upright billboard is widened along
+/// so that it faces the camera squarely.
+///
+/// The length is arbitrary, as `isoProjectionRay`'s is.
+[[nodiscard]] constexpr WorldPoint isoScreenRight(const IsoAxes& axes) {
+  return {axes.y_down, -axes.x_down, 0.0f};
+}
+
+/// How many screen pixels one world unit covers along `isoScreenRight`, at
+/// zoom 1.
+///
+/// The width half of the sprite pipeline's scale factor: a sheet is
+/// authored in pixels, and a billboard's world width has to be whatever
+/// puts those pixels on the screen. Its height half is `IsoAxes::z_up`,
+/// which the 2026-09-09 amendment to
+/// [ADR-003](../../../../../docs/decisions/ADR-003-hybrid-iso-render-model.md)
+/// left as the factor sprite art would need; this is the pair that turns
+/// one frame's pixels into a world size.
+[[nodiscard]] constexpr float isoAcrossPixels(const IsoAxes& axes) {
+  const WorldPoint right = isoScreenRight(axes);
+  const float length = isoSqrt(right.x * right.x + right.y * right.y);
+  return length == 0.0f
+             ? 0.0f
+             : (axes.x_across * right.x + axes.y_across * right.y) / length;
+}
+
 /// Camera-and-viewport transform applied on top of `worldToIso`.
 /// @thread_safety Immutable value type.
 struct IsoView {

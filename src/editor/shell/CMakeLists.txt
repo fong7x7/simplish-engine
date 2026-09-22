@@ -53,6 +53,9 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-scale-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shape.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-quad-key.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
@@ -62,6 +65,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sprites.cpp"
 )
 
 simplish_add_module(simplish-editor-shell
@@ -76,6 +80,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-render
         simplish-engine-render-fx
         simplish-engine-render-mesh
+        simplish-engine-render-sprite
         simplish-engine-sim
         simplish-engine-spatial
         simplish-engine-input

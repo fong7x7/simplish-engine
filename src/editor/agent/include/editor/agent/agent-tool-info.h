@@ -116,6 +116,55 @@ inline constexpr AgentParam AGENT_PARAMS_ADD_EMITTER[] = {
      "grit, hit_spray, fireball, embers, smoke. Defaults to wall_sparks."},
 };
 
+/// `add_sprite` places a sprite billboard.
+inline constexpr AgentParam AGENT_PARAMS_ADD_SPRITE[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X its base stands at, in tiles. A whole number and a half is "
+     "the middle of a tile, which is where a drag from the browser puts "
+     "one."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y its base stands at, in tiles."},
+    {"z", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Height above the floor, in tiles. Defaults to 0 — feet on the ground, "
+     "which is where its depth is measured and where a drag puts one."},
+    {"sheet", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The sprite sheet it shows, by the path list_sprites lists under "
+     "sheets — relative to the project's assets directory, as "
+     "\"sprites/slime.png\". Defaults to the project's first sheet, and to "
+     "none at all when it has no sheets."},
+    {"columns", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Frames across the sheet, 1 to 64. Defaults to 1, the whole image as "
+     "one frame."},
+    {"rows", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Frames down the sheet, 1 to 64. Defaults to 1."},
+    {"frames", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "How many of the grid's cells hold a frame, counted left to right and "
+     "then down. Defaults to every cell, which is what a sheet whose last "
+     "row is full wants; give it when the last row is short, or the sprite "
+     "blinks out on the empty cells."},
+    {"fps", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Frames a second. Defaults to 12. Zero holds the first frame, which "
+     "is what a sheet of facings rather than of animation wants."},
+    {"height", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "How tall it stands, in tiles. Defaults to 1, which draws exactly as "
+     "tall as a one-tile cube beside it. Its width is not a parameter: it "
+     "follows from this and the shape of one frame, so a sheet is never "
+     "stretched."},
+};
+
+/// `set_sheet` points a billboard at another sheet.
+inline constexpr AgentParam AGENT_PARAMS_SET_SHEET[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"sprite\", or \"selection\" when a billboard is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the sprite list. Not needed when target is "
+     "\"selection\"."},
+    {"sheet", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The sheet, by the path list_sprites lists under sheets. The grid, "
+     "the speed and the height are kept, so a sheet swapped for one cut "
+     "the same way plays straight away."},
+};
+
 /// `set_effect` starts an emitter from a preset.
 inline constexpr AgentParam AGENT_PARAMS_SET_EFFECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -165,7 +214,7 @@ inline constexpr AgentParam AGENT_PARAMS_PLAY_EFFECT[] = {
 inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", or "
+     "\"emitter\", \"sprite\", or "
      "\"selection\" for whatever the properties panel is currently "
      "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
@@ -179,9 +228,11 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "emitter's: interval, particles, spread, speed_min, speed_max, "
      "life_min, life_max, size_start, size_end, start_r, start_g, start_b, "
      "start_hide, end_r, end_g, end_b, end_hide, gravity, drag, stretch, "
-     "flash, flash_range, flash_time. A player start takes "
+     "flash, flash_range, flash_time, or one of a sprite billboard's: "
+     "height, columns, rows, frames, fps. A player start takes "
      "the position and player only, a waypoint the position, route and "
-     "order, and an emitter its position, direction and its own; collides "
+     "order, an emitter its position, direction and its own, and a "
+     "billboard its position, height and sheet grid; collides "
      "and scale are a placement's — collides is 1 for "
      "solid and 0 to let players walk through it, and scale is a uniform "
      "size multiplier where 1 is the size the asset was dropped at, "
@@ -192,7 +243,9 @@ inline constexpr AgentParam AGENT_PARAMS_SET_PROPERTY[] = {
      "4, a route into 1 to 9 and an order into 1 to 99, collides is 1 at "
      "0.5 and above; an emitter's particles are rounded into 1 to 200, its "
      "spread held to 0 to 180 degrees, and its lengths, times and colours "
-     "kept from going below zero — gravity alone may be negative. The "
+     "kept from going below zero — gravity alone may be negative; a "
+     "billboard's columns and rows are rounded into 1 to 64 and its frame "
+     "count held to the cells that grid has. The "
      "response reports what was actually stored."},
 };
 
@@ -263,7 +316,7 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
 inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", or "
+     "\"emitter\", \"sprite\", or "
      "\"selection\"."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"selection\"."},
@@ -280,7 +333,7 @@ inline constexpr AgentParam AGENT_PARAMS_TRANSLATE[] = {
 inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", or "
+     "\"emitter\", \"sprite\", or "
      "\"selection\" for whatever the properties panel is currently "
      "editing."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
@@ -293,7 +346,7 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", or "
+     "\"emitter\", \"sprite\", or "
      "\"none\" to clear the selection."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Position in that list. Not needed when target is \"none\"."},
@@ -476,6 +529,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "be started from, by id and name.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::LIST_SPRITES,
+     "list_sprites",
+     "Every sprite billboard in the level with its index, id, the sheet it "
+     "shows, position, and every number the panel lists for it — height, "
+     "columns, rows, frames, fps — under the name set_property writes it "
+     "by; and every sprite sheet the open project holds, by the path "
+     "add_sprite and set_sheet name one with.",
+     AgentToolEffect::READ,
+     {}},
     {AgentTool::GET_EFFECTS,
      "get_effects",
      "What the effects the viewport draws are doing right now, while the "
@@ -602,6 +664,16 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "burst with set_property. Recorded as one undoable edit, and saved "
      "with the level; the simulation never sees it.",
      AgentToolEffect::EDIT, AGENT_PARAMS_ADD_EMITTER},
+    {AgentTool::ADD_SPRITE, "add_sprite",
+     "Add a sprite billboard, exactly as dragging the Sprite Billboard "
+     "from the browser's general > sprites section would, and select it. "
+     "It is an upright quad standing at a point in the level, facing the "
+     "camera, playing one frame of a sprite sheet at a time; its empty "
+     "texels are cut out, so it is hidden by what is in front of it and "
+     "hides what is behind it, like any mesh. Recorded as one undoable "
+     "edit, and saved with the level; the simulation never sees it, and it "
+     "stops nobody.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_ADD_SPRITE},
     {AgentTool::SET_PROPERTY, "set_property",
      "Set one property of a placement, a light, a player start, a "
      "waypoint or a particle emitter to an absolute value, as typing it "
@@ -642,6 +714,12 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Effect row does: its burst and flash become the preset's. Recorded "
      "as one undoable edit.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_EFFECT},
+    {AgentTool::SET_SHEET, "set_sheet",
+     "Point a sprite billboard at another of the project's sprite sheets, "
+     "as the properties panel's Sheet row does. Recorded as one undoable "
+     "edit. Refused for a sheet the project does not hold — list_sprites "
+     "lists the ones it does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_SHEET},
     {AgentTool::PLAY_EFFECT, "play_effect",
      "Play an effect once, now, where the viewport shows it: a preset "
      "burst, a whole combat effect (a muzzle flash, a hit, a blast), or a "

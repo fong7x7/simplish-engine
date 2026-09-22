@@ -1,3 +1,5 @@
+#include <array>
+#include <cstddef>
 #include <editor/shell/editor-general-section.h>
 #include <string>
 
@@ -31,24 +33,46 @@ namespace {
     }
   }
 
+  /// One subsection of the general section: what it is called, and the run
+  /// of entry numbers it holds.
+  struct Subsection {
+    /// Its name in the folder pane.
+    std::string_view name;
+    /// The first entry number it holds.
+    size_t first;
+    /// How many it holds.
+    size_t count;
+  };
+
+  /// How many subsections there are.
+  constexpr size_t SUBSECTION_COUNT = 5;
+
+  /// The subsections, in the order the pane lists them, each holding a run
+  /// of the built-in items numbered from @p first_item — except the
+  /// shapes, which are assets and sit in the asset list's own numbering
+  /// from @p first_shape.
+  std::array<Subsection, SUBSECTION_COUNT> subsectionsOf(size_t first_shape,
+                                                         size_t first_item) {
+    const size_t tools = first_item + EDITOR_GENERAL_LIGHT_COUNT;
+    const size_t effects = tools + EDITOR_GENERAL_TOOL_COUNT;
+    const size_t sprites = effects + EDITOR_GENERAL_EFFECT_COUNT;
+    return {
+        {{EDITOR_LIGHTING_FOLDER_NAME, first_item, EDITOR_GENERAL_LIGHT_COUNT},
+         {EDITOR_SHAPES_FOLDER_NAME, first_shape, EDITOR_SHAPE_COUNT},
+         {EDITOR_TOOLS_FOLDER_NAME, tools, EDITOR_GENERAL_TOOL_COUNT},
+         {EDITOR_EFFECTS_FOLDER_NAME, effects, EDITOR_GENERAL_EFFECT_COUNT},
+         {EDITOR_SPRITES_FOLDER_NAME, sprites, EDITOR_GENERAL_SPRITE_COUNT}}};
+  }
+
 }  // namespace
 
 size_t appendEditorGeneralSection(EditorAssetTree& tree, size_t first_shape,
                                   size_t first_item) {
   const size_t section =
       addFolder(tree, EDITOR_ASSET_FOLDER_NONE, EDITOR_GENERAL_FOLDER_NAME);
-  const size_t lighting = addFolder(tree, section, EDITOR_LIGHTING_FOLDER_NAME);
-  fillFolder(tree, lighting, first_item, EDITOR_GENERAL_LIGHT_COUNT);
-  const size_t shapes = addFolder(tree, section, EDITOR_SHAPES_FOLDER_NAME);
-  fillFolder(tree, shapes, first_shape, EDITOR_SHAPE_COUNT);
-  const size_t tools = addFolder(tree, section, EDITOR_TOOLS_FOLDER_NAME);
-  fillFolder(tree, tools, first_item + EDITOR_GENERAL_LIGHT_COUNT,
-             EDITOR_GENERAL_TOOL_COUNT);
-  const size_t effects = addFolder(tree, section, EDITOR_EFFECTS_FOLDER_NAME);
-  fillFolder(tree, effects,
-             first_item + EDITOR_GENERAL_LIGHT_COUNT +
-                 EDITOR_GENERAL_TOOL_COUNT,
-             EDITOR_GENERAL_EFFECT_COUNT);
+  for (const Subsection& sub : subsectionsOf(first_shape, first_item)) {
+    fillFolder(tree, addFolder(tree, section, sub.name), sub.first, sub.count);
+  }
   // In front of the assets root: the pane lists the sections in this order,
   // which is the one decision about them the tree carries.
   tree.sections.insert(tree.sections.begin(), section);

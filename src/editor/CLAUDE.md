@@ -14,7 +14,7 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   on-disk format. Five kinds of file exist today: `.simplish/project.json`;
   `content/levels/<id>.level.json` — one per level, carrying the props
   (with any behavior they run), lights, player starts, patrol-route
-  waypoints and particle emitters the editor authors
+  waypoints, particle emitters and sprite billboards the editor authors
   (§4.1 — it differs from §4's sketch in documented ways);
   `content/data/characters.data.json`, the characters table (§8.1);
   `content/data/behaviors.data.json`, the behaviors props run (§8.2); and
@@ -51,7 +51,11 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - **Sprites and tile art are authored against one projection.** Switching a
   project's projection rotates the world under its art, which is why the
   switch writes itself into the project rather than into an editor
-  preference.
+  preference. A sprite billboard is an **upright quad** turned by the
+  projection's own axes, not a screen-aligned one with a depth ramp; only
+  its height is authored, and its width is derived so a frame keeps its
+  shape ([sprites.md](../../docs/engine/sprites.md), and the
+  [ADR-003 amendment](../../docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-22-a-billboard-is-an-upright-quad-not-a-depth-ramp)).
 - **The camera never rotates freely.** Two fixed yaws are not a rotating
   camera; code may depend on the projection being constant for the frame
   (design principle 4).

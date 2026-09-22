@@ -42,6 +42,10 @@ enum class EditorMarkerStyle : uint8_t {
   /// The whole box, in violet — a particle emitter, which has nothing to
   /// see it by between bursts.
   EMITTER,
+  /// The whole box, in teal — a sprite billboard, whose quad is flat and
+  /// whose sheet may not have loaded, so the box is what says how much
+  /// room it takes and where its base stands.
+  SPRITE,
 };
 
 /// One thing in the level, as much of it as the viewport needs.

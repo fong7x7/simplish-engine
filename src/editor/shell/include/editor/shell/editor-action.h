@@ -10,6 +10,7 @@
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
+#include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 
 namespace eng::editor {
@@ -60,6 +61,12 @@ struct EditorAction {
   EditorEmitter emitter{};
   /// The emitter as it was before a transform, unused by every other kind.
   EditorEmitter emitter_prior{};
+  /// The sprite billboard the operation names, for the three kinds that
+  /// name one.
+  EditorSprite sprite{};
+  /// The billboard as it was before a transform, unused by every other
+  /// kind.
+  EditorSprite sprite_prior{};
 };
 
 }  // namespace eng::editor

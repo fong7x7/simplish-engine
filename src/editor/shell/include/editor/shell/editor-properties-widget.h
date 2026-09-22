@@ -22,6 +22,10 @@
 //   - A particle emitter lists where it stands and which way it throws,
 //     how often, and every number of its burst and its flash — under an
 //     Effect choice row that leads the list, since it replaces them all
+//   - A sprite billboard lists where it stands and how tall, then the grid
+//     its sheet is cut into and the speed it plays at — under a Sheet
+//     choice row that leads the list, since every number below it describes
+//     the sheet it picks
 //   - Choice rows may follow the property rows: each a choice among names,
 //     whose value box shows the one picked and whose buttons step to the
 //     previous or next, wrapping round. A rigged model's Animation row
@@ -78,6 +82,7 @@
 #include <editor/shell/editor-properties-layout.h>
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
+#include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 #include <engine/gui/gui-panel.h>
 #include <functional>
@@ -133,6 +138,10 @@ public:
   /// Show a particle emitter's properties: where, which way, how often,
   /// and its burst and flash.
   void setSelection(std::string name, const EditorEmitter& emitter);
+
+  /// Show a sprite billboard's properties: where it stands, how tall, and
+  /// how its sheet is cut and played.
+  void setSelection(std::string name, const EditorSprite& sprite);
 
   /// Offer @p choices as the @p kind row — below the property rows and any
   /// choice rows already offered, or above them all for a kind that leads

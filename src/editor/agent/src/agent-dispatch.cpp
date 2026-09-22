@@ -2,6 +2,7 @@
 #include "agent-commands.h"
 #include "agent-effects.h"
 #include "agent-emitters.h"
+#include "agent-sprites.h"
 #include "agent-waypoints.h"
 
 #include <algorithm>
@@ -59,6 +60,10 @@ namespace {
 
   AgentResult toolListEmitters(EditorShellState& state, const json&) {
     return agentOk(agentEmittersJson(state));
+  }
+
+  AgentResult toolListSprites(EditorShellState& state, const json&) {
+    return agentOk(agentSpritesJson(state));
   }
 
   AgentResult toolGetEffects(EditorShellState& state, const json&) {
@@ -153,11 +158,13 @@ namespace {
       AgentTool::ADD_PLAYER_START,
       AgentTool::ADD_WAYPOINT,
       AgentTool::ADD_EMITTER,
+      AgentTool::ADD_SPRITE,
       AgentTool::SET_PROPERTY,
       AgentTool::SET_ANIMATION,
       AgentTool::SET_CHARACTER,
       AgentTool::SET_BEHAVIOR,
       AgentTool::SET_EFFECT,
+      AgentTool::SET_SHEET,
       AgentTool::TRANSLATE,
       AgentTool::DELETE_ENTRY,
       AgentTool::SELECT,
@@ -189,6 +196,7 @@ namespace {
       toolListPlayerStarts,
       toolListWaypoints,
       toolListEmitters,
+      toolListSprites,
       toolGetEffects,
       toolListCharacters,
       toolListBehaviors,
@@ -205,11 +213,13 @@ namespace {
       runAgentAddPlayerStart,
       runAgentAddWaypoint,
       runAgentAddEmitter,
+      runAgentAddSprite,
       runAgentSetProperty,
       runAgentSetAnimation,
       runAgentSetCharacter,
       runAgentSetBehavior,
       runAgentSetEffect,
+      runAgentSetSheet,
       runAgentPlayEffect,
       runAgentTranslate,
       runAgentDelete,

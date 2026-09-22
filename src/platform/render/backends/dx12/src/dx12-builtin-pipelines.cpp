@@ -128,12 +128,14 @@ float4 gui_ps_main(GuiVsOut i) : SV_Target {
   ///
   /// The four constants below are `mesh-light.h`'s, restated because HLSL
   /// cannot include a C++ header. MESH_MAX_LIGHTS sizes the array, so it and
-  /// the C++ one have to move together.
+  /// the C++ one have to move together; the fifth is
+  /// `mesh-alpha-cutoff.h`'s.
   constexpr const char MESH_HLSL_SOURCE[] = R"hlsl(
 static const uint MESH_MAX_LIGHTS = 8;
 static const float MESH_LIGHT_AMBIENT = 0.38f;
 static const float MESH_LIGHT_DIFFUSE = 0.62f;
 static const float MESH_LIGHT_POINT = 1.0f;
+static const float MESH_ALPHA_CUTOFF = 0.5f;
 
 struct MeshLight {
   float4 position_range;
@@ -285,7 +287,15 @@ float4 mesh_ps_main(MeshVsOut i) : SV_Target {
   // and then converted on the way out. An instance with no map of its own
   // samples one texel of the flat colour this replaced, so there is no
   // untextured branch here.
-  float3 base = saturate(mesh_texture.Sample(mesh_sampler, i.uv).rgb * lit);
+  float4 map = mesh_texture.Sample(mesh_sampler, i.uv);
+  // Alpha-test cutout (ADR-003), which is what lets a sprite billboard go
+  // through this pass: its empty corners have to not draw, and the pass is
+  // opaque and depth-writing, so the only way for them not to is for their
+  // fragments not to exist. Opaque geometry never reaches the branch.
+  if (map.a < MESH_ALPHA_CUTOFF) {
+    discard;
+  }
+  float3 base = saturate(map.rgb * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
 }

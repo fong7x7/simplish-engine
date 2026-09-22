@@ -15,9 +15,9 @@ namespace eng::editor {
 /// The sort of number a property holds.
 ///
 /// Stepping, scrubbing, formatting and clamping are decided from this
-/// rather than from the field itself: there are thirteen kinds and forty-two
-/// fields, and a rule written per kind cannot disagree with itself about
-/// two fields that hold the same sort of number.
+/// rather than from the field itself: there are thirteen kinds and
+/// forty-seven fields, and a rule written per kind cannot disagree with itself
+/// about two fields that hold the same sort of number.
 /// @thread_safety Immutable value type.
 enum class EditorPropertyKind : uint8_t {
   /// A length in tiles, which may be negative: a position is one.
@@ -117,6 +117,11 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Flash", EditorPropertyKind::FACTOR},
     {"Flash Range", EditorPropertyKind::EXTENT},
     {"Flash Time", EditorPropertyKind::DURATION},
+    {"Height", EditorPropertyKind::EXTENT},
+    {"Columns", EditorPropertyKind::COUNT, 64.0f},
+    {"Rows", EditorPropertyKind::COUNT, 64.0f},
+    {"Frames", EditorPropertyKind::COUNT, 4096.0f},
+    {"Frames/s", EditorPropertyKind::FACTOR},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

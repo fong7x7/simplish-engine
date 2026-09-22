@@ -7,6 +7,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -505,4 +506,78 @@ TEST_CASE("a hand-written emitter keeps an unknown preset and is held to "
   REQUIRE(emitter.burst.spread_degrees == 180.0f);
   REQUIRE(emitter.burst.count == 12);
   REQUIRE(emitter.position.z == 3.0f);
+}
+
+namespace {
+
+/// A document holding one sprite billboard, cut into a grid and standing
+/// taller than a tile.
+EditorDocument spriteDocument() {
+  EditorDocument document;
+  EditorSprite sprite =
+      makeEditorSprite("sprites/slime.png", {3.5f, 4.5f, 0.0f});
+  sprite.id = "sprite_01";
+  setEditorSpriteValue(sprite, EditorPropertyField::COLUMNS, 4.0f);
+  setEditorSpriteValue(sprite, EditorPropertyField::ROWS, 3.0f);
+  setEditorSpriteValue(sprite, EditorPropertyField::FRAMES, 10.0f);
+  setEditorSpriteValue(sprite, EditorPropertyField::FPS, 8.0f);
+  setEditorSpriteValue(sprite, EditorPropertyField::HEIGHT, 1.75f);
+  document.sprites.push_back(sprite);
+  return document;
+}
+
+}  // namespace
+
+TEST_CASE("a level round-trips a sprite billboard, sheet and grid and all") {
+  const std::vector<EditorAsset> assets = testAssets();
+  const EditorDocument written = spriteDocument();
+
+  const std::string text = serializeEditorLevel(written, assets, "My Project");
+  const std::optional<EditorLevelLoad> read = parseEditorLevel(text, assets);
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->dropped_entities == 0);
+  REQUIRE(read->document.sprites.size() == 1);
+  REQUIRE(sameEditorSprite(read->document.sprites[0], written.sprites[0]));
+  REQUIRE(text.find("entity:sprite_billboard") != std::string::npos);
+}
+
+TEST_CASE("a hand-written billboard with no frame count plays every cell") {
+  const std::string text = R"({"schema": "simplish/level/1.0", "id": "main",
+    "content": {"entities": [{"definition": "entity:sprite_billboard",
+      "at": [1, 2, 0], "properties": {"sheet": "sprites/slime.png",
+      "columns": 4, "rows": 3}}]}})";
+
+  const std::optional<EditorLevelLoad> read =
+      parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.sprites.size() == 1);
+  // The grid is read before the count, so a file naming only a grid plays
+  // all of it — which is what a sheet whose last row is full wants.
+  REQUIRE(read->document.sprites[0].grid.frames == 12);
+}
+
+TEST_CASE("a hand-written billboard is held to what the panel would allow") {
+  const std::string text = R"({"schema": "simplish/level/1.0", "id": "main",
+    "content": {"entities": [{"definition": "entity:sprite_billboard",
+      "at": [1, 2, 0], "properties": {"sheet": "sprites/slime.png",
+      "columns": 0, "rows": 2, "frames": 99, "fps": -3, "height": -1}}]}})";
+
+  const std::optional<EditorLevelLoad> read =
+      parseEditorLevel(text, testAssets());
+
+  REQUIRE(read.has_value());
+  REQUIRE(read->document.sprites.size() == 1);
+  const EditorSprite& sprite = read->document.sprites[0];
+  // A column count below one is a nonsense, and a frame count past the
+  // grid would index cells the sheet has not got.
+  REQUIRE(sprite.grid.columns == 1);
+  REQUIRE(sprite.grid.rows == 2);
+  REQUIRE(sprite.grid.frames == 2);
+  REQUIRE(sprite.grid.fps == 0.0f);
+  REQUIRE(sprite.height == 0.0f);
+  // No id in the file, so one is minted: nothing in a document may be
+  // unnameable.
+  REQUIRE(sprite.id == "sprite_01");
 }

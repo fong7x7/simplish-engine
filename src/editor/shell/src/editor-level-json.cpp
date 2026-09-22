@@ -8,6 +8,7 @@
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-names.h>
 #include <nlohmann/json.hpp>
@@ -173,10 +174,10 @@ namespace {
     return out;
   }
 
-  /// The key each of an emitter's numbers is saved under, past where it
-  /// stands and which way it points: the panel's rows, one key each, so a
-  /// file edited by hand reads as the panel does.
-  struct EmitterKey {
+  /// The key one of an entity's numbers is saved under, past where it
+  /// stands: the panel's rows, one key each, so a file edited by hand reads
+  /// as the panel does.
+  struct EntityKey {
     /// The row.
     EditorPropertyField field;
     /// Its key in the entity's property block.
@@ -184,7 +185,7 @@ namespace {
   };
 
   /// Every one of those, in the panel's order.
-  constexpr EmitterKey EMITTER_KEYS[] = {
+  constexpr EntityKey EMITTER_KEYS[] = {
       {EditorPropertyField::EMIT_INTERVAL, "interval"},
       {EditorPropertyField::PARTICLES, "particles"},
       {EditorPropertyField::SPREAD, "spread"},
@@ -221,7 +222,7 @@ namespace {
     json properties = {{"effect", emitter.effect},
                        {"direction", vec3Json(emitter.direction)},
                        {"flash_color", vec3Json(emitter.flash.color)}};
-    for (const EmitterKey& entry : EMITTER_KEYS) {
+    for (const EntityKey& entry : EMITTER_KEYS) {
       properties[entry.key] = editorEmitterValue(emitter, entry.field);
     }
     json out;
@@ -229,6 +230,32 @@ namespace {
     out["definition"] = EDITOR_EMITTER_DEFINITION;
     out["at"] =
         tripleJson(emitter.position.x, emitter.position.y, emitter.position.z);
+    out["properties"] = std::move(properties);
+    return out;
+  }
+
+  /// The key each of a billboard's numbers is saved under, past where it
+  /// stands: the panel's rows, one key each.
+  constexpr EntityKey SPRITE_KEYS[] = {
+      {EditorPropertyField::HEIGHT, "height"},
+      {EditorPropertyField::COLUMNS, "columns"},
+      {EditorPropertyField::ROWS, "rows"},
+      {EditorPropertyField::FRAMES, "frames"},
+      {EditorPropertyField::FPS, "fps"},
+  };
+
+  /// A sprite billboard, as the entity shape: the sheet it shows, and the
+  /// grid and speed it plays that sheet at.
+  json spriteJson(const EditorSprite& sprite) {
+    json properties = {{"sheet", sprite.sheet}};
+    for (const EntityKey& entry : SPRITE_KEYS) {
+      properties[entry.key] = editorSpriteValue(sprite, entry.field);
+    }
+    json out;
+    out["id"] = sprite.id;
+    out["definition"] = EDITOR_SPRITE_DEFINITION;
+    out["at"] =
+        tripleJson(sprite.position.x, sprite.position.y, sprite.position.z);
     out["properties"] = std::move(properties);
     return out;
   }
@@ -243,6 +270,9 @@ namespace {
     }
     for (const EditorEmitter& emitter : document.emitters) {
       entities.push_back(emitterJson(emitter));
+    }
+    for (const EditorSprite& sprite : document.sprites) {
+      entities.push_back(spriteJson(sprite));
     }
     return entities;
   }
@@ -417,7 +447,7 @@ namespace {
     const Triple color =
         readTriple(properties, "flash_color", {tint.x, tint.y, tint.z});
     emitter.flash.color = {color[0], color[1], color[2]};
-    for (const EmitterKey& entry : EMITTER_KEYS) {
+    for (const EntityKey& entry : EMITTER_KEYS) {
       setEditorEmitterValue(
           emitter, entry.field,
           readNumber(properties, entry.key,
@@ -443,6 +473,27 @@ namespace {
       emitter.id = mintEditorEmitterId(document);
     }
     return emitter;
+  }
+
+  /// One sprite billboard. Its grid is read before its frame count, so
+  /// that the count is held to a grid the file has already given — the
+  /// order `setEditorSpriteValue` needs, and the order `SPRITE_KEYS` is
+  /// written in.
+  EditorSprite readSprite(const json& entry, const EditorDocument& document) {
+    const Triple at = readTriple(entry, "at", ZERO_TRIPLE);
+    const json properties = entry.value("properties", json::object());
+    EditorSprite sprite = makeEditorSprite(readString(properties, "sheet"),
+                                           {at[0], at[1], at[2]});
+    for (const EntityKey& key : SPRITE_KEYS) {
+      setEditorSpriteValue(sprite, key.field,
+                           readNumber(properties, key.key,
+                                      editorSpriteValue(sprite, key.field)));
+    }
+    sprite.id = readString(entry, "id");
+    if (sprite.id.empty()) {
+      sprite.id = mintEditorSpriteId(document);
+    }
+    return sprite;
   }
 
   /// The array under @p key, or an empty one when the file has no such
@@ -480,6 +531,8 @@ namespace {
       document.waypoints.push_back(readWaypoint(entry, document));
     } else if (definition == EDITOR_EMITTER_DEFINITION) {
       document.emitters.push_back(readEmitter(entry, document));
+    } else if (definition == EDITOR_SPRITE_DEFINITION) {
+      document.sprites.push_back(readSprite(entry, document));
     } else {
       return false;
     }
@@ -487,9 +540,9 @@ namespace {
   }
 
   /// Every entity the editor has a definition for: player starts,
-  /// waypoints and particle emitters. Any other is dropped and counted, as
-  /// a prop naming a missing asset is, rather than silently rewritten into
-  /// something else.
+  /// waypoints, particle emitters and sprite billboards. Any other is
+  /// dropped and counted, as a prop naming a missing asset is, rather than
+  /// silently rewritten into something else.
   void readEntities(const json& content, EditorLevelLoad& load) {
     for (const json& entry : arrayAt(content, "entities")) {
       const std::string definition =

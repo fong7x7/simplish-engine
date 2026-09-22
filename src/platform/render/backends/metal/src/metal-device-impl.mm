@@ -458,11 +458,13 @@ using namespace metal;
 
 // These four are `mesh-light.h`'s constants, restated because MSL cannot
 // include a C++ header. MESH_MAX_LIGHTS sizes the array below, so it and the
-// C++ one have to move together.
+// C++ one have to move together; the fifth is `mesh-alpha-cutoff.h`'s.
 constant uint MESH_MAX_LIGHTS = 8;
 constant float MESH_LIGHT_AMBIENT = 0.38f;
 constant float MESH_LIGHT_DIFFUSE = 0.62f;
 constant float MESH_LIGHT_POINT = 1.0f;
+// And this one is `mesh-alpha-cutoff.h`'s.
+constant float MESH_ALPHA_CUTOFF = 0.5f;
 
 struct MeshUniforms {
   float4x4 view_projection;
@@ -619,7 +621,15 @@ fragment float4 mesh_fs_main(MeshVsOut in [[stage_in]],
   // and then converted on the way out — which is what the flat colour this
   // replaced did. An instance with no map samples one texel of that same
   // flat colour, so there is no untextured branch here.
-  float3 base = saturate(diffuse.sample(smp, in.uv).rgb * lit);
+  float4 map = diffuse.sample(smp, in.uv);
+  // Alpha-test cutout (ADR-003), which is what lets a sprite billboard go
+  // through this pass: its empty corners have to not draw, and the pass is
+  // opaque and depth-writing, so the only way for them not to is for their
+  // fragments not to exist. Opaque geometry never reaches the branch.
+  if (map.a < MESH_ALPHA_CUTOFF) {
+    discard_fragment();
+  }
+  float3 base = saturate(map.rgb * lit);
   return float4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                 mesh_srgb_to_linear(base.b), 1.0f);
 }

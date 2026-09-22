@@ -129,6 +129,9 @@
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-shell-state.h>
+#include <editor/shell/editor-sprite-ops.h>
+#include <editor/shell/editor-sprite-quad-key.h>
+#include <editor/shell/editor-sprite-sheet-texture.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/client/desktop-game-client.h>
@@ -148,6 +151,7 @@
 #include <filesystem>
 #include <functional>
 #include <game/content/faction.h>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -453,6 +457,9 @@ private:
   /// Add a particle emitter over @p tile, started from the default preset,
   /// as an action the user can undo, and select it.
   void placeEmitter(WorldPoint tile);
+  /// Add a sprite billboard on @p tile, showing the project's first sprite
+  /// sheet, as an action the user can undo, and select it.
+  void placeSprite(WorldPoint tile);
   /// Carry out the Edit menu's undo, redo and delete. Returns false when
   /// the command belongs to another menu.
   bool runEditCommand(EditorMenuCommand command);
@@ -495,6 +502,8 @@ private:
   /// Show the selected emitter's Effect row and every number of its burst
   /// in @p panel.
   void showEmitterSelection(EditorPropertiesWidget& panel);
+  /// Show the selected billboard's Sheet row and its numbers in @p panel.
+  void showSpriteSelection(EditorPropertiesWidget& panel);
   /// Show whatever is selected — which is there — in @p panel.
   void showSelection(EditorPropertiesWidget& panel);
   /// Apply one property change to whatever is selected, which is there.
@@ -573,9 +582,20 @@ private:
   /// Start the selected emitter from the preset at @p index of its Effect
   /// row, as one undoable edit.
   void applyEffectChoice(size_t index);
+  /// Record the billboard gesture in flight, if it changed anything.
+  void commitSpriteEdit();
+  /// Apply one property change to the selected billboard.
+  void applySpriteEdit(EditorPropertyField field, float value,
+                       EditorPropertyEdit edit);
+  /// Point the selected billboard at the sheet at @p index of its Sheet
+  /// row, as one undoable edit.
+  void applySheetChoice(size_t index);
   /// Have the selected placement patrol the route at @p index of its Route
   /// row.
   void applyRouteChoice(size_t index);
+  /// Apply a choice row that names one thing about the selected entry
+  /// rather than one of the three an actor's rows share.
+  void applyEntryChoice(EditorChoiceKind kind, size_t index);
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -620,8 +640,9 @@ private:
   /// Render or load the thumbnail for an asset that has a file behind it.
   [[nodiscard]] ImageData buildCachedThumbnail(const EditorAsset& asset);
 
-  /// The axes thumbnails are drawn with: the open project's own.
-  [[nodiscard]] IsoAxes thumbnailAxes() const;
+  /// The axes the open project's projection draws with: what thumbnails
+  /// are rendered at, and what a billboard is turned to face.
+  [[nodiscard]] IsoAxes projectionAxes() const;
   /// Upload a picture and hand the browser the texture. False when the
   /// device would not make one.
   bool uploadAssetThumbnail(EditorAsset& asset, const ImageData& image);
@@ -727,6 +748,35 @@ private:
   /// The viewport's marker for the emitter at @p index: a small box where
   /// its bursts start, in violet.
   [[nodiscard]] EditorPlacementMarker emitterMarker(size_t index);
+  /// The viewport's marker for the billboard at @p index: the box it
+  /// stands in, in teal.
+  [[nodiscard]] EditorPlacementMarker spriteMarker(size_t index);
+  /// How wide @p sprite is drawn, in tiles. Its own height until its sheet
+  /// has loaded, which is the square a billboard with no sheet stands as.
+  [[nodiscard]] float spriteWidth(const EditorSprite& sprite);
+  /// Add an instance for every billboard in the level, each showing the
+  /// frame the render clock has reached.
+  void appendSpriteInstances();
+  /// Add the instance for one billboard, if its sheet and its quad are
+  /// there to draw with.
+  void appendSpriteInstance(const EditorSprite& sprite);
+  /// The sheet at @p path, uploading it on first use. Null when the path
+  /// is empty, there is no device, or the image would not load.
+  [[nodiscard]] const EditorSpriteSheetTexture*
+  ensureSpriteSheet(const std::string& path);
+  /// Read the image at @p path and remember it, whether or not it loaded.
+  /// Null when it did not, which is what stops it being read again.
+  const EditorSpriteSheetTexture* loadSpriteSheet(const std::string& path);
+  /// The quad @p key names, uploading it on first use.
+  [[nodiscard]] MeshGpuId ensureSpriteQuad(const EditorSpriteQuadKey& key);
+  /// Upload the quad @p key names and keep it. Invalid when the renderer
+  /// has no pipeline, or the buffers could not be allocated.
+  [[nodiscard]] MeshGpuId uploadSpriteQuad(const EditorSpriteQuadKey& key);
+  /// Release every billboard quad, leaving the sheet textures alone.
+  void releaseSpriteQuads();
+  /// Destroy every uploaded sheet texture and every billboard quad — for a
+  /// project being closed, or a cache that has outgrown its bound.
+  void releaseSpriteCache();
   /// The effects the viewport draws and lights by: the playtest's while
   /// playing, and the editor's own emitters' otherwise.
   [[nodiscard]] const FxWorld& activeEffects() const;
@@ -932,6 +982,14 @@ private:
   std::optional<EditorWaypoint> waypoint_prior_{};
   /// The selected emitter as it was when the gesture now in flight began.
   std::optional<EditorEmitter> emitter_prior_{};
+  /// The selected billboard as it was when its gesture began.
+  std::optional<EditorSprite> sprite_prior_{};
+  /// Sheet images uploaded so far, by the path a billboard names them by.
+  /// Sorted rather than hashed: nothing here needs a hash, and a sorted
+  /// container is one fewer iteration order to have an opinion about.
+  std::map<std::string, EditorSpriteSheetTexture> sprite_sheets_{};
+  /// Quads uploaded so far, one per frame of a sheet actually shown.
+  std::map<EditorSpriteQuadKey, MeshGpuId> sprite_quads_{};
   /// What the level's emitters throw while it is being edited, drawn and
   /// lit by when no playtest is running. Presentation, on the frame clock.
   FxWorld edit_fx_{0};

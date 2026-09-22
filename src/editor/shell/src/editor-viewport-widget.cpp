@@ -29,6 +29,9 @@ namespace {
   constexpr GuiColor HAZARD_OUTLINE{150, 230, 60, 220};
   /// A particle emitter: a violet no prop, light or route is drawn in.
   constexpr GuiColor EMITTER_OUTLINE{170, 130, 255, 230};
+  /// A sprite billboard: a teal, which is neither the emitter's violet nor
+  /// the selection's blue at a glance.
+  constexpr GuiColor SPRITE_OUTLINE{60, 210, 190, 220};
 
   /// Tiles drawn either side of the focus point. Bounded rather than derived
   /// from the viewport so a zoomed-out view cannot emit an unbounded number
@@ -181,6 +184,8 @@ namespace {
         return HAZARD_OUTLINE;
       case EditorMarkerStyle::EMITTER:
         return EMITTER_OUTLINE;
+      case EditorMarkerStyle::SPRITE:
+        return SPRITE_OUTLINE;
       default:
         return PLACEMENT_OUTLINE;
     }
@@ -226,7 +231,8 @@ void EditorViewportWidget::renderPlacements(GuiRendererContext& renderer,
     if (marker.style == EditorMarkerStyle::PLAYER_START ||
         marker.style == EditorMarkerStyle::WAYPOINT ||
         marker.style == EditorMarkerStyle::PROJECTILE ||
-        marker.style == EditorMarkerStyle::EMITTER) {
+        marker.style == EditorMarkerStyle::EMITTER ||
+        marker.style == EditorMarkerStyle::SPRITE) {
       renderBoxOutline(renderer, view, marker.bounds, color);
     } else {
       renderFootprintOutline(renderer, view, marker.bounds, color);

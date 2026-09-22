@@ -1227,6 +1227,7 @@ const uint MESH_MAX_LIGHTS = 8u;
 const float MESH_LIGHT_AMBIENT = 0.38;
 const float MESH_LIGHT_DIFFUSE = 0.62;
 const float MESH_LIGHT_POINT = 1.0;
+const float MESH_ALPHA_CUTOFF = 0.5;
 
 in vec3 v_world_position;
 in vec3 v_normal;
@@ -1300,7 +1301,15 @@ void main() {
   // and then converted on the way out. An instance with no map of its own
   // samples one texel of the flat colour this replaced, so there is no
   // untextured branch here.
-  vec3 base = clamp(texture(u_mesh_tex, v_uv).rgb * lit, 0.0, 1.0);
+  vec4 map = texture(u_mesh_tex, v_uv);
+  // Alpha-test cutout (ADR-003), which is what lets a sprite billboard go
+  // through this pass: its empty corners have to not draw, and the pass is
+  // opaque and depth-writing, so the only way for them not to is for their
+  // fragments not to exist. Opaque geometry never reaches the branch.
+  if (map.a < MESH_ALPHA_CUTOFF) {
+    discard;
+  }
+  vec3 base = clamp(map.rgb * lit, 0.0, 1.0);
   frag_color = vec4(srgb_to_lin(base.r), srgb_to_lin(base.g),
                     srgb_to_lin(base.b), 1.0);
 }

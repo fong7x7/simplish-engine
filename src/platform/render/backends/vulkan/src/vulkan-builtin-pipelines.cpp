@@ -211,6 +211,7 @@ void main() {
   /// GLSL for the fragment stage static and skinned meshes share. Mirrors
   /// `mesh_fs_main`; the four constants are `mesh-light.h`'s, restated, and
   /// MESH_MAX_LIGHTS sizes the array, so it and the C++ one move together.
+  /// The fifth is `mesh-alpha-cutoff.h`'s.
   constexpr const char MESH_FRAG_GLSL[] = R"glsl(
 #version 450
 
@@ -218,6 +219,7 @@ const uint MESH_MAX_LIGHTS = 8u;
 const float MESH_LIGHT_AMBIENT = 0.38;
 const float MESH_LIGHT_DIFFUSE = 0.62;
 const float MESH_LIGHT_POINT = 1.0;
+const float MESH_ALPHA_CUTOFF = 0.5;
 
 struct MeshLight {
   vec4 position_range;
@@ -301,8 +303,15 @@ void main() {
   // The map is unorm, so this is the sRGB value the artist authored, shaded
   // and then converted on the way out. An instance with no map samples one
   // texel of a flat colour, so there is no untextured branch.
-  vec3 texel = texture(sampler2D(mesh_texture, mesh_sampler), in_uv).rgb;
-  vec3 base = clamp(texel * lit, 0.0, 1.0);
+  vec4 map = texture(sampler2D(mesh_texture, mesh_sampler), in_uv);
+  // Alpha-test cutout (ADR-003), which is what lets a sprite billboard go
+  // through this pass: its empty corners have to not draw, and the pass is
+  // opaque and depth-writing, so the only way for them not to is for their
+  // fragments not to exist. Opaque geometry never reaches the branch.
+  if (map.a < MESH_ALPHA_CUTOFF) {
+    discard;
+  }
+  vec3 base = clamp(map.rgb * lit, 0.0, 1.0);
   out_color = vec4(mesh_srgb_to_linear(base.r), mesh_srgb_to_linear(base.g),
                    mesh_srgb_to_linear(base.b), 1.0);
 }

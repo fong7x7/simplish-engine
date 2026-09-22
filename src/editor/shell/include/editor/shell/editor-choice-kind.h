@@ -33,14 +33,17 @@ enum class EditorChoiceKind : uint8_t {
   ROUTE,
   /// The preset a particle emitter's burst was started from.
   EFFECT,
+  /// The sprite sheet a billboard shows.
+  SHEET,
 };
 
 /// What each kind's row is labelled, in enumerator order.
 inline constexpr std::string_view EDITOR_CHOICE_LABELS[] = {
-    "Animation", "Character", "Behavior", "Faction", "Route", "Effect"};
+    "Animation", "Character", "Behavior", "Faction",
+    "Route",     "Effect",    "Sheet"};
 
 static_assert(std::size(EDITOR_CHOICE_LABELS) ==
-                  static_cast<size_t>(EditorChoiceKind::EFFECT) + 1,
+                  static_cast<size_t>(EditorChoiceKind::SHEET) + 1,
               "every choice row needs a label");
 
 /// What @p kind's row is labelled.
@@ -53,9 +56,12 @@ editorChoiceLabel(EditorChoiceKind kind) {
 ///
 /// An emitter's Effect row is the one that replaces every number under it,
 /// and there are enough of those that the panel scrolls: at the top, it is
-/// the first thing seen and never the last thing scrolled to.
+/// the first thing seen and never the last thing scrolled to. A
+/// billboard's Sheet row leads for the same reason — every number under it
+/// describes the sheet it picks, and a billboard with no sheet yet shows
+/// nothing until that row is used.
 [[nodiscard]] constexpr bool editorChoiceLeads(EditorChoiceKind kind) {
-  return kind == EditorChoiceKind::EFFECT;
+  return kind == EditorChoiceKind::EFFECT || kind == EditorChoiceKind::SHEET;
 }
 
 }  // namespace eng::editor

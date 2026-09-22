@@ -16,6 +16,7 @@
 //   - Empty mesh, or a mesh whose buffers failed to allocate: not uploaded,
 //     and upload() reports nullopt rather than handing back a broken id
 //   - Instance naming an unknown mesh: skipped
+//   - Releasing an id twice, or one never uploaded: ignored
 //   - Instance naming no texture: drawn with the stand-in, which is one
 //     texel of the flat colour meshes had before textures existed. That is
 //     what keeps the shader to a single path with no untextured branch
@@ -87,6 +88,14 @@ public:
   /// Upload a mesh and return its id. Nullopt when it has no triangles or
   /// its buffers could not be allocated.
   std::optional<MeshGpuId> upload(RhiDevice& device, const MeshData& mesh);
+
+  /// Release one uploaded mesh, by the id `upload` handed back. An id the
+  /// renderer does not hold is ignored, so releasing twice is harmless.
+  ///
+  /// For geometry a session makes and unmakes rather than loads once: a
+  /// sprite billboard's quad carries one frame's texture coordinates, so a
+  /// sheet re-cut into another grid retires every quad it had.
+  void release(RhiDevice& device, MeshGpuId mesh);
 
   /// The depth texture for a surface of this size, created or resized as
   /// needed. Invalid when the renderer is not ready.

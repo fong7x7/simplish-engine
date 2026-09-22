@@ -36,7 +36,8 @@ inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
     "life_max",    "size_start",  "size_end",    "start_r",     "start_g",
     "start_b",     "start_hide",  "end_r",       "end_g",       "end_b",
     "end_hide",    "gravity",     "drag",        "stretch",     "flash",
-    "flash_range", "flash_time",
+    "flash_range", "flash_time",  "height",      "columns",     "rows",
+    "frames",      "fps",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -119,24 +120,21 @@ agentLightKindName(EditorLightKind kind) {
   return kind == EditorLightKind::DIRECTIONAL ? "directional" : "point";
 }
 
+/// Wire name of every kind of selection, in `EditorSelectionKind` order —
+/// a table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one.
+inline constexpr std::string_view AGENT_SELECTION_KIND_NAMES[] = {
+    "none",     "placement", "light",  "player_start",
+    "waypoint", "emitter",   "sprite",
+};
+
+static_assert(std::size(AGENT_SELECTION_KIND_NAMES) ==
+                  static_cast<size_t>(EditorSelectionKind::SPRITE) + 1,
+              "every kind of selection needs a name the API reports it by");
+
 /// Wire name of what a selection names.
 [[nodiscard]] constexpr std::string_view
 agentSelectionKindName(EditorSelectionKind kind) {
-  switch (kind) {
-    case EditorSelectionKind::PLACEMENT:
-      return "placement";
-    case EditorSelectionKind::LIGHT:
-      return "light";
-    case EditorSelectionKind::PLAYER_START:
-      return "player_start";
-    case EditorSelectionKind::WAYPOINT:
-      return "waypoint";
-    case EditorSelectionKind::EMITTER:
-      return "emitter";
-    case EditorSelectionKind::NONE:
-      return "none";
-  }
-  return "none";
+  return AGENT_SELECTION_KIND_NAMES[static_cast<size_t>(kind)];
 }
 
 /// Wire name of every recorded edit, indexed by the kind's own value.
@@ -150,10 +148,11 @@ inline constexpr std::string_view AGENT_ACTION_KIND_NAMES[] = {
     "add_player_start", "transform_player_start", "remove_player_start",
     "add_waypoint",     "transform_waypoint",     "remove_waypoint",
     "add_emitter",      "transform_emitter",      "remove_emitter",
+    "add_sprite",       "transform_sprite",       "remove_sprite",
 };
 
 static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorActionKind::REMOVE_EMITTER) + 1,
+                  static_cast<size_t>(EditorActionKind::REMOVE_SPRITE) + 1,
               "every recorded edit needs a name the agent API reports it by");
 
 /// Wire name of one recorded edit.

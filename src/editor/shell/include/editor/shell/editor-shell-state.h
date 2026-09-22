@@ -44,6 +44,11 @@ struct EditorShellState {
   /// those assets sit in. Both hold entry numbers, of which the assets are
   /// the first `assets.size()`.
   EditorAssetTree asset_tree;
+  /// Sprite sheets found under the open project, as paths relative to its
+  /// assets directory, in scan order. What a billboard's Sheet row offers;
+  /// billboards name a path out of this list rather than an index, so a
+  /// rescan that finds another sheet renumbers nothing.
+  std::vector<std::filesystem::path> sheets;
   /// Which of the project's levels is open, by id. The file it is written
   /// to is `<root>/content/levels/<level_id>.level.json`.
   std::string level_id{EDITOR_LEVEL_ID};

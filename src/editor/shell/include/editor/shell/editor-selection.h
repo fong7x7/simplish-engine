@@ -31,6 +31,8 @@ enum class EditorSelectionKind : uint8_t {
   WAYPOINT,
   /// A particle emitter, indexed into `EditorDocument::emitters`.
   EMITTER,
+  /// A sprite billboard, indexed into `EditorDocument::sprites`.
+  SPRITE,
 };
 
 /// The one thing the properties panel is editing.

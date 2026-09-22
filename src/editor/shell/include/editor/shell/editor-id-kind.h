@@ -41,16 +41,18 @@ enum class EditorIdKind : uint8_t {
   WAYPOINT,
   /// A particle emitter, standing in the level.
   EMITTER,
+  /// A sprite billboard, standing in the level.
+  SPRITE,
 };
 
 /// Every kind's prefix, without the colon, in enumerator order.
 inline constexpr std::string_view EDITOR_ID_KIND_PREFIXES[] = {
     "mesh",      "shape",    "prop",     "light",   "player_start",
-    "character", "behavior", "waypoint", "emitter",
+    "character", "behavior", "waypoint", "emitter", "sprite",
 };
 
 static_assert(std::size(EDITOR_ID_KIND_PREFIXES) ==
-                  static_cast<size_t>(EditorIdKind::EMITTER) + 1,
+                  static_cast<size_t>(EditorIdKind::SPRITE) + 1,
               "every id kind needs a prefix");
 
 /// The prefix a reference to @p kind carries, without the colon.

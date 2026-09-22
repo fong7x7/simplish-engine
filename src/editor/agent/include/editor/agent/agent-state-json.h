@@ -42,6 +42,10 @@ namespace eng::editor {
 /// started from.
 [[nodiscard]] std::string agentEmittersJson(const EditorShellState& state);
 
+/// `list_sprites`: every sprite billboard in the level, and every sheet
+/// the open project holds for one to show.
+[[nodiscard]] std::string agentSpritesJson(const EditorShellState& state);
+
 /// Whether the level is being played, and what the playtest has done.
 [[nodiscard]] std::string agentPlaytestJson(const EditorShellState& state);
 

@@ -25,6 +25,12 @@ namespace {
            std::end(ASSET_MESH_EXTENSIONS);
   }
 
+  bool isSheetFile(const fs::path& path) {
+    const std::string extension = toLower(path.extension().string());
+    return std::ranges::find(ASSET_SHEET_EXTENSIONS, extension) !=
+           std::end(ASSET_SHEET_EXTENSIONS);
+  }
+
   /// Whether a name starts with a dot. Dot-directories hold editor and
   /// version-control metadata, and their whole subtree is skipped.
   bool isHiddenName(const fs::path& path) {
@@ -32,7 +38,8 @@ namespace {
     return !name.empty() && name.front() == '.';
   }
 
-  /// Add one directory entry to the scan, as a folder or as a mesh file.
+  /// Add one directory entry to the scan, as a folder, a mesh file or a
+  /// sprite sheet.
   void collectEntry(const fs::directory_entry& entry, const fs::path& root,
                     EditorAssetScan& out) {
     // Lexical, not `fs::relative`: the entry came from a walk of `root`, so
@@ -43,9 +50,14 @@ namespace {
       out.folders.push_back(relative);
       return;
     }
-    if (entry.is_regular_file(ec) && isMeshFile(entry.path())) {
+    if (!entry.is_regular_file(ec)) {
+      return;
+    }
+    if (isMeshFile(entry.path())) {
       out.assets.push_back(
           {entry.path().stem().string(), entry.path(), relative});
+    } else if (isSheetFile(entry.path())) {
+      out.sheets.push_back(relative);
     }
   }
 
@@ -72,6 +84,7 @@ namespace {
   void sortScan(EditorAssetScan& scan) {
     std::ranges::sort(scan.assets, {}, &EditorAsset::relative_path);
     std::ranges::sort(scan.folders);
+    std::ranges::sort(scan.sheets);
   }
 
 }  // namespace

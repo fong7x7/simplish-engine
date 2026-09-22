@@ -227,3 +227,29 @@ TEST_CASE("assets sort by folder before name") {
   REQUIRE(scan.assets[1].name == "alpha");
   REQUIRE(scan.assets[2].name == "zed");
 }
+
+TEST_CASE("sprite sheets are listed beside the models, not among them") {
+  TempDir tmp("sheets");
+  tmp.touch("crate.obj");
+  tmp.touch("sprites/slime.png");
+  tmp.touch("sprites/torch.tga");
+  // Not a sheet format: no alpha channel to cut a sprite out of, so it is
+  // ignored rather than offered as one.
+  tmp.touch("sprites/photo.jpg");
+
+  const auto scan = scanEditorAssets(tmp.path());
+
+  REQUIRE(scan.assets.size() == 1);
+  REQUIRE(scan.sheets.size() == 2);
+  // Sorted by relative path, as the assets are, so the browser's Sheet row
+  // does not depend on directory iteration order.
+  REQUIRE(scan.sheets.front() == fs::path("sprites/slime.png"));
+  REQUIRE(scan.sheets.back() == fs::path("sprites/torch.tga"));
+}
+
+TEST_CASE("a sheet's extension is matched without regard to case") {
+  TempDir tmp("sheet-case");
+  tmp.touch("Slime.PNG");
+
+  REQUIRE(scanEditorAssets(tmp.path()).sheets.size() == 1);
+}

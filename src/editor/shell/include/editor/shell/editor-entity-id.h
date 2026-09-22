@@ -74,6 +74,10 @@ void assignEditorAssetIds(std::vector<EditorAsset>& assets);
 /// `emitter:emitter_01`.
 [[nodiscard]] std::string editorEmitterRef(const EditorEmitter& emitter);
 
+/// How another file references the sprite billboard @p sprite:
+/// `sprite:sprite_01`.
+[[nodiscard]] std::string editorSpriteRef(const EditorSprite& sprite);
+
 /// Point every placement in @p document at its asset's index in @p assets,
 /// given the ids those indices meant before. Returns how many placements
 /// were dropped, which is zero for the ordinary case of a file added.
@@ -116,5 +120,9 @@ mintEditorPlayerStartId(const EditorDocument& document);
 /// An id for a new particle emitter, free in @p document: `emitter_01` —
 /// not named for its effect, which the panel can change.
 [[nodiscard]] std::string mintEditorEmitterId(const EditorDocument& document);
+
+/// An id for a new sprite billboard, free in @p document: `sprite_01` —
+/// not named for its sheet, which the panel can change.
+[[nodiscard]] std::string mintEditorSpriteId(const EditorDocument& document);
 
 }  // namespace eng::editor

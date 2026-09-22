@@ -74,10 +74,13 @@ namespace {
       {EditorSelectionKind::EMITTER, ListEdit::INSERT},
       {EditorSelectionKind::EMITTER, ListEdit::WRITE},
       {EditorSelectionKind::EMITTER, ListEdit::ERASE},
+      {EditorSelectionKind::SPRITE, ListEdit::INSERT},
+      {EditorSelectionKind::SPRITE, ListEdit::WRITE},
+      {EditorSelectionKind::SPRITE, ListEdit::ERASE},
   };
 
   static_assert(std::size(ACTION_SHAPES) ==
-                    static_cast<size_t>(EditorActionKind::REMOVE_EMITTER) + 1,
+                    static_cast<size_t>(EditorActionKind::REMOVE_SPRITE) + 1,
                 "every action kind needs a list and an edit");
 
   /// Which of the document's lists @p kind names.
@@ -133,8 +136,8 @@ namespace {
     return value == ActionValue::PRIOR ? before : current;
   }
 
-  /// `editDocument` for the lists of things that mark the level rather
-  /// than stand in it: player starts, waypoints and particle emitters.
+  /// `editDocument` for the lists the level holds beside its props and
+  /// lights: player starts, waypoints, particle emitters and billboards.
   void editMarkerList(const EditorAction& action, ListEdit edit,
                       ActionValue value, EditorDocument& document) {
     const EditorSelectionKind list = actionList(action.kind);
@@ -144,9 +147,12 @@ namespace {
     } else if (list == EditorSelectionKind::WAYPOINT) {
       editList(document.waypoints, edit, action.index,
                pick(value, action.waypoint, action.waypoint_prior));
-    } else {
+    } else if (list == EditorSelectionKind::EMITTER) {
       editList(document.emitters, edit, action.index,
                pick(value, action.emitter, action.emitter_prior));
+    } else {
+      editList(document.sprites, edit, action.index,
+               pick(value, action.sprite, action.sprite_prior));
     }
   }
 
@@ -196,6 +202,9 @@ namespace {
     if (kind == EditorSelectionKind::EMITTER) {
       return EditorActionKind::REMOVE_EMITTER;
     }
+    if (kind == EditorSelectionKind::SPRITE) {
+      return EditorActionKind::REMOVE_SPRITE;
+    }
     return kind == EditorSelectionKind::PLAYER_START
                ? EditorActionKind::REMOVE_PLAYER_START
                : EditorActionKind::REMOVE_PLACEMENT;
@@ -213,8 +222,10 @@ namespace {
       action.player_start = document.player_starts[action.index];
     } else if (list == EditorSelectionKind::WAYPOINT) {
       action.waypoint = document.waypoints[action.index];
-    } else {
+    } else if (list == EditorSelectionKind::EMITTER) {
       action.emitter = document.emitters[action.index];
+    } else {
+      action.sprite = document.sprites[action.index];
     }
   }
 
@@ -302,15 +313,16 @@ bool redoEditorAction(EditorActionHistory& history, EditorDocument& document) {
 size_t editorListSize(const EditorDocument& document,
                       EditorSelectionKind kind) {
   // In `EditorSelectionKind` order, nothing selected first.
-  const std::array<size_t, 6> sizes{
+  const std::array<size_t, 7> sizes{
       0,
       document.placements.size(),
       document.lights.size(),
       document.player_starts.size(),
       document.waypoints.size(),
       document.emitters.size(),
+      document.sprites.size(),
   };
-  static_assert(static_cast<size_t>(EditorSelectionKind::EMITTER) + 1 == 6,
+  static_assert(static_cast<size_t>(EditorSelectionKind::SPRITE) + 1 == 7,
                 "every list the document holds has a size here");
   const auto at = static_cast<size_t>(kind);
   return at < sizes.size() ? sizes[at] : 0;
