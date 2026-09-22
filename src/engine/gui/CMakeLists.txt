@@ -9,6 +9,7 @@ simplish_add_module(simplish-engine-gui
     DEPENDENCIES freetype nlohmann_json::nlohmann_json
         simplish-engine-core
         simplish-engine-image
+        simplish-engine-input
         simplish-engine-math
         simplish-engine-render
 )

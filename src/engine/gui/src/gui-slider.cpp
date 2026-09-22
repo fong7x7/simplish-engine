@@ -71,12 +71,31 @@ void GuiSlider::setMappedValue(float mapped) {
 }
 
 void GuiSlider::updateValueFromX(float mx) {
-  float prev = value;
-  value = (rect.w > NORM_MIN) ? (mx - rect.x) / rect.w : NORM_MIN;
-  value = std::clamp(value, NORM_MIN, NORM_MAX);
+  setNormalized((rect.w > NORM_MIN) ? (mx - rect.x) / rect.w : NORM_MIN);
+}
+
+void GuiSlider::setNormalized(float normalized) {
+  const float prev = value;
+  value = std::clamp(normalized, NORM_MIN, NORM_MAX);
   if (value != prev && on_change) {
     on_change(mappedValue());
   }
+}
+
+GuiSlider::GuiSlider() {
+  tree_focusable = true;
+}
+
+bool GuiSlider::handleNav(GuiNavCommand command) {
+  if (command == GuiNavCommand::LEFT) {
+    setNormalized(value - nav_step);
+    return true;
+  }
+  if (command == GuiNavCommand::RIGHT) {
+    setNormalized(value + nav_step);
+    return true;
+  }
+  return false;
 }
 
 }  // namespace eng

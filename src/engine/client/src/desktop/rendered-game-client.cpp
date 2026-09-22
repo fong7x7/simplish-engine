@@ -160,6 +160,13 @@ bool RenderedGameClient::guiDispatchKey(uint32_t keycode) const {
   return gui_.tree->dispatchKey(keycode);
 }
 
+bool RenderedGameClient::guiDispatchNav(eng::GuiNavCommand command) const {
+  if (gui_.tree == nullptr) {
+    return false;
+  }
+  return gui_.tree->routeNav(command);
+}
+
 bool RenderedGameClient::guiDispatchKey(const eng::GuiKeyEvent& event) const {
   if (gui_.tree == nullptr) {
     return false;

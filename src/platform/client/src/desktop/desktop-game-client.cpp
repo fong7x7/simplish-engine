@@ -401,11 +401,11 @@ bool DesktopGameClient::runOneFrame(
   if (!pollEvents()) {
     return false;
   }
-  pollGamepads();
+  const float dt = computeDeltaTime(last_frame);
+  pollGamepads(dt);
   // Between polling and ticking: the dialog callback may have run on
   // another thread, and this is where its answer joins the main thread.
   drainDialogPath();
-  float dt = computeDeltaTime(last_frame);
   if (!onTick(dt)) {
     return false;
   }

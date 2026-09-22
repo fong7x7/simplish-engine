@@ -22,6 +22,9 @@ inline constexpr std::size_t DEFAULT_TEXT_AREA_MAX_LENGTH = 4096;
 /// @thread_safety Main thread only.
 class GuiTextArea : public GuiTextInput {
 public:
+  /// A multi-line field.
+  GuiTextArea();
+
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;
 

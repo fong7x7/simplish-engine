@@ -6,6 +6,7 @@
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-key-event.h>
 #include <engine/gui/gui-mouse-event.h>
+#include <engine/gui/gui-nav-command.h>
 #include <engine/gui/gui-scroll-event.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <engine/render/rhi-device.h>
@@ -103,6 +104,10 @@ protected:
 
   /// Forward a key event to the focused widget; returns true if consumed.
   bool guiDispatchKey(const eng::GuiKeyEvent& event) const;
+
+  /// Carry out one focus-navigation command on the widget tree
+  /// (`GuiWidgetTree::routeNav`); returns false when nothing used it.
+  bool guiDispatchNav(eng::GuiNavCommand command) const;
 
   /// Copy RHI pixel surface size into `gui_.renderer` for HiDPI drawing.
   void syncGuiRendererSurfaceFromDevice();

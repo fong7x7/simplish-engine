@@ -13,6 +13,9 @@ namespace eng {
 /// @thread_safety Main thread only.
 class GuiSlider : public GuiWidget {
 public:
+  /// A slider, which takes navigation focus.
+  GuiSlider();
+
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;
 
@@ -27,6 +30,10 @@ public:
 
   /// Release capture.
   void handleMouseUp(const GuiMouseEvent& event) override;
+
+  /// LEFT and RIGHT step the value down and up by `nav_step`, firing
+  /// `on_change`; everything else moves focus as usual.
+  bool handleNav(GuiNavCommand command) override;
 
   /// Resolve track/fill/handle colors from shared or per-instance style.
   struct ResolvedColors {
@@ -61,8 +68,15 @@ public:
   GuiSliderStyle style{};
   /// Callback fired with the mapped value when the slider changes.
   std::function<void(float)> on_change{};
+  /// How far one LEFT or RIGHT moves the normalised value: a twentieth of
+  /// the track, so a held d-pad crosses it in a couple of seconds.
+  float nav_step = 0.05f;
 
 private:
+  /// Set the normalised value to @p normalized, clamped, firing
+  /// `on_change` when it moved.
+  void setNormalized(float normalized);
+
   /// Update normalized value from mouse x position and fire on_change.
   void updateValueFromX(float mx);
 };

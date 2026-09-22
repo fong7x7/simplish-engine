@@ -655,6 +655,7 @@ bool GuiWidgetTree::dispatchClick(float mx, float my) {
 void GuiWidgetTree::renderAll(const GuiDrawContext& ctx) {
   visitDrawOrder([&](const GuiWidget& w) { w.render(ctx); });
   renderSortedOverlays(components_, ctx);
+  renderFocusRing(ctx);
 }
 
 bool GuiWidgetTree::anyHovered() const {
@@ -773,10 +774,16 @@ bool GuiWidgetTree::handleMouseDownHit(GuiWidget& comp,
 bool GuiWidgetTree::dispatchMouseDown(const GuiMouseEvent& event) {
   pending_click_target_ = nullptr;
   drag_moved_ = false;
+  focus_visibility = GuiFocusVisibility::HIDDEN;
   auto* comp = hitTestAny(event.x, event.y);
   if (comp == nullptr) {
     drag_input_ = nullptr;
     return false;
+  }
+  // A click on a focusable tree widget puts focus there, so a pad picked
+  // up afterwards carries on from where the pointer was.
+  if (comp->tree_focusable && findWidget(comp->widget_id) == comp) {
+    focused_id = comp->widget_id;
   }
   return handleMouseDownHit(*comp, event);
 }
@@ -796,6 +803,8 @@ void GuiWidgetTree::dispatchMouseUp(const GuiMouseEvent& event) {
 }
 
 void GuiWidgetTree::dispatchMouseMove(const GuiMouseEvent& event) {
+  // The pointer is in charge again; the ring comes back with navigation.
+  focus_visibility = GuiFocusVisibility::HIDDEN;
   if (captured_ != nullptr) {
     captured_->handleMouseMove(event);
     return;

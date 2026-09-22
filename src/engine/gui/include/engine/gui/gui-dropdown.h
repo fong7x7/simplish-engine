@@ -17,6 +17,10 @@ namespace eng {
 /// @thread_safety Main thread only.
 class GuiDropdown : public GuiPanel {
 public:
+  /// A dropdown, which takes navigation focus: whoever opens one focuses
+  /// it (and usually scopes focus to it) so a pad can pick a row.
+  GuiDropdown();
+
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;
 
@@ -30,6 +34,11 @@ public:
   /// Select the item at the given index (fires on_select).
   /// Does nothing if index is out of range.
   void selectItem(int index);
+
+  /// UP and DOWN move the highlight between selectable rows — taken even
+  /// at the ends, so an open menu keeps focus — and CONFIRM selects the
+  /// highlighted row. CANCEL is left to whoever opened the menu.
+  bool handleNav(GuiNavCommand command) override;
 
   /// The dropdown items.
   std::vector<GuiDropdownItem> items{};
@@ -52,6 +61,10 @@ private:
     /// Item height in pixels.
     int item_height{0};
   };
+
+  /// The selectable row after (@p step 1) or before (-1) @p from, or
+  /// @p from when there is none that way.
+  [[nodiscard]] int nextSelectable(int from, int step) const;
 
   /// Resolve style from shared or per-instance values.
   ResolvedStyle resolveStyle() const;

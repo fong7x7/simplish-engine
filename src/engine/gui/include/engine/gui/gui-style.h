@@ -89,6 +89,10 @@ struct GuiStyle {
   /// Generic hover highlight color.
   GuiColor hover_highlight{};
 
+  // ─── Focus ────────────────────────────────────────────
+  /// The ring drawn round the widget focus navigation is on.
+  GuiColor focus_ring{};
+
   /// Dark mode preset matching the current editor theme.
   /// @thread_safety Thread-safe (returns reference to static const).
   static const GuiStyle& dark();

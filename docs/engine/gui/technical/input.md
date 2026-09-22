@@ -91,8 +91,8 @@ Drag is initiated when the mouse moves beyond a threshold (4 px) while a button 
 
 - One widget at a time holds keyboard focus (`GuiWidgetTree::focused_id`).
 - Focus is set explicitly by clicking a focusable widget or calling `setFocus()`.
-- Only widgets with `focusable == true` can receive focus (TextInput, Button, etc.).
-- When focus changes, `onFocusLost` is sent to the old widget and `onFocusGained` to the new widget.
+- Only widgets with `tree_focusable` set can receive focus; buttons, sliders, dropdowns and text fields set it themselves (§5.3).
+- There are no focus-gained or focus-lost callbacks yet; a widget that needs to know compares `focused_id`.
 
 ### 4.2 Tab Order
 
@@ -132,39 +132,105 @@ For text editing widgets (TextInput):
 
 ## 5. Gamepad Navigation
 
-### 5.1 D-Pad Focus Navigation
+Built: [`gui-focus-nav.cpp`](../../../../src/engine/gui/src/gui-focus-nav.cpp) and
+[`gui-gamepad-navigator.cpp`](../../../../src/engine/gui/src/gui-gamepad-navigator.cpp),
+tested in `test_gui_focus_nav.cpp` and `test_gui_gamepad_navigator.cpp`.
 
-When the active input method is gamepad, d-pad directions move focus spatially:
+### 5.1 Commands
 
-1. From the currently focused widget, compute its center point.
-2. For each candidate focusable widget in the pressed direction:
-   - Must be in the correct half-plane (e.g. d-pad right: candidate center x > current center x).
-   - Score by angular alignment with the direction vector and distance.
-3. Focus moves to the best-scoring candidate.
-4. If no candidate exists in the direction, focus stays on the current widget.
+Navigation runs on `GuiNavCommand` — `UP`, `DOWN`, `LEFT`, `RIGHT`, `CONFIRM`,
+`CANCEL`, `NEXT`, `PREVIOUS` — which says nothing about the device.
+`GuiWidgetTree::routeNav(command)` carries one out:
 
-### 5.2 Confirm / Cancel
+1. With nothing focused in the scope (or focus on a widget since hidden), any
+   command but `CANCEL` focuses the scope's first focusable widget.
+2. On a text field, `CONFIRM` starts typing in it and `CANCEL` stops typing.
+3. Otherwise the command is offered to the focused widget, then to each
+   ancestor up to the scope's root, through `GuiWidget::handleNav`. The first to
+   return true consumes it.
+4. What nobody consumed becomes focus movement: directions spatially (§5.2),
+   `NEXT`/`PREVIOUS` through tree order, wrapping.
+5. Returns false when nothing used the command — for `CANCEL`, the caller's
+   cue to close the menu.
 
-- Gamepad Confirm (A / Cross): triggers `onClick` on the focused widget.
-- Gamepad Cancel (B / Circle): triggers `onCancel` -- typically closes the current menu or dialog.
+### 5.2 Spatial Movement
 
-### 5.3 Scroll
+From the focused widget's centre, each focusable candidate in the scope whose
+centre lies at least half a pixel in the pressed direction is scored as
+*distance along the direction + 2 × distance off it*. The lowest score wins;
+ties go to the earlier in tree order, so the choice depends only on the layout.
+With no candidate, focus stays put and `routeNav` returns false.
 
-When focus is inside a scroll container, gamepad right stick or d-pad (when no focusable widget exists in the direction) scrolls the container.
+### 5.3 What Each Widget Does
+
+| Widget | Focusable by default | `handleNav` |
+|---|---|---|
+| `GuiButton` | yes | `CONFIRM` presses it (the base behaviour) |
+| any widget with `onClick` handlers | if `tree_focusable` is set | `CONFIRM` fires them, as a click at its centre |
+| `GuiSlider` | yes | `LEFT`/`RIGHT` step the value by `nav_step` (0.05 of the track), firing `on_change` |
+| `GuiDropdown` | yes | `UP`/`DOWN` move the highlight between enabled, non-separator rows, consumed even at the ends; `CONFIRM` selects the highlighted row |
+| `GuiTextInput`, `GuiTextArea` | yes | handled by the tree: `CONFIRM` starts typing, `CANCEL` stops, moving focus off stops |
+| `GuiPanel`, `GuiLabel` | no | — |
+
+A custom widget joins in by setting `tree_focusable` and overriding `handleNav`.
+
+### 5.4 Scope
+
+`setFocusScope(id)` confines navigation to one subtree — an open menu or dialog
+— and moves focus into it if it was outside. `setFocusScope(GUI_WIDGET_ID_INVALID)`
+releases it. A widget hidden with `visible = false` hides its whole subtree from
+navigation.
+
+### 5.5 Focus Ring and the Pointer
+
+`focus_visibility` is `SHOWN` once `routeNav` runs, and `renderAll` then draws a
+ring round the focused widget in the style's `focus_ring` token. Any mouse move
+or press sets it back to `HIDDEN`. A press on a focusable tree widget also
+focuses it, so a pad picked up afterwards carries on from there.
+
+### 5.6 From a Pad
+
+`GuiGamepadNavigator::update(pad, dt)` turns one frame of an
+`input::GamepadState` into commands:
+
+- The d-pad, or the left stick past halfway along its stronger axis, gives a
+  direction. It fires on the press, repeats after 0.4 s, then every 0.12 s, at
+  most once a frame.
+- `SOUTH` gives `CONFIRM`, `EAST` gives `CANCEL`, `LEFT_SHOULDER` gives
+  `PREVIOUS`, `RIGHT_SHOULDER` gives `NEXT`. Each acts on the press only.
+
+These are the same on every pad, because the buttons are named by position.
+`reset(pad)` treats what is already down as handled, so the press that opened a
+menu doesn't also confirm in it.
+
+`DesktopGameClient::setGuiPadNavigation(GuiPadNavigation::ON)` feeds the pad in
+use through a navigator into the tree each frame. It is off by default: in play
+the pad steers a character, so a menu turns it on while open.
+`onClientGuiNavUnhandled(command)` receives anything the GUI didn't use.
+
+### 5.7 Not Yet
+
+- Scrolling a scroll container to keep the focused widget in view, or
+  scrolling it by pad when nothing focusable lies that way.
+- Overlay components registered with `registerComponent` are not navigated;
+  only tree widgets are.
+- Keyboard navigation (arrows, Tab, Enter, Escape) through `routeNav` is not
+  wired. The commands support it, but the editor's own shortcuts use those keys.
+- Button prompts per pad family, and Nintendo's swapped confirm/cancel
+  convention.
 
 ---
 
-## 6. Public Interface (`engine/gui/gui-input.h`)
+## 6. Public Interface (`engine/gui/gui-widget-tree.h`)
 
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| hitTest | `HitTestResult hitTest(const GuiWidgetTree&, float x, float y)` | Find widget under screen point |
-| routeMouseEvent | `bool routeMouseEvent(GuiWidgetTree&, const GuiMouseEvent&)` | Process a mouse event |
-| routeKeyEvent | `bool routeKeyEvent(GuiWidgetTree&, const GuiKeyEvent&)` | Process a keyboard event |
-| routeTextInput | `bool routeTextInput(GuiWidgetTree&, std::string_view text)` | Process composed text input |
-| setFocus | `void setFocus(GuiWidgetTree&, GuiWidgetId)` | Set keyboard focus |
-| advanceFocus | `void advanceFocus(GuiWidgetTree&, bool reverse)` | Tab / Shift+Tab focus cycling |
-| navigateFocus | `void navigateFocus(GuiWidgetTree&, FlexDirection direction)` | D-pad spatial focus navigation |
+| Function | Description |
+|----------|-------------|
+| `hitTest(x, y)` | Find widget under screen point |
+| `routeNav(GuiNavCommand)` | Carry out one navigation command (§5.1) |
+| `setFocus(id)` | Focus a focusable widget |
+| `setFocusScope(id)` | Confine navigation to a subtree (§5.4) |
+| `advanceFocus(FocusTraversalDirection)` | Step through focus order in the scope |
+| `navigateFocus(GuiNavCommand)` | Move focus spatially; false when nothing lies that way |
 
 ---
 
@@ -175,7 +241,7 @@ When focus is inside a scroll container, gamepad right stick or d-pad (when no f
 | Hit test on empty tree | Returns `GUI_WIDGET_ID_INVALID` |
 | setFocus on non-focusable widget | No-op; log debug |
 | Tab with zero focusable widgets | No-op |
-| Gamepad navigation with no candidates | Focus unchanged |
+| Gamepad navigation with no candidates | Focus unchanged; `routeNav` returns false |
 | Key event with no focused widget | Event dropped |
 
 ---
@@ -194,7 +260,9 @@ When focus is inside a scroll container, gamepad right stick or d-pad (when no f
 | File | Responsibility | Est. Lines |
 |------|---------------|------------|
 | `engine/gui/gui-input.h` | HitTestResult, GuiMouseEvent, GuiKeyEvent, public functions | ~100 |
-| `engine/gui/gui-input.cpp` | Hit testing, focus management, tab order, d-pad navigation, event routing | ~300 |
+| `engine/gui/gui-input.cpp` | Hit testing, event routing | ~115 |
+| `engine/gui/gui-focus-nav.cpp` | Focus movement, scope, command routing, focus ring | ~290 |
+| `engine/gui/gui-gamepad-navigator.cpp` | A pad's frame as navigation commands, with repeat | ~110 |
 
 ---
 

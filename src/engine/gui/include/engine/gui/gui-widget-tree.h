@@ -7,7 +7,9 @@
 
 #include "adopt-result.h"
 #include "gui-draw-context.h"
+#include "gui-focus-visibility.h"
 #include "gui-input.h"
+#include "gui-nav-command.h"
 #include "gui-text-input.h"
 #include "gui-widget.h"
 #include "layout-engine.h"
@@ -39,6 +41,12 @@ public:
   GuiWidgetId hovered_id = GUI_WIDGET_ID_INVALID;
   /// ID of the widget being mouse-pressed (GUI_WIDGET_ID_INVALID if none).
   GuiWidgetId pressed_id = GUI_WIDGET_ID_INVALID;
+  /// The subtree navigation stays inside — an open menu or dialog — or
+  /// GUI_WIDGET_ID_INVALID for the whole tree. See `setFocusScope`.
+  GuiWidgetId focus_scope_id = GUI_WIDGET_ID_INVALID;
+  /// Whether the focus ring is drawn: shown by navigation, hidden by the
+  /// pointer.
+  GuiFocusVisibility focus_visibility = GuiFocusVisibility::HIDDEN;
 
   /// Allocate a widget and attach to parent. Returns GUI_WIDGET_ID_INVALID on
   /// failure.
@@ -119,11 +127,35 @@ public:
   /// Set keyboard focus to a specific widget. No-op if not focusable.
   void setFocus(GuiWidgetId id);
 
-  /// Cycle focus to the next or previous focusable widget.
+  /// Cycle focus to the next or previous focusable widget in the focus
+  /// scope, in tree order, wrapping.
   void advanceFocus(FocusTraversalDirection direction);
 
-  /// Move focus spatially in a direction (for gamepad d-pad navigation).
-  void navigateFocus(FlexDirection direction);
+  /// Move focus to the nearest focusable widget in the scope that lies in
+  /// @p command's direction — UP, DOWN, LEFT or RIGHT — scored by distance
+  /// with a penalty for being off the line, so a grid moves by rows and
+  /// columns. Returns false, leaving focus where it is, when nothing lies
+  /// that way or @p command is not a direction.
+  bool navigateFocus(GuiNavCommand command);
+
+  /// Carry out one navigation command — from a pad, a keyboard, anything.
+  ///
+  /// With nothing focused, any command but CANCEL focuses the scope's first
+  /// focusable widget. Otherwise the focused widget and then each ancestor
+  /// up to the scope's root is offered it (`GuiWidget::handleNav`): a
+  /// button presses on CONFIRM, a slider steps on LEFT and RIGHT, an open
+  /// dropdown moves through its rows. CONFIRM on a text field starts typing
+  /// in it and CANCEL stops. What nothing takes becomes focus movement:
+  /// directions spatially, NEXT and PREVIOUS in order. Shows the focus ring.
+  ///
+  /// Returns false for a command nothing used — a CANCEL no widget took is
+  /// the caller's, to close the menu.
+  bool routeNav(GuiNavCommand command);
+
+  /// Keep navigation inside @p scope's subtree — the menu or dialog that
+  /// is open — and move focus into it when it is outside.
+  /// GUI_WIDGET_ID_INVALID lets it range over the whole tree again.
+  void setFocusScope(GuiWidgetId scope);
 
   /// Set shared style for all registered overlay components.
   void setStyle(const GuiStyle& style);
@@ -221,6 +253,37 @@ private:
 
   /// Paste system clipboard text into input at cursor.
   static void pasteFromClipboard(GuiTextInput& input);
+
+  /// Every visible focusable widget in the focus scope, in tree order.
+  [[nodiscard]] std::vector<GuiWidgetId> focusableInScope() const;
+
+  /// The root navigation searches from: the focus scope, or the tree root.
+  [[nodiscard]] GuiWidgetId navRoot() const;
+
+  /// Whether `focused_id` names a visible focusable widget in the scope.
+  [[nodiscard]] bool hasNavFocus() const;
+
+  /// Offer @p command to the focused widget and its ancestors up to the
+  /// scope's root; true if one took it.
+  bool bubbleNav(GuiNavCommand command);
+
+  /// CONFIRM and CANCEL as they apply to the text field that is focused
+  /// or typing, if any; true if they were used.
+  bool routeTextNav(GuiNavCommand command);
+
+  /// With nothing focused: focus the scope's first focusable widget, for
+  /// any @p command but CANCEL. True if it did.
+  bool focusFirst(GuiNavCommand command);
+
+  /// @p command as focus movement: NEXT and PREVIOUS in order, directions
+  /// spatially. True if focus moved, or the command was NEXT or PREVIOUS.
+  bool moveNavFocus(GuiNavCommand command);
+
+  /// Focus @p id, dropping typing focus from any other text field.
+  void moveFocus(GuiWidgetId id);
+
+  /// Ring the focused widget, when the ring is shown.
+  void renderFocusRing(const GuiDrawContext& ctx) const;
 
   /// Update the system cursor shape based on hovered widget type.
   void updateCursorForHover();

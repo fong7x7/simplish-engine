@@ -45,6 +45,8 @@ namespace {
       .slider_track_height = 4.0f,
       // Hover
       .hover_highlight = {50, 50, 55},
+      // Focus
+      .focus_ring = {90, 170, 255},
   };
 
   // Algorithm: Static light-theme palette mirroring dark structure.
@@ -88,6 +90,8 @@ namespace {
       .slider_track_height = 4.0f,
       // Hover
       .hover_highlight = {225, 230, 240},
+      // Focus
+      .focus_ring = {0, 102, 204},
   };
 
 }  // namespace

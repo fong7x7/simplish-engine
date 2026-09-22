@@ -136,8 +136,8 @@ the file at startup, so the editor has to be restarted for a change to apply.
   `clear`, `actionsFor`, then write the file); nothing draws one yet.
 - **Button prompts and labels** — "Cross to confirm" rather than "South".
   That needs the pad's family from the backend, which it does not report yet.
-- **GUI focus navigation by pad**, and the `method_changed` event
-  [gui.md](gui/gui.md) describes.
+- **The `method_changed` event** [gui.md](gui/gui.md) describes. GUI focus
+  navigation by pad is built ([gui technical/input.md §5](gui/technical/input.md#5-gamepad-navigation)).
 - **More than one local player.** `GamepadSet` holds every pad, but player 1
   plays the pad in use; assigning pads to players waits on local co-op.
 - **Haptics, gyro, the touchpad surface, adaptive triggers.**

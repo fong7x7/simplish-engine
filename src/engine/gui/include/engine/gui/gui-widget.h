@@ -7,6 +7,7 @@
 #include "gui-animation.h"
 #include "gui-draw-context.h"
 #include "gui-mouse-event.h"
+#include "gui-nav-command.h"
 #include "gui-rect.h"
 #include "gui-scroll-event.h"
 #include "gui-style.h"
@@ -105,6 +106,13 @@ public:
   /// Return true if the event was consumed.
   virtual bool handleClick(const GuiMouseEvent& event);
 
+  /// Called with a navigation command while this widget, or one of its
+  /// descendants that did not take it, has focus. Return true if consumed;
+  /// an unconsumed command goes on to the parent, and then to the tree's
+  /// own focus movement. The default presses the widget on CONFIRM when it
+  /// has click handlers, as a click at its centre would.
+  virtual bool handleNav(GuiNavCommand command);
+
   /// Test whether point (mx, my) is inside this component's rect.
   bool isInside(float mx, float my) const;
 
@@ -164,7 +172,9 @@ public:
   int32_t z_index = 0;
   /// Optional debug label for editors and tests.
   std::string debug_name{};
-  /// Whether this tree node participates in keyboard focus order.
+  /// Whether this tree node can take focus from keyboard or pad navigation.
+  /// Buttons, sliders, dropdowns and text fields set it themselves; a
+  /// custom widget sets it to join in.
   bool tree_focusable = false;
   /// Subtree needs measure/arrange.
   bool tree_dirty = true;

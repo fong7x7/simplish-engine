@@ -45,6 +45,10 @@ inline constexpr float CURSOR_BLINK_PERIOD = 1.0f;
 /// @thread_safety Main thread only.
 class GuiTextInput : public GuiPanel {
 public:
+  /// A single-line field, which takes navigation focus; CONFIRM on it
+  /// starts typing (`GuiWidgetTree::routeNav`).
+  GuiTextInput();
+
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;
 

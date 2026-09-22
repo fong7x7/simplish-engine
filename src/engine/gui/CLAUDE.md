@@ -28,8 +28,8 @@ repository**. Verify before relying on any of them:
 - **HarfBuzz shaping and ICU line breaking are described but absent.** FreeType
   is built with `FT_DISABLE_HARFBUZZ`; `shaped-run.cpp` handles kerning and
   ligatures with no complex-script support.
-- **The dev console and gamepad navigation do not exist.** Gamepad nav depends
-  on `engine/input`, which is not written.
+- **The dev console does not exist.** Gamepad navigation does, and is newer
+  than the spec around it: `technical/input.md §5` describes what shipped.
 
 ## How GUI code is actually tested here
 

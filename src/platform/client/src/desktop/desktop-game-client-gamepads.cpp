@@ -16,7 +16,7 @@ void DesktopGameClient::openGamepads() {
   }
 }
 
-void DesktopGameClient::pollGamepads() {
+void DesktopGameClient::pollGamepads(float dt_seconds) {
   gamepads_.poll();
   for (std::size_t i = 0; i < eng::input::GAMEPAD_BUTTON_COUNT; ++i) {
     const auto button = static_cast<eng::input::GamepadButton>(i);
@@ -24,6 +24,23 @@ void DesktopGameClient::pollGamepads() {
       onClientGamepadButtonDown(button);
     }
   }
+  if (gui_pad_navigation_ == GuiPadNavigation::ON) {
+    navigateGuiByPad(dt_seconds);
+  }
+}
+
+void DesktopGameClient::navigateGuiByPad(float dt_seconds) {
+  for (const eng::GuiNavCommand command :
+       gui_navigator_.update(gamepads_.pads().active(), dt_seconds)) {
+    if (!guiDispatchNav(command)) {
+      onClientGuiNavUnhandled(command);
+    }
+  }
+}
+
+void DesktopGameClient::setGuiPadNavigation(GuiPadNavigation mode) {
+  gui_pad_navigation_ = mode;
+  gui_navigator_.reset(gamepads_.pads().active());
 }
 
 void DesktopGameClient::trackGamepadFocus(const SDL_Event& event) {

@@ -7,6 +7,10 @@
 
 namespace eng {
 
+GuiDropdown::GuiDropdown() {
+  tree_focusable = true;
+}
+
 std::unique_ptr<GuiWidget> GuiDropdown::clone() const {
   return std::make_unique<GuiDropdown>(*this);
 }
@@ -174,6 +178,33 @@ void GuiDropdown::selectItem(int index) {
   if (item.on_select) {
     item.on_select();
   }
+}
+
+int GuiDropdown::nextSelectable(int from, int step) const {
+  const int count = static_cast<int>(items.size());
+  for (int i = from + step; i >= 0 && i < count; i += step) {
+    const GuiDropdownItem& item = items[static_cast<size_t>(i)];
+    if (item.enabled && !item.separator) {
+      return i;
+    }
+  }
+  return from;
+}
+
+bool GuiDropdown::handleNav(GuiNavCommand command) {
+  if (command == GuiNavCommand::UP || command == GuiNavCommand::DOWN) {
+    const int start = hovered_item < 0 && command == GuiNavCommand::UP
+                          ? static_cast<int>(items.size())
+                          : hovered_item;
+    hovered_item =
+        nextSelectable(start, command == GuiNavCommand::DOWN ? 1 : -1);
+    return true;
+  }
+  if (command == GuiNavCommand::CONFIRM && hovered_item >= 0) {
+    selectItem(hovered_item);
+    return true;
+  }
+  return false;
 }
 
 }  // namespace eng

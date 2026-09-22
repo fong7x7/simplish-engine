@@ -5,6 +5,11 @@
 
 namespace eng {
 
+GuiButton::GuiButton() {
+  widget_type = GuiWidgetType::BUTTON;
+  tree_focusable = true;
+}
+
 std::unique_ptr<GuiWidget> GuiButton::clone() const {
   return std::make_unique<GuiButton>(*this);
 }

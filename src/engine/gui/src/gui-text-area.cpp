@@ -25,6 +25,10 @@ namespace {
 // ─── Clone ──────────────────────────────────────────────────
 
 // NOLINTNEXTLINE(misc-use-internal-linkage) -- virtual override
+GuiTextArea::GuiTextArea() {
+  widget_type = GuiWidgetType::TEXT_AREA;
+}
+
 std::unique_ptr<GuiWidget> GuiTextArea::clone() const {
   return std::make_unique<GuiTextArea>(*this);
 }

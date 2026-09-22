@@ -29,10 +29,4 @@ enum class FocusTraversalDirection : uint8_t {
   REVERSE,
 };
 
-/// Vertical neighbour search axis for spatial focus moves.
-enum class FocusSpatialSearch : uint8_t {
-  UP,
-  DOWN,
-};
-
 }  // namespace eng

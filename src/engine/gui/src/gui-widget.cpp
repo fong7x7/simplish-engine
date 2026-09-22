@@ -93,6 +93,15 @@ bool GuiWidget::handleScroll(const GuiScrollEvent& event) {
   return false;
 }
 
+bool GuiWidget::handleNav(GuiNavCommand command) {
+  if (command != GuiNavCommand::CONFIRM || !hasClickHandlers()) {
+    return false;
+  }
+  // Pressed as the pointer would press it, at its centre.
+  handleClick({.x = rect.x + rect.w * 0.5f, .y = rect.y + rect.h * 0.5f});
+  return true;
+}
+
 bool GuiWidget::handleClick(const GuiMouseEvent& event) {
   for (const auto& handler : on_click_handlers_) {
     handler(event);

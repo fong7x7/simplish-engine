@@ -46,6 +46,11 @@ namespace {
 
 // ─── Lifecycle ───────────────────────────────────────────────
 
+GuiTextInput::GuiTextInput() {
+  widget_type = GuiWidgetType::TEXT_INPUT;
+  tree_focusable = true;
+}
+
 std::unique_ptr<GuiWidget> GuiTextInput::clone() const {
   return std::make_unique<GuiTextInput>(*this);
 }

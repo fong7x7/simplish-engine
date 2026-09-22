@@ -14,7 +14,8 @@ namespace eng {
 /// @thread_safety Main thread only.
 class GuiButton : public GuiPanel {
 public:
-  GuiButton() { widget_type = GuiWidgetType::BUTTON; }
+  /// A button, which takes navigation focus.
+  GuiButton();
 
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;

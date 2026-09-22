@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstdint>
 #include <engine/client/rendered-game-client.h>
+#include <engine/gui/gui-gamepad-navigator.h>
+#include <engine/gui/gui-nav-command.h>
 #include <engine/input/gamepad-button.h>
 #include <engine/input/gamepad-set.h>
 #include <engine/input/gamepads.h>
@@ -31,6 +33,7 @@ namespace eng::client {
 //   stays free of SDL includes, modifier state included
 // - Own the platform's pads (platform/input), poll them once a frame, and
 //   raise onClientGamepadButtonDown for presses on the pad in use
+// - When asked to, drive the GUI's focus navigation from the pad in use
 // - Initialize the engine with the SDL window as native handle
 // - Create the RhiDevice via render::RhiDeviceFactory
 // - Drive the loop: poll -> onTick -> presentGuiFrame
@@ -48,6 +51,14 @@ public:
     SAVE_LOCATION,
     /// An existing folder.
     OPEN_FOLDER,
+  };
+
+  /// Whether the pad in use drives the GUI's focus navigation.
+  enum class GuiPadNavigation : uint8_t {
+    /// It does not: the game reads the pad, as it does in play.
+    OFF,
+    /// The d-pad or left stick moves focus, South confirms, East cancels.
+    ON,
   };
 
   /// Whether an SDL key-down came from the first press or OS key-repeat.
@@ -135,6 +146,17 @@ protected:
   onClientGamepadButtonDown([[maybe_unused]] eng::input::GamepadButton button) {
   }
 
+  /// Let the pad in use navigate the GUI, or stop it. Off by default: in
+  /// play the pad steers a character, and a menu turns this on while it is
+  /// open. Turning it off forgets whatever was held.
+  void setGuiPadNavigation(GuiPadNavigation mode);
+
+  /// A navigation command from the pad that the GUI did not use — most
+  /// often CANCEL with no text field typing, which is the open menu's cue
+  /// to close. Only raised while pad navigation is on.
+  virtual void
+  onClientGuiNavUnhandled([[maybe_unused]] eng::GuiNavCommand command) {}
+
   /// Resize and input dispatch; subclasses that override must call this base
   /// implementation (or replicate resize, `dispatchSdlInputToGui`, and
   /// `onClientKeyDown`) so hooks stay wired.
@@ -167,8 +189,13 @@ private:
   /// Start the pad backend, logging rather than failing when it cannot.
   void openGamepads();
 
-  /// Read the pads, and raise `onClientGamepadButtonDown` for each press.
-  void pollGamepads();
+  /// Read the pads, raise `onClientGamepadButtonDown` for each press, and
+  /// navigate the GUI by them when that is on, @p dt_seconds after the
+  /// last frame.
+  void pollGamepads(float dt_seconds);
+
+  /// Feed the pad in use through the GUI navigator into the widget tree.
+  void navigateGuiByPad(float dt_seconds);
 
   /// Tell the pads when @p event is the window gaining or losing focus.
   void trackGamepadFocus(const SDL_Event& event);
@@ -215,6 +242,10 @@ private:
   std::unique_ptr<eng::RhiDevice> rhi_device_{};
   /// The platform's pads; opened in init(), closed in shutdown().
   eng::input::Gamepads gamepads_{};
+  /// Turns the pad in use into GUI navigation commands.
+  eng::GuiGamepadNavigator gui_navigator_{};
+  /// Whether it runs.
+  GuiPadNavigation gui_pad_navigation_ = GuiPadNavigation::OFF;
   /// Guards `pending_dialog_path_` against the dialog callback's thread.
   std::mutex dialog_mutex_{};
   /// Path chosen but not yet handed to the main thread, and what it is for.
