@@ -7,6 +7,7 @@
 set(_client_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client-gamepads.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-gui-nav-keys.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-key-names.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-platform-utility.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-user-data-path.cpp"

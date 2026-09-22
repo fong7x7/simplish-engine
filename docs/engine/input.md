@@ -51,6 +51,15 @@ SDL backend `static_assert`s it, so its mapping is a cast.
 
 A console backend maps its own pad onto the same names.
 
+**Families and labels.** A backend also reports each pad's `GamepadFamily` —
+Xbox, PlayStation, Nintendo, or generic — which SDL gives from the pad's type
+(`GamepadSet::activeFamily()` for the pad in use). Bindings never read it. It is
+for what to *call* a button: `gamepadButtonLabel(button, family)` gives "A",
+"Cross" or "B" for `SOUTH`, and `gamepadAxisLabel` gives "RT", "R2" or "ZR".
+Menus also use it to confirm with A on a Nintendo pad, where A is on the right
+([gui technical/input.md §5.7](gui/technical/input.md#57-prompts)). A generic
+pad is labelled as an Xbox pad.
+
 ## 3. Bindings
 
 An `InputBindings` maps each `InputAction` to any number of controls: a key
@@ -134,10 +143,9 @@ the file at startup, so the editor has to be restarted for a change to apply.
 
 - **A rebinding screen.** The model supports one (`bind`, `unbind`,
   `clear`, `actionsFor`, then write the file); nothing draws one yet.
-- **Button prompts and labels** — "Cross to confirm" rather than "South".
-  That needs the pad's family from the backend, which it does not report yet.
 - **The `method_changed` event** [gui.md](gui/gui.md) describes. GUI focus
-  navigation by pad is built ([gui technical/input.md §5](gui/technical/input.md#5-gamepad-navigation)).
+  navigation by pad and keyboard, with prompts and scrolling, is built
+  ([gui technical/input.md §5](gui/technical/input.md#5-gamepad-navigation)).
 - **More than one local player.** `GamepadSet` holds every pad, but player 1
   plays the pad in use; assigning pads to players waits on local co-op.
 - **Haptics, gyro, the touchpad surface, adaptive triggers.**

@@ -62,11 +62,16 @@ TEST_CASE("every pad plays twin-stick by default") {
 TEST_CASE("the pad drives the character selector as the keys do") {
   using Keycode = eng::client::DesktopPlatformKeycode;
   using B = input::GamepadButton;
-  REQUIRE(editorChoosingKeyFor(B::DPAD_RIGHT) == Keycode::ARROW_RIGHT);
-  REQUIRE(editorChoosingKeyFor(B::DPAD_UP) == Keycode::ARROW_UP);
-  REQUIRE(editorChoosingKeyFor(B::SOUTH) == Keycode::KEY_RETURN);
-  REQUIRE(editorChoosingKeyFor(B::EAST) == Keycode::ESCAPE);
-  REQUIRE_FALSE(editorChoosingKeyFor(B::START).has_value());
+  constexpr auto XBOX = input::GamepadFamily::XBOX;
+  REQUIRE(editorChoosingKeyFor(B::DPAD_RIGHT, XBOX) == Keycode::ARROW_RIGHT);
+  REQUIRE(editorChoosingKeyFor(B::DPAD_UP, XBOX) == Keycode::ARROW_UP);
+  REQUIRE(editorChoosingKeyFor(B::SOUTH, XBOX) == Keycode::KEY_RETURN);
+  REQUIRE(editorChoosingKeyFor(B::EAST, XBOX) == Keycode::ESCAPE);
+  REQUIRE_FALSE(editorChoosingKeyFor(B::START, XBOX).has_value());
+  // A Nintendo pad confirms with A, which sits where Xbox's B does.
+  constexpr auto SWITCH = input::GamepadFamily::NINTENDO;
+  REQUIRE(editorChoosingKeyFor(B::EAST, SWITCH) == Keycode::KEY_RETURN);
+  REQUIRE(editorChoosingKeyFor(B::SOUTH, SWITCH) == Keycode::ESCAPE);
 }
 
 TEST_CASE("under the dimetric view the screen and world axes agree") {

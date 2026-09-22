@@ -33,6 +33,9 @@ public:
   /// The pad the player is using, or null with none connected.
   [[nodiscard]] const GamepadState* active() const;
 
+  /// Whose layout the pad in use follows; GENERIC with none connected.
+  [[nodiscard]] GamepadFamily activeFamily() const;
+
   /// Whether @p button went down on the pad in use since the last update —
   /// for menus, which act on presses rather than on what is held.
   [[nodiscard]] bool pressed(GamepadButton button) const;
@@ -46,6 +49,8 @@ private:
     GamepadState now;
     /// What it read last frame; all released when it has just connected.
     GamepadState before;
+    /// Whose layout it follows.
+    GamepadFamily family = GamepadFamily::GENERIC;
   };
 
   /// Make @p touched_device the pad in use when there is one; otherwise

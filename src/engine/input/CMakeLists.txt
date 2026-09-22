@@ -12,6 +12,7 @@ simplish_add_module(simplish-engine-input
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/action-values.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/gamepad-actions.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gamepad-button-label.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/gamepad-set.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/gamepad-state.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/held-actions.cpp
@@ -27,6 +28,7 @@ if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-engine-input-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_action_values.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_gamepad_actions.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_gamepad_button_label.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_gamepad_set.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_gamepad_state.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_held_actions.cpp

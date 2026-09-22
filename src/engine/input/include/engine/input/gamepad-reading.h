@@ -6,6 +6,7 @@
 /// A value type.
 
 #include <cstdint>
+#include <engine/input/gamepad-family.h>
 #include <engine/input/gamepad-state.h>
 
 namespace eng::input {
@@ -18,6 +19,8 @@ struct GamepadReading {
   uint64_t device = 0;
   /// Its buttons and axes, raw.
   GamepadState state;
+  /// Whose layout it follows, for prompts and the confirm button.
+  GamepadFamily family = GamepadFamily::GENERIC;
 };
 
 }  // namespace eng::input

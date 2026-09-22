@@ -591,7 +591,8 @@ void SimplishEditor::onClientKeyUp(uint32_t key) {
 
 void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
-    if (const std::optional<uint32_t> key = editorChoosingKeyFor(button)) {
+    if (const std::optional<uint32_t> key =
+            editorChoosingKeyFor(button, gamepads().activeFamily())) {
       (void)handleChoosingKey(*key);
     }
     return;

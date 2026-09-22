@@ -32,6 +32,10 @@ struct DesktopPlatformKeycode {
   static constexpr uint32_t ARROW_DOWN = 0x40000051U;
   /// Matches `SDLK_UP`.
   static constexpr uint32_t ARROW_UP = 0x40000052U;
+  /// Matches `SDLK_TAB`.
+  static constexpr uint32_t TAB = 9U;
+  /// Matches `SDLK_SPACE`.
+  static constexpr uint32_t SPACE = 32U;
 };
 
 }  // namespace eng::client

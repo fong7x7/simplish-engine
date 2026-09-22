@@ -42,7 +42,7 @@ void GamepadSet::update(std::span<const GamepadReading> readings) {
   for (const GamepadReading& reading : readings) {
     const Pad* was = find(reading.device);
     const GamepadState before = was != nullptr ? was->now : GamepadState{};
-    next.push_back({reading.device, reading.state, before});
+    next.push_back({reading.device, reading.state, before, reading.family});
     if (!touched_device && touched(before, reading.state)) {
       touched_device = reading.device;
     }
@@ -65,6 +65,11 @@ void GamepadSet::chooseActive(std::optional<uint64_t> touched_device) {
 const GamepadState* GamepadSet::active() const {
   const Pad* pad = activePad();
   return pad != nullptr ? &pad->now : nullptr;
+}
+
+GamepadFamily GamepadSet::activeFamily() const {
+  const Pad* pad = activePad();
+  return pad != nullptr ? pad->family : GamepadFamily::GENERIC;
 }
 
 bool GamepadSet::pressed(GamepadButton button) const {

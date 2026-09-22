@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <engine/gui/gui-gamepad-navigator.h>
+#include <engine/gui/gui-nav-buttons.h>
 
 namespace eng {
 
@@ -24,13 +25,13 @@ namespace {
     GuiNavCommand command;
   };
 
-  /// South confirms and East cancels, as every platform's menus do by
-  /// position; the shoulders step through focus order.
-  constexpr NavButton NAV_BUTTONS[] = {
-      {GamepadButton::SOUTH, GuiNavCommand::CONFIRM},
-      {GamepadButton::EAST, GuiNavCommand::CANCEL},
-      {GamepadButton::LEFT_SHOULDER, GuiNavCommand::PREVIOUS},
-      {GamepadButton::RIGHT_SHOULDER, GuiNavCommand::NEXT},
+  /// The buttons that act on a press rather than repeating; which
+  /// command each makes depends on the pad (`guiNavCommandFor`).
+  constexpr GamepadButton PRESS_BUTTONS[] = {
+      GamepadButton::SOUTH,
+      GamepadButton::EAST,
+      GamepadButton::LEFT_SHOULDER,
+      GamepadButton::RIGHT_SHOULDER,
   };
 
   /// The d-pad directions, in the order a diagonal press resolves them.
@@ -68,14 +69,15 @@ namespace {
 }  // namespace
 
 std::vector<GuiNavCommand>
-GuiGamepadNavigator::update(const input::GamepadState* pad, float dt_seconds) {
+GuiGamepadNavigator::update(const input::GamepadState* pad,
+                            input::GamepadFamily family, float dt_seconds) {
   std::vector<GuiNavCommand> out;
   if (pad == nullptr) {
     reset(nullptr);
     return out;
   }
   stepDirection(*pad, dt_seconds, out);
-  pressButtons(*pad, out);
+  pressButtons(*pad, family, out);
   before_ = *pad;
   return out;
 }
@@ -107,10 +109,13 @@ void GuiGamepadNavigator::stepDirection(const input::GamepadState& pad,
 }
 
 void GuiGamepadNavigator::pressButtons(const input::GamepadState& pad,
+                                       input::GamepadFamily family,
                                        std::vector<GuiNavCommand>& out) const {
-  for (const NavButton& entry : NAV_BUTTONS) {
-    if (pad.held(entry.button) && !before_.held(entry.button)) {
-      out.push_back(entry.command);
+  for (const GamepadButton button : PRESS_BUTTONS) {
+    const std::optional<GuiNavCommand> command =
+        guiNavCommandFor(button, family);
+    if (command && pad.held(button) && !before_.held(button)) {
+      out.push_back(*command);
     }
   }
 }

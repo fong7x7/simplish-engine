@@ -52,6 +52,38 @@ namespace {
     return state;
   }
 
+  /// One SDL pad type and the family whose layout it follows.
+  struct TypeFamily {
+    /// SDL's type.
+    SDL_GamepadType type;
+    /// The engine's family for it.
+    GamepadFamily family;
+  };
+
+  /// Every SDL type that is not a generic pad.
+  constexpr TypeFamily TYPE_FAMILIES[] = {
+      {SDL_GAMEPAD_TYPE_XBOX360, GamepadFamily::XBOX},
+      {SDL_GAMEPAD_TYPE_XBOXONE, GamepadFamily::XBOX},
+      {SDL_GAMEPAD_TYPE_PS3, GamepadFamily::PLAYSTATION},
+      {SDL_GAMEPAD_TYPE_PS4, GamepadFamily::PLAYSTATION},
+      {SDL_GAMEPAD_TYPE_PS5, GamepadFamily::PLAYSTATION},
+      {SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO, GamepadFamily::NINTENDO},
+      {SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT, GamepadFamily::NINTENDO},
+      {SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT, GamepadFamily::NINTENDO},
+      {SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR, GamepadFamily::NINTENDO},
+  };
+
+  /// Whose layout SDL says @p pad follows.
+  GamepadFamily familyOf(SDL_Gamepad* pad) {
+    const SDL_GamepadType type = SDL_GetGamepadType(pad);
+    for (const TypeFamily& entry : TYPE_FAMILIES) {
+      if (entry.type == type) {
+        return entry.family;
+      }
+    }
+    return GamepadFamily::GENERIC;
+  }
+
   /// The pad SDL knows as @p id, opening it if nothing has yet.
   SDL_Gamepad* openPad(SDL_JoystickID id) {
     SDL_Gamepad* pad = SDL_GetGamepadFromID(id);
@@ -74,9 +106,9 @@ namespace {
     std::vector<GamepadReading> readings;
     for (int i = 0; ids != nullptr && i < count; ++i) {
       if (SDL_Gamepad* pad = openPad(ids[i])) {
-        readings.push_back({ids[i], focus == WindowFocus::FOCUSED
-                                        ? readPad(pad)
-                                        : GamepadState{}});
+        const GamepadState state =
+            focus == WindowFocus::FOCUSED ? readPad(pad) : GamepadState{};
+        readings.push_back({ids[i], state, familyOf(pad)});
       }
     }
     SDL_free(ids);

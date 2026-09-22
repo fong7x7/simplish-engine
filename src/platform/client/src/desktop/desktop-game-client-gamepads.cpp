@@ -1,11 +1,14 @@
-// The pad half of DesktopGameClient: opening the platform's pad backend,
-// reading it once a frame, and keeping it quiet while the window is not
-// the one being used. Which pads exist is platform/input's business; this
-// only owns the backend's lifetime and turns presses into a hook.
+// The pad and menu-navigation half of DesktopGameClient: opening the
+// platform's pad backend, reading it once a frame, keeping it quiet while
+// the window is not the one being used, and — when a menu asks — turning
+// the pad in use and the navigation keys into GUI focus commands. Which
+// pads exist is platform/input's business; this owns the backend's
+// lifetime and the hooks.
 
 #include "engine/client/desktop-game-client.h"
 
 #include <SDL3/SDL.h>
+#include <engine/client/desktop-gui-nav-keys.h>
 #include <engine/core/logger.h>
 
 namespace eng::client {
@@ -30,12 +33,32 @@ void DesktopGameClient::pollGamepads(float dt_seconds) {
 }
 
 void DesktopGameClient::navigateGuiByPad(float dt_seconds) {
+  const eng::input::GamepadSet& pads = gamepads_.pads();
   for (const eng::GuiNavCommand command :
-       gui_navigator_.update(gamepads_.pads().active(), dt_seconds)) {
-    if (!guiDispatchNav(command)) {
-      onClientGuiNavUnhandled(command);
-    }
+       gui_navigator_.update(pads.active(), pads.activeFamily(), dt_seconds)) {
+    dispatchNav(command);
   }
+}
+
+void DesktopGameClient::dispatchNav(eng::GuiNavCommand command) {
+  if (!guiDispatchNav(command)) {
+    onClientGuiNavUnhandled(command);
+  }
+}
+
+bool DesktopGameClient::navigateGuiByKey(const SDL_Event& event) {
+  if (gui_key_navigation_ == GuiKeyNavigation::OFF) {
+    return false;
+  }
+  const DesktopNavKey press{static_cast<uint32_t>(event.key.key),
+                            (event.key.mod & SDL_KMOD_SHIFT) != 0U,
+                            guiWidgetTree().hasFocusedInput(),
+                            event.key.repeat};
+  const std::optional<eng::GuiNavCommand> command = desktopGuiNavCommand(press);
+  if (command) {
+    dispatchNav(*command);
+  }
+  return command.has_value();
 }
 
 void DesktopGameClient::setGuiPadNavigation(GuiPadNavigation mode) {

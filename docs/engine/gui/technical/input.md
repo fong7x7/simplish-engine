@@ -170,6 +170,7 @@ With no candidate, focus stays put and `routeNav` returns false.
 | `GuiSlider` | yes | `LEFT`/`RIGHT` step the value by `nav_step` (0.05 of the track), firing `on_change` |
 | `GuiDropdown` | yes | `UP`/`DOWN` move the highlight between enabled, non-separator rows, consumed even at the ends; `CONFIRM` selects the highlighted row |
 | `GuiTextInput`, `GuiTextArea` | yes | handled by the tree: `CONFIRM` starts typing, `CANCEL` stops, moving focus off stops |
+| `GuiScrollPanel` | no | scrolls its focused descendant into view, and scrolls on a direction with nothing focusable that way (§5.9) |
 | `GuiPanel`, `GuiLabel` | no | — |
 
 A custom widget joins in by setting `tree_focusable` and overriding `handleNav`.
@@ -190,34 +191,93 @@ focuses it, so a pad picked up afterwards carries on from there.
 
 ### 5.6 From a Pad
 
-`GuiGamepadNavigator::update(pad, dt)` turns one frame of an
+`GuiGamepadNavigator::update(pad, family, dt)` turns one frame of an
 `input::GamepadState` into commands:
 
 - The d-pad, or the left stick past halfway along its stronger axis, gives a
   direction. It fires on the press, repeats after 0.4 s, then every 0.12 s, at
   most once a frame.
-- `SOUTH` gives `CONFIRM`, `EAST` gives `CANCEL`, `LEFT_SHOULDER` gives
-  `PREVIOUS`, `RIGHT_SHOULDER` gives `NEXT`. Each acts on the press only.
+- The face buttons confirm and cancel by the pad's own convention
+  ([`gui-nav-buttons.h`](../../../../src/engine/gui/include/engine/gui/gui-nav-buttons.h)).
+  The bottom button confirms and the right one cancels, except on a Nintendo
+  pad: there the right button is labelled A, so it confirms and B cancels.
+  `LEFT_SHOULDER` gives `PREVIOUS` and `RIGHT_SHOULDER` gives `NEXT`. Each acts
+  on the press only.
 
-These are the same on every pad, because the buttons are named by position.
-`reset(pad)` treats what is already down as handled, so the press that opened a
-menu doesn't also confirm in it.
+`reset(pad)` treats whatever is already down as handled, so the press that
+opened a menu doesn't also confirm in it.
 
 `DesktopGameClient::setGuiPadNavigation(GuiPadNavigation::ON)` feeds the pad in
-use through a navigator into the tree each frame. It is off by default: in play
-the pad steers a character, so a menu turns it on while open.
+use, with its family, through a navigator into the tree each frame. It is off by
+default: in play the pad steers a character, so a menu turns it on while open.
 `onClientGuiNavUnhandled(command)` receives anything the GUI didn't use.
 
-### 5.7 Not Yet
+### 5.7 Prompts
 
-- Scrolling a scroll container to keep the focused widget in view, or
-  scrolling it by pad when nothing focusable lies that way.
-- Overlay components registered with `registerComponent` are not navigated;
-  only tree widgets are.
-- Keyboard navigation (arrows, Tab, Enter, Escape) through `routeNav` is not
-  wired. The commands support it, but the editor's own shortcuts use those keys.
-- Button prompts per pad family, and Nintendo's swapped confirm/cancel
-  convention.
+`guiNavButton(command, family)` is the button that does a command, and
+`guiNavPrompt(command, family)` is what that pad prints on it. For example,
+confirm is "A" on Xbox and Nintendo pads and "Cross" on PlayStation; next is
+"RB", "R1" or "R". The labels come from `input::gamepadButtonLabel` and
+`gamepadAxisLabel`. The family comes from the pad backend
+(`GamepadSet::activeFamily()`, which SDL reports from the pad's type), so a
+menu can print "Cross Select · Circle Back" without knowing any pad itself.
+
+### 5.8 From the Keyboard
+
+`DesktopGameClient::setGuiKeyNavigation(GuiKeyNavigation::ON)` routes the
+navigation keys through `routeNav`
+([`desktop-gui-nav-keys.h`](../../../../src/platform/client/include/engine/client/desktop-gui-nav-keys.h)):
+
+- The arrows move.
+- Tab and Shift+Tab give `NEXT` and `PREVIOUS`.
+- Enter and Space confirm, and Escape cancels.
+
+While a text field is taking typing, only Escape and Tab navigate, so the
+arrows still move its cursor. A held arrow or Tab repeats with the OS; a held
+Enter, Space or Escape does not. A key used for navigation never reaches
+`onClientKeyDown`. It is off by default, since an editor's arrows and Escape are
+its own shortcuts.
+
+### 5.9 Scrolling
+
+`GuiScrollPanel` ([`gui-scroll-panel.h`](../../../../src/engine/gui/include/engine/gui/gui-scroll-panel.h))
+is a list taller than its space:
+
+- **Layout:** it stacks its children down a column at their
+  `tree_layout.height` (or `row_height`), `tree_layout.gap` apart, inside
+  `tree_layout.padding`, and draws them clipped there with a thumb down its
+  right edge.
+- **Wheel:** it scrolls. `dispatchScroll` now offers the wheel to the widget
+  under it and then each ancestor, so a button in a list passes it to the list.
+- **Focus:** moving focus to a descendant scrolls every scrolling ancestor just
+  far enough to show it (`GuiWidget::revealChild`).
+- **Nothing that way:** a direction with no focusable widget that way scrolls
+  the nearest scrolling ancestor by `nav_step` (`GuiWidget::scrollByNav`), so
+  text below the last button can be read. Only when that can't move either does
+  `routeNav` return false.
+- **Clipping:** the tree draws every widget's children clipped to its
+  `childClipRect()`, and clips the focus ring the same way, so a ring never
+  shows outside the list.
+
+A widget that scrolls re-lays itself out in `arrangeAfterScroll`, which the tree
+calls after any of the three scrolls. The tree's own `SCROLL_CONTAINER` nodes
+stay plain panels, because the markdown renderer lays those out itself;
+`GuiScrollPanel` is added with `insertExternalWidget`.
+
+### 5.10 Overlays
+
+Overlay components registered with `registerComponent` take part as well: after
+the tree's widgets in focus order, and in spatial moves beside them. An overlay
+has no widget id, so while one has focus `focused_id` is invalid and
+`focusedWidget()` names it. `setFocus(GuiWidget&)` focuses either kind. A focus
+scope leaves overlays out, since they belong to no subtree. A command a focused
+overlay doesn't take has no parent to go to.
+
+### 5.11 Not Yet
+
+- Horizontal scrolling, and scrolling by the right stick.
+- Focus-gained and focus-lost callbacks, and the `method_changed` event
+  [gui.md](../gui.md) describes.
 
 ---
 
@@ -227,7 +287,8 @@ the pad steers a character, so a menu turns it on while open.
 |----------|-------------|
 | `hitTest(x, y)` | Find widget under screen point |
 | `routeNav(GuiNavCommand)` | Carry out one navigation command (§5.1) |
-| `setFocus(id)` | Focus a focusable widget |
+| `setFocus(id)`, `setFocus(GuiWidget&)` | Focus a focusable tree widget or overlay |
+| `focusedWidget()` | The focused widget, tree node or overlay |
 | `setFocusScope(id)` | Confine navigation to a subtree (§5.4) |
 | `advanceFocus(FocusTraversalDirection)` | Step through focus order in the scope |
 | `navigateFocus(GuiNavCommand)` | Move focus spatially; false when nothing lies that way |
@@ -262,7 +323,10 @@ the pad steers a character, so a menu turns it on while open.
 | `engine/gui/gui-input.h` | HitTestResult, GuiMouseEvent, GuiKeyEvent, public functions | ~100 |
 | `engine/gui/gui-input.cpp` | Hit testing, event routing | ~115 |
 | `engine/gui/gui-focus-nav.cpp` | Focus movement, scope, command routing, focus ring | ~290 |
-| `engine/gui/gui-gamepad-navigator.cpp` | A pad's frame as navigation commands, with repeat | ~110 |
+| `engine/gui/gui-gamepad-navigator.cpp` | A pad's frame as navigation commands, with repeat | ~115 |
+| `engine/gui/gui-nav-buttons.cpp` | Which button does each command per pad family, and its prompt | ~70 |
+| `engine/gui/gui-scroll-panel.cpp` | A clipped, scrolling column of widgets | ~130 |
+| `platform/client/src/desktop/desktop-gui-nav-keys.cpp` | Which keys navigate | ~55 |
 
 ---
 

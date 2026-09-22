@@ -61,6 +61,15 @@ public:
     ON,
   };
 
+  /// Whether the keyboard drives the GUI's focus navigation.
+  enum class GuiKeyNavigation : uint8_t {
+    /// It does not: every key reaches `onClientKeyDown`.
+    OFF,
+    /// Arrows, Tab, Enter, Space and Escape navigate
+    /// (`desktop-gui-nav-keys.h`) and do not reach `onClientKeyDown`.
+    ON,
+  };
+
   /// Whether an SDL key-down came from the first press or OS key-repeat.
   enum class ClientKeyDownKind : uint8_t {
     /// First `SDL_EVENT_KEY_DOWN` for this physical press.
@@ -151,9 +160,15 @@ protected:
   /// open. Turning it off forgets whatever was held.
   void setGuiPadNavigation(GuiPadNavigation mode);
 
-  /// A navigation command from the pad that the GUI did not use — most
-  /// often CANCEL with no text field typing, which is the open menu's cue
-  /// to close. Only raised while pad navigation is on.
+  /// Let the keyboard navigate the GUI, or stop it. Off by default: an
+  /// editor's arrows and Escape are shortcuts, and a game's may steer.
+  void setGuiKeyNavigation(GuiKeyNavigation mode) {
+    gui_key_navigation_ = mode;
+  }
+
+  /// A navigation command from the pad or keyboard that the GUI did not
+  /// use — most often CANCEL with no text field typing, which is the open
+  /// menu's cue to close. Only raised while that navigation is on.
   virtual void
   onClientGuiNavUnhandled([[maybe_unused]] eng::GuiNavCommand command) {}
 
@@ -196,6 +211,15 @@ private:
 
   /// Feed the pad in use through the GUI navigator into the widget tree.
   void navigateGuiByPad(float dt_seconds);
+
+  /// Navigate the GUI by the key-down @p event when keyboard navigation is
+  /// on and the key is one it uses; true when it was, so the key goes no
+  /// further.
+  bool navigateGuiByKey(const SDL_Event& event);
+
+  /// Carry out @p command, raising `onClientGuiNavUnhandled` if the GUI
+  /// did not use it.
+  void dispatchNav(eng::GuiNavCommand command);
 
   /// Tell the pads when @p event is the window gaining or losing focus.
   void trackGamepadFocus(const SDL_Event& event);
@@ -246,6 +270,8 @@ private:
   eng::GuiGamepadNavigator gui_navigator_{};
   /// Whether it runs.
   GuiPadNavigation gui_pad_navigation_ = GuiPadNavigation::OFF;
+  /// Whether the keyboard navigates the GUI.
+  GuiKeyNavigation gui_key_navigation_ = GuiKeyNavigation::OFF;
   /// Guards `pending_dialog_path_` against the dialog callback's thread.
   std::mutex dialog_mutex_{};
   /// Path chosen but not yet handed to the main thread, and what it is for.

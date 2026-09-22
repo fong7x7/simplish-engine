@@ -485,19 +485,23 @@ void GuiWidgetTree::registerComponent(GuiWidget& comp) {
   components_.push_back(&comp);
 }
 
-void GuiWidgetTree::unregisterComponent(GuiWidget& comp) {
+void GuiWidgetTree::forgetComponent(GuiWidget& comp) {
+  for (GuiWidget** held :
+       {&pending_click_target_, &captured_, &focused_overlay_}) {
+    if (*held == &comp) {
+      *held = nullptr;
+    }
+  }
   if (focused_input_ == &comp) {
     focused_input_ = nullptr;
   }
-  if (pending_click_target_ == &comp) {
-    pending_click_target_ = nullptr;
-  }
+}
+
+void GuiWidgetTree::unregisterComponent(GuiWidget& comp) {
   comp.overlay_registered = false;
   auto it = std::ranges::find(components_, &comp);
   if (it != components_.end()) {
-    if (captured_ == &comp) {
-      captured_ = nullptr;
-    }
+    forgetComponent(comp);
     components_.erase(it);
   }
 }
@@ -506,6 +510,7 @@ void GuiWidgetTree::clearComponents() {
   focused_input_ = nullptr;
   captured_ = nullptr;
   pending_click_target_ = nullptr;
+  focused_overlay_ = nullptr;
   components_.clear();
 }
 
@@ -653,7 +658,9 @@ bool GuiWidgetTree::dispatchClick(float mx, float my) {
 }
 
 void GuiWidgetTree::renderAll(const GuiDrawContext& ctx) {
-  visitDrawOrder([&](const GuiWidget& w) { w.render(ctx); });
+  if (root_id != GUI_WIDGET_ID_INVALID) {
+    renderTreeNode(root_id, ctx);
+  }
   renderSortedOverlays(components_, ctx);
   renderFocusRing(ctx);
 }
@@ -782,8 +789,8 @@ bool GuiWidgetTree::dispatchMouseDown(const GuiMouseEvent& event) {
   }
   // A click on a focusable tree widget puts focus there, so a pad picked
   // up afterwards carries on from where the pointer was.
-  if (comp->tree_focusable && findWidget(comp->widget_id) == comp) {
-    focused_id = comp->widget_id;
+  if (comp->tree_focusable) {
+    setFocus(*comp);
   }
   return handleMouseDownHit(*comp, event);
 }
@@ -817,14 +824,19 @@ void GuiWidgetTree::dispatchMouseMove(const GuiMouseEvent& event) {
 }
 
 bool GuiWidgetTree::dispatchScroll(const GuiScrollEvent& event) {
-  auto* comp = findTopOverlayAt(components_, event.x, event.y);
-  if (comp == nullptr) {
-    comp = resolveTreeHit(*this, event.x, event.y);
+  if (auto* comp = findTopOverlayAt(components_, event.x, event.y)) {
+    return comp->handleScroll(event);
   }
-  if (comp == nullptr) {
-    return false;
+  // The widget under the wheel first, then each ancestor: a button in a
+  // list does not scroll, and the list it is in does.
+  for (GuiWidget* at = resolveTreeHit(*this, event.x, event.y); at != nullptr;
+       at = findWidget(at->parent_id)) {
+    if (at->handleScroll(event)) {
+      afterScroll(*at);
+      return true;
+    }
   }
-  return comp->handleScroll(event);
+  return false;
 }
 
 bool GuiWidgetTree::hasCapture() const {

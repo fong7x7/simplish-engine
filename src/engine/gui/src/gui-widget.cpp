@@ -102,6 +102,20 @@ bool GuiWidget::handleNav(GuiNavCommand command) {
   return true;
 }
 
+bool GuiWidget::revealChild(const Rect& /*child*/) {
+  return false;
+}
+
+bool GuiWidget::scrollByNav(GuiNavCommand /*command*/) {
+  return false;
+}
+
+void GuiWidget::arrangeAfterScroll(GuiWidgetTree& /*tree*/) {}
+
+std::optional<Rect> GuiWidget::childClipRect() const {
+  return std::nullopt;
+}
+
 bool GuiWidget::handleClick(const GuiMouseEvent& event) {
   for (const auto& handler : on_click_handlers_) {
     handler(event);

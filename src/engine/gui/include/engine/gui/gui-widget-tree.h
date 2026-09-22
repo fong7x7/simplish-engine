@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -126,6 +127,15 @@ public:
 
   /// Set keyboard focus to a specific widget. No-op if not focusable.
   void setFocus(GuiWidgetId id);
+
+  /// Focus @p widget, a tree node or a registered overlay component. No-op
+  /// if it is neither, or not focusable.
+  void setFocus(GuiWidget& widget);
+
+  /// The widget with focus — a tree node, or an overlay component, which
+  /// has no id and leaves `focused_id` invalid — or null.
+  [[nodiscard]] GuiWidget* focusedWidget();
+  [[nodiscard]] const GuiWidget* focusedWidget() const;
 
   /// Cycle focus to the next or previous focusable widget in the focus
   /// scope, in tree order, wrapping.
@@ -254,24 +264,29 @@ private:
   /// Paste system clipboard text into input at cursor.
   static void pasteFromClipboard(GuiTextInput& input);
 
-  /// Every visible focusable widget in the focus scope, in tree order.
-  [[nodiscard]] std::vector<GuiWidgetId> focusableInScope() const;
+  /// Every visible focusable widget navigation can reach: the focus
+  /// scope's in tree order, then — with no scope set — the focusable
+  /// overlay components in registration order.
+  [[nodiscard]] std::vector<GuiWidget*> focusableInScope();
 
   /// The root navigation searches from: the focus scope, or the tree root.
   [[nodiscard]] GuiWidgetId navRoot() const;
 
-  /// Whether `focused_id` names a visible focusable widget in the scope.
-  [[nodiscard]] bool hasNavFocus() const;
+  /// Whether @p widget is a node of this tree rather than an overlay.
+  [[nodiscard]] bool isTreeNode(const GuiWidget& widget) const;
 
-  /// Offer @p command to the focused widget and its ancestors up to the
-  /// scope's root; true if one took it.
+  /// Whether the focused widget is one navigation can reach.
+  [[nodiscard]] bool hasNavFocus();
+
+  /// Offer @p command to the focused widget and, for a tree widget, its
+  /// ancestors up to the scope's root; true if one took it.
   bool bubbleNav(GuiNavCommand command);
 
   /// CONFIRM and CANCEL as they apply to the text field that is focused
   /// or typing, if any; true if they were used.
   bool routeTextNav(GuiNavCommand command);
 
-  /// With nothing focused: focus the scope's first focusable widget, for
+  /// With nothing focused: focus the first widget navigation can reach, for
   /// any @p command but CANCEL. True if it did.
   bool focusFirst(GuiNavCommand command);
 
@@ -279,11 +294,37 @@ private:
   /// spatially. True if focus moved, or the command was NEXT or PREVIOUS.
   bool moveNavFocus(GuiNavCommand command);
 
-  /// Focus @p id, dropping typing focus from any other text field.
-  void moveFocus(GuiWidgetId id);
+  /// A direction nothing lies in, as a scroll of the focused widget's
+  /// nearest scrolling ancestor; true if one moved.
+  bool scrollNav(GuiNavCommand command);
 
-  /// Ring the focused widget, when the ring is shown.
+  /// Focus @p widget — a tree node, an overlay, or null for nothing —
+  /// dropping typing focus from any other text field, and scrolling it
+  /// into view.
+  void moveFocus(GuiWidget* widget);
+
+  /// Scroll every scrolling ancestor of the focused tree widget so it
+  /// shows, innermost first.
+  void revealFocus();
+
+  /// Let @p widget re-lay itself out after it scrolled.
+  void afterScroll(GuiWidget& widget);
+
+  /// The part of the screen @p widget's ancestors let it draw in, or
+  /// nothing when none of them clips.
+  [[nodiscard]] std::optional<Rect> ancestorClip(const GuiWidget& widget) const;
+
+  /// Ring the focused widget, when the ring is shown, clipped as the widget
+  /// itself is.
   void renderFocusRing(const GuiDrawContext& ctx) const;
+
+  // NOLINTNEXTLINE(misc-no-recursion) -- tree traversal requires recursion
+  /// Draw @p id and its children in paint order, clipping the children to
+  /// whatever `childClipRect` it asks for.
+  void renderTreeNode(GuiWidgetId id, const GuiDrawContext& ctx) const;
+
+  /// Drop every reference the tree holds to overlay @p comp.
+  void forgetComponent(GuiWidget& comp);
 
   /// Update the system cursor shape based on hovered widget type.
   void updateCursorForHover();
@@ -446,6 +487,9 @@ private:
   GuiWidget* captured_ = nullptr;
   /// Text field receiving IME/text input when focused.
   GuiTextInput* focused_input_ = nullptr;
+  /// The overlay component with navigation focus, when one has it rather
+  /// than a tree node.
+  GuiWidget* focused_overlay_ = nullptr;
   /// Widget hit on mouse-down when `handleMouseDown` returned false.
   GuiWidget* pending_click_target_ = nullptr;
   /// Button index from that mouse-down; must match for synthesized click.

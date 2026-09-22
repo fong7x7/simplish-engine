@@ -47,6 +47,9 @@ static_assert(static_cast<uint32_t>(SDLK_DOWN) ==
               DesktopPlatformKeycode::ARROW_DOWN);
 static_assert(static_cast<uint32_t>(SDLK_UP) ==
               DesktopPlatformKeycode::ARROW_UP);
+static_assert(static_cast<uint32_t>(SDLK_TAB) == DesktopPlatformKeycode::TAB);
+static_assert(static_cast<uint32_t>(SDLK_SPACE) ==
+              DesktopPlatformKeycode::SPACE);
 
 namespace {
 
@@ -181,6 +184,9 @@ void DesktopGameClient::onEvent(const SDL_Event& event) {
 }
 
 void DesktopGameClient::dispatchClientKey(const SDL_Event& event) {
+  if (event.type == SDL_EVENT_KEY_DOWN && navigateGuiByKey(event)) {
+    return;
+  }
   if (event.type == SDL_EVENT_KEY_DOWN) {
     const auto kind = event.key.repeat != 0U
                           ? DesktopGameClient::ClientKeyDownKind::REPEAT

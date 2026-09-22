@@ -2,13 +2,13 @@
 #include <editor/shell/editor-playtest-controls.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/client/desktop-platform-keycode.h>
+#include <engine/gui/gui-nav-buttons.h>
 
 namespace eng::editor {
 
 namespace {
 
   using Keycode = eng::client::DesktopPlatformKeycode;
-  using Button = input::GamepadButton;
 
   /// One key a playtest reads, and the action it holds.
   struct PlaytestKey {
@@ -30,23 +30,22 @@ namespace {
       {Keycode::ARROW_RIGHT, input::InputAction::MOVE_RIGHT},
   };
 
-  /// One pad button the character selector reads, and the key it acts as.
-  struct ChoosingButton {
-    /// The button.
-    Button button;
+  /// One menu command the character selector reads, and its key.
+  struct ChoosingKey {
+    /// The command.
+    GuiNavCommand command;
     /// The selector key it stands for.
     uint32_t key;
   };
 
-  /// The d-pad steps, South confirms and East cancels, as the GUI's own
-  /// dialogs map a pad (gui.md §4.7).
-  constexpr ChoosingButton CHOOSING_BUTTONS[] = {
-      {Button::DPAD_LEFT, Keycode::ARROW_LEFT},
-      {Button::DPAD_UP, Keycode::ARROW_UP},
-      {Button::DPAD_RIGHT, Keycode::ARROW_RIGHT},
-      {Button::DPAD_DOWN, Keycode::ARROW_DOWN},
-      {Button::SOUTH, Keycode::KEY_RETURN},
-      {Button::EAST, Keycode::ESCAPE},
+  /// The selector's keys for each menu command a pad can make.
+  constexpr ChoosingKey CHOOSING_KEYS[] = {
+      {GuiNavCommand::LEFT, Keycode::ARROW_LEFT},
+      {GuiNavCommand::UP, Keycode::ARROW_UP},
+      {GuiNavCommand::RIGHT, Keycode::ARROW_RIGHT},
+      {GuiNavCommand::DOWN, Keycode::ARROW_DOWN},
+      {GuiNavCommand::CONFIRM, Keycode::KEY_RETURN},
+      {GuiNavCommand::CANCEL, Keycode::ESCAPE},
   };
 
   /// The unit ground direction that @p screen, a direction on the screen,
@@ -67,9 +66,11 @@ input::InputBindings editorDefaultInputBindings() {
   return bindings;
 }
 
-std::optional<uint32_t> editorChoosingKeyFor(input::GamepadButton button) {
-  for (const ChoosingButton& entry : CHOOSING_BUTTONS) {
-    if (entry.button == button) {
+std::optional<uint32_t> editorChoosingKeyFor(input::GamepadButton button,
+                                             input::GamepadFamily family) {
+  const std::optional<GuiNavCommand> command = guiNavCommandFor(button, family);
+  for (const ChoosingKey& entry : CHOOSING_KEYS) {
+    if (command == entry.command) {
       return entry.key;
     }
   }

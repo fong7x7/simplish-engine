@@ -17,6 +17,7 @@
 #include "layout-engine.h"
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -112,6 +113,24 @@ public:
   /// own focus movement. The default presses the widget on CONFIRM when it
   /// has click handlers, as a click at its centre would.
   virtual bool handleNav(GuiNavCommand command);
+
+  /// Scroll so @p child, a descendant's rect, shows inside this widget.
+  /// Return true if the scroll moved; the tree then calls
+  /// `arrangeAfterScroll`. Default: this widget does not scroll.
+  virtual bool revealChild(const Rect& child);
+
+  /// Scroll one step in @p command's direction, for a pad or arrow key
+  /// that found nothing focusable that way. Return true if it moved.
+  /// Default: this widget does not scroll.
+  virtual bool scrollByNav(GuiNavCommand command);
+
+  /// Re-lay out whatever a scroll moved, after `handleScroll`,
+  /// `revealChild` or `scrollByNav` reported one. Default: nothing.
+  virtual void arrangeAfterScroll(GuiWidgetTree& tree);
+
+  /// The rect this widget's children are drawn clipped to, or nothing for
+  /// no clipping. Default: nothing.
+  [[nodiscard]] virtual std::optional<Rect> childClipRect() const;
 
   /// Test whether point (mx, my) is inside this component's rect.
   bool isInside(float mx, float my) const;

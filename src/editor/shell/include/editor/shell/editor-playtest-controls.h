@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <editor/shell/iso-axes.h>
 #include <engine/input/gamepad-button.h>
+#include <engine/input/gamepad-family.h>
 #include <engine/input/input-bindings.h>
 #include <engine/input/move-basis.h>
 #include <optional>
@@ -22,11 +23,12 @@ namespace eng::editor {
 /// not a binding: the viewport owns its clicks.
 [[nodiscard]] input::InputBindings editorDefaultInputBindings();
 
-/// The key @p button stands for in the character selector — the d-pad
-/// steps through the cards, South picks one and East backs out — or
-/// nothing, so the selector is driven by the pad the way it is by keys.
+/// The key @p button, on a @p family pad, stands for in the character
+/// selector — the d-pad steps through the cards, and the face buttons pick
+/// one and back out as every menu does on that pad (`gui-nav-buttons.h`),
+/// so A confirms on a Nintendo pad — or nothing.
 [[nodiscard]] std::optional<uint32_t>
-editorChoosingKeyFor(input::GamepadButton button);
+editorChoosingKeyFor(input::GamepadButton button, input::GamepadFamily family);
 
 /// The world directions the screen's right and down point along under the
 /// projection @p axes, for camera-relative movement: W moves the player up
