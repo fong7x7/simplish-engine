@@ -1,22 +1,32 @@
 #pragma once
 
 /// @file editor-playtest-controls.h
-/// @brief How the keyboard steers a playtest: which key is which action,
-///        and which way the camera says "up" is.
+/// @brief How keys and pads steer a playtest: the default control scheme,
+///        the pad's way through the character selector, and which way the
+///        camera says "up" is.
 /// @par Threading Thread-safe (pure functions).
 
 #include <cstdint>
 #include <editor/shell/iso-axes.h>
-#include <engine/input/input-action.h>
+#include <engine/input/gamepad-button.h>
+#include <engine/input/input-bindings.h>
 #include <engine/input/move-basis.h>
 #include <optional>
 
 namespace eng::editor {
 
-/// The action @p key holds in a playtest — WASD and the arrow keys move —
-/// or nothing. Fire is the viewport's left button, not a key.
-[[nodiscard]] std::optional<input::InputAction>
-editorPlaytestAction(uint32_t key);
+/// The control scheme a playtest starts from before the user's own file
+/// is read: WASD and the arrow keys move, and every pad plays twin-stick —
+/// the left stick and d-pad move, the right stick aims, the right trigger
+/// or shoulder fires. Fire is also the viewport's left button, which is
+/// not a binding: the viewport owns its clicks.
+[[nodiscard]] input::InputBindings editorDefaultInputBindings();
+
+/// The key @p button stands for in the character selector — the d-pad
+/// steps through the cards, South picks one and East backs out — or
+/// nothing, so the selector is driven by the pad the way it is by keys.
+[[nodiscard]] std::optional<uint32_t>
+editorChoosingKeyFor(input::GamepadButton button);
 
 /// The world directions the screen's right and down point along under the
 /// projection @p axes, for camera-relative movement: W moves the player up

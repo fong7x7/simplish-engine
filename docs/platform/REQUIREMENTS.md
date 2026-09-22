@@ -53,7 +53,8 @@ The platform layer builds and its tests pass: 114 tests on macOS/Metal, 66 on th
 | DX12 backend | `src/platform/render/backends/dx12/` | 25 | Device, command list, handle table, descriptor heap allocator, frames-in-flight, resource wrappers, shared root signature, built-in GUI, static mesh, skinned mesh, outline, effects and volumetric-smoke pipelines |
 | OpenGL backend | `src/platform/render/backends/opengl/` | 26 | Device, command list, types, full set of `gl-cmd-*` command records |
 | Stub backend | `src/platform/render/backends/stub/` | 2 | Headless `RhiDevice`; selectable via `ENGINE_RENDERER=STUB` — the CI determinism path |
-| Desktop client | `src/platform/client/` | 8 | `DesktopGameClient`: SDL3 window, event pump, RHI creation, run loop, keycode mapping |
+| Pad backends | `src/platform/input/` | 5 | `Gamepads`: the target's pads read into the engine's canonical buttons and axes once a frame. One backend compiled in by `ENGINE_GAMEPAD_BACKEND` — `SDL` (desktop: Xbox, PlayStation, Nintendo and generic pads), `NONE`; `DUALSENSE` and `GAMEINPUT` come from the console overlay ([input.md](../engine/input.md)) |
+| Desktop client | `src/platform/client/` | 11 | `DesktopGameClient`: SDL3 window, event pump, RHI creation, run loop, keycode mapping, key names for binding files; owns the pads and raises a hook per press |
 | Steam distributor | `src/platform/distributor/steam/` | 22 | Init, achievements, cloud, input, matchmaking, networking, overlay, workshop |
 | Epic distributor | `src/platform/distributor/epic/` | 19 | Init, achievements, cloud, commerce, leaderboards, matchmaking, networking, overlay, social |
 | PS5 distributor | `src/platform/distributor/ps5/` | 21 | Init, GNM config, Tempest audio, input, networking, save data, trophies, system |

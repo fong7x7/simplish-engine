@@ -3,6 +3,7 @@
 #include <editor/shell/editor-playtest-controls.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/client/desktop-platform-keycode.h>
+#include <engine/input/gamepad-actions.h>
 #include <engine/input/held-actions.h>
 #include <engine/input/player-input-builder.h>
 
@@ -17,10 +18,17 @@ IsoPoint onScreen(const IsoAxes& axes, Vec2 direction) {
   return worldToIso(axes, {direction.x, direction.y, 0.0f});
 }
 
+/// The actions the default scheme binds @p key to.
+std::vector<input::InputAction> actionsForKey(uint32_t key) {
+  return editorDefaultInputBindings().actionsFor(input::InputSource::key(key));
+}
+
 /// Player 1's input while holding the one key @p key under @p axes.
 sim::PlayerInput holdingKey(uint32_t key, const IsoAxes& axes) {
   input::HeldActions held;
-  held.press(*editorPlaytestAction(key));
+  for (const input::InputAction action : actionsForKey(key)) {
+    held.press(action);
+  }
   return input::makePlayerInput(held, {}, editorMoveBasis(axes));
 }
 
@@ -28,13 +36,37 @@ sim::PlayerInput holdingKey(uint32_t key, const IsoAxes& axes) {
 
 TEST_CASE("WASD and the arrows move; other keys do nothing") {
   using Keycode = eng::client::DesktopPlatformKeycode;
-  REQUIRE(editorPlaytestAction('w') == input::InputAction::MOVE_UP);
-  REQUIRE(editorPlaytestAction(Keycode::ARROW_UP) ==
-          input::InputAction::MOVE_UP);
-  REQUIRE(editorPlaytestAction('d') == input::InputAction::MOVE_RIGHT);
-  REQUIRE(editorPlaytestAction(Keycode::ARROW_LEFT) ==
-          input::InputAction::MOVE_LEFT);
-  REQUIRE_FALSE(editorPlaytestAction('g').has_value());
+  using A = input::InputAction;
+  REQUIRE(actionsForKey('w') == std::vector{A::MOVE_UP});
+  REQUIRE(actionsForKey(Keycode::ARROW_UP) == std::vector{A::MOVE_UP});
+  REQUIRE(actionsForKey('d') == std::vector{A::MOVE_RIGHT});
+  REQUIRE(actionsForKey(Keycode::ARROW_LEFT) == std::vector{A::MOVE_LEFT});
+  REQUIRE(actionsForKey('g').empty());
+}
+
+TEST_CASE("every pad plays twin-stick by default") {
+  const input::InputBindings bindings = editorDefaultInputBindings();
+  input::GamepadState pad;
+  pad.setAxis(input::GamepadAxis::LEFT_X, 1.0f);
+  pad.setAxis(input::GamepadAxis::RIGHT_Y, -1.0f);
+  pad.setAxis(input::GamepadAxis::RIGHT_TRIGGER, 1.0f);
+  input::ActionValues values;
+  input::offerGamepad(values, pad, bindings);
+  const sim::PlayerInput played =
+      input::makePlayerInput(values, {}, editorMoveBasis(ISO_AXES_DIMETRIC));
+  REQUIRE(played.move_x == input::INPUT_AXIS_MAX);
+  REQUIRE(played.aim_y == -input::INPUT_AXIS_MAX);
+  REQUIRE(played.buttons == input::INPUT_BUTTON_FIRE);
+}
+
+TEST_CASE("the pad drives the character selector as the keys do") {
+  using Keycode = eng::client::DesktopPlatformKeycode;
+  using B = input::GamepadButton;
+  REQUIRE(editorChoosingKeyFor(B::DPAD_RIGHT) == Keycode::ARROW_RIGHT);
+  REQUIRE(editorChoosingKeyFor(B::DPAD_UP) == Keycode::ARROW_UP);
+  REQUIRE(editorChoosingKeyFor(B::SOUTH) == Keycode::KEY_RETURN);
+  REQUIRE(editorChoosingKeyFor(B::EAST) == Keycode::ESCAPE);
+  REQUIRE_FALSE(editorChoosingKeyFor(B::START).has_value());
 }
 
 TEST_CASE("under the dimetric view the screen and world axes agree") {

@@ -120,3 +120,58 @@ TEST_CASE("the basis turns movement, not the aim") {
   REQUIRE(input.aim_x == INPUT_AXIS_MAX);
   REQUIRE(input.aim_y == 0);
 }
+
+namespace {
+
+/// Values with each of @p actions offered at @p strength.
+eng::input::ActionValues asking(std::initializer_list<InputAction> actions,
+                                float strength) {
+  eng::input::ActionValues values;
+  for (const InputAction action : actions) {
+    values.offer(action, strength);
+  }
+  return values;
+}
+
+}  // namespace
+
+TEST_CASE("held keys reach the tick the same through either builder") {
+  const HeldActions held = holding(
+      {InputAction::MOVE_UP, InputAction::MOVE_RIGHT, InputAction::FIRE});
+  const auto from_held = makePlayerInput(held, Vec2{1.0F, 2.0F}, ISOMETRIC);
+  const auto from_values = makePlayerInput(eng::input::ActionValues{held},
+                                           Vec2{1.0F, 2.0F}, ISOMETRIC);
+  REQUIRE(from_held == from_values);
+}
+
+TEST_CASE("a stick's full diagonal is capped at full speed") {
+  const auto input = makePlayerInput(
+      asking({InputAction::MOVE_DOWN, InputAction::MOVE_RIGHT}, 1.0F), Vec2{},
+      MoveBasis{});
+  REQUIRE(std::abs(std::hypot(input.move_x, input.move_y) - INPUT_AXIS_MAX) <
+          2.0);
+}
+
+TEST_CASE("the aim actions aim through the basis, over the fallback") {
+  const auto input = makePlayerInput(asking({InputAction::AIM_UP}, 0.3F),
+                                     Vec2{1.0F, 0.0F}, ISOMETRIC);
+  // Up the screen under 45° of yaw is -X-Y, whatever the stick's length.
+  REQUIRE(input.aim_x == -23170);
+  REQUIRE(input.aim_y == -23170);
+}
+
+TEST_CASE("with no aim action asked for, the fallback aims") {
+  const auto input =
+      makePlayerInput(eng::input::ActionValues{}, Vec2{0.0F, 4.0F}, ISOMETRIC);
+  REQUIRE(input.aim_x == 0);
+  REQUIRE(input.aim_y == INPUT_AXIS_MAX);
+}
+
+TEST_CASE("fire presses past half a pull") {
+  REQUIRE(
+      makePlayerInput(asking({InputAction::FIRE}, 0.4F), Vec2{}, MoveBasis{})
+          .buttons == 0U);
+  REQUIRE(
+      makePlayerInput(asking({InputAction::FIRE}, 0.6F), Vec2{}, MoveBasis{})
+          .buttons == INPUT_BUTTON_FIRE);
+}

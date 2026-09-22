@@ -6,6 +6,7 @@
 /// Pure functions.
 
 #include <cstdint>
+#include <engine/input/action-values.h>
 #include <engine/input/held-actions.h>
 #include <engine/input/move-basis.h>
 #include <engine/math/vec2.h>
@@ -37,5 +38,18 @@ inline constexpr int16_t INPUT_AXIS_MAX = 32767;
 /// had".
 [[nodiscard]] sim::PlayerInput
 makePlayerInput(const HeldActions& held, Vec2 aim, const MoveBasis& basis);
+
+/// The input a tick runs on, from how hard each action is asked for in
+/// @p values — keys and pads alike — and the camera's @p basis.
+///
+/// Movement is the move actions as a screen-space stick, capped at full
+/// length so a diagonal is no faster than a straight line, and turned into
+/// world directions by @p basis. Aim is the aim actions the same way, when
+/// any is asked for; when none is, it is @p fallback_aim, already a world
+/// direction — the cursor's, on a desktop — so a pad's resting right stick
+/// leaves the mouse in charge. Fire is pressed past half strength.
+[[nodiscard]] sim::PlayerInput makePlayerInput(const ActionValues& values,
+                                               Vec2 fallback_aim,
+                                               const MoveBasis& basis);
 
 }  // namespace eng::input

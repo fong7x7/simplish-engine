@@ -6,6 +6,8 @@
 
 set(_client_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client-gamepads.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-key-names.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-platform-utility.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-user-data-path.cpp"
 )
@@ -18,6 +20,8 @@ simplish_add_module(simplish-platform-client
         simplish-engine-gui
         simplish-engine-render
         simplish-engine-client
+        simplish-engine-input
+        simplish-platform-input
         simplish-platform-render
 )
 target_link_libraries(simplish-platform-client PUBLIC SDL3::SDL3)

@@ -124,6 +124,7 @@
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-placement-animator.h>
+#include <editor/shell/editor-playtest-controls.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-edit.h>
@@ -139,6 +140,7 @@
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
 #include <engine/input/held-actions.h>
+#include <engine/input/input-bindings.h>
 #include <engine/math/vec2.h>
 #include <engine/render-fx/fx-renderer.h>
 #include <engine/render-fx/fx-volume-renderer.h>
@@ -173,6 +175,11 @@ public:
   /// the list is read from as soon as it is known. Must be set before
   /// init() to take effect at startup.
   void setRecentProjectsPath(std::filesystem::path path);
+
+  /// Read the user's control scheme from @p path — writing the defaults
+  /// there when it has none — and play with it from now on. Without a
+  /// call, a playtest plays with the defaults and nothing is saved.
+  void setInputBindingsPath(const std::filesystem::path& path);
 
   /// Read-only view of shell state, for tests and the entry point.
   [[nodiscard]] const EditorShellState& state() const { return state_; }
@@ -250,6 +257,7 @@ protected:
                        ClientKeyModifiers modifiers) override;
   void onClientKeyUp(uint32_t key) override;
   void onClientFocusLost() override;
+  void onClientGamepadButtonDown(input::GamepadButton button) override;
 
 private:
   // -- Playtest (simplish-editor-playtest.cpp) ------------------------------
@@ -1010,8 +1018,10 @@ private:
   /// How far the last frame of play got between its two newest ticks,
   /// which is where the players are drawn.
   float playtest_alpha_ = 0.0f;
-  /// The movement and fire keys held right now.
+  /// The actions the keys held right now ask for.
   input::HeldActions held_actions_{};
+  /// Which keys and pad controls ask for which action.
+  input::InputBindings input_bindings_{editorDefaultInputBindings()};
 };
 
 }  // namespace eng::editor

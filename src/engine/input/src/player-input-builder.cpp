@@ -10,6 +10,26 @@ namespace {
   /// as fast as a straight line rather than √2 faster.
   constexpr float DIAGONAL_SCALE = 0.70710678F;
 
+  /// The four actions that make one screen-space stick.
+  struct StickActions {
+    /// Pushes the stick right.
+    InputAction right;
+    /// Pushes it left.
+    InputAction left;
+    /// Pushes it down the screen.
+    InputAction down;
+    /// Pushes it up the screen.
+    InputAction up;
+  };
+
+  /// The movement stick, and the aim stick.
+  constexpr StickActions MOVE_STICK{
+      InputAction::MOVE_RIGHT, InputAction::MOVE_LEFT, InputAction::MOVE_DOWN,
+      InputAction::MOVE_UP};
+  constexpr StickActions AIM_STICK{InputAction::AIM_RIGHT,
+                                   InputAction::AIM_LEFT, InputAction::AIM_DOWN,
+                                   InputAction::AIM_UP};
+
   /// +1 when only @p positive is held, -1 when only @p negative is, and 0
   /// when both or neither are.
   float axisFrom(const HeldActions& held, InputAction positive,
@@ -32,6 +52,18 @@ namespace {
     return move;
   }
 
+  /// The screen-space stick @p stick's actions ask for in @p values,
+  /// capped at unit length so a diagonal is no faster than a straight line.
+  Vec2 valueStick(const ActionValues& values, const StickActions& stick) {
+    Vec2 out{values.value(stick.right) - values.value(stick.left),
+             values.value(stick.down) - values.value(stick.up)};
+    const float length = std::sqrt(out.x * out.x + out.y * out.y);
+    if (length > 1.0F) {
+      out = {out.x / length, out.y / length};
+    }
+    return out;
+  }
+
   /// @p stick, in screen directions, as the world direction @p basis says
   /// those point along.
   Vec2 toWorld(Vec2 stick, const MoveBasis& basis) {
@@ -43,6 +75,19 @@ namespace {
   Vec2 unitAim(Vec2 aim) {
     const float length = std::sqrt(aim.x * aim.x + aim.y * aim.y);
     return length > 0.0F ? Vec2{aim.x / length, aim.y / length} : Vec2{};
+  }
+
+  /// The quantised input for a world @p move, an @p aim of any length, and
+  /// the `PlayerInput::buttons` bits @p buttons.
+  sim::PlayerInput assemble(Vec2 move, Vec2 aim, uint32_t buttons) {
+    const Vec2 facing = unitAim(aim);
+    sim::PlayerInput input;
+    input.move_x = quantizeInputAxis(move.x);
+    input.move_y = quantizeInputAxis(move.y);
+    input.aim_x = quantizeInputAxis(facing.x);
+    input.aim_y = quantizeInputAxis(facing.y);
+    input.buttons = buttons;
+    return input;
   }
 
 }  // namespace
@@ -59,14 +104,18 @@ int16_t quantizeInputAxis(float value) {
 sim::PlayerInput makePlayerInput(const HeldActions& held, Vec2 aim,
                                  const MoveBasis& basis) {
   const Vec2 move = toWorld(screenStick(held), basis);
-  const Vec2 facing = unitAim(aim);
-  sim::PlayerInput input;
-  input.move_x = quantizeInputAxis(move.x);
-  input.move_y = quantizeInputAxis(move.y);
-  input.aim_x = quantizeInputAxis(facing.x);
-  input.aim_y = quantizeInputAxis(facing.y);
-  input.buttons = held.held(InputAction::FIRE) ? INPUT_BUTTON_FIRE : 0U;
-  return input;
+  const bool fire = held.held(InputAction::FIRE);
+  return assemble(move, aim, fire ? INPUT_BUTTON_FIRE : 0U);
+}
+
+sim::PlayerInput makePlayerInput(const ActionValues& values, Vec2 fallback_aim,
+                                 const MoveBasis& basis) {
+  const Vec2 move = toWorld(valueStick(values, MOVE_STICK), basis);
+  const Vec2 stick_aim = valueStick(values, AIM_STICK);
+  const bool aiming = stick_aim.x != 0.0F || stick_aim.y != 0.0F;
+  const Vec2 aim = aiming ? toWorld(stick_aim, basis) : fallback_aim;
+  const bool fire = values.pressed(InputAction::FIRE);
+  return assemble(move, aim, fire ? INPUT_BUTTON_FIRE : 0U);
 }
 
 }  // namespace eng::input

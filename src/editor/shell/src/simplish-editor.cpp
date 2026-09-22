@@ -12,6 +12,7 @@
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-general-section.h>
+#include <editor/shell/editor-input-bindings.h>
 #include <editor/shell/editor-level-io.h>
 #include <editor/shell/editor-level-list.h>
 #include <editor/shell/editor-level-ops.h>
@@ -211,6 +212,10 @@ namespace {
   constexpr size_t THUMBNAILS_PER_FRAME = 2;
 
 }  // namespace
+
+void SimplishEditor::setInputBindingsPath(const std::filesystem::path& path) {
+  input_bindings_ = loadEditorInputBindings(path);
+}
 
 void SimplishEditor::setRecentProjectsPath(std::filesystem::path path) {
   state_.recent_path = std::move(path);

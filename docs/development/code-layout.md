@@ -239,7 +239,7 @@ src/
 │   ├── math/{include,src,test}
 │   ├── core/{include,src,test}
 │   ├── sim/{include,src,test}      # tick, entity slots, hashing, replay
-│   ├── input/{include,src,test}    # held actions → PlayerInput
+│   ├── input/{include,src,test}    # actions, bindings, pad vocabulary → PlayerInput
 │   ├── physics/{include,src,test}  # cylinder vs box collision
 │   ├── spatial/{include,src,test}  # nav grid, line of sight, A*
 │   ├── image/{include,src,test}    # stb implementation TUs
@@ -255,6 +255,7 @@ src/
 │   ├── render/
 │   │   ├── {include,src,test}      # RhiDeviceFactory
 │   │   └── backends/{metal,vulkan,dx12,opengl,stub}/{include,src}
+│   ├── input/{include,src,test}    # the target's pads; src/<backend>/, one built
 │   ├── client/{include,src,test}   # DesktopGameClient (SDL3)
 │   └── distributor/{steam,epic,ps5,xbox}/{include,src}
 ├── editor/

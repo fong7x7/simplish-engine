@@ -177,6 +177,7 @@ void DesktopGameClient::onEvent(const SDL_Event& event) {
   }
   dispatchSdlInputToGui(event);
   dispatchClientKey(event);
+  trackGamepadFocus(event);
 }
 
 void DesktopGameClient::dispatchClientKey(const SDL_Event& event) {
@@ -384,6 +385,7 @@ DesktopGameClient::init(const eng::client::GameClientConfig& config) {
   if (auto err = initSdlWindow(config)) {
     return err;
   }
+  openGamepads();
   if (auto err = initEngineContext(config)) {
     return err;
   }
@@ -399,6 +401,7 @@ bool DesktopGameClient::runOneFrame(
   if (!pollEvents()) {
     return false;
   }
+  pollGamepads();
   // Between polling and ticking: the dialog callback may have run on
   // another thread, and this is where its answer joins the main thread.
   drainDialogPath();
@@ -509,6 +512,7 @@ void DesktopGameClient::shutdown() {
   onShutdown();
   rhi_device_.reset();
   shutdownEngine(engine_);
+  gamepads_.close();
   if (window_ != nullptr) {
     SDL_DestroyWindow(window_);
     window_ = nullptr;

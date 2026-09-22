@@ -19,6 +19,8 @@
 #include <editor/shell/simplish-editor.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/core/logger.h>
+#include <engine/input/action-values.h>
+#include <engine/input/gamepad-actions.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <engine/math/mat4.h>
@@ -323,17 +325,23 @@ uint64_t SimplishEditor::playtestElapsedNs() {
 }
 
 sim::PlayerInput SimplishEditor::livePlayerInput() {
-  input::HeldActions held = held_actions_;
+  // Keys and the pad in use through the same bindings, the stronger of the
+  // two winning, so either can be picked up mid-run.
+  input::ActionValues values{held_actions_};
+  if (const input::GamepadState* pad = gamepads().active()) {
+    input::offerGamepad(values, *pad, input_bindings_);
+  }
   const EditorViewportWidget* viewport = viewportWidget();
   if (viewport == nullptr) {
-    return input::makePlayerInput(held, {}, input::MoveBasis{});
+    return input::makePlayerInput(values, {}, input::MoveBasis{});
   }
   if (viewport->leftHeld()) {
-    held.press(input::InputAction::FIRE);
+    values.offer(input::InputAction::FIRE, 1.0f);
   }
-  // Movement follows the camera: up is up the screen, whichever of the two
-  // projections the project draws with.
-  return input::makePlayerInput(held, cursorAim(),
+  // Movement and stick aim follow the camera: up is up the screen, whichever
+  // of the two projections the project draws with. A resting aim stick
+  // leaves the cursor aiming.
+  return input::makePlayerInput(values, cursorAim(),
                                 editorMoveBasis(viewport->camera.axes));
 }
 
@@ -566,17 +574,31 @@ bool SimplishEditor::handlePlayingKey(uint32_t key) {
     stopPlaytest();
     return true;
   }
-  const std::optional<input::InputAction> action = editorPlaytestAction(key);
-  if (action) {
-    held_actions_.press(*action);
+  const std::vector<input::InputAction> actions =
+      input_bindings_.actionsFor(input::InputSource::key(key));
+  for (const input::InputAction action : actions) {
+    held_actions_.press(action);
   }
-  return action.has_value();
+  return !actions.empty();
 }
 
 void SimplishEditor::onClientKeyUp(uint32_t key) {
-  if (const std::optional<input::InputAction> action =
-          editorPlaytestAction(key)) {
-    held_actions_.release(*action);
+  for (const input::InputAction action :
+       input_bindings_.actionsFor(input::InputSource::key(key))) {
+    held_actions_.release(action);
+  }
+}
+
+void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
+  if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
+    if (const std::optional<uint32_t> key = editorChoosingKeyFor(button)) {
+      (void)handleChoosingKey(*key);
+    }
+    return;
+  }
+  // Start is a pad's pause button on every platform; F6 is the keyboard's.
+  if (isPlaying() && button == input::GamepadButton::START) {
+    togglePlaytestPause();
   }
 }
 

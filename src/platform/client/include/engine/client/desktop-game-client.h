@@ -3,6 +3,9 @@
 #include <chrono>
 #include <cstdint>
 #include <engine/client/rendered-game-client.h>
+#include <engine/input/gamepad-button.h>
+#include <engine/input/gamepad-set.h>
+#include <engine/input/gamepads.h>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -26,6 +29,8 @@ namespace eng::client {
 // - Poll SDL3 events; map SDL_EVENT_* to RenderedGameClient guiDispatch* calls
 // - Expose windowClientSizePx() and onClientKeyDown() so game/editor code
 //   stays free of SDL includes, modifier state included
+// - Own the platform's pads (platform/input), poll them once a frame, and
+//   raise onClientGamepadButtonDown for presses on the pad in use
 // - Initialize the engine with the SDL window as native handle
 // - Create the RhiDevice via render::RhiDeviceFactory
 // - Drive the loop: poll -> onTick -> presentGuiFrame
@@ -117,6 +122,19 @@ protected:
   /// moment will never arrive, so whatever tracks held keys drops them here.
   virtual void onClientFocusLost() {}
 
+  /// Every connected pad, as read at the start of this frame, in the
+  /// engine's canonical buttons and axes. Which pads can appear here is
+  /// the platform's pad backend's decision, not the caller's.
+  [[nodiscard]] const eng::input::GamepadSet& gamepads() const {
+    return gamepads_.pads();
+  }
+
+  /// @p button went down on the pad in use this frame — for menus and
+  /// other things that act on a press. Held state is `gamepads()`.
+  virtual void
+  onClientGamepadButtonDown([[maybe_unused]] eng::input::GamepadButton button) {
+  }
+
   /// Resize and input dispatch; subclasses that override must call this base
   /// implementation (or replicate resize, `dispatchSdlInputToGui`, and
   /// `onClientKeyDown`) so hooks stay wired.
@@ -145,6 +163,15 @@ private:
   /// Raise `onClientKeyDown`, `onClientKeyUp` or `onClientFocusLost` for
   /// whichever of them @p event is, after the GUI has had it.
   void dispatchClientKey(const SDL_Event& event);
+
+  /// Start the pad backend, logging rather than failing when it cannot.
+  void openGamepads();
+
+  /// Read the pads, and raise `onClientGamepadButtonDown` for each press.
+  void pollGamepads();
+
+  /// Tell the pads when @p event is the window gaining or losing focus.
+  void trackGamepadFocus(const SDL_Event& event);
 
   /// Hand any pending dialog answer to the handler its purpose names.
   void drainDialogPath();
@@ -186,6 +213,8 @@ private:
   SDL_Window* window_ = nullptr;
   /// RHI device; created in init() via RhiDeviceFactory.
   std::unique_ptr<eng::RhiDevice> rhi_device_{};
+  /// The platform's pads; opened in init(), closed in shutdown().
+  eng::input::Gamepads gamepads_{};
   /// Guards `pending_dialog_path_` against the dialog callback's thread.
   std::mutex dialog_mutex_{};
   /// Path chosen but not yet handed to the main thread, and what it is for.

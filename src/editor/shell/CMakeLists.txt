@@ -46,6 +46,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-placement-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-player-start-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-playtest-controls.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-input-bindings.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-playtest-session.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-project-title.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-layout.cpp"
@@ -89,6 +90,7 @@ simplish_add_module(simplish-editor-shell
         simplish-game-fx
         simplish-game-world
         simplish-platform-client
+        simplish-platform-input
         nlohmann_json::nlohmann_json
 )
 

@@ -10,13 +10,14 @@
 # stay valid. See docs/platform/REQUIREMENTS.md.
 
 add_subdirectory(render)
+add_subdirectory(input)
 
 if(ENGINE_PLATFORM_DESKTOP)
     add_subdirectory(client)
     add_subdirectory(agent)
 endif()
 
-set(_platform_modules simplish-platform-render)
+set(_platform_modules simplish-platform-render simplish-platform-input)
 
 # Exactly one backend is compiled in, chosen by SimplishRenderer.cmake.
 if(ENGINE_PLATFORM_MACOS AND ENGINE_RENDERER_RESOLVED STREQUAL "METAL")

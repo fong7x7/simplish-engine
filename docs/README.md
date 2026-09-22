@@ -13,6 +13,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [Platform](platform/REQUIREMENTS.md) | Working on RHI backends, windowing, or distributor services |
 | [GUI](engine/gui/README.md) | Working on UI: widgets, layout, text, theming, docking, markdown |
 | [Animation](engine/animation.md) | Working on skeletons, animation clips, glTF rigs, or skinned drawing |
+| [Input](engine/input.md) | Working on actions, key and pad bindings, deadzones, the bindings file, or a platform's pad backend |
 | [Spatial](engine/spatial.md) | Working on the navigation grid, line of sight, or path planning |
 | [Effects](engine/fx.md) | Working on particles, volumetric smoke, flashes of light, the effects pass, or the combat cues that trigger them |
 | [Sprites](engine/sprites.md) | Working on sprite sheets, billboards, the alpha cutout, or how 2D art takes part in the depth buffer |

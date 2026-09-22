@@ -10,7 +10,8 @@
 
 namespace eng::input {
 
-/// One thing a player can hold down. Keys and buttons are bound to these;
+/// One thing a player can hold down. Keys, buttons and stick directions
+/// are bound to these (`input-bindings.h`);
 /// the simulation never sees a key, only the `PlayerInput` built from the
 /// actions held on the tick (Engine REQUIREMENTS §6, "deterministic
 /// capture").
@@ -20,6 +21,10 @@ enum class InputAction : uint8_t {
   MOVE_LEFT,   ///< World -X
   MOVE_RIGHT,  ///< World +X
   FIRE,        ///< The primary weapon
+  AIM_UP,      ///< Aim up the screen, as a stick does
+  AIM_DOWN,    ///< Aim down the screen
+  AIM_LEFT,    ///< Aim left across the screen
+  AIM_RIGHT,   ///< Aim right across the screen
   COUNT,       ///< Number of actions; not an action
 };
 
