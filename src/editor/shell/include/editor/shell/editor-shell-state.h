@@ -11,6 +11,7 @@
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
+#include <editor/shell/editor-controls.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-effects-state.h>
 #include <editor/shell/editor-enemy-table.h>
@@ -98,6 +99,9 @@ struct EditorShellState {
   /// to 3: the multi-player preview (Editor §7). Kept here rather than in
   /// `playtest`, which every Play starts afresh.
   uint8_t playtest_stand_ins = 0;
+  /// The user's keys and pad controls, and where they are kept. Not the
+  /// project's: a remapped pad follows the person across projects.
+  EditorControls controls;
 };
 
 }  // namespace eng::editor

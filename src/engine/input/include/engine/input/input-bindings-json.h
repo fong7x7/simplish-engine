@@ -8,11 +8,28 @@
 #include <engine/input/input-bindings-load.h>
 #include <engine/input/input-bindings.h>
 #include <engine/input/key-name.h>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
 
 namespace eng::input {
+
+/// @p action's name in a bindings file: "move_up", "fire", "aim_left".
+[[nodiscard]] std::string_view inputActionName(InputAction action);
+
+/// The action named @p name, or nothing.
+[[nodiscard]] std::optional<InputAction>
+inputActionNamed(std::string_view name);
+
+/// @p source as a bindings file writes it — "key:w", "pad:south",
+/// "pad:-left_y" — naming keys from @p keys.
+[[nodiscard]] std::string inputSourceText(InputSource source,
+                                          std::span<const KeyName> keys);
+
+/// The control @p text names, in that notation, or nothing.
+[[nodiscard]] std::optional<InputSource>
+parseInputSource(std::string_view text, std::span<const KeyName> keys);
 
 /// @p bindings as JSON: a `deadzones` object and an `actions` object
 /// listing each action's controls as strings — `"key:w"`, `"key:up"`,

@@ -230,10 +230,23 @@ void GuiWidgetTree::moveFocus(GuiWidget* widget) {
   if (focused_input_ != nullptr && focused_input_ != widget) {
     clearFocus();
   }
+  GuiWidget* was = focusedWidget();
   const bool in_tree = widget != nullptr && isTreeNode(*widget);
   focused_id = in_tree ? widget->widget_id : GUI_WIDGET_ID_INVALID;
   focused_overlay_ = widget != nullptr && !in_tree ? widget : nullptr;
   revealFocus();
+  if (was != widget) {
+    announceFocusChange(was, widget);
+  }
+}
+
+void GuiWidgetTree::announceFocusChange(GuiWidget* was, GuiWidget* now) {
+  if (was != nullptr) {
+    was->handleFocusChange(GuiFocusChange::LOST);
+  }
+  if (now != nullptr) {
+    now->handleFocusChange(GuiFocusChange::GAINED);
+  }
 }
 
 void GuiWidgetTree::setFocus(GuiWidgetId id) {
@@ -342,6 +355,18 @@ bool GuiWidgetTree::scrollNav(GuiNavCommand command) {
   GuiWidget* at = focused != nullptr ? findWidget(focused->parent_id) : nullptr;
   for (; at != nullptr; at = findWidget(at->parent_id)) {
     if (at->scrollByNav(command)) {
+      afterScroll(*at);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool GuiWidgetTree::scrollFocusBy(float dx, float dy) {
+  const GuiWidget* focused = findWidget(focused_id);
+  GuiWidget* at = focused != nullptr ? findWidget(focused->parent_id) : nullptr;
+  for (; at != nullptr; at = findWidget(at->parent_id)) {
+    if (at->scrollBy(dx, dy)) {
       afterScroll(*at);
       return true;
     }

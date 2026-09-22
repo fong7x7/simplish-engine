@@ -20,4 +20,10 @@ namespace eng::editor {
 [[nodiscard]] input::InputBindings
 loadEditorInputBindings(const std::filesystem::path& file);
 
+/// Write @p bindings to @p file in the format `loadEditorInputBindings`
+/// reads, creating its directory. False, and logged, when it could not;
+/// nothing is written for an empty @p file.
+bool saveEditorInputBindings(const std::filesystem::path& file,
+                             const input::InputBindings& bindings);
+
 }  // namespace eng::editor

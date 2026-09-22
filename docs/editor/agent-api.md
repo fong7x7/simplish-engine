@@ -176,7 +176,8 @@ each one's parameters; this table is the map.
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the latest tick hash, dropped ticks, and queued input |
+| `get_controls` | The user's control scheme, as Edit › Controls shows it and in the bindings file's own words: each action's controls (`key:w`, `pad:south`, `pad:-left_y`), the pad's deadzones, and the file they are kept in |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in or a seated pad (`pad`) plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -200,6 +201,7 @@ each one's parameters; this table is the map.
 | `select` | Selects a placement, a light, a player start, a waypoint, an emitter or a billboard, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
+| `set_controls` | Changes the control scheme as the Controls screen does — one action's controls (`action`, `controls`), the deadzones, or `reset` to the defaults — saved at once. The user's, not the level's: no undo |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
 
 ### Driving the editor

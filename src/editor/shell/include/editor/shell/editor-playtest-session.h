@@ -16,6 +16,7 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/core/fixed-step-advance.h>
 #include <engine/core/fixed-step-clock.h>
+#include <engine/input/gamepad-rumble.h>
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <engine/render-fx/fx-world.h>
@@ -128,6 +129,16 @@ public:
   /// left where they are.
   void stepEffects(float seconds);
 
+  /// Have a pad play input slot @p slot, 1 to 3, on @p input from the next
+  /// tick on, in place of its stand-in; nothing hands it back to the
+  /// stand-in. Held until changed, so every tick a frame runs uses it.
+  void setPadInput(uint8_t slot, std::optional<sim::PlayerInput> input);
+
+  /// What player 1 has felt since the last call — their own shots, blasts
+  /// near them, hits they took — as one rumble, and forget it. Nothing
+  /// when nothing happened. Presentation; the simulation never sees it.
+  [[nodiscard]] input::GamepadRumble takeRumble();
+
   /// The effects playing: what the viewport draws and lights the scene by.
   [[nodiscard]] const FxWorld& effects() const { return fx_; }
 
@@ -209,6 +220,11 @@ private:
   void publishEffects(EditorPlaytestState& state) const;
   /// Play the effects of every cue the last tick left, and count them.
   void playCues();
+  /// Add what the last tick did to player 1 to the pending rumble, given
+  /// their health before it, @p health_before.
+  void feelTick(std::optional<uint16_t> health_before);
+  /// Player 1's dense index in the player pool, if they are in it.
+  [[nodiscard]] std::optional<uint32_t> playerOneIndex() const;
   /// Fill every stand-in's slot of @p input with what their stand-in does.
   void addStandInInput(sim::TickInput& input) const;
   /// The id of the prop the actor @p handle names became, or empty.
@@ -246,6 +262,10 @@ private:
   FxWorld fx_{EDITOR_PLAYTEST_SEED};
   /// Cues played since the playtest started, by kind.
   std::array<uint64_t, game::COMBAT_CUE_KIND_COUNT> cues_played_{};
+  /// What player 1 has felt since `takeRumble` last ran.
+  input::GamepadRumble pending_rumble_{};
+  /// The input each slot's pad gives, for the slots a pad plays.
+  std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
 };
 
 }  // namespace eng::editor

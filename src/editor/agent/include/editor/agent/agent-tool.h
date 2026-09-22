@@ -131,6 +131,10 @@ enum class AgentTool : uint8_t {
   SEND_INPUT,
   /// Pause a running playtest and run an exact number of ticks of it.
   STEP_PLAYTEST,
+  /// The user's keys and pad controls, as the Controls screen shows them.
+  GET_CONTROLS,
+  /// Rebind an action, set the pad's deadzones, or reset the controls.
+  SET_CONTROLS,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -190,6 +194,8 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::STOP_PLAYTEST,
     AgentTool::SEND_INPUT,
     AgentTool::STEP_PLAYTEST,
+    AgentTool::GET_CONTROLS,
+    AgentTool::SET_CONTROLS,
 };
 
 }  // namespace eng::editor

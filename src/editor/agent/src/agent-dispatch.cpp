@@ -1,5 +1,6 @@
 #include "agent-call.h"
 #include "agent-commands.h"
+#include "agent-controls.h"
 #include "agent-effects.h"
 #include "agent-emitters.h"
 #include "agent-sprites.h"
@@ -237,6 +238,8 @@ namespace {
       toolStopPlaytest,
       runAgentSendInput,
       toolStepPlaytest,
+      runAgentGetControls,
+      runAgentSetControls,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

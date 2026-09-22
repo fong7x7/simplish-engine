@@ -363,7 +363,8 @@ namespace {
                          {"max_health", player.max_health},
                          {"downed", player.downed},
                          {"out", player.out},
-                         {"stand_in", player.stand_in}});
+                         {"stand_in", player.stand_in},
+                         {"pad", player.pad}});
     }
     return players;
   }

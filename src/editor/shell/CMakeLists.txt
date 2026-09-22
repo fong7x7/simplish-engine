@@ -66,6 +66,9 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-controls.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-controls-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-controls-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sprites.cpp"
 )
 

@@ -1,3 +1,4 @@
+#include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-playtest-controls.h>
@@ -114,4 +115,31 @@ TEST_CASE("each key moves straight along its screen direction in either view") {
     REQUIRE(basis.right.x * basis.down.x + basis.right.y * basis.down.y ==
             Approx(0.0f).margin(1e-6));
   }
+}
+
+TEST_CASE("a pad player's input comes from their pad alone") {
+  input::GamepadState pad;
+  pad.setAxis(input::GamepadAxis::LEFT_Y, -1.0f);
+  const sim::PlayerInput played = editorPadInput(
+      pad, editorDefaultInputBindings(), editorMoveBasis(ISO_AXES_DIMETRIC));
+  REQUIRE(played.move_y == -input::INPUT_AXIS_MAX);
+  // No cursor to fall back on: a resting aim stick keeps the aim.
+  REQUIRE(played.aim_x == 0);
+  REQUIRE(played.aim_y == 0);
+}
+
+TEST_CASE("the playtest makes room for the highest seat a pad is in") {
+  input::GamepadSet pads;
+  input::GamepadSeats seats;
+  REQUIRE(editorPadPlayers(seats) == 0);
+  input::GamepadReading first{1, {}};
+  first.state.press(input::GamepadButton::SOUTH);
+  pads.update(std::array{first});
+  seats.update(pads);
+  REQUIRE(editorPadPlayers(seats) == 0);
+  input::GamepadReading second{2, {}};
+  second.state.press(input::GamepadButton::SOUTH);
+  pads.update(std::array{first, second});
+  seats.update(pads);
+  REQUIRE(editorPadPlayers(seats) == 1);
 }

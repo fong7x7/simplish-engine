@@ -10,8 +10,11 @@
 #include <editor/shell/iso-axes.h>
 #include <engine/input/gamepad-button.h>
 #include <engine/input/gamepad-family.h>
+#include <engine/input/gamepad-seats.h>
+#include <engine/input/gamepad-state.h>
 #include <engine/input/input-bindings.h>
 #include <engine/input/move-basis.h>
+#include <engine/sim/player-input.h>
 #include <optional>
 
 namespace eng::editor {
@@ -29,6 +32,19 @@ namespace eng::editor {
 /// so A confirms on a Nintendo pad — or nothing.
 [[nodiscard]] std::optional<uint32_t>
 editorChoosingKeyFor(input::GamepadButton button, input::GamepadFamily family);
+
+/// The input @p pad gives through @p bindings, movement and stick aim turned
+/// through @p basis: a pad player's whole tick, with no cursor to fall
+/// back on — a resting aim stick keeps the aim they had.
+[[nodiscard]] sim::PlayerInput
+editorPadInput(const input::GamepadState& pad,
+               const input::InputBindings& bindings,
+               const input::MoveBasis& basis);
+
+/// The highest input slot, 1 to 3, a pad is seated for in @p seats, or 0
+/// when only player 1's seat — or none — is taken: how many players past
+/// the first a playtest needs for everyone holding a pad.
+[[nodiscard]] uint8_t editorPadPlayers(const input::GamepadSeats& seats);
 
 /// The world directions the screen's right and down point along under the
 /// projection @p axes, for camera-relative movement: W moves the player up

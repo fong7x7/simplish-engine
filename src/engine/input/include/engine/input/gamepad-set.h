@@ -33,8 +33,29 @@ public:
   /// The pad the player is using, or null with none connected.
   [[nodiscard]] const GamepadState* active() const;
 
+  /// The backend's id for the pad in use, or nothing with none connected —
+  /// for a backend to play rumble on it.
+  [[nodiscard]] std::optional<uint64_t> activeDevice() const { return active_; }
+
   /// Whose layout the pad in use follows; GENERIC with none connected.
   [[nodiscard]] GamepadFamily activeFamily() const;
+
+  /// Every connected pad's id, in the order the backend reported them.
+  [[nodiscard]] std::vector<uint64_t> devices() const;
+
+  /// What pad @p device reads, or null when it is not connected.
+  [[nodiscard]] const GamepadState* state(uint64_t device) const;
+
+  /// Whose layout pad @p device follows; GENERIC when it is not connected.
+  [[nodiscard]] GamepadFamily family(uint64_t device) const;
+
+  /// Whether pad @p device was touched in the last update.
+  [[nodiscard]] bool wasTouched(uint64_t device) const;
+
+  /// Whether any pad was touched in the last update — a button pressed or
+  /// a stick or trigger pushed past halfway — which is the player picking
+  /// a pad up (`InputMethod::GAMEPAD`).
+  [[nodiscard]] bool touched() const { return touched_; }
 
   /// Whether @p button went down on the pad in use since the last update —
   /// for menus, which act on presses rather than on what is held.
@@ -51,6 +72,8 @@ private:
     GamepadState before;
     /// Whose layout it follows.
     GamepadFamily family = GamepadFamily::GENERIC;
+    /// Whether the last update saw it touched.
+    bool touched = false;
   };
 
   /// Make @p touched_device the pad in use when there is one; otherwise
@@ -67,6 +90,8 @@ private:
   std::vector<Pad> pads_{};
   /// The id of the pad in use, if any is.
   std::optional<uint64_t> active_{};
+  /// Whether the last update saw a pad touched.
+  bool touched_ = false;
 };
 
 }  // namespace eng::input

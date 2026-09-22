@@ -136,18 +136,51 @@ player can edit, and back:
 
 The editor keeps the file in the user's application data,
 `input-bindings.json` beside `recent-projects.json`. It writes the defaults
-there the first time it runs, so there is a complete file to edit. It reads
-the file at startup, so the editor has to be restarted for a change to apply.
+there the first time it runs, so there is a complete file to edit, and reads
+it at startup. Edit › Controls rebinds an action from the keyboard or the pad
+itself and saves at once, as `set_controls` does for an agent
+([capabilities §6.2](../editor/capabilities.md#62-controls)); a hand edit to
+the file still needs a restart.
 
-## 6. Not yet
+`inputActionName`, `inputSourceText` and `parseInputSource` expose the file's
+words for one action or control, so a screen or a tool speaks the same
+notation the file does.
 
-- **A rebinding screen.** The model supports one (`bind`, `unbind`,
-  `clear`, `actionsFor`, then write the file); nothing draws one yet.
-- **The `method_changed` event** [gui.md](gui/gui.md) describes. GUI focus
-  navigation by pad and keyboard, with prompts and scrolling, is built
-  ([gui technical/input.md §5](gui/technical/input.md#5-gamepad-navigation)).
-- **More than one local player.** `GamepadSet` holds every pad, but player 1
-  plays the pad in use; assigning pads to players waits on local co-op.
-- **Haptics, gyro, the touchpad surface, adaptive triggers.**
+## 6. Couch players, rumble, and which device is in use
+
+**Seats.** `GamepadSeats` assigns pads to local players: a pad takes the lowest
+free seat the first time it is touched, keeps it while connected, and frees it
+when unplugged. Seat 0 is player 1. The editor's playtest adds a player for
+every seated pad, played by it; a stand-in plays any seat whose pad is gone.
+Which pad is where never reaches the simulation, only the `PlayerInput`s the
+pads make.
+
+**Rumble.** `GamepadRumble` is how hard the heavy and light motors, and an Xbox
+pad's trigger motors, run and for how long. `Gamepads::rumble` plays one on a
+pad, on the motors it has. `game/fx/combat-rumble.h` turns combat cues into
+rumble the way `combat-fx.h` turns them into effects: a player's own shot kicks
+the trigger, a blast thumps harder the closer it went off, and a hit taken jolts
+harder the more of the bar it took. Several at once feel like the strongest, not
+their sum. Presentation only.
+
+**Input method.** `InputMethod` is the kind of device the player last used —
+pointer, keyboard, or pad. `DesktopGameClient::inputMethod()` tracks it and
+`onClientInputMethodChanged` reports each change, so prompts can switch
+between "Enter" and "A" and a playtest stops letting a cursor left in the
+viewport steer a pad player's aim.
+
+GUI focus navigation by pad and keyboard, with prompts and scrolling, is
+built too ([gui technical/input.md §5](gui/technical/input.md#5-gamepad-navigation)).
+
+## 7. Not yet
+
+- **Gyro, the touchpad surface, and DualSense adaptive triggers.** SDL
+  reaches the first two (`SDL_SetGamepadSensorEnabled`, touchpad fingers);
+  the triggers need DualSense's own effect reports, and belong in the
+  DUALSENSE backend more than in SDL's. Nothing in the game asks for them
+  yet.
 - **Steam Input.** A Steam build could let Steam Input own the pads instead
-  of SDL, as another backend.
+  of SDL, as another backend under `ENGINE_GAMEPAD_BACKEND`. It waits on the
+  Steam distributor, which is an unwired stub today.
+- **Players joining mid-run.** A pad touched during a playtest can take over a
+  stand-in's seat, but a run cannot grow a player it did not start with.

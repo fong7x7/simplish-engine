@@ -115,6 +115,8 @@
 #include <editor/shell/editor-character-figure.h>
 #include <editor/shell/editor-character-select-widget.h>
 #include <editor/shell/editor-choice-kind.h>
+#include <editor/shell/editor-controls-row.h>
+#include <editor/shell/editor-controls-widget.h>
 #include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-effect-shot.h>
 #include <editor/shell/editor-emitter-player.h>
@@ -139,6 +141,7 @@
 #include <engine/gltf/skinned-model.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
+#include <engine/input/gamepad-seats.h>
 #include <engine/input/held-actions.h>
 #include <engine/input/input-bindings.h>
 #include <engine/math/vec2.h>
@@ -322,6 +325,15 @@ private:
   /// Player 1's input on the next tick, from the held keys, the left button
   /// and the cursor.
   [[nodiscard]] sim::PlayerInput livePlayerInput();
+  /// Add players 2 to 4 to @p setup: one for every seated pad, and
+  /// stand-ins up to the number the Level menu asks for.
+  void addPlaytestPlayers(game::GameSetup& setup) const;
+  /// Hand each pad seated for players 2 to 4 its player's input for the
+  /// ticks this frame runs, and give a player whose pad went back to the
+  /// stand-in.
+  void feedPadPlayers();
+  /// The pad in player 1's seat, or null.
+  [[nodiscard]] const input::GamepadState* playerOnePad() const;
   /// The direction from player 1 to the world point under the cursor, or
   /// zero when the cursor is not over the viewport.
   [[nodiscard]] Vec2 cursorAim();
@@ -395,6 +407,44 @@ private:
   /// Create the character selector, hidden, over everything else in the
   /// work area, and wire its pick and cancel back to this editor.
   void initCharacterSelect(GuiWidgetTree& tree);
+
+  // -- Controls screen (simplish-editor-controls.cpp) ------------------------
+  /// Lay the screens that cover the viewport — the character selector and
+  /// the Controls screen — over @p viewport.
+  void layoutOverlays(GuiWidgetTree& tree, const Rect& viewport);
+  /// Move the clips, and the edit-time effects, on by @p dt seconds.
+  void tickPresentation(float dt);
+  /// Build the Controls screen, hidden, over the viewport.
+  void initControls(GuiWidgetTree& tree);
+  /// The Controls screen, or null before the chrome exists.
+  EditorControlsWidget* controlsWidget();
+  /// Open the Controls screen; refused while a playtest runs or a character
+  /// is being chosen, which own the keys.
+  void openControls();
+  /// Each action's row, labelled for the pad in use.
+  [[nodiscard]] std::vector<EditorControlsRow> controlsRows() const;
+  /// Every key while the Controls screen is open: it is modal. Returns
+  /// whether it was open.
+  bool handleControlsKey(uint32_t key, ClientKeyDownKind kind);
+  /// The keys the screen takes while it is choosing a row.
+  void handleControlsBrowseKey(uint32_t key);
+  /// A pad button while the Controls screen is open; whether it was.
+  bool handleControlsButton(input::GamepadButton button);
+  /// A pad's menu @p command on @p screen while it is choosing a row.
+  void browseControls(EditorControlsWidget& screen, GuiNavCommand command);
+  /// While the Controls screen listens, bind a stick or trigger pushed past
+  /// most of its travel on the pad in use.
+  void listenForAxis();
+  /// Put every action back on its defaults, keeping the deadzones.
+  void resetControls();
+  /// Bind @p source to the highlighted row's action, as a rebind does.
+  void bindListened(input::InputSource source);
+  /// Record a change to the controls: bump their revision and show it.
+  void controlsChanged();
+  /// Per frame: seat pads that were picked up, listen for a stick or
+  /// trigger pushed while listening, and save the controls when they
+  /// changed.
+  void tickControls();
   /// Drop the document and load the newly-opened project's assets.
   void refreshAssets();
   /// Write the level to the open project, and say so in the status line.
@@ -934,6 +984,8 @@ private:
   GuiWidgetId properties_panel_id_ = GUI_WIDGET_ID_INVALID;
   /// Character selector widget id in the tree (owned by the tree).
   GuiWidgetId character_select_id_ = GUI_WIDGET_ID_INVALID;
+  /// The Controls screen, over the viewport while it is open.
+  GuiWidgetId controls_id_ = GUI_WIDGET_ID_INVALID;
   /// Mesh pipeline, uploaded meshes, and the scene depth target.
   MeshRenderer mesh_renderer_{};
   /// Outline pipeline, which reads `mesh_renderer_`'s depth target.
@@ -1020,8 +1072,10 @@ private:
   float playtest_alpha_ = 0.0f;
   /// The actions the keys held right now ask for.
   input::HeldActions held_actions_{};
-  /// Which keys and pad controls ask for which action.
-  input::InputBindings input_bindings_{editorDefaultInputBindings()};
+  /// The controls revision last written to their file.
+  uint64_t saved_controls_revision_ = 0;
+  /// Which pad plays as which player: seat 0 is player 1.
+  input::GamepadSeats seats_{};
 };
 
 }  // namespace eng::editor

@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <cstdio>
 #include <engine/input/input-bindings-json.h>
 #include <nlohmann/json.hpp>
@@ -80,20 +81,6 @@ namespace {
            std::string{AXIS_NAMES[source.code]};
   }
 
-  /// @p source as the file names it.
-  std::string sourceText(InputSource source, std::span<const KeyName> keys) {
-    switch (source.kind) {
-      case InputSourceKind::KEY:
-        return std::string{KEY_PREFIX} + keyText(source.code, keys);
-      case InputSourceKind::GAMEPAD_BUTTON:
-        return std::string{PAD_PREFIX} + std::string{BUTTON_NAMES[source.code]};
-      case InputSourceKind::GAMEPAD_AXIS_POSITIVE:
-      case InputSourceKind::GAMEPAD_AXIS_NEGATIVE:
-        break;
-    }
-    return axisText(source);
-  }
-
   /// The key symbol @p text spells in hexadecimal — `0x40000052` — or
   /// nothing.
   std::optional<uint32_t> parseHexKey(std::string_view text) {
@@ -149,19 +136,6 @@ namespace {
     return parseAxis(text);
   }
 
-  /// The control @p text names, or nothing.
-  std::optional<InputSource> parseSource(std::string_view text,
-                                         std::span<const KeyName> keys) {
-    if (text.starts_with(KEY_PREFIX)) {
-      const auto key = parseKey(text.substr(KEY_PREFIX.size()), keys);
-      return key ? std::optional{InputSource::key(*key)} : std::nullopt;
-    }
-    if (text.starts_with(PAD_PREFIX)) {
-      return parsePad(text.substr(PAD_PREFIX.size()));
-    }
-    return std::nullopt;
-  }
-
   /// Where a parse is going: the scheme so far, its problems, and the key
   /// names to read keys by.
   struct Reader {
@@ -177,7 +151,7 @@ namespace {
                  const nlohmann::json& entry) {
     const std::optional<InputSource> source =
         entry.is_string()
-            ? parseSource(entry.get_ref<const std::string&>(), reader.keys)
+            ? parseInputSource(entry.get_ref<const std::string&>(), reader.keys)
             : std::nullopt;
     if (source) {
       reader.out.bindings.bind(action, *source);
@@ -211,8 +185,8 @@ namespace {
       return;
     }
     for (const auto& [name, value] : json.items()) {
-      if (const std::optional<uint32_t> action = indexOf(ACTION_NAMES, name)) {
-        readAction(reader, static_cast<InputAction>(*action), value);
+      if (const std::optional<InputAction> action = inputActionNamed(name)) {
+        readAction(reader, *action, value);
       } else {
         reader.out.problems.push_back("no action called " + name);
       }
@@ -256,14 +230,56 @@ namespace {
     }
   }
 
+  /// @p value as the file writes it: to three places, so a player reads
+  /// 0.2 rather than the float's 0.20000000298023224.
+  double tidy(float value) {
+    constexpr double PLACES = 1000.0;
+    return std::round(static_cast<double>(value) * PLACES) / PLACES;
+  }
+
   /// @p zones as the file's `deadzones` object.
   nlohmann::ordered_json deadzonesJson(const GamepadDeadzones& zones) {
-    return {{"left_stick", zones.left_stick},
-            {"right_stick", zones.right_stick},
-            {"trigger", zones.trigger}};
+    return {{"left_stick", tidy(zones.left_stick)},
+            {"right_stick", tidy(zones.right_stick)},
+            {"trigger", tidy(zones.trigger)}};
   }
 
 }  // namespace
+
+std::string_view inputActionName(InputAction action) {
+  const auto index = static_cast<std::size_t>(action);
+  return index < ACTION_NAMES.size() ? ACTION_NAMES[index] : std::string_view{};
+}
+
+std::optional<InputAction> inputActionNamed(std::string_view name) {
+  const std::optional<uint32_t> index = indexOf(ACTION_NAMES, name);
+  return index ? std::optional{static_cast<InputAction>(*index)} : std::nullopt;
+}
+
+std::string inputSourceText(InputSource source, std::span<const KeyName> keys) {
+  switch (source.kind) {
+    case InputSourceKind::KEY:
+      return std::string{KEY_PREFIX} + keyText(source.code, keys);
+    case InputSourceKind::GAMEPAD_BUTTON:
+      return std::string{PAD_PREFIX} + std::string{BUTTON_NAMES[source.code]};
+    case InputSourceKind::GAMEPAD_AXIS_POSITIVE:
+    case InputSourceKind::GAMEPAD_AXIS_NEGATIVE:
+      break;
+  }
+  return axisText(source);
+}
+
+std::optional<InputSource> parseInputSource(std::string_view text,
+                                            std::span<const KeyName> keys) {
+  if (text.starts_with(KEY_PREFIX)) {
+    const auto key = parseKey(text.substr(KEY_PREFIX.size()), keys);
+    return key ? std::optional{InputSource::key(*key)} : std::nullopt;
+  }
+  if (text.starts_with(PAD_PREFIX)) {
+    return parsePad(text.substr(PAD_PREFIX.size()));
+  }
+  return std::nullopt;
+}
 
 std::string writeInputBindings(const InputBindings& bindings,
                                std::span<const KeyName> keys) {
@@ -272,7 +288,7 @@ std::string writeInputBindings(const InputBindings& bindings,
     nlohmann::ordered_json list = nlohmann::ordered_json::array();
     for (const InputSource& source :
          bindings.sources(static_cast<InputAction>(i))) {
-      list.push_back(sourceText(source, keys));
+      list.push_back(inputSourceText(source, keys));
     }
     actions[std::string{ACTION_NAMES[i]}] = std::move(list);
   }

@@ -72,6 +72,7 @@ namespace {
       EditorMenuCommand::DELETE_SELECTION,
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SETTINGS,
+      EditorMenuCommand::CONTROLS,
   };
 
   constexpr EditorMenuCommand VIEW_ROWS[] = {

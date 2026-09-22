@@ -34,6 +34,14 @@ namespace {
 
   /// SDL's full-scale axis reading.
   constexpr float SDL_AXIS_MAX = 32767.0F;
+  /// SDL's full-strength motor setting.
+  constexpr float SDL_MOTOR_MAX = 65535.0F;
+
+  /// @p strength, 0 to 1, as an SDL motor setting.
+  Uint16 motor(float strength) {
+    return static_cast<Uint16>(std::clamp(strength, 0.0F, 1.0F) *
+                               SDL_MOTOR_MAX);
+  }
 
   /// What @p pad's controls read now, in the engine's terms.
   GamepadState readPad(SDL_Gamepad* pad) {
@@ -157,6 +165,25 @@ void Gamepads::close() {
   pads_.update({});
   SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
   opened_ = false;
+}
+
+bool Gamepads::rumble(const GamepadRumble& rumble) {
+  const std::optional<uint64_t> device = pads_.activeDevice();
+  return device && this->rumble(*device, rumble);
+}
+
+bool Gamepads::rumble(uint64_t device, const GamepadRumble& rumble) {
+  SDL_Gamepad* pad =
+      opened_ ? SDL_GetGamepadFromID(static_cast<SDL_JoystickID>(device))
+              : nullptr;
+  if (pad == nullptr || focus_ != WindowFocus::FOCUSED) {
+    return false;
+  }
+  const auto ms = static_cast<Uint32>(std::max(0.0F, rumble.seconds) * 1000.0F);
+  // Trigger motors are an Xbox pad's; anywhere else this simply fails.
+  (void)SDL_RumbleGamepadTriggers(pad, motor(rumble.left_trigger),
+                                  motor(rumble.right_trigger), ms);
+  return SDL_RumbleGamepad(pad, motor(rumble.low), motor(rumble.high), ms);
 }
 
 void Gamepads::poll() {

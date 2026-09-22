@@ -18,7 +18,7 @@ namespace {
   }
 
   /// Whether the pad that went from @p before to @p now was touched.
-  bool touched(const GamepadState& before, const GamepadState& now) {
+  bool pickedUp(const GamepadState& before, const GamepadState& now) {
     for (std::size_t i = 0; i < GAMEPAD_BUTTON_COUNT; ++i) {
       const auto button = static_cast<GamepadButton>(i);
       if (now.held(button) && !before.held(button)) {
@@ -38,17 +38,40 @@ namespace {
 void GamepadSet::update(std::span<const GamepadReading> readings) {
   std::vector<Pad> next;
   next.reserve(readings.size());
-  std::optional<uint64_t> touched_device;
   for (const GamepadReading& reading : readings) {
     const Pad* was = find(reading.device);
     const GamepadState before = was != nullptr ? was->now : GamepadState{};
-    next.push_back({reading.device, reading.state, before, reading.family});
-    if (!touched_device && touched(before, reading.state)) {
-      touched_device = reading.device;
-    }
+    next.push_back({reading.device, reading.state, before, reading.family,
+                    pickedUp(before, reading.state)});
   }
   pads_ = std::move(next);
-  chooseActive(touched_device);
+  const auto first = std::ranges::find(pads_, true, &Pad::touched);
+  touched_ = first != pads_.end();
+  chooseActive(touched_ ? std::optional{first->device} : std::nullopt);
+}
+
+std::vector<uint64_t> GamepadSet::devices() const {
+  std::vector<uint64_t> out;
+  out.reserve(pads_.size());
+  for (const Pad& pad : pads_) {
+    out.push_back(pad.device);
+  }
+  return out;
+}
+
+const GamepadState* GamepadSet::state(uint64_t device) const {
+  const Pad* pad = find(device);
+  return pad != nullptr ? &pad->now : nullptr;
+}
+
+GamepadFamily GamepadSet::family(uint64_t device) const {
+  const Pad* pad = find(device);
+  return pad != nullptr ? pad->family : GamepadFamily::GENERIC;
+}
+
+bool GamepadSet::wasTouched(uint64_t device) const {
+  const Pad* pad = find(device);
+  return pad != nullptr && pad->touched;
 }
 
 void GamepadSet::chooseActive(std::optional<uint64_t> touched_device) {

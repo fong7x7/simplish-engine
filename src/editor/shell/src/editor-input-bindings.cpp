@@ -12,20 +12,6 @@ namespace eng::editor {
 
 namespace {
 
-  /// Write @p bindings to @p file, logging rather than failing: a scheme
-  /// that cannot be saved still plays.
-  void writeDefaults(const std::filesystem::path& file,
-                     const input::InputBindings& bindings) {
-    std::error_code error;
-    std::filesystem::create_directories(file.parent_path(), error);
-    std::ofstream out(file);
-    out << input::writeInputBindings(bindings, client::desktopKeyNames());
-    if (!out) {
-      LOG_WARN("editor",
-               "Could not write the control scheme to " + file.string());
-    }
-  }
-
   /// Everything in @p file, or nothing when it cannot be read.
   std::optional<std::string> readText(const std::filesystem::path& file) {
     std::ifstream in(file);
@@ -60,7 +46,7 @@ loadEditorInputBindings(const std::filesystem::path& file) {
     return defaults;
   }
   if (!std::filesystem::exists(file, error)) {
-    writeDefaults(file, defaults);
+    (void)saveEditorInputBindings(file, defaults);
     return defaults;
   }
   if (const std::optional<std::string> text = readText(file)) {
@@ -68,6 +54,23 @@ loadEditorInputBindings(const std::filesystem::path& file) {
   }
   LOG_WARN("editor", "Could not read " + file.string() + "; default controls");
   return defaults;
+}
+
+bool saveEditorInputBindings(const std::filesystem::path& file,
+                             const input::InputBindings& bindings) {
+  if (file.empty()) {
+    return false;
+  }
+  std::error_code error;
+  std::filesystem::create_directories(file.parent_path(), error);
+  std::ofstream out(file);
+  out << input::writeInputBindings(bindings, client::desktopKeyNames());
+  if (!out) {
+    LOG_WARN("editor",
+             "Could not write the control scheme to " + file.string());
+    return false;
+  }
+  return true;
 }
 
 }  // namespace eng::editor

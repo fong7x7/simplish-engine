@@ -92,7 +92,7 @@ Drag is initiated when the mouse moves beyond a threshold (4 px) while a button 
 - One widget at a time holds keyboard focus (`GuiWidgetTree::focused_id`).
 - Focus is set explicitly by clicking a focusable widget or calling `setFocus()`.
 - Only widgets with `tree_focusable` set can receive focus; buttons, sliders, dropdowns and text fields set it themselves (§5.3).
-- There are no focus-gained or focus-lost callbacks yet; a widget that needs to know compares `focused_id`.
+- A widget hears when it gains or loses focus through `handleFocusChange` and `onFocusChange` (§5.11).
 
 ### 4.2 Tab Order
 
@@ -273,11 +273,27 @@ has no widget id, so while one has focus `focused_id` is invalid and
 scope leaves overlays out, since they belong to no subtree. A command a focused
 overlay doesn't take has no parent to go to.
 
-### 5.11 Not Yet
+### 5.11 Horizontal Lists, the Right Stick, and Focus Callbacks
 
-- Horizontal scrolling, and scrolling by the right stick.
-- Focus-gained and focus-lost callbacks, and the `method_changed` event
-  [gui.md](../gui.md) describes.
+- `GuiScrollPanel::axis` set to `HORIZONTAL` lays children out in a row at
+  their `tree_layout.width` (or `item_size`) and scrolls sideways — under the
+  wheel, by LEFT and RIGHT when nothing focusable lies that way, and to show
+  what is focused.
+- `GuiWidget::scrollBy(dx, dy)` is the one pixel scroll every scroll goes
+  through. `GuiWidgetTree::scrollFocusBy` sends it to the nearest scrolling
+  ancestor of the focused widget, and the desktop client calls that with
+  `GuiGamepadNavigator::scrollDelta` — the right stick, past a deadzone,
+  faster the further it is pushed — while pad navigation is on. Scrolling by
+  stick reads; it never moves focus.
+- `GuiWidget::handleFocusChange(GAINED | LOST)`, and `onFocusChange`
+  handlers, are called whenever tree focus moves — by navigation, a click, or
+  `setFocus` — the old widget first.
+- The kind of device in use is `input::InputMethod`, which the desktop client
+  tracks ([input.md §6](../../input.md#6-couch-players-rumble-and-which-device-is-in-use)).
+
+### 5.12 Not Yet
+
+- Grid-shaped scroll panels, scrolling on both axes at once.
 
 ---
 

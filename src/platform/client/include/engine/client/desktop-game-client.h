@@ -8,6 +8,7 @@
 #include <engine/input/gamepad-button.h>
 #include <engine/input/gamepad-set.h>
 #include <engine/input/gamepads.h>
+#include <engine/input/input-method.h>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -155,6 +156,28 @@ protected:
   onClientGamepadButtonDown([[maybe_unused]] eng::input::GamepadButton button) {
   }
 
+  /// Play @p rumble on the pad in use (`input::Gamepads::rumble`); false
+  /// when nothing played it.
+  bool rumbleGamepad(const eng::input::GamepadRumble& rumble) {
+    return gamepads_.rumble(rumble);
+  }
+
+  /// Play @p rumble on pad @p device; false when nothing played it.
+  bool rumbleGamepad(uint64_t device, const eng::input::GamepadRumble& rumble) {
+    return gamepads_.rumble(device, rumble);
+  }
+
+  /// The kind of device the player last used: a mouse move or click, a
+  /// key press, or a pad touched. POINTER until one of them happens.
+  [[nodiscard]] eng::input::InputMethod inputMethod() const {
+    return input_method_;
+  }
+
+  /// The player switched devices — picked up a pad, touched the mouse —
+  /// for prompts and menus to follow. Raised on the change only.
+  virtual void
+  onClientInputMethodChanged([[maybe_unused]] eng::input::InputMethod method) {}
+
   /// Let the pad in use navigate the GUI, or stop it. Off by default: in
   /// play the pad steers a character, and a menu turns this on while it is
   /// open. Turning it off forgets whatever was held.
@@ -221,6 +244,13 @@ private:
   /// did not use it.
   void dispatchNav(eng::GuiNavCommand command);
 
+  /// Note the device @p event came from, raising
+  /// `onClientInputMethodChanged` when it is a different kind.
+  void trackInputMethod(const SDL_Event& event);
+
+  /// Switch to @p method, raising the hook when it is new.
+  void noteInputMethod(eng::input::InputMethod method);
+
   /// Tell the pads when @p event is the window gaining or losing focus.
   void trackGamepadFocus(const SDL_Event& event);
 
@@ -272,6 +302,8 @@ private:
   GuiPadNavigation gui_pad_navigation_ = GuiPadNavigation::OFF;
   /// Whether the keyboard navigates the GUI.
   GuiKeyNavigation gui_key_navigation_ = GuiKeyNavigation::OFF;
+  /// The kind of device the player last used.
+  eng::input::InputMethod input_method_ = eng::input::InputMethod::POINTER;
   /// Guards `pending_dialog_path_` against the dialog callback's thread.
   std::mutex dialog_mutex_{};
   /// Path chosen but not yet handed to the main thread, and what it is for.

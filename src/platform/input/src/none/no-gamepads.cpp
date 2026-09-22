@@ -19,6 +19,14 @@ void Gamepads::close() {
   opened_ = false;
 }
 
+bool Gamepads::rumble(const GamepadRumble& /*rumble*/) {
+  return false;
+}
+
+bool Gamepads::rumble(uint64_t /*device*/, const GamepadRumble& /*rumble*/) {
+  return false;
+}
+
 void Gamepads::poll() {
   pads_.update({});
 }

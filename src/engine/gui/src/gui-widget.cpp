@@ -106,6 +106,21 @@ bool GuiWidget::revealChild(const Rect& /*child*/) {
   return false;
 }
 
+void GuiWidget::onFocusChange(
+    const std::function<void(GuiFocusChange)>& handler) {
+  on_focus_handlers_.emplace_back(handler);
+}
+
+void GuiWidget::handleFocusChange(GuiFocusChange change) {
+  for (const auto& handler : on_focus_handlers_) {
+    handler(change);
+  }
+}
+
+bool GuiWidget::scrollBy(float /*dx*/, float /*dy*/) {
+  return false;
+}
+
 bool GuiWidget::scrollByNav(GuiNavCommand /*command*/) {
   return false;
 }

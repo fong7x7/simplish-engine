@@ -6,6 +6,7 @@
 /// Main-thread-only.
 
 #include <cstdint>
+#include <engine/input/gamepad-rumble.h>
 #include <engine/input/gamepad-set.h>
 #include <engine/input/window-focus.h>
 #include <optional>
@@ -44,6 +45,15 @@ public:
   /// Read every connected pad into `pads()`, opening new ones and dropping
   /// ones unplugged. Once a frame, after the platform's events are pumped.
   void poll();
+
+  /// Play @p rumble on the pad in use, replacing whatever it was playing,
+  /// on the motors it has. False when there is no pad, it has no motors,
+  /// the window is unfocused, or the backend has no rumble at all.
+  bool rumble(const GamepadRumble& rumble);
+
+  /// Play @p rumble on pad @p device, as `rumble` does on the pad in use —
+  /// for a couch of players, each feeling their own.
+  bool rumble(uint64_t device, const GamepadRumble& rumble);
 
   /// Whether the window has focus; while it does not, pads read as resting.
   void setFocus(WindowFocus focus) { focus_ = focus; }

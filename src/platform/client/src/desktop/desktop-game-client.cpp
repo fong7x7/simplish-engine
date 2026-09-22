@@ -178,6 +178,7 @@ void DesktopGameClient::onEvent(const SDL_Event& event) {
     syncPixelBackbufferFromWindow();
     return;
   }
+  trackInputMethod(event);
   dispatchSdlInputToGui(event);
   dispatchClientKey(event);
   trackGamepadFocus(event);

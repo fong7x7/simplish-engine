@@ -109,6 +109,10 @@ protected:
   /// (`GuiWidgetTree::routeNav`); returns false when nothing used it.
   bool guiDispatchNav(eng::GuiNavCommand command) const;
 
+  /// Scroll whatever scrolls around the focused widget by (@p dx, @p dy)
+  /// pixels (`GuiWidgetTree::scrollFocusBy`); true if something moved.
+  bool guiScrollFocusBy(float dx, float dy) const;
+
   /// Copy RHI pixel surface size into `gui_.renderer` for HiDPI drawing.
   void syncGuiRendererSurfaceFromDevice();
 

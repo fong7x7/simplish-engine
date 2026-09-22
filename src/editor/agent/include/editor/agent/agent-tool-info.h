@@ -307,7 +307,9 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
      "Stand-in players to add beside player 1, 0 to 3 — the multi-player "
      "preview: each spawns on its player's start, or beside player 1, and "
      "is played by the game's stand-in, which revives teammates who are "
-     "down, backs away from hostiles and keeps up with the others. "
+     "down, backs away from hostiles and keeps up with the others. A "
+     "player a pad is seated for is played by that pad instead, and the "
+     "playtest adds as many players as there are pads even past this. "
      "Omitted, it is what Level › Play with N Stand-ins last chose, or "
      "none. Remembered for later playtests."},
 };
@@ -423,6 +425,26 @@ inline constexpr AgentParam AGENT_PARAMS_FIND_PATH[] = {
 inline constexpr AgentParam AGENT_PARAMS_STEP_PLAYTEST[] = {
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to run, 1 to 3600 (60 is a second). Defaults to 1."},
+};
+
+/// `set_controls` rebinds one action, tunes the deadzones, or resets.
+inline constexpr AgentParam AGENT_PARAMS_SET_CONTROLS[] = {
+    {"action", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The action to rebind, as get_controls names it — move_up, fire, "
+     "aim_left and so on. Needs controls."},
+    {"controls", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The action's controls, comma-separated, as the bindings file names "
+     "them — key:w, key:space, pad:south, pad:-left_y, pad:right_trigger. "
+     "They replace all it had; an empty string unbinds it."},
+    {"left_stick", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Left stick radial deadzone, 0 to 0.95; omitted, kept."},
+    {"right_stick", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Right stick radial deadzone, 0 to 0.95; omitted, kept."},
+    {"trigger", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Trigger deadzone, 0 to 0.95; omitted, kept."},
+    {"reset", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "True first puts every action back on its defaults, keeping the "
+     "deadzones, as R on the Controls screen does. Defaults to false."},
 };
 
 /// `open_project` points the editor at a directory.
@@ -794,8 +816,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
      "simulation is on, where each player is, who they play as, their "
-     "health, whether they are down or out and whether a stand-in plays "
-     "them; every actor with its state, target and health; every "
+     "health, whether they are down or out and whether a stand-in or a "
+     "seated pad (players 2 to 4) plays them; every actor with its state, "
+     "target and health; every "
      "projectile in flight and hazard pool on the floor; the effects "
      "shots, hits and blasts are playing — particles and flashes live now, "
      "and how many shot_fired, shot_hit_body, shot_hit_wall and blast cues "
@@ -843,6 +866,24 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "actor's decisions tick by tick. Carried out by the running editor on "
      "its next frame; get_playtest shows the result.",
      AgentToolEffect::HOST, AGENT_PARAMS_STEP_PLAYTEST},
+    {AgentTool::GET_CONTROLS,
+     "get_controls",
+     "The user's control scheme — the keys and pad controls the playtest "
+     "reads, as Edit › Controls shows them — in the bindings file's own "
+     "shape: each action's controls (key:w, pad:south, pad:-left_y), the "
+     "pad's deadzones, and the file they are kept in, in the user's "
+     "application data rather than the project.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_CONTROLS, "set_controls",
+     "Change the user's control scheme, as the Controls screen does: give "
+     "one action exactly the controls listed, set the pad's deadzones, or "
+     "reset every action to its defaults — any of them in one call, reset "
+     "first. Saved to the controls file at once and used by the next tick "
+     "of play; not part of the level's undo history. Refused, changing "
+     "nothing, when an action or a control is not one there is. Answers "
+     "as get_controls does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_CONTROLS},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),
