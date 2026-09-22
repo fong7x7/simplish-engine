@@ -12,6 +12,7 @@
 #include <engine/render-fx/fx-emit.h>
 #include <engine/render-fx/fx-light-pool.h>
 #include <engine/render-fx/fx-particle-pool.h>
+#include <engine/render-fx/fx-volume-pool.h>
 
 namespace eng {
 
@@ -30,16 +31,20 @@ struct FxWorld {
 
   /// Every particle alive.
   FxParticlePool particles;
+  /// Every cloud of smoke standing.
+  FxVolumePool volumes;
   /// Every flash shining.
   FxLightPool lights;
   /// The `fx` stream every burst's spread is drawn from.
   Pcg32 rng;
 };
 
-/// Play @p effect at @p emit: every burst thrown out, and the flash lit.
+/// Play @p effect at @p emit: every burst thrown out, every cloud left
+/// standing, and the flash lit.
 void playFxEffect(FxWorld& world, const FxEffect& effect, const FxEmit& emit);
 
-/// Move every particle and age every flash by @p seconds.
+/// Move every particle, drift every cloud and age every flash by
+/// @p seconds.
 void stepFxWorld(FxWorld& world, float seconds);
 
 /// Stop every effect at once.

@@ -51,6 +51,10 @@ struct FxParticlePool {
   std::vector<FxParticleLook> look;
   /// How big each is drawn, times its look's sizes: its emit's scale.
   std::vector<float> scale;
+  /// The angle each was thrown at, in degrees, and the seed its puff's
+  /// noise is broken up by: one number, since both only have to differ
+  /// between particles. Drawn when the particle is emitted.
+  std::vector<float> angle;
 };
 
 /// Throw @p burst out of @p emit into @p pool, each particle's direction,

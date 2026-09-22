@@ -165,7 +165,7 @@ each one's parameters; this table is the map.
 | `list_waypoints` | Every waypoint: its route (1 to 9), its place in it, and its position; and every route in use, with its points in walking order and the actors that patrol it |
 | `list_emitters` | Every particle emitter: the preset it was started from and whether it still is exactly that preset, its position, direction, flash tint, and every number of its burst by the name `set_property` writes it under; and every preset an emitter can be started from |
 | `list_sprites` | Every sprite billboard: the sheet it shows, where it stands, and its height, grid and speed by the name `set_property` writes each under; and every sprite sheet the open project holds |
-| `get_effects` | What the viewport's effects are doing now, while editing or playing: whose they are, particles and flashes alive, the bursts each emitter has thrown, and how many effects `play_effect` has played |
+| `get_effects` | What the viewport's effects are doing now, while editing or playing: whose they are, particles, clouds of volumetric smoke and flashes alive, the bursts each emitter has thrown, and how many effects `play_effect` has played |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states, its initial state and whom it targets (`players` or `opponents`); and the behaviors table's path and anything wrong with it |
 | `list_enemies` | Every enemy archetype in the project's enemies table — id, name, model, health, body radius and height, behavior and whether it resolves, faction — with the file's path and anything wrong with it |
@@ -194,7 +194,7 @@ each one's parameters; this table is the map.
 | `set_behavior` | Gives a placed prop a behavior, a faction and a patrol route — making it an actor in a playtest — or takes its behavior away |
 | `set_effect` | Starts a particle emitter from a named preset, as its Effect row does: its burst and flash become the preset's |
 | `set_sheet` | Points a sprite billboard at another of the project's sheets, as its Sheet row does: its grid, speed and height are kept |
-| `play_effect` | Plays an effect once, now, into the viewport's effects — a preset burst, a whole combat effect (`shot_fired`, `shot_hit_body`, `shot_hit_wall`, `blast`), or a placed emitter's own burst. Not an edit: nothing is recorded, and it works while playing |
+| `play_effect` | Plays an effect once, now, into the viewport's effects — a preset burst, a whole combat effect (`shot_fired`, `shot_hit_body`, `shot_hit_wall`, `blast`), or a placed emitter's own burst. `blast` also leaves a cloud of volumetric smoke standing, which is how an agent puts smoke in front of the camera. Not an edit: nothing is recorded, and it works while playing |
 | `translate` | Moves a placement, a light, a player start, a waypoint, an emitter or a billboard by a delta in tiles |
 | `delete` | Removes a placement, a light, a player start, a waypoint, an emitter or a billboard, as the Delete key does |
 | `select` | Selects a placement, a light, a player start, a waypoint, an emitter or a billboard, or clears the selection |

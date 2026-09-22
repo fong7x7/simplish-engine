@@ -955,6 +955,18 @@ bool Dx12Device::tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline) {
   return true;
 }
 
+bool Dx12Device::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
+  auto* state = createDx12FxVolumePipelineState(impl_->device,
+                                                impl_->graphics_root_signature,
+                                                impl_->swapchain_rtv_format);
+  if (state == nullptr) {
+    return false;
+  }
+  out_pipeline =
+      insertBuiltinPipeline(*impl_, state, dx12FxVolumeVertexStride());
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

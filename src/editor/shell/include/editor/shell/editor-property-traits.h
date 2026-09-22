@@ -54,6 +54,10 @@ enum class EditorPropertyKind : uint8_t {
   FINE,
   /// An acceleration, either way: gravity, negative for what rises.
   ACCELERATION,
+  /// Degrees a second, either way — how fast something turns. Not an
+  /// `ANGLE`, which wraps: a particle may spin faster than half a turn a
+  /// second.
+  SPIN,
 };
 
 /// One property's fixed description.
@@ -122,6 +126,9 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Rows", EditorPropertyKind::COUNT, 64.0f},
     {"Frames", EditorPropertyKind::COUNT, 4096.0f},
     {"Frames/s", EditorPropertyKind::FACTOR},
+    {"Spin", EditorPropertyKind::SPIN},
+    {"Textured", EditorPropertyKind::TOGGLE},
+    {"Lit", EditorPropertyKind::TOGGLE},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

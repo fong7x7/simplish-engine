@@ -39,6 +39,7 @@ namespace {
   EditorEffectShot presetShot(const game::CombatFxPreset& preset, WorldPoint at,
                               const json& params) {
     return {{preset.burst},
+            {},
             preset.flash,
             {{at.x, at.y, at.z},
              directionParam(params, {0.0f, 0.0f, 1.0f}),
@@ -58,6 +59,7 @@ namespace {
                               game::COMBAT_FX_BLAST_RADIUS * scale};
     const FxEffect& effect = game::combatCueEffect(kind);
     EditorEffectShot shot{{effect.bursts.begin(), effect.bursts.end()},
+                          {effect.volumes.begin(), effect.volumes.end()},
                           effect.flash,
                           game::combatCueEmit(cue)};
     if (kind != game::CombatCueKind::BLAST) {
@@ -106,7 +108,7 @@ namespace {
     }
     const EditorEmitter& emitter = state.document.emitters[*index];
     return EditorEffectShot{
-        {emitter.burst}, emitter.flash, editorEmitterEmit(emitter)};
+        {emitter.burst}, {}, emitter.flash, editorEmitterEmit(emitter)};
   }
 
   /// What `play_effect` reports it has handed the editor.
@@ -122,6 +124,7 @@ namespace {
             {"at", agentPointJson({at.x, at.y, at.z})},
             {"bursts", shot.bursts.size()},
             {"particles", particles},
+            {"volumes", shot.volumes.size()},
             {"flash", shot.flash.intensity}};
   }
 
@@ -160,6 +163,7 @@ std::string agentEffectsStateJson(const EditorShellState& state) {
                              ? "playtest"
                              : "editor"},
               {"particles", effects.particles},
+              {"volumes", effects.volumes},
               {"lights", effects.lights},
               {"shots_played", effects.shots_played},
               {"emitters", emitterBurstsJson(state)}}

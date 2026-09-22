@@ -114,6 +114,16 @@ public:
   /// and effects light the scene but draw no particles.
   virtual bool tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional volumetric pipeline for effects: `FxVolumeVertex` triangles
+  /// already in clip space, drawn in the same pass and blended the same
+  /// way as the particle pipeline, and reading the same `D32_FLOAT` scene
+  /// depth at fragment texture slot 0 — but rather than fading a flat
+  /// quad against it, each fragment marches a ray through a box of
+  /// procedural noise and stops where the depth says a surface is. It
+  /// reads no fragment stage bytes. Backends without one return `false`
+  /// and effects draw particles but no smoke.
+  virtual bool tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline);
+
   // --- Swap chain ---
   virtual RhiTextureHandle
   backbufferTexture() const = 0;  // Current frame's backbuffer
@@ -182,6 +192,11 @@ RhiDevice::tryCreateMeshOutlinePipeline(RhiPipelineHandle& /*out_pipeline*/) {
 
 inline bool
 RhiDevice::tryCreateFxParticlePipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

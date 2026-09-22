@@ -390,14 +390,17 @@ void main() {
 layout(location = 0) in vec4 in_clip;
 layout(location = 1) in vec4 in_color;
 layout(location = 2) in vec2 in_uv;
+layout(location = 3) in vec2 in_shape;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec2 out_uv;
+layout(location = 2) out vec2 out_shape;
 
 void main() {
   gl_Position = in_clip;
   out_color = in_color;
   out_uv = in_uv;
+  out_shape = in_shape;
 }
 )glsl";
 
@@ -420,15 +423,153 @@ layout(set = 0, binding = 6) uniform sampler fx_sampler;
 
 layout(location = 0) in vec4 in_color;
 layout(location = 1) in vec2 in_uv;
+layout(location = 2) in vec2 in_shape;
 
 layout(location = 0) out vec4 out_color;
+
+float fx_hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float fx_noise(vec2 p) {
+  vec2 cell = floor(p);
+  vec2 f = fract(p);
+  vec2 s = f * f * (3.0 - 2.0 * f);
+  float a = fx_hash(cell);
+  float b = fx_hash(cell + vec2(1.0, 0.0));
+  float c = fx_hash(cell + vec2(0.0, 1.0));
+  float d = fx_hash(cell + vec2(1.0, 1.0));
+  return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
+}
+
+float fx_fbm(vec2 p) {
+  return fx_noise(p) * 0.65 + fx_noise(p * 2.7 + 5.2) * 0.35;
+}
+
+// A disc broken up by noise: soft at the rim, uneven inside, and unlike the
+// next particle's, because its seed moves the noise field under it.
+float fx_puff(vec2 uv, float seed) {
+  float edge = clamp(1.0 - length(uv), 0.0, 1.0);
+  vec2 at = uv * 2.3 + vec2(seed * 0.37, seed * 0.71);
+  return clamp(edge * edge * (0.35 + 1.15 * fx_fbm(at)), 0.0, 1.0);
+}
 
 void main() {
   float scene = texelFetch(sampler2D(fx_depth, fx_sampler),
                            ivec2(gl_FragCoord.xy), 0).r;
   float soft = clamp((scene - gl_FragCoord.z) * u.softness, 0.0, 1.0);
   float disc = clamp(1.0 - dot(in_uv, in_uv), 0.0, 1.0);
-  float cover = disc * disc * soft;
+  float shape = mix(disc * disc, fx_puff(in_uv, in_shape.y), in_shape.x);
+  float cover = shape * soft;
+  if (cover <= 0.0) {
+    discard;
+  }
+  out_color = in_color * cover;
+}
+)glsl";
+
+  /// GLSL for volumetric smoke's vertex stage: each corner arrives in clip
+  /// space carrying the ray its fragments march. Mirrors
+  /// `fx_volume_vs_main`; the input is `FxVolumeVertex`.
+  constexpr const char FX_VOLUME_VERT_GLSL[] = R"glsl(
+#version 450
+
+layout(location = 0) in vec4 in_clip;
+layout(location = 1) in vec4 in_color;
+layout(location = 2) in vec4 in_origin;
+layout(location = 3) in vec4 in_ray;
+layout(location = 4) in vec4 in_params;
+
+layout(location = 0) out vec4 out_color;
+layout(location = 1) out vec4 out_origin;
+layout(location = 2) out vec4 out_ray;
+layout(location = 3) out vec4 out_params;
+
+void main() {
+  gl_Position = in_clip;
+  out_color = in_color;
+  out_origin = in_origin;
+  out_ray = in_ray;
+  out_params = in_params;
+}
+)glsl";
+
+  /// GLSL for volumetric smoke's fragment stage, which marches a ray
+  /// through a box of noise until the scene's depth stops it. Mirrors
+  /// `fx_volume_fs_main`.
+  constexpr const char FX_VOLUME_FRAG_GLSL[] = R"glsl(
+#version 450
+
+layout(set = 0, binding = 5) uniform texture2D fxv_depth;
+layout(set = 0, binding = 6) uniform sampler fxv_sampler;
+
+layout(location = 0) in vec4 in_color;
+layout(location = 1) in vec4 in_origin;
+layout(location = 2) in vec4 in_ray;
+layout(location = 3) in vec4 in_params;
+
+layout(location = 0) out vec4 out_color;
+
+const int FXV_STEPS = 16;
+
+float fxv_hash(vec3 p) {
+  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float fxv_noise(vec3 p) {
+  vec3 cell = floor(p);
+  vec3 f = fract(p);
+  vec3 s = f * f * (3.0 - 2.0 * f);
+  float x00 = mix(fxv_hash(cell), fxv_hash(cell + vec3(1.0, 0.0, 0.0)), s.x);
+  float x10 = mix(fxv_hash(cell + vec3(0.0, 1.0, 0.0)),
+                  fxv_hash(cell + vec3(1.0, 1.0, 0.0)), s.x);
+  float x01 = mix(fxv_hash(cell + vec3(0.0, 0.0, 1.0)),
+                  fxv_hash(cell + vec3(1.0, 0.0, 1.0)), s.x);
+  float x11 = mix(fxv_hash(cell + vec3(0.0, 1.0, 1.0)),
+                  fxv_hash(cell + vec3(1.0, 1.0, 1.0)), s.x);
+  return mix(mix(x00, x10, s.y), mix(x01, x11, s.y), s.z);
+}
+
+float fxv_fbm(vec3 p) {
+  return fxv_noise(p) * 0.6 + fxv_noise(p * 2.3 + 11.0) * 0.4;
+}
+
+// How thick the smoke is at one point of the cloud's own space: an
+// ellipsoid gone to nothing at the box's wall, eaten into by noise that the
+// cloud's seed moves, so no two clouds are the same shape.
+float fxv_density(vec3 p, float seed) {
+  float edge = clamp(1.0 - dot(p, p), 0.0, 1.0);
+  float n = fxv_fbm(p * 1.9 + seed);
+  return edge * edge * clamp(n * 1.7 - 0.45, 0.0, 1.0);
+}
+
+void main() {
+  vec3 o = in_origin.xyz;
+  vec3 d = in_ray.xyz;
+  vec3 inv = 1.0 / d;
+  vec3 near_wall = (vec3(-1.0) - o) * inv;
+  vec3 far_wall = (vec3(1.0) - o) * inv;
+  vec3 lo = min(near_wall, far_wall);
+  vec3 hi = max(near_wall, far_wall);
+  float t_in = max(max(lo.x, lo.y), lo.z);
+  // The scene stops the march where a surface is, so the smoke wraps what
+  // it meets instead of cutting against it.
+  float scene = texelFetch(sampler2D(fxv_depth, fxv_sampler),
+                           ivec2(gl_FragCoord.xy), 0).r;
+  float t_out = min(min(min(hi.x, hi.y), hi.z),
+                    (scene - in_params.x) / in_ray.w);
+  if (!(t_out > t_in)) {
+    discard;
+  }
+  float dt = (t_out - t_in) / float(FXV_STEPS);
+  float cover = 0.0;
+  float through = 1.0;
+  for (int i = 0; i < FXV_STEPS; ++i) {
+    vec3 p = o + d * (t_in + (float(i) + 0.5) * dt);
+    float a = 1.0 - exp(-fxv_density(p, in_origin.w) * in_params.y * dt);
+    cover += through * a;
+    through *= 1.0 - a;
+  }
   if (cover <= 0.0) {
     discard;
   }
@@ -478,15 +619,29 @@ void main() {
   /// How many of `SKINNED_ATTRIBUTES` a static mesh vertex has.
   constexpr uint32_t MESH_ATTRIBUTE_COUNT = 3;
 
-  /// Byte stride of `eng::FxVertex`: clip position, colour, uv, as
-  /// `fx-vertex.h` asserts.
-  constexpr uint32_t FX_VERTEX_STRIDE = 40;
+  /// Byte stride of `eng::FxVertex`: clip position, colour, uv and the
+  /// shape pair, as `fx-vertex.h` asserts.
+  constexpr uint32_t FX_VERTEX_STRIDE = 48;
 
-  /// `FxVertex`: clip position, premultiplied colour, uv.
-  constexpr std::array<Attribute, 3> FX_ATTRIBUTES{{
+  /// `FxVertex`: clip position, premultiplied colour, uv, shape and seed.
+  constexpr std::array<Attribute, 4> FX_ATTRIBUTES{{
       {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
       {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 16},
       {2, 0, VK_FORMAT_R32G32_SFLOAT, 32},
+      {3, 0, VK_FORMAT_R32G32_SFLOAT, 40},
+  }};
+
+  /// Byte stride of `eng::FxVolumeVertex`: five float4s, as
+  /// `fx-volume-vertex.h` asserts.
+  constexpr uint32_t FX_VOLUME_STRIDE = 80;
+
+  /// `FxVolumeVertex`: clip position, colour, ray origin, ray and params.
+  constexpr std::array<Attribute, 5> FX_VOLUME_ATTRIBUTES{{
+      {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
+      {1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 16},
+      {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 32},
+      {3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 48},
+      {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 64},
   }};
 
   // -------------------------------------------------------------------------
@@ -793,6 +948,21 @@ VkPipeline createVulkanFxPipeline(VkDevice device, VkPipelineLayout layout,
       FX_ATTRIBUTES.data(), static_cast<uint32_t>(FX_ATTRIBUTES.size()),
       FX_VERTEX_STRIDE,     BlendMode::PREMULTIPLIED,
       DepthMode::NONE};
+  return createBuiltin({device, layout, color_format}, spec);
+}
+
+VkPipeline createVulkanFxVolumePipeline(VkDevice device,
+                                        VkPipelineLayout layout,
+                                        VkFormat color_format) {
+  // The same pass and the same blending as the particles; what differs is
+  // the ray each fragment marches rather than the quad it fades.
+  const BuiltinSpec spec{FX_VOLUME_VERT_GLSL,
+                         FX_VOLUME_FRAG_GLSL,
+                         FX_VOLUME_ATTRIBUTES.data(),
+                         static_cast<uint32_t>(FX_VOLUME_ATTRIBUTES.size()),
+                         FX_VOLUME_STRIDE,
+                         BlendMode::PREMULTIPLIED,
+                         DepthMode::NONE};
   return createBuiltin({device, layout, color_format}, spec);
 }
 

@@ -304,6 +304,10 @@ void SimplishEditor::initOptionalSceneRenderers(RhiDevice& device) {
     LOG_WARN("editor", "Backend has no effects pipeline; shots and blasts "
                        "will light the scene but throw no particles");
   }
+  if (!fx_volume_renderer_.init(device)) {
+    LOG_WARN("editor", "Backend has no volume pipeline; blasts will throw "
+                       "particles but leave no smoke");
+  }
 }
 
 void SimplishEditor::initChrome() {
@@ -1837,12 +1841,26 @@ SimplishEditor::fxDrawParams(const EditorViewportWidget& viewport) {
   return params;
 }
 
+FxVolumeRenderer::DrawParams
+SimplishEditor::fxVolumeDrawParams(const EditorViewportWidget& viewport) {
+  const FxRenderer::DrawParams particles = fxDrawParams(viewport);
+  FxVolumeRenderer::DrawParams params{};
+  params.volumes = &activeEffects().volumes;
+  params.depth = particles.depth;
+  params.view_projection = particles.view_projection;
+  params.viewport = particles.viewport;
+  params.scissor = particles.scissor;
+  return params;
+}
+
 void SimplishEditor::recordEffects(RhiCommandList& cmd,
                                    const EditorViewportWidget& viewport) {
   RhiDevice* device = rhiDevice();
   if (device == nullptr) {
     return;
   }
+  // Smoke first, so a spark thrown into a cloud shows through it.
+  fx_volume_renderer_.draw(*device, cmd, fxVolumeDrawParams(viewport));
   fx_renderer_.draw(*device, cmd, fxDrawParams(viewport));
 }
 
@@ -2445,6 +2463,7 @@ void SimplishEditor::onShutdown() {
   if (rhiDevice() != nullptr) {
     outline_renderer_.shutdown(*rhiDevice());
     fx_renderer_.shutdown(*rhiDevice());
+    fx_volume_renderer_.shutdown(*rhiDevice());
     skinned_renderer_.shutdown(*rhiDevice());
     mesh_renderer_.shutdown(*rhiDevice());
   }

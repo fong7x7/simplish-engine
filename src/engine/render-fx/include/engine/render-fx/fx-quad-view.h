@@ -6,6 +6,8 @@
 /// A value type.
 
 #include <engine/math/mat4.h>
+#include <engine/render-mesh/mesh-light.h>
+#include <span>
 
 namespace eng {
 
@@ -19,6 +21,10 @@ struct FxQuadView {
   float width = 0.0f;
   /// Height of that surface, in pixels.
   float height = 0.0f;
+  /// The lights the scene is drawn by, which a particle whose look is
+  /// `LIT` takes its colour from. Empty leaves every particle its own
+  /// colour, whatever its look says.
+  std::span<const MeshLight> lights{};
 };
 
 }  // namespace eng

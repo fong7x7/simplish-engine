@@ -7,6 +7,7 @@
 #include <engine/render-fx/fx-burst.h>
 #include <engine/render-fx/fx-emit.h>
 #include <engine/render-fx/fx-flash.h>
+#include <engine/render-fx/fx-volume.h>
 #include <vector>
 
 namespace eng::editor {
@@ -24,6 +25,8 @@ namespace eng::editor {
 struct EditorEffectShot {
   /// The bursts it throws, each from the same place and direction.
   std::vector<FxBurst> bursts{};
+  /// The clouds of smoke it leaves standing where it went off.
+  std::vector<FxVolume> volumes{};
   /// The flash it lights the scene with; an intensity of zero is none.
   FxFlash flash{};
   /// Where, which way and how big.

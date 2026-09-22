@@ -266,6 +266,7 @@ void EditorPlaytestSession::publish(EditorPlaytestState& state) const {
 
 void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
   state.effects.particles = fx_.particles.live;
+  state.effects.volumes = fx_.volumes.live;
   state.effects.lights = fx_.lights.live;
   state.effects.cues = cues_played_;
 }

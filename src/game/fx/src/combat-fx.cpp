@@ -66,7 +66,10 @@ namespace {
                 .color_start = {0.12F, 0.11F, 0.1F, 0.35F},
                 .color_end = {0.0F, 0.0F, 0.0F, 0.0F},
                 .gravity = -0.3F,
-                .drag = 2.0F}},
+                .drag = 2.0F,
+                .spin = 40.0F,
+                .shape = FxParticleShape::PUFF,
+                .lighting = FxParticleLighting::LIT}},
   }};
 
   /// A shot that hits someone: a dark spray carried on through them.
@@ -124,7 +127,27 @@ namespace {
                 .color_start = {0.05F, 0.05F, 0.05F, 0.55F},
                 .color_end = {0.0F, 0.0F, 0.0F, 0.0F},
                 .gravity = -0.6F,
-                .drag = 1.5F}},
+                .drag = 1.5F,
+                .spin = 25.0F,
+                .shape = FxParticleShape::PUFF,
+                .lighting = FxParticleLighting::LIT}},
+  }};
+
+  /// The cloud a blast leaves standing where it went off: a body of smoke
+  /// the effects pass marches a ray through, so it fills a doorway and
+  /// wraps what it meets rather than cutting against it.
+  ///
+  /// It outlasts the blast's puffs by some seconds, which is the point —
+  /// the smoke a fight leaves behind is cover, and a flat billboard
+  /// standing in a corridor gives none.
+  constexpr std::array<FxVolume, 1> BLAST_VOLUMES{{
+      {.color = {0.05F, 0.05F, 0.055F, 1.0F},
+       .density = 1.6F,
+       .radius = 1.1F,
+       .height = 0.8F,
+       .growth = 0.35F,
+       .rise = 0.3F,
+       .life = 4.0F},
   }};
 
   /// The flash a shot leaving the muzzle throws.
@@ -139,18 +162,39 @@ namespace {
   /// The light of something going off.
   constexpr FxFlash BLAST_FLASH{{1.0F, 0.9F, 0.65F}, 4.0F, 4.0F, 0.3F};
 
+  /// A steady column of smoke, for a fire, a vent or a smouldering wreck:
+  /// a few slow puffs an emitter throws over and over, living long enough
+  /// to overlap into a plume and widening as they rise. No combat effect
+  /// throws it — it is here so an emitter can.
+  constexpr FxBurst PLUME_BURST{
+      .count = 3,
+      .spread_degrees = 22.0F,
+      .speed_min = 0.35F,
+      .speed_max = 0.9F,
+      .life_min = 2.5F,
+      .life_max = 4.0F,
+      .look = {.size_start = 0.3F,
+               .size_end = 1.5F,
+               .color_start = {0.06F, 0.06F, 0.07F, 0.5F},
+               .color_end = {0.0F, 0.0F, 0.0F, 0.0F},
+               .gravity = -0.5F,
+               .drag = 0.9F,
+               .spin = 12.0F,
+               .shape = FxParticleShape::PUFF,
+               .lighting = FxParticleLighting::LIT}};
+
   /// Every cue kind's effect, in `CombatCueKind` order.
   constexpr std::array<FxEffect, COMBAT_CUE_KIND_COUNT> EFFECTS{{
-      {MUZZLE_BURSTS, MUZZLE_FLASH},
-      {BODY_BURSTS, BODY_FLASH},
-      {WALL_BURSTS, WALL_FLASH},
-      {BLAST_BURSTS, BLAST_FLASH},
+      {MUZZLE_BURSTS, {}, MUZZLE_FLASH},
+      {BODY_BURSTS, {}, BODY_FLASH},
+      {WALL_BURSTS, {}, WALL_FLASH},
+      {BLAST_BURSTS, BLAST_VOLUMES, BLAST_FLASH},
   }};
 
   /// Every burst above as a preset of its own. A burst that rides along
   /// with another's light — the muzzle's sparks, the grit, the embers and
   /// the smoke — throws none of its own, as in the effect it came from.
-  constexpr std::array<CombatFxPreset, 8> PRESETS{{
+  constexpr std::array<CombatFxPreset, 9> PRESETS{{
       {"muzzle_flash", "Muzzle Flash", MUZZLE_BURSTS[0], MUZZLE_FLASH},
       {"muzzle_sparks", "Muzzle Sparks", MUZZLE_BURSTS[1], {}},
       {"wall_sparks", "Wall Sparks", WALL_BURSTS[0], WALL_FLASH},
@@ -159,6 +203,7 @@ namespace {
       {"fireball", "Fireball", BLAST_BURSTS[0], BLAST_FLASH},
       {"embers", "Embers", BLAST_BURSTS[1], {}},
       {"smoke", "Smoke", BLAST_BURSTS[2], {}},
+      {"smoke_plume", "Smoke Plume", PLUME_BURST, {}},
   }};
 
   static_assert(static_cast<size_t>(CombatCueKind::BLAST) + 1 ==

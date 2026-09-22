@@ -7,6 +7,7 @@
 
 #include "support/gpu_test_context.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <engine/render-fx/fx-renderer.h>
@@ -63,6 +64,36 @@ void addParticle(FxParticlePool& pool, float x, float z, FxColor color) {
   look.color_start = color;
   look.color_end = color;
   pool.look[i] = look;
+}
+
+/// A white puff on the left of the frame and a white disc on the right,
+/// both in front of the scene.
+void addPuffAndDisc(FxParticlePool& pool) {
+  addParticle(pool, -0.5f, 0.1f, {1.0f, 1.0f, 1.0f, 0.0f});
+  pool.look[0].shape = FxParticleShape::PUFF;
+  pool.angle[0] = 3.0f;
+  addParticle(pool, 0.5f, 0.1f, {1.0f, 1.0f, 1.0f, 0.0f});
+}
+
+/// The four texels that mirror one another about the centre of a quad
+/// standing on the pixel boundary @p cx, @p dx and @p dy out from it.
+///
+/// A disc's mask depends on nothing but how far out a fragment is, so all
+/// four read the same whatever the radius works out to in pixels; the
+/// noise a puff is broken up by has no such symmetry.
+std::vector<int> mirroredAt(const std::vector<uint8_t>& texels, uint32_t cx,
+                            uint32_t dx, uint32_t dy) {
+  constexpr uint32_t CY = GPU_TEST_SIZE / 2;
+  return {texelAt(texels, cx + dx, CY + dy)[2],
+          texelAt(texels, cx - 1 - dx, CY + dy)[2],
+          texelAt(texels, cx + dx, CY - 1 - dy)[2],
+          texelAt(texels, cx - 1 - dx, CY - 1 - dy)[2]};
+}
+
+/// How far apart the highest and lowest of @p samples are.
+int spreadOf(const std::vector<int>& samples) {
+  const auto [low, high] = std::ranges::minmax_element(samples);
+  return *high - *low;
 }
 
 /// The scene pass: colour cleared to black, and depth to `SCENE_DEPTH`.
@@ -158,5 +189,29 @@ TEST_CASE("FxRenderer on the GPU: smoke in front of a glow hides it",
   const int glow = texelAt(texels, 3 * GPU_TEST_SIZE / 4, GPU_TEST_SIZE / 2)[2];
   CHECK(glow > 200);
   CHECK(texelAt(texels, GPU_TEST_SIZE / 4, GPU_TEST_SIZE / 2)[2] < glow / 5);
+  fx.shutdown(*ctx.device());
+}
+
+// Req: docs/engine/fx.md — a textured particle is a puff of noise, uneven
+// where a disc is smooth, and no two of them are broken up alike.
+TEST_CASE("FxRenderer on the GPU: a puff is uneven where a disc is smooth",
+          "[gpu][fx]") {
+  GpuTestContext ctx;
+  if (!hasFxPipeline(ctx.device())) {
+    SKIP("no GPU device with a built-in effects pipeline");
+  }
+  FxRenderer fx;
+  REQUIRE(fx.init(*ctx.device(), 8));
+  FxParticlePool particles(8);
+  addPuffAndDisc(particles);
+  const auto texels = renderFx(ctx, fx, particles);
+  REQUIRE_FALSE(texels.empty());
+
+  // A few pixels out from each centre: the disc reads the same in all four
+  // quadrants, and the puff does not.
+  const std::vector<int> disc = mirroredAt(texels, 3 * GPU_TEST_SIZE / 4, 2, 1);
+  const std::vector<int> puff = mirroredAt(texels, GPU_TEST_SIZE / 4, 2, 1);
+  CHECK(spreadOf(disc) <= 1);
+  CHECK(spreadOf(puff) > 16);
   fx.shutdown(*ctx.device());
 }

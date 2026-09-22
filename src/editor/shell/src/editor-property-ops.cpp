@@ -38,6 +38,7 @@ namespace {
         return std::snprintf(text.data(), text.size(), "%.0f", value);
       case EditorPropertyKind::ANGLE:
       case EditorPropertyKind::HALF_ANGLE:
+      case EditorPropertyKind::SPIN:
         return std::snprintf(text.data(), text.size(), "%.1f", value);
       case EditorPropertyKind::FINE:
         return std::snprintf(text.data(), text.size(), "%.3f", value);
@@ -70,11 +71,12 @@ namespace {
       {EDITOR_SPREAD_STEP, EDITOR_SPREAD_DRAG_PER_PIXEL},      // HALF_ANGLE
       {EDITOR_FINE_STEP, EDITOR_FINE_DRAG_PER_PIXEL},          // FINE
       {EDITOR_ACCELERATION_STEP,
-       EDITOR_ACCELERATION_DRAG_PER_PIXEL},  // ACCELERATION
+       EDITOR_ACCELERATION_DRAG_PER_PIXEL},            // ACCELERATION
+      {EDITOR_SPIN_STEP, EDITOR_SPIN_DRAG_PER_PIXEL},  // SPIN
   };
 
   static_assert(std::size(KIND_TUNING) ==
-                    static_cast<size_t>(EditorPropertyKind::ACCELERATION) + 1,
+                    static_cast<size_t>(EditorPropertyKind::SPIN) + 1,
                 "every property kind needs a step and a drag rate");
 
   const KindTuning& kindTuning(EditorPropertyKind kind) {
@@ -132,6 +134,7 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
       return std::clamp(value, EDITOR_SCALE_MIN, EDITOR_SCALE_MAX);
     case EditorPropertyKind::DISTANCE:
     case EditorPropertyKind::ACCELERATION:
+    case EditorPropertyKind::SPIN:
       return value;
   }
   return value;

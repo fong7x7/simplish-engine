@@ -1379,12 +1379,15 @@ void main() {
 layout(location = 0) in vec4 a_clip;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_uv;
+layout(location = 3) in vec2 a_shape;
 out vec4 v_color;
 out vec2 v_uv;
+out vec2 v_shape;
 void main() {
   gl_Position = a_clip;
   v_color = a_color;
   v_uv = a_uv;
+  v_shape = a_shape;
 }
 )glsl";
 
@@ -1395,7 +1398,35 @@ uniform vec4 u_fx;
 layout(binding = 0) uniform sampler2D u_depth;
 in vec4 v_color;
 in vec2 v_uv;
+in vec2 v_shape;
 out vec4 frag_color;
+
+float fx_hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float fx_noise(vec2 p) {
+  vec2 cell = floor(p);
+  vec2 f = fract(p);
+  vec2 s = f * f * (3.0 - 2.0 * f);
+  float a = fx_hash(cell);
+  float b = fx_hash(cell + vec2(1.0, 0.0));
+  float c = fx_hash(cell + vec2(0.0, 1.0));
+  float d = fx_hash(cell + vec2(1.0, 1.0));
+  return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
+}
+
+float fx_fbm(vec2 p) {
+  return fx_noise(p) * 0.65 + fx_noise(p * 2.7 + 5.2) * 0.35;
+}
+
+// A disc broken up by noise: soft at the rim, uneven inside, and unlike the
+// next particle's, because its seed moves the noise field under it.
+float fx_puff(vec2 uv, float seed) {
+  float edge = clamp(1.0 - length(uv), 0.0, 1.0);
+  vec2 at = uv * 2.3 + vec2(seed * 0.37, seed * 0.71);
+  return clamp(edge * edge * (0.35 + 1.15 * fx_fbm(at)), 0.0, 1.0);
+}
 
 void main() {
   // GL counts rows from the bottom, and so does the depth copied out of its
@@ -1405,7 +1436,106 @@ void main() {
   // depth difference here is half what the softness was measured against.
   float soft = clamp(2.0 * (scene - gl_FragCoord.z) * u_fx.x, 0.0, 1.0);
   float disc = clamp(1.0 - dot(v_uv, v_uv), 0.0, 1.0);
-  float cover = disc * disc * soft;
+  float shape = mix(disc * disc, fx_puff(v_uv, v_shape.y), v_shape.x);
+  float cover = shape * soft;
+  if (cover <= 0.0) {
+    discard;
+  }
+  frag_color = v_color * cover;
+}
+)glsl";
+
+  /// Volumetric-smoke shaders, mirroring FX_VOLUME_MSL_SOURCE in the Metal
+  /// backend and FX_VOLUME_HLSL_SOURCE in the DX12 one. The input is
+  /// `FxVolumeVertex`, already in clip space; there are no uniforms.
+  constexpr const char FX_VOLUME_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+layout(location = 0) in vec4 a_clip;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec4 a_origin;
+layout(location = 3) in vec4 a_ray;
+layout(location = 4) in vec4 a_params;
+out vec4 v_color;
+out vec4 v_origin;
+out vec4 v_ray;
+out vec4 v_params;
+void main() {
+  gl_Position = a_clip;
+  v_color = a_color;
+  v_origin = a_origin;
+  v_ray = a_ray;
+  v_params = a_params;
+}
+)glsl";
+
+  constexpr const char FX_VOLUME_FRAGMENT_SHADER_GLSL[] = R"glsl(
+#version 460 core
+layout(binding = 0) uniform sampler2D u_depth;
+in vec4 v_color;
+in vec4 v_origin;
+in vec4 v_ray;
+in vec4 v_params;
+out vec4 frag_color;
+
+const int FXV_STEPS = 16;
+
+float fxv_hash(vec3 p) {
+  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+float fxv_noise(vec3 p) {
+  vec3 cell = floor(p);
+  vec3 f = fract(p);
+  vec3 s = f * f * (3.0 - 2.0 * f);
+  float x00 = mix(fxv_hash(cell), fxv_hash(cell + vec3(1.0, 0.0, 0.0)), s.x);
+  float x10 = mix(fxv_hash(cell + vec3(0.0, 1.0, 0.0)),
+                  fxv_hash(cell + vec3(1.0, 1.0, 0.0)), s.x);
+  float x01 = mix(fxv_hash(cell + vec3(0.0, 0.0, 1.0)),
+                  fxv_hash(cell + vec3(1.0, 0.0, 1.0)), s.x);
+  float x11 = mix(fxv_hash(cell + vec3(0.0, 1.0, 1.0)),
+                  fxv_hash(cell + vec3(1.0, 1.0, 1.0)), s.x);
+  return mix(mix(x00, x10, s.y), mix(x01, x11, s.y), s.z);
+}
+
+float fxv_fbm(vec3 p) {
+  return fxv_noise(p) * 0.6 + fxv_noise(p * 2.3 + 11.0) * 0.4;
+}
+
+// How thick the smoke is at one point of the cloud's own space: an
+// ellipsoid gone to nothing at the box's wall, eaten into by noise that the
+// cloud's seed moves, so no two clouds are the same shape.
+float fxv_density(vec3 p, float seed) {
+  float edge = clamp(1.0 - dot(p, p), 0.0, 1.0);
+  float n = fxv_fbm(p * 1.9 + seed);
+  return edge * edge * clamp(n * 1.7 - 0.45, 0.0, 1.0);
+}
+
+void main() {
+  vec3 o = v_origin.xyz;
+  vec3 d = v_ray.xyz;
+  vec3 inv = 1.0 / d;
+  vec3 near_wall = (vec3(-1.0) - o) * inv;
+  vec3 far_wall = (vec3(1.0) - o) * inv;
+  vec3 lo = min(near_wall, far_wall);
+  vec3 hi = max(near_wall, far_wall);
+  float t_in = max(max(lo.x, lo.y), lo.z);
+  // GL stores half the clip depth plus a half, so the depth it reads has
+  // to come back to clip space before the ray can be cut at it.
+  float scene = texelFetch(u_depth, ivec2(gl_FragCoord.xy), 0).r;
+  float t_out = min(min(min(hi.x, hi.y), hi.z),
+                    (2.0 * scene - 1.0 - v_params.x) / v_ray.w);
+  if (!(t_out > t_in)) {
+    discard;
+  }
+  float dt = (t_out - t_in) / float(FXV_STEPS);
+  float cover = 0.0;
+  float through = 1.0;
+  for (int i = 0; i < FXV_STEPS; ++i) {
+    vec3 p = o + d * (t_in + (float(i) + 0.5) * dt);
+    float a = 1.0 - exp(-fxv_density(p, v_origin.w) * v_params.y * dt);
+    cover += through * a;
+    through *= 1.0 - a;
+  }
   if (cover <= 0.0) {
     discard;
   }
@@ -1543,11 +1673,12 @@ void main() {
     glBindVertexArray(0);
   }
 
-  /// Size of one `eng::FxVertex`, and where its colour and uv sit —
-  /// `fx-vertex.h` asserts the same three numbers.
-  constexpr uint32_t FX_VERTEX_STRIDE_BYTES = 40;
+  /// Size of one `eng::FxVertex`, and where its colour, uv and shape pair
+  /// sit — `fx-vertex.h` asserts the same numbers.
+  constexpr uint32_t FX_VERTEX_STRIDE_BYTES = 48;
   constexpr uint32_t FX_COLOR_OFFSET = 16;
   constexpr uint32_t FX_UV_OFFSET = 32;
+  constexpr uint32_t FX_SHAPE_OFFSET = 40;
 
   /// Vertex array for `eng::FxVertex`: clip position, colour and uv.
   void setupFxVertexArray(GLuint vao) {
@@ -1561,6 +1692,24 @@ void main() {
     glEnableVertexAttribArray(2);
     glVertexAttribFormat(2, 2, GL_FLOAT, GL_FALSE, FX_UV_OFFSET);
     glVertexAttribBinding(2, 0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribFormat(3, 2, GL_FLOAT, GL_FALSE, FX_SHAPE_OFFSET);
+    glVertexAttribBinding(3, 0);
+    glBindVertexArray(0);
+  }
+
+  /// Size of one `eng::FxVolumeVertex`: five float4s, as
+  /// `fx-volume-vertex.h` asserts.
+  constexpr uint32_t FX_VOLUME_STRIDE_BYTES = 80;
+
+  /// Vertex array for `eng::FxVolumeVertex`: five float4s in a row.
+  void setupFxVolumeVertexArray(GLuint vao) {
+    glBindVertexArray(vao);
+    for (GLuint i = 0; i < 5; ++i) {
+      glEnableVertexAttribArray(i);
+      glVertexAttribFormat(i, 4, GL_FLOAT, GL_FALSE, i * 16);
+      glVertexAttribBinding(i, 0);
+    }
     glBindVertexArray(0);
   }
 
@@ -1669,6 +1818,13 @@ namespace {
     return desc;
   }
 
+  /// The same fixed state for the volume pipeline, over its wider vertex.
+  RhiGraphicsPipelineDesc fxVolumePipelineDesc() {
+    RhiGraphicsPipelineDesc desc = outlinePipelineDesc();
+    desc.vertex_layout.stride = FX_VOLUME_STRIDE_BYTES;
+    return desc;
+  }
+
   /// A vertex array for a freshly linked program, or zero — with the
   /// program deleted, since nothing will own it — when GL cannot make one.
   GLuint createVertexArrayFor(GLuint program) {
@@ -1735,6 +1891,25 @@ bool OpenGlDevice::tryCreateFxParticlePipeline(
   GlPipelineEntry entry = buildGraphicsEntry(program, vao, fxPipelineDesc());
   entry.blend_premultiplied = true;
   entry.loc_u_fx = glGetUniformLocation(program, "u_fx");
+  out_pipeline = allocHandle();
+  pipelines_[out_pipeline] = entry;
+  return true;
+}
+
+bool OpenGlDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
+  const GLuint program = linkShaderSource(FX_VOLUME_VERTEX_SHADER_GLSL,
+                                          FX_VOLUME_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  const GLuint vao = createVertexArrayFor(program);
+  if (vao == 0) {
+    return false;
+  }
+  setupFxVolumeVertexArray(vao);
+  GlPipelineEntry entry =
+      buildGraphicsEntry(program, vao, fxVolumePipelineDesc());
+  entry.blend_premultiplied = true;
   out_pipeline = allocHandle();
   pipelines_[out_pipeline] = entry;
   return true;

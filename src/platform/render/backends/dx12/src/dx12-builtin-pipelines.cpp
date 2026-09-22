@@ -371,12 +371,14 @@ struct FxVsIn {
   float4 clip : ATTR0;
   float4 color : ATTR1;
   float2 uv : ATTR2;
+  float2 shape : ATTR3;
 };
 
 struct FxVsOut {
   float4 position : SV_Position;
   float4 color : COLOR0;
   float2 uv : TEXCOORD0;
+  float2 shape : TEXCOORD1;
 };
 
 FxVsOut fx_vs_main(FxVsIn input) {
@@ -384,14 +386,144 @@ FxVsOut fx_vs_main(FxVsIn input) {
   output.position = input.clip;
   output.color = input.color;
   output.uv = input.uv;
+  output.shape = input.shape;
   return output;
+}
+
+float fx_hash(float2 p) {
+  return frac(sin(dot(p, float2(127.1f, 311.7f))) * 43758.5453f);
+}
+
+float fx_noise(float2 p) {
+  float2 cell = floor(p);
+  float2 f = frac(p);
+  float2 s = f * f * (3.0f - 2.0f * f);
+  float a = fx_hash(cell);
+  float b = fx_hash(cell + float2(1.0f, 0.0f));
+  float c = fx_hash(cell + float2(0.0f, 1.0f));
+  float d = fx_hash(cell + float2(1.0f, 1.0f));
+  return lerp(lerp(a, b, s.x), lerp(c, d, s.x), s.y);
+}
+
+float fx_fbm(float2 p) {
+  return fx_noise(p) * 0.65f + fx_noise(p * 2.7f + 5.2f) * 0.35f;
+}
+
+// A disc broken up by noise: soft at the rim, uneven inside, and unlike the
+// next particle's, because its seed moves the noise field under it.
+float fx_puff(float2 uv, float seed) {
+  float edge = saturate(1.0f - length(uv));
+  float2 at = uv * 2.3f + float2(seed * 0.37f, seed * 0.71f);
+  return saturate(edge * edge * (0.35f + 1.15f * fx_fbm(at)));
 }
 
 float4 fx_ps_main(FxVsOut input) : SV_Target {
   float scene = fx_depth.Load(int3(int2(input.position.xy), 0));
   float soft = saturate((scene - input.position.z) * fx_softness);
   float disc = saturate(1.0f - dot(input.uv, input.uv));
-  float cover = disc * disc * soft;
+  float shape = lerp(disc * disc, fx_puff(input.uv, input.shape.y),
+                     input.shape.x);
+  float cover = shape * soft;
+  if (cover <= 0.0f) {
+    discard;
+  }
+  return input.color * cover;
+}
+)hlsl";
+
+  /// HLSL for volumetric smoke. Mirrors `FX_VOLUME_MSL_SOURCE`: each
+  /// vertex is `FxVolumeVertex`, already in clip space, carrying the ray
+  /// its fragments march. There is no cbuffer; the depth texture is the
+  /// scene's, read to stop the march where a surface is.
+  constexpr const char FX_VOLUME_HLSL_SOURCE[] = R"hlsl(
+Texture2D<float> fxv_depth : register(t0);
+
+static const int FXV_STEPS = 16;
+
+struct FxVolumeVsIn {
+  float4 clip : ATTR0;
+  float4 color : ATTR1;
+  float4 origin : ATTR2;
+  float4 ray : ATTR3;
+  float4 params : ATTR4;
+};
+
+struct FxVolumeVsOut {
+  float4 position : SV_Position;
+  float4 color : COLOR0;
+  float4 origin : TEXCOORD0;
+  float4 ray : TEXCOORD1;
+  float4 params : TEXCOORD2;
+};
+
+FxVolumeVsOut fx_volume_vs_main(FxVolumeVsIn input) {
+  FxVolumeVsOut output;
+  output.position = input.clip;
+  output.color = input.color;
+  output.origin = input.origin;
+  output.ray = input.ray;
+  output.params = input.params;
+  return output;
+}
+
+float fxv_hash(float3 p) {
+  return frac(sin(dot(p, float3(127.1f, 311.7f, 74.7f))) * 43758.5453f);
+}
+
+float fxv_noise(float3 p) {
+  float3 cell = floor(p);
+  float3 f = frac(p);
+  float3 s = f * f * (3.0f - 2.0f * f);
+  float x00 = lerp(fxv_hash(cell), fxv_hash(cell + float3(1.0f, 0.0f, 0.0f)),
+                   s.x);
+  float x10 = lerp(fxv_hash(cell + float3(0.0f, 1.0f, 0.0f)),
+                   fxv_hash(cell + float3(1.0f, 1.0f, 0.0f)), s.x);
+  float x01 = lerp(fxv_hash(cell + float3(0.0f, 0.0f, 1.0f)),
+                   fxv_hash(cell + float3(1.0f, 0.0f, 1.0f)), s.x);
+  float x11 = lerp(fxv_hash(cell + float3(0.0f, 1.0f, 1.0f)),
+                   fxv_hash(cell + float3(1.0f, 1.0f, 1.0f)), s.x);
+  return lerp(lerp(x00, x10, s.y), lerp(x01, x11, s.y), s.z);
+}
+
+float fxv_fbm(float3 p) {
+  return fxv_noise(p) * 0.6f + fxv_noise(p * 2.3f + 11.0f) * 0.4f;
+}
+
+// How thick the smoke is at one point of the cloud's own space: an
+// ellipsoid gone to nothing at the box's wall, eaten into by noise that the
+// cloud's seed moves, so no two clouds are the same shape.
+float fxv_density(float3 p, float seed) {
+  float edge = saturate(1.0f - dot(p, p));
+  float n = fxv_fbm(p * 1.9f + seed);
+  return edge * edge * saturate(n * 1.7f - 0.45f);
+}
+
+float4 fx_volume_ps_main(FxVolumeVsOut input) : SV_Target {
+  float3 o = input.origin.xyz;
+  float3 d = input.ray.xyz;
+  float3 inv = 1.0f / d;
+  float3 near_wall = (float3(-1.0f, -1.0f, -1.0f) - o) * inv;
+  float3 far_wall = (float3(1.0f, 1.0f, 1.0f) - o) * inv;
+  float3 lo = min(near_wall, far_wall);
+  float3 hi = max(near_wall, far_wall);
+  float t_in = max(max(lo.x, lo.y), lo.z);
+  // The scene stops the march where a surface is, so the smoke wraps what
+  // it meets instead of cutting against it.
+  float scene = fxv_depth.Load(int3(int2(input.position.xy), 0));
+  float t_out = min(min(min(hi.x, hi.y), hi.z),
+                    (scene - input.params.x) / input.ray.w);
+  if (!(t_out > t_in)) {
+    discard;
+  }
+  float dt = (t_out - t_in) / float(FXV_STEPS);
+  float cover = 0.0f;
+  float through = 1.0f;
+  for (int i = 0; i < FXV_STEPS; ++i) {
+    float3 p = o + d * (t_in + (float(i) + 0.5f) * dt);
+    float a = 1.0f - exp(-fxv_density(p, input.origin.w) * input.params.y * dt);
+    cover += through * a;
+    through *= 1.0f - a;
+  }
   if (cover <= 0.0f) {
     discard;
   }
@@ -448,15 +580,35 @@ float4 fx_ps_main(FxVsOut input) : SV_Target {
   }};
 
   /// Byte stride of `eng::FxVertex`, as `fx-vertex.h` asserts.
-  constexpr uint32_t FX_VERTEX_STRIDE = 40;
+  constexpr uint32_t FX_VERTEX_STRIDE = 48;
 
-  /// Vertex input elements for `eng::FxVertex`: clip position, colour, uv.
-  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 3> FX_INPUT_ELEMENTS{{
+  /// Vertex input elements for `eng::FxVertex`: clip position, colour, uv,
+  /// and the shape pair.
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 4> FX_INPUT_ELEMENTS{{
       {"ATTR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 2, DXGI_FORMAT_R32G32_FLOAT, 0, 32,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 3, DXGI_FORMAT_R32G32_FLOAT, 0, 40,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+  }};
+
+  /// Byte stride of `eng::FxVolumeVertex`, as `fx-volume-vertex.h` asserts.
+  constexpr uint32_t FX_VOLUME_STRIDE = 80;
+
+  /// Vertex input elements for `eng::FxVolumeVertex`: five float4s.
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 5> FX_VOLUME_INPUT_ELEMENTS{{
+      {"ATTR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 48,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 64,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
   }};
 
@@ -688,9 +840,37 @@ ID3D12PipelineState* createDx12FxPipelineState(ID3D12Device5* device,
   return state;
 }
 
+ID3D12PipelineState*
+createDx12FxVolumePipelineState(ID3D12Device5* device,
+                                ID3D12RootSignature* root_sig,
+                                DXGI_FORMAT color_format) {
+  const ShaderPair shaders = compilePair(
+      FX_VOLUME_HLSL_SOURCE, "fx_volume_vs_main", "fx_volume_ps_main");
+  if (shaders.vs == nullptr) {
+    return nullptr;
+  }
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+  pso.pRootSignature = root_sig;
+  fillCommonPsoFields(pso, shaders, color_format);
+  pso.BlendState = buildPremultipliedBlendDesc();
+  pso.InputLayout = {FX_VOLUME_INPUT_ELEMENTS.data(),
+                     static_cast<UINT>(FX_VOLUME_INPUT_ELEMENTS.size())};
+  // The same pass as the particles: no depth attachment, since the depth
+  // is the texture being read.
+  pso.DSVFormat = DXGI_FORMAT_UNKNOWN;
+  ID3D12PipelineState* state = createPso(device, pso);
+  releasePair(shaders);
+  return state;
+}
+
 /// Byte stride the command list binds effects vertex buffers with.
 uint32_t dx12FxVertexStride() {
   return FX_VERTEX_STRIDE;
+}
+
+/// Byte stride the command list binds volume vertex buffers with.
+uint32_t dx12FxVolumeVertexStride() {
+  return FX_VOLUME_STRIDE;
 }
 
 /// Byte stride the command list binds GUI vertex buffers with.

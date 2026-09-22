@@ -39,6 +39,7 @@ namespace {
       {Field::GRAVITY, &FxParticleLook::gravity},
       {Field::DRAG, &FxParticleLook::drag},
       {Field::STRETCH, &FxParticleLook::stretch},
+      {Field::SPIN, &FxParticleLook::spin},
   };
 
   /// The flash each burst lights, past its tint.
@@ -119,6 +120,30 @@ namespace {
 
   bool isDirectionField(Field field) {
     return editorFieldInTriple(field, Field::DIRECTION_X);
+  }
+
+  /// Whether @p field names one of the two settings a look carries as a
+  /// named choice rather than as a number, both shown as toggles.
+  bool isLookToggleField(Field field) {
+    return field == Field::TEXTURED || field == Field::LIT;
+  }
+
+  /// Which way @p look has @p field set, as a toggle reads it.
+  float lookToggle(const FxParticleLook& look, Field field) {
+    if (field == Field::TEXTURED) {
+      return look.shape == FxParticleShape::PUFF ? 1.0f : 0.0f;
+    }
+    return look.lighting == FxParticleLighting::LIT ? 1.0f : 0.0f;
+  }
+
+  /// Set @p field of @p look from a toggle's @p on.
+  void setLookToggle(FxParticleLook& look, Field field, float on) {
+    if (field == Field::TEXTURED) {
+      look.shape = on != 0.0f ? FxParticleShape::PUFF : FxParticleShape::DISC;
+    } else {
+      look.lighting =
+          on != 0.0f ? FxParticleLighting::LIT : FxParticleLighting::EMISSIVE;
+    }
   }
 
   /// Whether two flashes light alike, to the last bit.
@@ -207,6 +232,9 @@ float editorEmitterValue(const EditorEmitter& emitter, Field field) {
   if (field == Field::PARTICLES) {
     return static_cast<float>(emitter.burst.count);
   }
+  if (isLookToggleField(field)) {
+    return lookToggle(emitter.burst.look, field);
+  }
   const float* value = scalarOf(emitter, field);
   return value != nullptr ? *value : 0.0f;
 }
@@ -221,6 +249,8 @@ void setEditorEmitterValue(EditorEmitter& emitter, Field field, float value) {
                      editorFieldAxis(field, Field::DIRECTION_X)) = written;
   } else if (field == Field::PARTICLES) {
     emitter.burst.count = static_cast<uint16_t>(written);
+  } else if (isLookToggleField(field)) {
+    setLookToggle(emitter.burst.look, field, written);
   } else if (float* scalar = scalarOf(emitter, field)) {
     *scalar = written;
   }

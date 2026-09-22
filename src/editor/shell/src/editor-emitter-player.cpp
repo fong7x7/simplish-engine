@@ -9,8 +9,8 @@ namespace {
 
   /// Throw one of @p emitter's bursts into @p world, and light its flash.
   void burst(const EditorEmitter& emitter, FxWorld& world) {
-    const FxEffect effect{std::span<const FxBurst>(&emitter.burst, 1),
-                          emitter.flash};
+    const FxEffect effect{
+        std::span<const FxBurst>(&emitter.burst, 1), {}, emitter.flash};
     playFxEffect(world, effect, editorEmitterEmit(emitter));
   }
 

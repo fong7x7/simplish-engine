@@ -115,11 +115,11 @@ TEST_CASE("list_emitters lists every emitter and every preset") {
 
   REQUIRE(listed.at("emitters").size() == 2);
   REQUIRE(listed.at("emitters").at(1).at("index") == 1);
-  REQUIRE(listed.at("effects").size() == 8);
+  REQUIRE(listed.at("effects").size() == 9);
   REQUIRE(listed.at("effects").at(0).at("id") == "muzzle_flash");
   const json selected = call(state, "get_selection", "{}");
   REQUIRE(selected.at("target") == "emitter");
-  REQUIRE(selected.at("fields").size() == 29);
+  REQUIRE(selected.at("fields").size() == 32);
   REQUIRE(call(state, "get_state", "{}").at("emitter_count") == 2);
 }
 
@@ -151,6 +151,18 @@ TEST_CASE("play_effect plays a whole combat effect: a blast on the floor") {
   REQUIRE(shot.emit.at.z == 0.0f);
   REQUIRE(shot.emit.scale == 2.0f);
   REQUIRE(shot.flash.intensity > 0.0f);
+  // A blast leaves a cloud of smoke standing; a preset's one burst does not.
+  REQUIRE(shot.volumes.size() == 1);
+  REQUIRE(json::parse(result.json).at("volumes") == 1);
+}
+
+TEST_CASE("only the whole blast leaves smoke, not one of its bursts") {
+  EditorShellState state = openProject();
+  const AgentResult result = runAgentTool(
+      state, "play_effect", R"({"effect": "smoke", "x": 0, "y": 0})");
+
+  REQUIRE(result.status == AgentStatus::OK);
+  REQUIRE(result.host.effect.volumes.empty());
 }
 
 TEST_CASE("play_effect fires an emitter's own burst, edits and all") {
@@ -188,6 +200,7 @@ TEST_CASE("get_effects reports the viewport's effects and each emitter's "
   EditorShellState state = openProject();
   (void)call(state, "add_emitter", R"({"x": 0, "y": 0})");
   state.effects.particles = 30;
+  state.effects.volumes = 2;
   state.effects.lights = 1;
   state.effects.emitter_bursts = {4};
   state.effects.shots_played = 2;
@@ -195,6 +208,7 @@ TEST_CASE("get_effects reports the viewport's effects and each emitter's "
 
   REQUIRE(effects.at("source") == "editor");
   REQUIRE(effects.at("particles") == 30);
+  REQUIRE(effects.at("volumes") == 2);
   REQUIRE(effects.at("lights") == 1);
   REQUIRE(effects.at("shots_played") == 2);
   REQUIRE(effects.at("emitters").at(0).at("bursts") == 4);

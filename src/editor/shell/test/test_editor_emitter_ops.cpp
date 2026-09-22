@@ -80,8 +80,10 @@ TEST_CASE("every emitter field reads back what was written to it") {
     EditorEmitter emitter = testEmitter();
     setEditorEmitterValue(emitter, field, 0.5f);
     INFO("field " << editorPropertyFieldLabel(field));
-    const float expected =
-        field == EditorPropertyField::PARTICLES ? 1.0f : 0.5f;
+    // A half rounds up to one slot, and lands on a toggle's far side.
+    const bool snapped = field == EditorPropertyField::PARTICLES ||
+                         editorPropertyFieldIsToggle(field);
+    const float expected = snapped ? 1.0f : 0.5f;
     REQUIRE(editorEmitterValue(emitter, field) == Approx(expected));
     REQUIRE(editorEmitterHasField(field));
   }

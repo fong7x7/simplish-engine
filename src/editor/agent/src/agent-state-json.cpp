@@ -418,6 +418,7 @@ namespace {
           static_cast<game::CombatCueKind>(kind)))] = effects.cues[kind];
     }
     return {{"particles", effects.particles},
+            {"volumes", effects.volumes},
             {"lights", effects.lights},
             {"cues", cues}};
   }

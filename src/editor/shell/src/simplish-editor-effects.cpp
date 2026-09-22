@@ -97,13 +97,15 @@ FxWorld& SimplishEditor::activeEffects() {
 }
 
 void SimplishEditor::playEffectShot(const EditorEffectShot& shot) {
-  playFxEffect(activeEffects(), {shot.bursts, shot.flash}, shot.emit);
+  playFxEffect(activeEffects(), {shot.bursts, shot.volumes, shot.flash},
+               shot.emit);
   ++state_.effects.shots_played;
 }
 
 void SimplishEditor::publishEffects() {
   const FxWorld& effects = activeEffects();
   state_.effects.particles = effects.particles.live;
+  state_.effects.volumes = effects.volumes.live;
   state_.effects.lights = effects.lights.live;
   const std::span<const uint64_t> bursts = emitter_player_.bursts();
   state_.effects.emitter_bursts.assign(bursts.begin(), bursts.end());

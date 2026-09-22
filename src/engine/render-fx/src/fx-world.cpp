@@ -8,6 +8,9 @@ void playFxEffect(FxWorld& world, const FxEffect& effect, const FxEmit& emit) {
   for (const FxBurst& burst : effect.bursts) {
     (void)emitFxBurst(world.particles, burst, emit, world.rng);
   }
+  for (const FxVolume& volume : effect.volumes) {
+    (void)emitFxVolume(world.volumes, volume, emit, world.rng);
+  }
   FxFlash flash = effect.flash;
   flash.range *= emit.scale;
   emitFxFlash(world.lights, flash, emit.at);
@@ -15,11 +18,13 @@ void playFxEffect(FxWorld& world, const FxEffect& effect, const FxEmit& emit) {
 
 void stepFxWorld(FxWorld& world, float seconds) {
   stepFxParticles(world.particles, seconds);
+  stepFxVolumes(world.volumes, seconds);
   stepFxLights(world.lights, seconds);
 }
 
 void clearFxWorld(FxWorld& world) {
   clearFxParticles(world.particles);
+  clearFxVolumes(world.volumes);
   clearFxLights(world.lights);
 }
 

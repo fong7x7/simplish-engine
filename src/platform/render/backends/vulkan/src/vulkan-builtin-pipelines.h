@@ -51,6 +51,13 @@ VkPipeline createVulkanOutlinePipeline(VkDevice device, VkPipelineLayout layout,
 VkPipeline createVulkanFxPipeline(VkDevice device, VkPipelineLayout layout,
                                   VkFormat color_format);
 
+/// The volumetric-smoke pipeline: `FxVolumeVertex` triangles blended
+/// premultiplied in the pass after the scene's, each fragment marching a
+/// ray through noise against the depth it reads.
+VkPipeline createVulkanFxVolumePipeline(VkDevice device,
+                                        VkPipelineLayout layout,
+                                        VkFormat color_format);
+
 }  // namespace eng::render
 
 #endif  // ENGINE_RENDERER_VULKAN

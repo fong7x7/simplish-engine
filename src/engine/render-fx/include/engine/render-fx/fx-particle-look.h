@@ -6,6 +6,8 @@
 /// A value type.
 
 #include <engine/render-fx/fx-color.h>
+#include <engine/render-fx/fx-particle-lighting.h>
+#include <engine/render-fx/fx-particle-shape.h>
 
 namespace eng {
 
@@ -31,6 +33,14 @@ struct FxParticleLook {
   /// Seconds of its own travel it is drawn stretched along, as a streak;
   /// zero draws it round. A spark is a streak, an ember is round.
   float stretch = 0.0f;
+  /// How fast it turns, in degrees a second, either way. Every particle
+  /// starts at an angle of its own, so a burst of them never turns as one.
+  /// A streaking particle is turned by its motion instead, and ignores it.
+  float spin = 0.0f;
+  /// A soft disc, or a puff broken up by noise.
+  FxParticleShape shape = FxParticleShape::DISC;
+  /// Whether the scene's lights reach it.
+  FxParticleLighting lighting = FxParticleLighting::EMISSIVE;
 
   /// Two looks are equal when every number of them is, to the last bit.
   bool operator==(const FxParticleLook&) const = default;

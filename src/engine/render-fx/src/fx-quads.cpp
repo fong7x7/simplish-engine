@@ -3,6 +3,7 @@
 #include <cmath>
 #include <engine/render-fx/fx-quads.h>
 #include <functional>
+#include <numbers>
 
 namespace eng {
 
@@ -59,8 +60,16 @@ namespace {
     return size * std::abs(view.view_projection(0, 0)) * view.width * 0.5f;
   }
 
-  /// The shape of the live particle at @p i: round, or drawn out along its
-  /// motion on screen when its look streaks and it is moving.
+  /// Where the live particle at @p i has turned to by now, in radians: the
+  /// angle it was thrown at, plus what its spin has added since.
+  float angleOf(const FxParticlePool& pool, uint32_t i) {
+    const float degrees = pool.angle[i] + pool.look[i].spin * pool.age[i];
+    return degrees * std::numbers::pi_v<float> / 180.0f;
+  }
+
+  /// The shape of the live particle at @p i: turned to its own angle, or
+  /// drawn out along its motion on screen when its look streaks and it is
+  /// moving.
   QuadShape shapeOf(const FxParticlePool& pool, uint32_t i,
                     const FxQuadView& view) {
     const float half = halfPixels(pool, i, view);
@@ -70,9 +79,48 @@ namespace {
     const float dy = v.y * view.height * 0.5f;
     const float moving = std::sqrt(dx * dx + dy * dy);
     if (stretch <= 0.0f || moving < STILL_PIXELS) {
-      return {1.0f, 0.0f, half, half};
+      const float turned = angleOf(pool, i);
+      return {std::cos(turned), std::sin(turned), half, half};
     }
     return {dx / moving, dy / moving, half + moving * stretch * 0.5f, half};
+  }
+
+  /// How much of a point light of @p range reaches @p distance from it:
+  /// `mesh_falloff` in every mesh shader, restated for one point rather
+  /// than for a surface.
+  float reach(float distance, float range) {
+    if (range <= 0.0f) {
+      return 0.0f;
+    }
+    const float left = std::clamp(1.0f - distance / range, 0.0f, 1.0f);
+    return left * left;
+  }
+
+  /// What @p view's lights add at @p at, as a factor on a particle's own
+  /// colour: the ambient floor, then what each light carries to it.
+  ///
+  /// No normal is involved — a particle has no surface — so a light adds
+  /// the same wherever it stands, which is what a puff of smoke does in a
+  /// scene it has no shadow in.
+  Vec3 lightAt(const FxQuadView& view, const Vec3& at) {
+    Vec3 lit{MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT};
+    for (const MeshLight& light : view.lights) {
+      const float carried =
+          light.kind == MESH_LIGHT_POINT
+              ? reach(Vec3::length(light.position - at), light.range)
+              : 1.0f;
+      lit =
+          lit + light.color * (light.intensity * carried * MESH_LIGHT_DIFFUSE);
+    }
+    return lit;
+  }
+
+  /// @p color as the scene's lights leave it. Only the light it adds is
+  /// dimmed: how much of what is behind it a particle hides is its own.
+  FxColor litColor(const FxColor& color, const FxQuadView& view,
+                   const Vec3& at) {
+    const Vec3 lit = lightAt(view, at);
+    return {color.r * lit.x, color.g * lit.y, color.b * lit.z, color.a};
   }
 
   /// The corners of a quad as uv, in the order of its two triangles.
@@ -87,6 +135,10 @@ namespace {
     QuadShape shape;
     /// Its colour now.
     FxColor color;
+    /// 1 for a puff, 0 for a disc, and the seed its noise is broken up by.
+    float puff = 0.0f;
+    /// That seed.
+    float seed = 0.0f;
   };
 
   /// One corner of @p q, at uv (@p u, @p v).
@@ -103,17 +155,30 @@ namespace {
     const float cy = q.centre.y + py * 2.0f / view.height * q.centre.w;
     return {{cx, cy, q.centre.z, q.centre.w},
             {q.color.r, q.color.g, q.color.b, q.color.a},
-            {u, v}};
+            {u, v},
+            {q.puff, q.seed}};
+  }
+
+  /// The colour the live particle at @p i is drawn in now: its look's two
+  /// colours mixed for its age, dimmed by the scene's lights when its look
+  /// takes them.
+  FxColor colorOf(const FxParticlePool& pool, uint32_t i,
+                  const FxQuadView& view) {
+    const FxParticleLook& look = pool.look[i];
+    const FxColor color = mixFxColor(look.color_start, look.color_end,
+                                     fxParticleProgress(pool, i));
+    return look.lighting == FxParticleLighting::LIT
+               ? litColor(color, view, pool.position[i])
+               : color;
   }
 
   /// Append the quad of the live particle at @p i to @p out.
   void appendQuad(const FxParticlePool& pool, uint32_t i,
                   const FxQuadView& view, std::vector<FxVertex>& out) {
-    const FxParticleLook& look = pool.look[i];
+    const bool puffed = pool.look[i].shape == FxParticleShape::PUFF;
     const QuadInput q{project(view.view_projection, pool.position[i], 1.0f),
-                      shapeOf(pool, i, view),
-                      mixFxColor(look.color_start, look.color_end,
-                                 fxParticleProgress(pool, i))};
+                      shapeOf(pool, i, view), colorOf(pool, i, view),
+                      puffed ? 1.0f : 0.0f, pool.angle[i]};
     for (const auto& uv : CORNERS) {
       out.push_back(corner(q, view, uv[0], uv[1]));
     }

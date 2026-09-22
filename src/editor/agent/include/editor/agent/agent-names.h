@@ -37,7 +37,7 @@ inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
     "start_b",     "start_hide",  "end_r",       "end_g",       "end_b",
     "end_hide",    "gravity",     "drag",        "stretch",     "flash",
     "flash_range", "flash_time",  "height",      "columns",     "rows",
-    "frames",      "fps",
+    "frames",      "fps",         "spin",        "textured",    "lit",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==

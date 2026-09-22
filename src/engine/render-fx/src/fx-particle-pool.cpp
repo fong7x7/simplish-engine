@@ -11,6 +11,9 @@ namespace {
   /// Shorter than this, a direction is taken to be no direction at all.
   constexpr float NO_DIRECTION = 1e-6f;
 
+  /// Degrees in a turn, which is the range a particle's angle is drawn from.
+  constexpr float FULL_TURN = 360.0f;
+
   /// A value between @p lo and @p hi, uniformly, from @p rng.
   float between(float lo, float hi, Pcg32& rng) {
     return lo + (hi - lo) * rng.nextUnitFloat();
@@ -64,6 +67,9 @@ namespace {
         std::max(between(burst.life_min, burst.life_max, e.rng), 1e-3f);
     pool.look[i] = burst.look;
     pool.scale[i] = e.emit.scale;
+    // Its own angle, so a burst of puffs never turns as one, and its own
+    // seed, so no two of them are broken up the same way.
+    pool.angle[i] = e.rng.nextUnitFloat() * FULL_TURN;
   }
 
   /// Keep a particle that has reached the floor on it, bouncing a little.
@@ -98,13 +104,14 @@ namespace {
     pool.life[i] = pool.life[last];
     pool.look[i] = pool.look[last];
     pool.scale[i] = pool.scale[last];
+    pool.angle[i] = pool.angle[last];
   }
 
 }  // namespace
 
 FxParticlePool::FxParticlePool(uint32_t capacity)
   : position(capacity), velocity(capacity), age(capacity), life(capacity),
-    look(capacity), scale(capacity) {}
+    look(capacity), scale(capacity), angle(capacity) {}
 
 uint32_t emitFxBurst(FxParticlePool& pool, const FxBurst& burst,
                      const FxEmit& emit, Pcg32& rng) {

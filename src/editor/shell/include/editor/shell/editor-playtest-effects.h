@@ -18,6 +18,8 @@ namespace eng::editor {
 struct EditorPlaytestEffects {
   /// Particles alive now.
   uint32_t particles = 0;
+  /// Clouds of volumetric smoke standing now.
+  uint32_t volumes = 0;
   /// Flashes shining now.
   uint32_t lights = 0;
   /// Cues played since the playtest started, indexed by `CombatCueKind`.

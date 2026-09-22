@@ -25,10 +25,15 @@ struct FxVertex {
   /// Where in the quad this corner is, from -1 to 1 on each axis: the
   /// fragment stage fades the particle out towards the edge of that disc.
   float uv[2]{};
+  /// How much of the quad is a puff rather than a disc — 0 or 1, and the
+  /// fragment stage mixes between the two — and the particle's own seed,
+  /// which is what makes one puff's noise unlike the next one's.
+  float shape[2]{};
 };
 
-static_assert(sizeof(FxVertex) == 40, "the effects pipelines read 40 bytes");
+static_assert(sizeof(FxVertex) == 48, "the effects pipelines read 48 bytes");
 static_assert(offsetof(FxVertex, color) == 16, "colour is the second float4");
 static_assert(offsetof(FxVertex, uv) == 32, "uv follows the colour");
+static_assert(offsetof(FxVertex, shape) == 40, "the shape pair is last");
 
 }  // namespace eng

@@ -124,7 +124,9 @@ TEST_CASE("every burst of every combat effect is a preset, named once") {
   for (const CombatCueKind kind : KINDS) {
     bursts += combatCueEffect(kind).bursts.size();
   }
-  REQUIRE(combatFxPresets().size() == bursts);
+  // Every combat burst is a preset, and the presets a fight never throws —
+  // the plume — come after them.
+  REQUIRE(combatFxPresets().size() >= bursts);
   std::set<std::string_view> ids;
   for (const CombatFxPreset& preset : combatFxPresets()) {
     REQUIRE_FALSE(preset.name.empty());
@@ -143,4 +145,62 @@ TEST_CASE("a preset is the burst its effect throws, and its light") {
   const CombatFxPreset* smoke = findCombatFxPreset("smoke");
   REQUIRE(smoke != nullptr);
   REQUIRE(smoke->flash.intensity == 0.0F);
+}
+
+TEST_CASE("smoke and dust are lit puffs; fire and sparks light themselves") {
+  for (const std::string_view id : {"smoke", "grit", "smoke_plume"}) {
+    const CombatFxPreset* preset = findCombatFxPreset(id);
+    REQUIRE(preset != nullptr);
+    INFO("preset " << id);
+    REQUIRE(preset->burst.look.shape == FxParticleShape::PUFF);
+    REQUIRE(preset->burst.look.lighting == FxParticleLighting::LIT);
+    REQUIRE(preset->burst.look.spin != 0.0F);
+  }
+  const CombatFxPreset* sparks = findCombatFxPreset("wall_sparks");
+  REQUIRE(sparks->burst.look.shape == FxParticleShape::DISC);
+  REQUIRE(sparks->burst.look.lighting == FxParticleLighting::EMISSIVE);
+}
+
+TEST_CASE("the plume is a preset no combat effect throws") {
+  const CombatFxPreset* plume = findCombatFxPreset("smoke_plume");
+  REQUIRE(plume != nullptr);
+  // It lives long enough for one burst to overlap the last, which is what
+  // makes a column rather than a string of puffs.
+  REQUIRE(plume->burst.life_min > 1.0F);
+  REQUIRE(plume->burst.look.size_end > plume->burst.look.size_start);
+  REQUIRE(plume->burst.look.gravity < 0.0F);
+  for (const CombatCueKind kind : KINDS) {
+    for (const FxBurst& burst : combatCueEffect(kind).bursts) {
+      REQUIRE_FALSE(burst == plume->burst);
+    }
+  }
+}
+
+TEST_CASE("only a blast leaves a cloud of smoke standing") {
+  for (const CombatCueKind kind : KINDS) {
+    const FxEffect& effect = combatCueEffect(kind);
+    if (kind == CombatCueKind::BLAST) {
+      REQUIRE(effect.volumes.size() == 1);
+    } else {
+      REQUIRE(effect.volumes.empty());
+    }
+  }
+}
+
+TEST_CASE("a blast's cloud outlasts its puffs, and is sized by its radius") {
+  const FxEffect& blast = combatCueEffect(CombatCueKind::BLAST);
+  const FxVolume& cloud = blast.volumes.front();
+  for (const FxBurst& burst : blast.bursts) {
+    REQUIRE(cloud.life > burst.life_max);
+  }
+
+  FxWorld world(7);
+  const CombatCue cue = cueOf(CombatCueKind::BLAST);
+  playFxEffect(world, blast, combatCueEmit(cue));
+  REQUIRE(world.volumes.live == 1);
+  // Twice `COMBAT_FX_BLAST_RADIUS` across, so the cloud is twice as wide.
+  REQUIRE(world.volumes.scale[0] ==
+          Approx(cue.radius / COMBAT_FX_BLAST_RADIUS));
+  REQUIRE(fxVolumeExtents(world.volumes, 0).x ==
+          Approx(cloud.radius * world.volumes.scale[0]));
 }

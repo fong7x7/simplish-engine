@@ -209,6 +209,9 @@ namespace {
       {EditorPropertyField::FLASH, "flash"},
       {EditorPropertyField::FLASH_RANGE, "flash_range"},
       {EditorPropertyField::FLASH_TIME, "flash_time"},
+      {EditorPropertyField::SPIN, "spin"},
+      {EditorPropertyField::TEXTURED, "textured"},
+      {EditorPropertyField::LIT, "lit"},
   };
 
   /// A particle emitter, as the entity shape: the preset it was started

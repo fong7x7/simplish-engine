@@ -141,6 +141,7 @@
 #include <engine/input/held-actions.h>
 #include <engine/math/vec2.h>
 #include <engine/render-fx/fx-renderer.h>
+#include <engine/render-fx/fx-volume-renderer.h>
 #include <engine/render-fx/fx-world.h>
 #include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
@@ -664,6 +665,10 @@ private:
   /// scene pass's so a spark sits where the thing it flew off is drawn.
   [[nodiscard]] FxRenderer::DrawParams
   fxDrawParams(const EditorViewportWidget& viewport);
+  /// The same parameters again for the clouds of smoke, which are marched
+  /// against the same depth before the particles are drawn over them.
+  [[nodiscard]] FxVolumeRenderer::DrawParams
+  fxVolumeDrawParams(const EditorViewportWidget& viewport);
   /// Draw the playtest's effects over the finished scene. Nothing while
   /// editing.
   void recordEffects(RhiCommandList& cmd, const EditorViewportWidget& viewport);
@@ -931,6 +936,9 @@ private:
   /// Effects pipeline, which reads `mesh_renderer_`'s depth target after
   /// the outline has drawn.
   FxRenderer fx_renderer_{};
+  /// Volumetric-smoke pipeline, which reads the same depth in the same
+  /// pass, just before the particles.
+  FxVolumeRenderer fx_volume_renderer_{};
   /// Rigged placements, posed, rebuilt each frame as `scene_instances_` is.
   std::vector<SkinnedMeshInstance> skinned_instances_{};
   /// Every rigged placement's clip playback, kept between frames so that a

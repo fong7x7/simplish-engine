@@ -846,6 +846,7 @@ struct FxVertexIn {
   float4 clip [[attribute(0)]];
   float4 color [[attribute(1)]];
   float2 uv [[attribute(2)]];
+  float2 shape [[attribute(3)]];
 };
 
 struct FxUniforms {
@@ -859,6 +860,7 @@ struct FxVsOut {
   float4 position [[position]];
   float4 color;
   float2 uv;
+  float2 shape;
 };
 
 vertex FxVsOut fx_vs_main(FxVertexIn in [[stage_in]]) {
@@ -866,7 +868,35 @@ vertex FxVsOut fx_vs_main(FxVertexIn in [[stage_in]]) {
   out.position = in.clip;
   out.color = in.color;
   out.uv = in.uv;
+  out.shape = in.shape;
   return out;
+}
+
+float fx_hash(float2 p) {
+  return fract(sin(dot(p, float2(127.1f, 311.7f))) * 43758.5453f);
+}
+
+float fx_noise(float2 p) {
+  float2 cell = floor(p);
+  float2 f = fract(p);
+  float2 s = f * f * (3.0f - 2.0f * f);
+  float a = fx_hash(cell);
+  float b = fx_hash(cell + float2(1.0f, 0.0f));
+  float c = fx_hash(cell + float2(0.0f, 1.0f));
+  float d = fx_hash(cell + float2(1.0f, 1.0f));
+  return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
+}
+
+float fx_fbm(float2 p) {
+  return fx_noise(p) * 0.65f + fx_noise(p * 2.7f + 5.2f) * 0.35f;
+}
+
+/// A disc broken up by noise: soft at the rim, uneven inside, and unlike
+/// the next particle's, because its seed moves the noise field under it.
+float fx_puff(float2 uv, float seed) {
+  float edge = saturate(1.0f - length(uv));
+  float2 at = uv * 2.3f + float2(seed * 0.37f, seed * 0.71f);
+  return saturate(edge * edge * (0.35f + 1.15f * fx_fbm(at)));
 }
 
 fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
@@ -876,9 +906,11 @@ fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
   // over the first stretch of depth rather than being cut off by it.
   float scene = depth.read(uint2(in.position.xy));
   float soft = saturate((scene - in.position.z) * u.softness);
-  // A soft disc: full at the centre of the quad, nothing at its edge.
+  // A soft disc: full at the centre of the quad, nothing at its edge —
+  // or, for smoke and dust, a puff of noise the same size.
   float disc = saturate(1.0f - dot(in.uv, in.uv));
-  float cover = disc * disc * soft;
+  float shape = mix(disc * disc, fx_puff(in.uv, in.shape.y), in.shape.x);
+  float cover = shape * soft;
   if (cover <= 0.0f) {
     discard_fragment();
   }
@@ -888,9 +920,10 @@ fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
 
   /// Byte stride of `FxVertex`, and where its colour and uv sit —
   /// `fx-vertex.h` asserts the same three numbers.
-  constexpr NSUInteger FX_VERTEX_STRIDE = 40;
+  constexpr NSUInteger FX_VERTEX_STRIDE = 48;
   constexpr NSUInteger FX_COLOR_OFFSET = 16;
   constexpr NSUInteger FX_UV_OFFSET = 32;
+  constexpr NSUInteger FX_SHAPE_OFFSET = 40;
 
   MTLVertexDescriptor* makeFxVertexDescriptor() {
     auto* vd = [[MTLVertexDescriptor alloc] init];
@@ -905,6 +938,9 @@ fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
     vd.attributes[2].format = MTLVertexFormatFloat2;
     vd.attributes[2].offset = FX_UV_OFFSET;
     vd.attributes[2].bufferIndex = 0;
+    vd.attributes[3].format = MTLVertexFormatFloat2;
+    vd.attributes[3].offset = FX_SHAPE_OFFSET;
+    vd.attributes[3].bufferIndex = 0;
     return vd;
   }
 
@@ -948,6 +984,146 @@ fragment float4 fx_fs_main(FxVsOut in [[stage_in]],
     pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
     applyPremultipliedBlend(pd.colorAttachments[0]);
     NSError* err = nil;
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
+  /// The volume pipeline's shaders: a ray marched through a box of noise,
+  /// stopped by the scene's depth. `fx-volume-vertex.h` explains what the
+  /// five attributes carry and why no matrix is needed here.
+  constexpr const char FX_VOLUME_MSL_SOURCE[] = R"msl(
+#include <metal_stdlib>
+using namespace metal;
+
+struct FxVolumeVertexIn {
+  float4 clip [[attribute(0)]];
+  float4 color [[attribute(1)]];
+  float4 origin [[attribute(2)]];
+  float4 ray [[attribute(3)]];
+  float4 params [[attribute(4)]];
+};
+
+struct FxVolumeVsOut {
+  float4 position [[position]];
+  float4 color;
+  float4 origin;
+  float4 ray;
+  float4 params;
+};
+
+vertex FxVolumeVsOut fx_volume_vs_main(FxVolumeVertexIn in [[stage_in]]) {
+  FxVolumeVsOut out;
+  out.position = in.clip;
+  out.color = in.color;
+  out.origin = in.origin;
+  out.ray = in.ray;
+  out.params = in.params;
+  return out;
+}
+
+constant int FXV_STEPS = 16;
+
+float fxv_hash(float3 p) {
+  return fract(sin(dot(p, float3(127.1f, 311.7f, 74.7f))) * 43758.5453f);
+}
+
+float fxv_noise(float3 p) {
+  float3 cell = floor(p);
+  float3 f = fract(p);
+  float3 s = f * f * (3.0f - 2.0f * f);
+  float x00 = mix(fxv_hash(cell), fxv_hash(cell + float3(1.0f, 0.0f, 0.0f)),
+                  s.x);
+  float x10 = mix(fxv_hash(cell + float3(0.0f, 1.0f, 0.0f)),
+                  fxv_hash(cell + float3(1.0f, 1.0f, 0.0f)), s.x);
+  float x01 = mix(fxv_hash(cell + float3(0.0f, 0.0f, 1.0f)),
+                  fxv_hash(cell + float3(1.0f, 0.0f, 1.0f)), s.x);
+  float x11 = mix(fxv_hash(cell + float3(0.0f, 1.0f, 1.0f)),
+                  fxv_hash(cell + float3(1.0f, 1.0f, 1.0f)), s.x);
+  return mix(mix(x00, x10, s.y), mix(x01, x11, s.y), s.z);
+}
+
+float fxv_fbm(float3 p) {
+  return fxv_noise(p) * 0.6f + fxv_noise(p * 2.3f + 11.0f) * 0.4f;
+}
+
+// How thick the smoke is at one point of the cloud's own space: an
+// ellipsoid gone to nothing at the box's wall, eaten into by noise that
+// the cloud's seed moves, so no two clouds are the same shape.
+float fxv_density(float3 p, float seed) {
+  float edge = saturate(1.0f - dot(p, p));
+  float n = fxv_fbm(p * 1.9f + seed);
+  return edge * edge * saturate(n * 1.7f - 0.45f);
+}
+
+fragment float4 fx_volume_fs_main(FxVolumeVsOut in [[stage_in]],
+                                  depth2d<float> depth [[texture(0)]]) {
+  float3 o = in.origin.xyz;
+  float3 d = in.ray.xyz;
+  float3 inv = 1.0f / d;
+  float3 near_wall = (float3(-1.0f) - o) * inv;
+  float3 far_wall = (float3(1.0f) - o) * inv;
+  float3 lo = min(near_wall, far_wall);
+  float3 hi = max(near_wall, far_wall);
+  float t_in = max(max(lo.x, lo.y), lo.z);
+  // The scene stops the march where a surface is, so the smoke wraps what
+  // it meets instead of cutting against it.
+  float scene = depth.read(uint2(in.position.xy));
+  float t_out = min(min(min(hi.x, hi.y), hi.z),
+                    (scene - in.params.x) / in.ray.w);
+  if (!(t_out > t_in)) {
+    discard_fragment();
+  }
+  float dt = (t_out - t_in) / float(FXV_STEPS);
+  float cover = 0.0f;
+  float through = 1.0f;
+  for (int i = 0; i < FXV_STEPS; ++i) {
+    float3 p = o + d * (t_in + (float(i) + 0.5f) * dt);
+    float a = 1.0f - exp(-fxv_density(p, in.origin.w) * in.params.y * dt);
+    cover += through * a;
+    through *= 1.0f - a;
+  }
+  if (cover <= 0.0f) {
+    discard_fragment();
+  }
+  return in.color * cover;
+}
+)msl";
+
+  /// Byte stride of `FxVolumeVertex`, and where each of its float4s sits —
+  /// `fx-volume-vertex.h` asserts the same numbers.
+  constexpr NSUInteger FX_VOLUME_STRIDE = 80;
+
+  MTLVertexDescriptor* makeFxVolumeVertexDescriptor() {
+    auto* vd = [[MTLVertexDescriptor alloc] init];
+    vd.layouts[0].stride = FX_VOLUME_STRIDE;
+    vd.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    for (NSUInteger i = 0; i < 5; ++i) {
+      vd.attributes[i].format = MTLVertexFormatFloat4;
+      vd.attributes[i].offset = i * 16;
+      vd.attributes[i].bufferIndex = 0;
+    }
+    return vd;
+  }
+
+  bool buildFxVolumePipelinePso(id<MTLDevice> mtl_device,
+                                id<MTLRenderPipelineState>* out_pso) {
+    NSError* err = nil;
+    NSString* src = [NSString stringWithUTF8String:FX_VOLUME_MSL_SOURCE];
+    id<MTLLibrary> lib = [mtl_device newLibraryWithSource:src
+                                                  options:nil
+                                                    error:&err];
+    id<MTLFunction> vs = [lib newFunctionWithName:@"fx_volume_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"fx_volume_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    pd.vertexFunction = vs;
+    pd.fragmentFunction = fs;
+    pd.vertexDescriptor = makeFxVolumeVertexDescriptor();
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    applyPremultipliedBlend(pd.colorAttachments[0]);
     *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
     (void)err;
     return *out_pso != nil;
@@ -1053,6 +1229,7 @@ public:
   bool tryCreateSkinnedMeshPipeline(RhiPipelineHandle& out) override;
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) override;
   bool tryCreateFxParticlePipeline(RhiPipelineHandle& out) override;
+  bool tryCreateFxVolumePipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -1774,6 +1951,17 @@ bool MetalRealDevice::tryCreateFxParticlePipeline(RhiPipelineHandle& out) {
     }
     // The same fixed state as the outline's: the pass it draws in has no
     // depth attachment, since the scene's depth is the texture it reads.
+    return insertOutlinePipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildFxVolumePipelinePso(device_, &pso)) {
+      return false;
+    }
+    // Drawn in the same pass, under the same fixed state, as the particles.
     return insertOutlinePipelineFromPso(pso, out);
   }
 }

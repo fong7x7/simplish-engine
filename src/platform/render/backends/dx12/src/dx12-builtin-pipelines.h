@@ -52,8 +52,19 @@ ID3D12PipelineState* createDx12FxPipelineState(ID3D12Device5* device,
                                                ID3D12RootSignature* root_sig,
                                                DXGI_FORMAT color_format);
 
+/// Compile the built-in volumetric-smoke shaders and create their PSO:
+/// `FxVolumeVertex` input, no depth attachment, and premultiplied
+/// blending. Null on failure.
+ID3D12PipelineState*
+createDx12FxVolumePipelineState(ID3D12Device5* device,
+                                ID3D12RootSignature* root_sig,
+                                DXGI_FORMAT color_format);
+
 /// Byte stride the effects pipeline's vertex buffer is bound with.
 uint32_t dx12FxVertexStride();
+
+/// Byte stride the volume pipeline's vertex buffer is bound with.
+uint32_t dx12FxVolumeVertexStride();
 
 /// Byte stride the GUI pipeline's vertex buffer is bound with.
 uint32_t dx12GuiVertexStride();

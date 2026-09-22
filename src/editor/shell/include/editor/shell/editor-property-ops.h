@@ -39,6 +39,10 @@ inline constexpr float EDITOR_SPREAD_STEP = 5.0f;
 inline constexpr float EDITOR_FINE_STEP = 0.01f;
 /// How far one step button moves an acceleration.
 inline constexpr float EDITOR_ACCELERATION_STEP = 0.5f;
+/// How far one step button moves a spin, in degrees a second.
+inline constexpr float EDITOR_SPIN_STEP = 15.0f;
+/// Degrees a second a spin moves per pixel dragged.
+inline constexpr float EDITOR_SPIN_DRAG_PER_PIXEL = 1.0f;
 /// Seconds a duration moves per pixel dragged.
 inline constexpr float EDITOR_DURATION_DRAG_PER_PIXEL = 1.0f / 200.0f;
 /// Degrees a cone widens per pixel dragged.

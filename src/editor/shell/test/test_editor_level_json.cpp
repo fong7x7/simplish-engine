@@ -468,6 +468,9 @@ EditorDocument emitterDocument() {
   emitter.interval = 0.25f;
   emitter.burst.count = 42;
   emitter.burst.look.color_end = {0.1f, 0.2f, 0.3f, 0.4f};
+  emitter.burst.look.spin = 37.5f;
+  emitter.burst.look.shape = eng::FxParticleShape::PUFF;
+  emitter.burst.look.lighting = eng::FxParticleLighting::LIT;
   emitter.flash.color = {0.5f, 0.6f, 0.7f};
   document.emitters.push_back(emitter);
   return document;

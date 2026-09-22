@@ -968,6 +968,14 @@ bool VulkanDevice::tryCreateFxParticlePipeline(
                         out_pipeline);
 }
 
+bool VulkanDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(
+      *impl_,
+      createVulkanFxVolumePipeline(impl_->device, impl_->shared_layout.graphics,
+                                   impl_->swapchain_format),
+      out_pipeline);
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

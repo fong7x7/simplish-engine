@@ -118,6 +118,12 @@ enum class EditorPropertyField : uint8_t {
   FRAMES,
   /// How many frames a second a sheet plays.
   FPS,
+  /// How fast a particle turns, in degrees a second.
+  SPIN,
+  /// Whether particles are puffs broken up by noise rather than discs.
+  TEXTURED,
+  /// Whether the scene's lights reach the particles.
+  LIT,
 };
 
 /// Every field there is, in the enum's own order.
@@ -149,7 +155,8 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::FLASH_RANGE, EditorPropertyField::FLASH_TIME,
     EditorPropertyField::HEIGHT,      EditorPropertyField::COLUMNS,
     EditorPropertyField::ROWS,        EditorPropertyField::FRAMES,
-    EditorPropertyField::FPS,
+    EditorPropertyField::FPS,         EditorPropertyField::SPIN,
+    EditorPropertyField::TEXTURED,    EditorPropertyField::LIT,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.
@@ -221,8 +228,9 @@ inline constexpr EditorPropertyField EDITOR_EMITTER_FIELDS[] = {
     EditorPropertyField::END_G,         EditorPropertyField::END_B,
     EditorPropertyField::END_HIDE,      EditorPropertyField::GRAVITY,
     EditorPropertyField::DRAG,          EditorPropertyField::STRETCH,
-    EditorPropertyField::FLASH,         EditorPropertyField::FLASH_RANGE,
-    EditorPropertyField::FLASH_TIME,
+    EditorPropertyField::SPIN,          EditorPropertyField::TEXTURED,
+    EditorPropertyField::LIT,           EditorPropertyField::FLASH,
+    EditorPropertyField::FLASH_RANGE,   EditorPropertyField::FLASH_TIME,
 };
 
 /// What the panel lists for a sprite billboard: where it stands and how
