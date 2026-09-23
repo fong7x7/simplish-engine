@@ -15,8 +15,8 @@ using namespace eng::editor;
 
 namespace {
 
-/// The four thumbnails side by side in one image, which is easier to look
-/// at than four files and shows them at the same scale.
+/// The thumbnails side by side in one image, which is easier to look
+/// at than a file each and shows them at the same scale.
 ImageData shapeStrip(uint32_t size) {
   ImageData strip;
   strip.width = size * static_cast<uint32_t>(EDITOR_SHAPE_COUNT);
@@ -102,6 +102,31 @@ TEST_CASE("a shape placed on a tile fills it, as a model would") {
     REQUIRE(bounds.min.x == Approx(2.0f).margin(1e-4f));
     REQUIRE(bounds.max.x == Approx(3.0f).margin(1e-4f));
     REQUIRE(bounds.min.z == Approx(0.0f).margin(1e-4f));
+  }
+}
+
+TEST_CASE("a tile placed on a tile covers it and stays flat") {
+  EditorAsset asset;
+  asset.shape = EditorShapeKind::TILE;
+  const MeshData mesh = makeEditorShapeMesh(EditorShapeKind::TILE);
+  asset.min = mesh.min;
+  asset.max = mesh.max;
+  const PlacementBounds bounds =
+      placementWorldBounds(asset, {.position = {2.0f, 3.0f}});
+  // Scaled by its footprint, not its height, so it is not stretched into a
+  // cube to fill the tile.
+  REQUIRE(bounds.max.y - bounds.min.y == Approx(1.0f).margin(1e-4f));
+  REQUIRE(bounds.max.z - bounds.min.z < 0.05f);
+}
+
+TEST_CASE("only the flat tile starts out walkable") {
+  EditorAsset model;
+  REQUIRE(editorAssetCollidesWhenPlaced(model));
+  for (const EditorShapeKind kind : EDITOR_SHAPE_KINDS) {
+    EditorAsset shape;
+    shape.shape = kind;
+    REQUIRE(editorAssetCollidesWhenPlaced(shape) ==
+            (kind != EditorShapeKind::TILE));
   }
 }
 

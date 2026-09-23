@@ -57,6 +57,9 @@ std::vector<std::string> namesWithGeneral(const std::vector<EditorAsset>& all) {
   for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
     names.emplace_back(editorGeneralItemName(item));
   }
+  for (size_t card = 0; card < EDITOR_GROUND_CARD_COUNT; ++card) {
+    names.emplace_back(editorGroundCardName(card));
+  }
   return names;
 }
 
@@ -743,15 +746,15 @@ TEST_CASE("the general section is the first row, above the assets") {
       makeBrowserWithGeneral({"crate.obj"});
   const auto& rows = browser.folderRows();
 
-  // The section opens on its own, so its five subsections are listed
+  // The section opens on its own, so its six subsections are listed
   // under it and the assets root follows them.
-  REQUIRE(rows.size() == 7);
+  REQUIRE(rows.size() == 8);
   REQUIRE(rows[0].depth == 0);
-  for (size_t row = 1; row <= 5; ++row) {
+  for (size_t row = 1; row <= 6; ++row) {
     REQUIRE(rows[row].depth == 1);
   }
-  REQUIRE(rows[6].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[6].depth == 0);
+  REQUIRE(rows[7].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[7].depth == 0);
 }
 
 TEST_CASE("the browser opens on the assets, not on the built-in section") {

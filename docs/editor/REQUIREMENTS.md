@@ -20,12 +20,12 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 | Package | Covers | State |
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 684 tests |
-| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, and click-to-select, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 679 tests |
-| `src/editor/agent/` | The agent API: 51 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
+| `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, click-to-select, and ground painting under the Tile tool, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 679 tests |
+| `src/editor/agent/` | The agent API: 53 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 
-What the slice deliberately does not do yet: almost nothing is authored. The viewport draws a grid but holds no tile data, and there is no dockspace. Those arrive with the level format (§4.4) and the sections below. What *is* authored — props, lights and player starts — now survives a restart; see the seventh exception below.
+What the slice deliberately does not do yet: almost nothing is authored. The viewport's grid holds only painted terrain (the sixteenth exception below) — no height, no structures — and there is no dockspace. Those arrive with the level format (§4.4) and the sections below. What *is* authored — props, lights and player starts — now survives a restart; see the seventh exception below.
 
 File > New Project and File > Open Project are live too, both through OS dialogs starting in the user's Documents folder — where a person keeps their own work — and falling back to home when there is no Documents to start in. New Project takes the folder name typed into a "save as" dialog as the project name and opens the result immediately, with its `.simplish/`, `data/`, `assets/`, and `content/levels/` directories in place. Open Project takes a folder and opens the project inside it, leaving the current one untouched when the folder turns out not to be one; the reason appears in the toolbar status line, because a log line is invisible to whoever just picked the wrong folder.
 
@@ -42,7 +42,7 @@ Selection and the properties panel are the third, and the first thing here that 
 
 Built-in content is the fourth, and the first thing the browser offers that is not a file. Above the assets root, the folder pane lists a **general** section — built into the editor, the same in every project — divided into **lighting**, **shapes**, **tools**, **effects** and **sprites**. It sits above rather than below because it is the same short list everywhere, while the assets root is a tree that grows, and it is divided because several kinds of built-in thing in one grid of cards read as a pile rather than as a choice. `tools` holds the player start — the ninth exception below.
 
-`shapes` holds a cube, a cylinder, a pyramid and a sphere, generated rather than loaded (`mesh-primitives.h`) and each built in the same unit box, so a dropped shape is exactly one tile across and stands on the ground like any model. They are the geometry to block a level out with before there are props to fill it, and to test lighting against.
+`shapes` holds a cube, a cylinder, a pyramid, a sphere and a tile, generated rather than loaded (`mesh-primitives.h`) and each built in the same unit footprint, so a dropped shape is exactly one tile across and stands on the ground like any model. They are the geometry to block a level out with before there are props to fill it, and to test lighting against. The tile is the flat one — a slab a thirty-second of a tile thick, for floor tiles, rugs, holes and anything else laid on the ground — and it is the one shape that lands with Collides unticked, since it is walked over rather than around.
 
 `lighting` holds a directional light and a point light. Dragging one onto the viewport is the same gesture as dragging a model, and it adds a light the scene pass then shades every mesh by: a directional light for the sun, aimed by a direction vector, and a point light that hangs over the tile it was dropped on and falls off to nothing at its range. Both carry an intensity and an RGB tint, and the properties panel lists whichever numbers the kind actually uses — a directional light has no range to set, and a point light has no direction. Three decisions here:
 
@@ -131,6 +131,12 @@ Sprite billboards are the fifteenth, and the first 2D art the editor places. Gen
 - **Only its height is authored.** Its width follows from the frame's own pixel shape and the projection's two unequal screen scales, so a square frame draws square and a sprite one tile tall is exactly as tall as a one-tile cube. There is no width row, because a row that could stretch a sprite is a row that will.
 - **Billboards are presentation.** Saved with the level, like emitters, and read by no tick: one stops nobody, and nothing spawns one.
 
+The painted ground is the sixteenth, and the first thing the toolbar's **Tile** tool does. General › ground holds a card per terrain — grass, dirt, sand, water, stone, road, hole — and an **Erase** card; dropping one on the viewport takes it as the brush, switches to the Tile tool and paints a dab there. With the Tile tool out, a left drag paints the cells under a square brush 1 to 9 tiles across — `[` and `]` resize it, the viewport outlines what it covers, the status line names it, and the middle button still pans. Painted areas are autotiled as they are drawn ([ground.md](../engine/ground.md)): a road rounds its own ends, bends with a curve and runs straight between, a patch of sand has soft corners, and a road laid through the sand sits on it. Saved in the level file's tile layer, and reachable through `paint_ground` and `get_ground`. Three decisions:
+
+- **Nobody picks a piece.** Each quarter of a cell takes one of four shapes from the three cells that meet it at its corner, and any two shapes meet without a seam — so there is no tile set of edge and corner variants to author, and no pair of pieces that does not fit. The price is that a diagonal line of cells reads as a chain of beads rather than a smooth diagonal.
+- **A stroke is one edit.** However many cells a drag crosses, one undo takes it all back; the edit is the list of cells it changed, with what each held before and after.
+- **The ground is presentation, for now.** The simulation does not read it, so a hole stops nobody. Making one block is the navigation grid's to decide, since a playtest's collision boxes also block shots and sight lines and a hole should do neither.
+
 The menu bar is the exception that proves the point. It is built — File, Edit, Level, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 
 The decisions the slice locks in:
@@ -182,10 +188,10 @@ Levels are built on the isometric tile grid: a 2D lattice of cells with terrain 
 
 | Tool | Behaviour |
 |---|---|
-| Tile paint | Brush with adjustable size and shape; paints terrain type onto cells |
+| Tile paint | Brush with adjustable size and shape; paints terrain type onto cells. **Built** with a square brush 1–9 tiles across and the editor's own seven terrains ([ground.md](../engine/ground.md)) |
 | Height paint | Raises and lowers cell height where verticality is supported |
 | Fill and select | Rectangular, lasso, and flood selection; operations apply to selections |
-| Auto-tiling | Edge and corner variants resolved automatically from neighbour rules, authored per tileset |
+| Auto-tiling | Edge and corner variants resolved automatically from neighbour rules, authored per tileset. **Built** as a rule rather than a tileset: rounded edges and filled bends worked out per quarter-cell, so there are no variants to author |
 | Structure placement | Wall, doorway, and cover meshes snapped to grid edges |
 
 ### 4.2 Props and Entities
@@ -205,7 +211,7 @@ Because enemy movement runs on flow fields ([Game §5.2](../game/REQUIREMENTS.md
 
 Levels serialise to JSON: a tile layer (run-length encoded for compactness while staying readable), a prop list, an entity list, spawn volumes, trigger regions, and metadata. Schema-validated on both write and load. A level file must diff sensibly — a change to one room produces a change to one region of the file.
 
-Props and lights are written and read today, to and from `content/levels/<id>.level.json`, where the id is the level the Level menu has open; tiles, entities and regions wait on the tools that author them ([project-format.md §4.1](project-format.md#41-what-the-editor-writes-today)).
+Props, lights, entities and the painted ground's tile layer are written and read today, to and from `content/levels/<id>.level.json`, where the id is the level the Level menu has open; the height layer and regions wait on the tools that author them ([project-format.md §4.1](project-format.md#41-what-the-editor-writes-today)).
 
 The full on-disk specification — levels, encounters, scenarios, logic, and data tables, and what each becomes when the game is built — is [project-format.md](project-format.md). Content is authored as JSON and compiled to generated C++ for shipping builds, while the editor and development builds load the JSON directly so playtest never waits for a compile ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)).
 

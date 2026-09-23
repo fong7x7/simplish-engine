@@ -584,3 +584,76 @@ TEST_CASE("a hand-written billboard is held to what the panel would allow") {
   // unnameable.
   REQUIRE(sprite.id == "sprite_01");
 }
+
+TEST_CASE("the painted ground survives the round trip") {
+  EditorDocument document;
+  document.ground.set({-2, 3}, 1);
+  document.ground.set({4, 3}, 6);
+  document.ground.set({1, 5}, 3);
+
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(
+      serializeEditorLevel(document, testAssets(), "main"), testAssets());
+
+  REQUIRE(load.has_value());
+  for (int32_t y = 2; y < 7; ++y) {
+    for (int32_t x = -3; x < 6; ++x) {
+      REQUIRE(load->document.ground.at({x, y}) == document.ground.at({x, y}));
+    }
+  }
+}
+
+TEST_CASE("the ground is written as a palette and runs over its bounds") {
+  EditorDocument document;
+  document.ground.set({1, 1}, 3);
+  document.ground.set({2, 1}, 3);
+
+  const nlohmann::json content = nlohmann::json::parse(
+      serializeEditorLevel(document, testAssets(), "main"))["content"];
+
+  REQUIRE(content["bounds"]["min_x"] == 1);
+  REQUIRE(content["bounds"]["width"] == 2);
+  REQUIRE(content["tile_palette"][0] == "tile:none");
+  REQUIRE(content["tile_palette"][3] == "tile:sand");
+  REQUIRE(content["layers"]["terrain"]["encoding"] == "rle");
+  REQUIRE(content["layers"]["terrain"]["runs"] ==
+          nlohmann::json::parse("[[3, 2]]"));
+}
+
+TEST_CASE("a level with nothing painted writes no ground at all") {
+  const nlohmann::json content = nlohmann::json::parse(
+      serializeEditorLevel(testDocument(), testAssets(), "main"))["content"];
+  REQUIRE_FALSE(content.contains("layers"));
+  REQUIRE_FALSE(content.contains("tile_palette"));
+}
+
+TEST_CASE("a palette is read by name, not by position") {
+  // A file whose palette lists sand first still means sand.
+  const std::string text = R"({
+    "schema": "simplish/level/1.0",
+    "content": {
+      "bounds": { "min_x": 0, "min_y": 0, "width": 2, "height": 1 },
+      "tile_palette": ["tile:sand", "tile:none", "tile:lava"],
+      "layers": { "terrain": { "encoding": "rle",
+                               "runs": [[0, 1], [2, 1]] } }
+    }
+  })";
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(text, {});
+  REQUIRE(load.has_value());
+  REQUIRE(load->document.ground.at({0, 0}) == 3);
+  // A terrain the editor does not have reads as bare ground.
+  REQUIRE(load->document.ground.at({1, 0}) == 0);
+}
+
+TEST_CASE("runs that do not fill their bounds leave the ground bare") {
+  const std::string text = R"({
+    "schema": "simplish/level/1.0",
+    "content": {
+      "bounds": { "min_x": 0, "min_y": 0, "width": 4, "height": 4 },
+      "tile_palette": ["tile:none", "tile:grass"],
+      "layers": { "terrain": { "encoding": "rle", "runs": [[1, 3]] } }
+    }
+  })";
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(text, {});
+  REQUIRE(load.has_value());
+  REQUIRE(load->document.ground.empty());
+}

@@ -41,15 +41,15 @@ TEST_CASE("the general section stands beside the assets root, not under it") {
   REQUIRE(tree.folders[EDITOR_ASSET_FOLDER_ROOT].child_folders.empty());
 }
 
-TEST_CASE("the section holds five subsections and nothing itself") {
+TEST_CASE("the section holds six subsections and nothing itself") {
   const EditorAssetTree tree = treeWithSection(0);
   const size_t section = folderNamed(tree, EDITOR_GENERAL_FOLDER_NAME);
 
-  // Five kinds of built-in thing in one grid of cards would read as a
+  // Six kinds of built-in thing in one grid of cards would read as a
   // pile; the subsections are what somebody reaching for a light navigates
   // by.
   REQUIRE(tree.folders[section].assets.empty());
-  REQUIRE(tree.folders[section].child_folders.size() == 5);
+  REQUIRE(tree.folders[section].child_folders.size() == 6);
 }
 
 TEST_CASE("the effects subsection holds the particle emitter, last") {
@@ -138,17 +138,18 @@ TEST_CASE("an open section lists its subsections under it") {
   const size_t section = folderNamed(tree, EDITOR_GENERAL_FOLDER_NAME);
   const auto rows = flattenAssetFolderRows(tree, {section});
 
-  REQUIRE(rows.size() == 7);
+  REQUIRE(rows.size() == 8);
   REQUIRE(tree.folders[rows[1].folder].name == EDITOR_LIGHTING_FOLDER_NAME);
   REQUIRE(tree.folders[rows[2].folder].name == EDITOR_SHAPES_FOLDER_NAME);
   REQUIRE(tree.folders[rows[3].folder].name == EDITOR_TOOLS_FOLDER_NAME);
   REQUIRE(tree.folders[rows[4].folder].name == EDITOR_EFFECTS_FOLDER_NAME);
   REQUIRE(tree.folders[rows[5].folder].name == EDITOR_SPRITES_FOLDER_NAME);
-  REQUIRE(rows[5].depth == 1);
+  REQUIRE(tree.folders[rows[6].folder].name == EDITOR_GROUND_FOLDER_NAME);
+  REQUIRE(rows[6].depth == 1);
   // The assets root keeps its place at the bottom, whatever the section
   // above it is showing.
-  REQUIRE(rows[6].folder == EDITOR_ASSET_FOLDER_ROOT);
-  REQUIRE(rows[6].depth == 0);
+  REQUIRE(rows[7].folder == EDITOR_ASSET_FOLDER_ROOT);
+  REQUIRE(rows[7].depth == 0);
 }
 
 TEST_CASE("expanding the assets root does not push the section around") {
@@ -195,4 +196,21 @@ TEST_CASE("the sprites subsection holds the sprite billboard, last") {
           EditorGeneralItem::SPRITE_BILLBOARD);
   REQUIRE(editorGeneralItemName(EditorGeneralItem::SPRITE_BILLBOARD) ==
           "Sprite Billboard");
+}
+
+TEST_CASE("the ground subsection holds every terrain and the eraser, after "
+          "every item") {
+  const size_t first_item = 3 + EDITOR_SHAPE_COUNT;
+  const EditorAssetTree tree = treeWithSection(3);
+  const size_t ground = folderNamed(tree, EDITOR_GROUND_FOLDER_NAME);
+
+  REQUIRE(ground != EDITOR_ASSET_FOLDER_NONE);
+  REQUIRE(tree.folders[ground].assets.size() == EDITOR_GROUND_CARD_COUNT);
+  REQUIRE(tree.folders[ground].assets.front() ==
+          first_item + EDITOR_GENERAL_ITEM_COUNT);
+  // The eraser is the last card, and paints bare ground.
+  REQUIRE(editorGroundCardTerrain(EDITOR_GROUND_CARD_COUNT - 1) == 0);
+  REQUIRE(editorGroundCardName(EDITOR_GROUND_CARD_COUNT - 1) ==
+          EDITOR_ERASER_NAME);
+  REQUIRE(editorGroundCardTerrain(0) == 1);
 }

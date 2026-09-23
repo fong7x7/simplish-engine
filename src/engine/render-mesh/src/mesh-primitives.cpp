@@ -233,4 +233,15 @@ MeshData makeCylinderMesh() {
   return mesh;
 }
 
+MeshData makeTileMesh() {
+  // The cube, pressed flat. Every face is axis-aligned, so squashing the
+  // height leaves each normal pointing the way it did.
+  MeshData mesh = makeCubeMesh();
+  for (MeshVertex& vertex : mesh.vertices) {
+    vertex.position.z *= MESH_PRIMITIVE_TILE_THICKNESS;
+  }
+  measureBounds(mesh);
+  return mesh;
+}
+
 }  // namespace eng

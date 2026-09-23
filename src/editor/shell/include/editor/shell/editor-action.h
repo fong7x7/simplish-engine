@@ -7,11 +7,13 @@
 #include <cstddef>
 #include <editor/shell/editor-action-kind.h>
 #include <editor/shell/editor-emitter.h>
+#include <editor/shell/editor-ground-change.h>
 #include <editor/shell/editor-light.h>
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
 #include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
+#include <vector>
 
 namespace eng::editor {
 
@@ -67,6 +69,11 @@ struct EditorAction {
   /// The billboard as it was before a transform, unused by every other
   /// kind.
   EditorSprite sprite_prior{};
+  /// Every cell a ground paint changed, with what it held on both sides,
+  /// and empty for every other kind. The one field here that allocates: a
+  /// stroke repaints however many cells it crossed, and a list of them is
+  /// both the smallest record of that and its own inverse.
+  std::vector<EditorGroundChange> ground{};
 };
 
 }  // namespace eng::editor

@@ -152,6 +152,37 @@ inline constexpr AgentParam AGENT_PARAMS_ADD_SPRITE[] = {
      "stretched."},
 };
 
+/// `get_ground` reads the ground, or a window of it.
+inline constexpr AgentParam AGENT_PARAMS_GET_GROUND[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World X of the window's west column, in tiles. Give x, y, width and "
+     "height together, or none of them for the painted part of the ground."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World Y of the window's south row, in tiles."},
+    {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Columns in the window, from x east. The window holds at most 65536 "
+     "cells."},
+    {"height", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Rows in the window, from y north."},
+};
+
+/// `paint_ground` fills a rectangle of the ground with one terrain.
+inline constexpr AgentParam AGENT_PARAMS_PAINT_GROUND[] = {
+    {"terrain", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The terrain to paint, by word — grass, dirt, sand, water, stone, "
+     "road, hole; get_ground lists them — or \"none\" to erase back to bare "
+     "ground."},
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X of the rectangle's west column, in tiles. A fraction names "
+     "the tile it falls in."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y of the rectangle's south row, in tiles."},
+    {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Columns to paint, from x east, 1 to 256. Defaults to 1."},
+    {"height", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Rows to paint, from y north, 1 to 256. Defaults to 1."},
+};
+
 /// `set_sheet` points a billboard at another sheet.
 inline constexpr AgentParam AGENT_PARAMS_SET_SHEET[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -538,6 +569,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "add_sprite and set_sheet name one with.",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::GET_GROUND, "get_ground",
+     "The level's painted ground. terrains lists every terrain by number, "
+     "word, name and the character rows use for it, bare ground first as "
+     "number 0 and \".\"; later terrains are drawn over earlier ones where "
+     "they meet. painted is the smallest rectangle holding every painted "
+     "cell, window the rectangle rows cover — painted, unless x, y, width "
+     "and height name another — and rows one string per row of it, "
+     "southmost first, each west to east, one character per cell. Painted "
+     "areas are autotiled when drawn: edges and corners round themselves "
+     "off from their neighbours, so a road is laid by painting its cells.",
+     AgentToolEffect::READ, AGENT_PARAMS_GET_GROUND},
     {AgentTool::GET_EFFECTS,
      "get_effects",
      "What the effects the viewport draws are doing right now, while the "
@@ -637,7 +679,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      {}},
     {AgentTool::PLACE_ASSET, "place_asset",
      "Place an asset in the level, exactly as dragging it from the browser "
-     "onto a tile would, and select it. Recorded as one undoable edit.",
+     "onto a tile would, and select it. Recorded as one undoable edit. "
+     "It lands solid, except the built-in Tile — the flat shape for "
+     "floors, rugs and holes — which lands walkable.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PLACE_ASSET},
     {AgentTool::ADD_LIGHT, "add_light",
      "Add a light to the level, exactly as dragging one from the general "
@@ -674,6 +718,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "edit, and saved with the level; the simulation never sees it, and it "
      "stops nobody.",
      AgentToolEffect::EDIT, AGENT_PARAMS_ADD_SPRITE},
+    {AgentTool::PAINT_GROUND, "paint_ground",
+     "Paint a rectangle of the ground's cells with one terrain, as the Tile "
+     "tool's brush does, or erase it with \"none\". The ground is flat "
+     "and drawn under everything placed in the level; where painted cells "
+     "meet unpainted ones the edge is rounded, and cells touching only at a "
+     "corner join there, so a road or a patch of sand is laid by painting "
+     "its cells and nothing else. Reports how many cells changed and the "
+     "painted rectangle. Recorded as one undoable edit, and saved with the "
+     "level; the simulation does not read the ground yet, so no terrain "
+     "stops anybody.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_GROUND},
     {AgentTool::SET_PROPERTY, "set_property",
      "Set one property of a placement, a light, a player start, a "
      "waypoint or a particle emitter to an absolute value, as typing it "

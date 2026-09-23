@@ -25,6 +25,7 @@
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
 #include <editor/shell/editor-sprite-ops.h>
+#include <editor/shell/editor-terrains.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/behavior-names.h>
@@ -113,6 +114,24 @@ namespace {
             {"placement_count", placementsOfAsset(state, index)}};
   }
 
+  /// Built-in entry @p entry, @p item past the last asset: a general item,
+  /// then a card of the ground folder.
+  json builtinValue(size_t entry, size_t item) {
+    if (item < EDITOR_GENERAL_ITEM_COUNT) {
+      return {{"entry", entry},
+              {"kind", "builtin"},
+              {"name", editorGeneralItemName(EDITOR_GENERAL_ITEMS[item])}};
+    }
+    const size_t card = item - EDITOR_GENERAL_ITEM_COUNT;
+    if (card >= EDITOR_GROUND_CARD_COUNT) {
+      return {{"entry", entry}, {"kind", "unknown"}, {"name", ""}};
+    }
+    return {{"entry", entry},
+            {"kind", "terrain"},
+            {"name", editorGroundCardName(card)},
+            {"terrain", editorTerrainWord(editorGroundCardTerrain(card))}};
+  }
+
   /// One entry a folder holds: a scanned asset, or a built-in item
   /// numbered after them.
   json entryValue(const EditorShellState& state, size_t entry) {
@@ -122,13 +141,7 @@ namespace {
               {"id", state.assets[entry].id},
               {"name", state.assets[entry].name}};
     }
-    const size_t item = entry - state.assets.size();
-    if (item >= EDITOR_GENERAL_ITEM_COUNT) {
-      return {{"entry", entry}, {"kind", "unknown"}, {"name", ""}};
-    }
-    return {{"entry", entry},
-            {"kind", "builtin"},
-            {"name", editorGeneralItemName(EDITOR_GENERAL_ITEMS[item])}};
+    return builtinValue(entry, entry - state.assets.size());
   }
 
   /// One folder of the browser's tree.

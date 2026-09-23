@@ -133,6 +133,9 @@ struct BrowserCapture {
     for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
       out.emplace_back(editorGeneralItemName(item));
     }
+    for (size_t card = 0; card < EDITOR_GROUND_CARD_COUNT; ++card) {
+      out.emplace_back(editorGroundCardName(card));
+    }
     return out;
   }
 

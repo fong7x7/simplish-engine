@@ -201,6 +201,7 @@ if(ENGINE_BUILD_TESTS AND _render_tests)
     if(_has_gpu_tests)
         list(APPEND _render_test_deps simplish-engine-gui
                                       simplish-engine-render-fx
+                                      simplish-engine-render-ground
                                       simplish-engine-render-sprite)
     endif()
     simplish_add_test(simplish-platform-render-tests

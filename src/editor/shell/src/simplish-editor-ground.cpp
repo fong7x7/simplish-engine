@@ -1,0 +1,157 @@
+#include <algorithm>
+#include <editor/shell/editor-ground-atlas.h>
+#include <editor/shell/editor-terrains.h>
+#include <editor/shell/simplish-editor.h>
+#include <engine/core/logger.h>
+#include <engine/math/mat4.h>
+#include <engine/render-ground/ground-mesh.h>
+#include <engine/render/rhi-texture-desc.h>
+#include <string>
+#include <utility>
+
+namespace eng::editor {
+
+namespace {
+
+  /// The key that shrinks the brush.
+  constexpr uint32_t KEY_SMALLER = '[';
+  /// The key that grows it.
+  constexpr uint32_t KEY_LARGER = ']';
+
+  /// How the atlas is described to the device: a mesh's diffuse map, Unorm
+  /// for the reason every mesh texture is (see `MeshRenderer`).
+  RhiTextureDesc atlasDesc(const ImageData& image) {
+    RhiTextureDesc desc{};
+    desc.width = image.width;
+    desc.height = image.height;
+    desc.format = RhiFormat::RGB_A8_UNORM;
+    desc.usage = RhiTextureUsage::SAMPLED;
+    desc.debug_name = "ground-atlas";
+    desc.initial_pixels = image.pixels.data();
+    return desc;
+  }
+
+}  // namespace
+
+void SimplishEditor::pickGroundCard(size_t card, WorldPoint tile) {
+  brush_terrain_ = editorGroundCardTerrain(card);
+  state_.active_tool = EditorTool::TILE_PAINT;
+  // The card lands as one dab, recorded as a stroke of its own, so the drop
+  // shows what the brush now paints and one undo takes it back.
+  paintStroke(EditorStrokePhase::BEGIN, {tile.x + 0.5f, tile.y + 0.5f});
+  paintStroke(EditorStrokePhase::END, {tile.x + 0.5f, tile.y + 0.5f});
+}
+
+void SimplishEditor::paintStroke(EditorStrokePhase phase, WorldPoint point) {
+  if (phase == EditorStrokePhase::END) {
+    endStroke();
+    return;
+  }
+  // Nothing is painted into a level while it is being played; the stroke
+  // simply never starts.
+  if (isPlaying() || (phase == EditorStrokePhase::MOVE && !stroke_before_)) {
+    return;
+  }
+  if (phase == EditorStrokePhase::BEGIN) {
+    commitPendingEdit();
+    stroke_before_ = state_.document.ground;
+  }
+  paintBrushAt(point);
+}
+
+void SimplishEditor::paintBrushAt(WorldPoint point) {
+  paintEditorGround(state_.document.ground, editorBrushRect(point, brush_size_),
+                    brush_terrain_);
+}
+
+void SimplishEditor::endStroke() {
+  const std::optional<GroundGrid> before =
+      std::exchange(stroke_before_, std::nullopt);
+  if (!before) {
+    return;
+  }
+  std::vector<EditorGroundChange> changes =
+      diffEditorGround(*before, state_.document.ground);
+  // A stroke that painted only what was already there is no edit.
+  if (changes.empty()) {
+    return;
+  }
+  // The document already holds the stroke, so the action is recorded
+  // against it rather than applied over it — applying it again writes the
+  // same cells.
+  recordAction(
+      {.kind = EditorActionKind::PAINT_GROUND, .ground = std::move(changes)});
+}
+
+bool SimplishEditor::handleBrushKey(uint32_t key) {
+  if (state_.active_tool != EditorTool::TILE_PAINT ||
+      (key != KEY_SMALLER && key != KEY_LARGER)) {
+    return false;
+  }
+  brush_size_ = std::clamp(brush_size_ + (key == KEY_LARGER ? 1 : -1),
+                           EDITOR_BRUSH_SIZE_MIN, EDITOR_BRUSH_SIZE_MAX);
+  return true;
+}
+
+void SimplishEditor::applyBrushToViewport(
+    EditorViewportWidget& viewport) const {
+  viewport.paints =
+      state_.active_tool == EditorTool::TILE_PAINT && !isPlaying();
+  viewport.brush_size = brush_size_;
+}
+
+std::string SimplishEditor::brushStatus() const {
+  const std::string side = std::to_string(brush_size_);
+  return "   brush " +
+         std::string(editorGroundCardName(brush_terrain_ == 0
+                                              ? EDITOR_TERRAIN_COUNT
+                                              : brush_terrain_ - 1U)) +
+         " " + side + "x" + side;
+}
+
+void SimplishEditor::refreshGroundMesh() {
+  RhiDevice* device = rhiDevice();
+  if (state_.document.ground == drawn_ground_ || device == nullptr ||
+      !mesh_renderer_.ready()) {
+    return;
+  }
+  drawn_ground_ = state_.document.ground;
+  if (ground_mesh_ != MESH_GPU_INVALID) {
+    mesh_renderer_.release(*device, ground_mesh_);
+    ground_mesh_ = MESH_GPU_INVALID;
+  }
+  const MeshData mesh =
+      makeGroundMesh(drawn_ground_, static_cast<uint8_t>(EDITOR_TERRAIN_COUNT));
+  if (!mesh.vertices.empty()) {
+    ground_mesh_ =
+        mesh_renderer_.upload(*device, mesh).value_or(MESH_GPU_INVALID);
+  }
+}
+
+void SimplishEditor::appendGroundInstance() {
+  if (ground_mesh_ == MESH_GPU_INVALID) {
+    return;
+  }
+  RhiDevice* device = rhiDevice();
+  if (ground_atlas_ == RHI_TEXTURE_INVALID && device != nullptr) {
+    const ImageData atlas = makeEditorGroundAtlas();
+    ground_atlas_ = device->createTexture(atlasDesc(atlas));
+  }
+  // Built in world coordinates, so it is drawn where it was painted.
+  scene_instances_.push_back({ground_mesh_, Mat4::identity(), ground_atlas_});
+}
+
+void SimplishEditor::releaseGround() {
+  RhiDevice* device = rhiDevice();
+  if (device != nullptr && ground_mesh_ != MESH_GPU_INVALID) {
+    mesh_renderer_.release(*device, ground_mesh_);
+  }
+  if (device != nullptr && ground_atlas_ != RHI_TEXTURE_INVALID) {
+    device->destroyTexture(ground_atlas_);
+  }
+  ground_mesh_ = MESH_GPU_INVALID;
+  ground_atlas_ = RHI_TEXTURE_INVALID;
+  drawn_ground_ = GroundGrid{};
+}
+
+}  // namespace eng::editor

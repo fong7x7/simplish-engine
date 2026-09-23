@@ -53,6 +53,8 @@ enum class EditorActionKind : uint8_t {
   TRANSFORM_SPRITE,
   /// A sprite billboard was taken back out of the level.
   REMOVE_SPRITE,
+  /// Cells of the ground were painted — a brush stroke, or a fill.
+  PAINT_GROUND,
 };
 
 }  // namespace eng::editor

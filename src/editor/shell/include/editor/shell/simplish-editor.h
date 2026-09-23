@@ -119,6 +119,7 @@
 #include <editor/shell/editor-effect-shot.h>
 #include <editor/shell/editor-emitter-player.h>
 #include <editor/shell/editor-general-item.h>
+#include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-level-result.h>
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-bar-widget.h>
@@ -133,6 +134,7 @@
 #include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-sprite-quad-key.h>
 #include <editor/shell/editor-sprite-sheet-texture.h>
+#include <editor/shell/editor-stroke-phase.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/client/desktop-game-client.h>
@@ -145,6 +147,7 @@
 #include <engine/render-fx/fx-renderer.h>
 #include <engine/render-fx/fx-volume-renderer.h>
 #include <engine/render-fx/fx-world.h>
+#include <engine/render-ground/ground-grid.h>
 #include <engine/render-mesh/mesh-outline-renderer.h>
 #include <engine/render-mesh/mesh-renderer.h>
 #include <engine/render-mesh/mesh-style.h>
@@ -790,6 +793,31 @@ private:
   /// Destroy every uploaded sheet texture and every billboard quad — for a
   /// project being closed, or a cache that has outgrown its bound.
   void releaseSpriteCache();
+  /// Take card @p card of the ground folder as the brush, switch to the
+  /// Tile tool, and paint one dab of it on @p tile — what dropping a
+  /// terrain card on the viewport does.
+  void pickGroundCard(size_t card, WorldPoint tile);
+  /// One moment of a paint stroke the viewport reported at @p point.
+  void paintStroke(EditorStrokePhase phase, WorldPoint point);
+  /// Paint the brush's square round @p point into the document, with no
+  /// record of it yet: a stroke is recorded once, when it ends.
+  void paintBrushAt(WorldPoint point);
+  /// Record everything the stroke in flight painted as one edit.
+  void endStroke();
+  /// Grow or shrink the brush for `[` and `]` while the Tile tool is out.
+  /// False for any other key.
+  bool handleBrushKey(uint32_t key);
+  /// Tell the viewport whether a drag paints, and how wide the brush is.
+  void applyBrushToViewport(EditorViewportWidget& viewport) const;
+  /// The status line's word on the brush: its terrain and its size.
+  [[nodiscard]] std::string brushStatus() const;
+  /// Rebuild the ground's mesh if the document's ground has changed since
+  /// it was last built.
+  void refreshGroundMesh();
+  /// Add the ground to the scene, when anything is painted.
+  void appendGroundInstance();
+  /// Destroy the ground's mesh and its atlas texture.
+  void releaseGround();
   /// The effects the viewport draws and lights by: the playtest's while
   /// playing, and the editor's own emitters' otherwise.
   [[nodiscard]] const FxWorld& activeEffects() const;
@@ -1000,6 +1028,23 @@ private:
   std::optional<EditorEmitter> emitter_prior_{};
   /// The selected billboard as it was when its gesture began.
   std::optional<EditorSprite> sprite_prior_{};
+  /// The terrain the brush paints with, numbered as `EDITOR_TERRAINS` is:
+  /// 0 erases.
+  uint8_t brush_terrain_ = 1;
+  /// How many tiles on a side the brush covers.
+  int32_t brush_size_ = EDITOR_BRUSH_SIZE_MIN;
+  /// The ground as it was when the stroke in flight began, or nothing
+  /// between strokes. What the stroke's edit is measured against.
+  std::optional<GroundGrid> stroke_before_{};
+  /// The ground the uploaded mesh was built from. Compared with the
+  /// document's every frame, so any route that changes the ground — a
+  /// stroke, an undo, an agent's fill, a level opened — is drawn without
+  /// each of them having to say so.
+  GroundGrid drawn_ground_{};
+  /// The uploaded ground, or invalid when nothing is painted.
+  MeshGpuId ground_mesh_ = MESH_GPU_INVALID;
+  /// The terrain swatches the ground is drawn with, made on first use.
+  RhiTextureHandle ground_atlas_ = RHI_TEXTURE_INVALID;
   /// Sheet images uploaded so far, by the path a billboard names them by.
   /// Sorted rather than hashed: nothing here needs a hash, and a sorted
   /// container is one fewer iteration order to have an opinion about.

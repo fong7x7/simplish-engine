@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 51 tools, HTTP transport, MCP bridge
+**Status:** Built — 53 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Forty-three, in three groups. `GET /tools` is authoritative and carries
+Fifty-three, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -165,6 +165,7 @@ each one's parameters; this table is the map.
 | `list_waypoints` | Every waypoint: its route (1 to 9), its place in it, and its position; and every route in use, with its points in walking order and the actors that patrol it |
 | `list_emitters` | Every particle emitter: the preset it was started from and whether it still is exactly that preset, its position, direction, flash tint, and every number of its burst by the name `set_property` writes it under; and every preset an emitter can be started from |
 | `list_sprites` | Every sprite billboard: the sheet it shows, where it stands, and its height, grid and speed by the name `set_property` writes each under; and every sprite sheet the open project holds |
+| `get_ground` | The painted ground: every terrain by number, word and the character rows use for it; the painted rectangle; and a window of it — the painted part, or one the call names — as one string per row, southmost first |
 | `get_effects` | What the viewport's effects are doing now, while editing or playing: whose they are, particles, clouds of volumetric smoke and flashes alive, the bursts each emitter has thrown, and how many effects `play_effect` has played |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states, its initial state and whom it targets (`players` or `opponents`); and the behaviors table's path and anything wrong with it |
@@ -188,6 +189,7 @@ each one's parameters; this table is the map.
 | `add_waypoint` | Adds a waypoint to a patrol route and selects it: to the route named, or the selected waypoint's, after its last waypoint unless a place is named |
 | `add_emitter` | Adds a particle emitter and selects it, started from a named preset or the default sparks, as dragging the Particle Emitter from general › effects does |
 | `add_sprite` | Adds a sprite billboard and selects it, showing a named sheet or the project's first, as dragging the Sprite Billboard from general › sprites does |
+| `paint_ground` | Fills a rectangle of cells with one terrain, or erases it with `none`, as the Tile tool's brush does — one undoable edit. Painted areas autotile as they are drawn, so a road is laid by painting its cells |
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |

@@ -6,6 +6,7 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-shape.h>
 #include <engine/input/input-action.h>
 #include <game/content/behavior-lookup.h>
 #include <nlohmann/json.hpp>
@@ -63,6 +64,18 @@ TEST_CASE("an asset can also be named by index or by relative path") {
 
   REQUIRE(state.document.placements[0].asset == 1);
   REQUIRE(state.document.placements[1].asset == 0);
+}
+
+TEST_CASE("a model lands solid and the flat tile lands walkable") {
+  EditorShellState state = stateWithAssets();
+  appendEditorShapeAssets(state.assets);
+
+  (void)call(state, "place_asset", R"({"asset": "crate", "x": 0, "y": 0})");
+  (void)call(state, "place_asset", R"({"asset": "Tile", "x": 1, "y": 0})");
+
+  REQUIRE(state.document.placements[0].collides);
+  // A floor, a rug or a hole is walked over, not around.
+  REQUIRE_FALSE(state.document.placements[1].collides);
 }
 
 TEST_CASE("placing an asset nothing has scanned is not found") {

@@ -149,10 +149,11 @@ inline constexpr std::string_view AGENT_ACTION_KIND_NAMES[] = {
     "add_waypoint",     "transform_waypoint",     "remove_waypoint",
     "add_emitter",      "transform_emitter",      "remove_emitter",
     "add_sprite",       "transform_sprite",       "remove_sprite",
+    "paint_ground",
 };
 
 static_assert(std::size(AGENT_ACTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorActionKind::REMOVE_SPRITE) + 1,
+                  static_cast<size_t>(EditorActionKind::PAINT_GROUND) + 1,
               "every recorded edit needs a name the agent API reports it by");
 
 /// Wire name of one recorded edit.

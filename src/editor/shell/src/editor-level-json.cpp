@@ -1,3 +1,5 @@
+#include "editor-ground-json.h"
+
 #include <array>
 #include <cstddef>
 #include <editor/shell/editor-behavior-choices.h>
@@ -573,6 +575,7 @@ std::string serializeEditorLevel(const EditorDocument& document,
   content["props"] = propsJson(document, assets);
   content["lights"] = lightsJson(document);
   content["entities"] = entitiesJson(document);
+  writeEditorGround(document.ground, content);
   json out;
   out["schema"] = EDITOR_LEVEL_SCHEMA;
   out["id"] = std::string(id);
@@ -596,6 +599,7 @@ parseEditorLevel(std::string_view text,
   readProps(content, assets, load);
   readLights(content, load.document);
   readEntities(content, load);
+  load.document.ground = readEditorGround(content);
   return load;
 }
 

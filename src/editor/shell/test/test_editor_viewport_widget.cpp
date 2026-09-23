@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-renderer.h>
@@ -488,4 +489,58 @@ TEST_CASE("nothing selected and no hover leaves the overlay clip unopened") {
     pushes += cmd.type == eng::DrawCommandType::PUSH_SCISSOR ? 1 : 0;
   }
   REQUIRE(pushes == 1);
+}
+
+TEST_CASE("with the brush out a left-drag paints a stroke and does not pan") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.paints = true;
+  std::vector<EditorStrokePhase> phases;
+  viewport.on_paint = [&phases](EditorStrokePhase phase, WorldPoint) {
+    phases.push_back(phase);
+  };
+  const IsoCamera before = viewport.camera;
+
+  REQUIRE(viewport.handleMouseDown(
+      mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT)));
+  viewport.handleMouseMove(mouseAt(360.0f, 280.0f, eng::GuiMouseButton::LEFT));
+  viewport.handleMouseUp(mouseAt(360.0f, 280.0f, eng::GuiMouseButton::LEFT));
+
+  REQUIRE(phases == std::vector<EditorStrokePhase>{EditorStrokePhase::BEGIN,
+                                                   EditorStrokePhase::MOVE,
+                                                   EditorStrokePhase::END});
+  REQUIRE(viewport.camera.focus.x == Approx(before.focus.x));
+  REQUIRE(viewport.camera.focus.y == Approx(before.focus.y));
+}
+
+TEST_CASE("with the brush out the middle button still pans") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.paints = true;
+  bool painted = false;
+  viewport.on_paint = [&painted](EditorStrokePhase, WorldPoint) {
+    painted = true;
+  };
+  REQUIRE(viewport.handleMouseDown(
+      mouseAt(400.0f, 300.0f, eng::GuiMouseButton::MIDDLE)));
+  viewport.handleMouseMove(
+      mouseAt(440.0f, 320.0f, eng::GuiMouseButton::MIDDLE));
+
+  REQUIRE_FALSE(painted);
+  REQUIRE(viewport.camera.focus.x == Approx(-40.0f));
+}
+
+TEST_CASE("a stroke reports the world point under the cursor") {
+  EditorViewportWidget viewport = makeViewport();
+  viewport.paints = true;
+  WorldPoint reported{};
+  viewport.on_paint = [&reported](EditorStrokePhase, WorldPoint point) {
+    reported = point;
+  };
+  viewport.handleMouseMove(mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT));
+  const WorldPoint hovered = viewport.hoveredTile();
+
+  REQUIRE(viewport.handleMouseDown(
+      mouseAt(400.0f, 300.0f, eng::GuiMouseButton::LEFT)));
+
+  REQUIRE(std::floor(reported.x) == Approx(hovered.x));
+  REQUIRE(std::floor(reported.y) == Approx(hovered.y));
 }

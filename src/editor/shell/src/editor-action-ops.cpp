@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-ground-ops.h>
 #include <iterator>
 #include <optional>
 #include <vector>
@@ -77,10 +78,13 @@ namespace {
       {EditorSelectionKind::SPRITE, ListEdit::INSERT},
       {EditorSelectionKind::SPRITE, ListEdit::WRITE},
       {EditorSelectionKind::SPRITE, ListEdit::ERASE},
+      // The ground is no list and has nothing to select; `applyOne` and
+      // `revertOne` take this kind aside before the table is asked.
+      {EditorSelectionKind::NONE, ListEdit::WRITE},
   };
 
   static_assert(std::size(ACTION_SHAPES) ==
-                    static_cast<size_t>(EditorActionKind::REMOVE_SPRITE) + 1,
+                    static_cast<size_t>(EditorActionKind::PAINT_GROUND) + 1,
                 "every action kind needs a list and an edit");
 
   /// Which of the document's lists @p kind names.
@@ -174,6 +178,11 @@ namespace {
 
   /// Do what @p action describes.
   void applyOne(const EditorAction& action, EditorDocument& document) {
+    if (action.kind == EditorActionKind::PAINT_GROUND) {
+      applyEditorGroundChanges(document.ground, action.ground,
+                               EditorGroundSide::AFTER);
+      return;
+    }
     editDocument(action, appliedEdit(action.kind), ActionValue::CURRENT,
                  document);
   }
@@ -183,6 +192,11 @@ namespace {
   /// removal inserts what the action carried away, so the entry comes back
   /// as it was rather than as a default one wearing its index.
   void revertOne(const EditorAction& action, EditorDocument& document) {
+    if (action.kind == EditorActionKind::PAINT_GROUND) {
+      applyEditorGroundChanges(document.ground, action.ground,
+                               EditorGroundSide::BEFORE);
+      return;
+    }
     const ListEdit edit = invertedEdit(appliedEdit(action.kind));
     editDocument(action, edit,
                  edit == ListEdit::WRITE ? ActionValue::PRIOR
@@ -341,6 +355,10 @@ std::optional<EditorAction> editorDeleteAction(const EditorDocument& document,
 
 EditorSelection editorSelectionAfterUndo(const EditorAction& action,
                                          EditorSelection selection) {
+  // Painting numbers nothing, so whatever was selected still is.
+  if (action.kind == EditorActionKind::PAINT_GROUND) {
+    return selection;
+  }
   const EditorSelectionKind list = actionList(action.kind);
   switch (invertedEdit(appliedEdit(action.kind))) {
     case ListEdit::ERASE:
@@ -357,6 +375,9 @@ EditorSelection editorSelectionAfterUndo(const EditorAction& action,
 
 EditorSelection editorSelectionAfterRedo(const EditorAction& action,
                                          EditorSelection selection) {
+  if (action.kind == EditorActionKind::PAINT_GROUND) {
+    return selection;
+  }
   const EditorSelectionKind list = actionList(action.kind);
   switch (appliedEdit(action.kind)) {
     case ListEdit::INSERT:

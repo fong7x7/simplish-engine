@@ -45,23 +45,25 @@ namespace {
   };
 
   /// How many subsections there are.
-  constexpr size_t SUBSECTION_COUNT = 5;
+  constexpr size_t SUBSECTION_COUNT = 6;
 
   /// The subsections, in the order the pane lists them, each holding a run
   /// of the built-in items numbered from @p first_item — except the
   /// shapes, which are assets and sit in the asset list's own numbering
-  /// from @p first_shape.
+  /// from @p first_shape, and the ground cards, numbered after every item.
   std::array<Subsection, SUBSECTION_COUNT> subsectionsOf(size_t first_shape,
                                                          size_t first_item) {
     const size_t tools = first_item + EDITOR_GENERAL_LIGHT_COUNT;
     const size_t effects = tools + EDITOR_GENERAL_TOOL_COUNT;
     const size_t sprites = effects + EDITOR_GENERAL_EFFECT_COUNT;
+    const size_t ground = first_item + EDITOR_GENERAL_ITEM_COUNT;
     return {
         {{EDITOR_LIGHTING_FOLDER_NAME, first_item, EDITOR_GENERAL_LIGHT_COUNT},
          {EDITOR_SHAPES_FOLDER_NAME, first_shape, EDITOR_SHAPE_COUNT},
          {EDITOR_TOOLS_FOLDER_NAME, tools, EDITOR_GENERAL_TOOL_COUNT},
          {EDITOR_EFFECTS_FOLDER_NAME, effects, EDITOR_GENERAL_EFFECT_COUNT},
-         {EDITOR_SPRITES_FOLDER_NAME, sprites, EDITOR_GENERAL_SPRITE_COUNT}}};
+         {EDITOR_SPRITES_FOLDER_NAME, sprites, EDITOR_GENERAL_SPRITE_COUNT},
+         {EDITOR_GROUND_FOLDER_NAME, ground, EDITOR_GROUND_CARD_COUNT}}};
   }
 
 }  // namespace

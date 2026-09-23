@@ -49,6 +49,7 @@
 #include <editor/shell/editor-placement-marker.h>
 #include <editor/shell/editor-route-line.h>
 #include <editor/shell/editor-selection.h>
+#include <editor/shell/editor-stroke-phase.h>
 #include <editor/shell/iso-camera.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/gui/gui-color.h>
@@ -181,6 +182,18 @@ public:
   /// under the cursor or `EDITOR_PLACEMENT_NONE` for bare ground.
   std::function<void(int)> on_placement_picked{};
 
+  /// Whether a left drag paints the ground rather than panning, which is
+  /// what the Tile tool is. The middle button still pans either way.
+  bool paints = false;
+
+  /// How many tiles on a side the brush covers, for the outline the cursor
+  /// draws while `paints` is set.
+  int32_t brush_size = 1;
+
+  /// Raised through a paint stroke — on the press, on every move while it
+  /// is held, and on the release — with the world point under the cursor.
+  std::function<void(EditorStrokePhase, WorldPoint)> on_paint{};
+
 private:
   /// Draw the world layer, marking where the 3D scene composites into it.
   void renderScene(GuiRendererContext& renderer) const;
@@ -216,6 +229,16 @@ private:
   /// Recompute `hovered_tile_` from a screen position.
   void updateHover(float x, float y);
 
+  /// Start panning, or a press that may turn out to be a click, from
+  /// @p event.
+  void beginPan(const GuiMouseEvent& event);
+
+  /// Report @p phase of the paint stroke at screen (@p x, @p y).
+  void reportPaint(EditorStrokePhase phase, float x, float y);
+
+  /// Outline the cells the brush covers round the hovered tile.
+  void renderBrush(GuiRendererContext& renderer, const IsoView& view) const;
+
   /// Tile under the cursor when `has_hover_` is true.
   WorldPoint hovered_tile_{};
   /// Whether the cursor is inside the viewport rect.
@@ -224,6 +247,8 @@ private:
   IsoPoint hovered_screen_{};
   /// Whether a pan drag is active.
   bool panning_ = false;
+  /// Whether a paint stroke is running.
+  bool painting_ = false;
   /// Cursor X the current left press began at.
   float press_x_ = 0.0f;
   /// Cursor Y the current left press began at.

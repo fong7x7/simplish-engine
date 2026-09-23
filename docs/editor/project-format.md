@@ -154,7 +154,7 @@ Paths would break the moment a file moves; ids let the generator resolve across 
 
 File > Save (`Ctrl`/`Cmd`+S) writes `content/levels/<id>.level.json` for the level the Level menu has open, and opening a project reads one back. `main` is where a new project starts and where an opened one goes back to when it has such a level; every other id is authored, through Level > New Level, which turns a typed name into an id the rules above allow. Its `name` is its id, because nothing in the editor shows or edits a level name yet — writing the project's name there instead would put the same name in every level file of a project holding several.
 
-Three parts of §4 are written — props, lights, and four kinds of entity — and one of them differs from the shape above:
+Four parts of §4 are written — props, lights, four kinds of entity, and the terrain layer the ground is painted in — and one of them differs from the shape above:
 
 ```json
 {
@@ -223,7 +223,19 @@ Three parts of §4 are written — props, lights, and four kinds of entity — a
 
 **A sprite billboard is 2D art standing in the level.** An upright quad at a point on the floor, facing the camera, showing one frame of a sprite sheet at a time — drawn in the same depth-buffered pass the meshes are, so what is in front of it hides it and what is behind it does not ([sprites.md](../engine/sprites.md)). Dragged from general › sprites. `sheet` is the image it shows, as a path relative to the project's assets directory — `sprites/slime.png` — rather than an asset reference: a sheet is not a placeable asset and carries no id, and the path is what survives a rescan and reads in a hand-edited file. `columns` and `rows` are the grid the image is cut into, 1 to 64 each; `frames` how many of those cells actually hold a frame, counted left to right and then down, which is separate from the grid because a 4×3 sheet of ten frames has two empty cells and playing them would blink the sprite out twice a loop; and `fps` how many frames a second it plays, where zero holds the first — a sheet of facings rather than of animation. `height` is how tall it stands in tiles; there is no width, because a frame's width follows from its own pixel shape and the projection, so a sheet is never stretched. Reading holds every number to what the panel allows, and reads the grid before the frame count so the count is held to a grid the file has already given. A `sheet` the project no longer holds is kept as written — the panel's Sheet row says `(missing)` rather than repointing the billboard at whatever is first. A billboard with no id is given one numbered from `sprite` (`sprite_01`), which another file references as `sprite:sprite_01`. Presentation only: it stops nobody, and the simulation never sees one.
 
-Everything else in §4 — bounds, the tile palette, the RLE layers, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
+**The painted ground is the terrain layer, exactly as §4 shapes it.** `bounds` is the smallest rectangle holding every painted cell, `tile_palette` names every terrain the editor has by reference, `tile:none` (bare ground) first, and `layers.terrain` holds `[palette_index, run_length]` runs over `bounds` in row order from the south-west — `min_y`'s row first, each from `min_x` east:
+
+```json
+"bounds": { "min_x": 2, "min_y": 3, "width": 4, "height": 2 },
+"tile_palette": ["tile:none", "tile:grass", "tile:dirt", "tile:sand",
+                 "tile:water", "tile:stone", "tile:road", "tile:hole"],
+"layers": { "terrain": { "encoding": "rle",
+                         "runs": [[3, 4], [0, 1], [6, 2], [0, 1]] } }
+```
+
+All three keys are written only when something is painted, so a level saved before the ground existed saves back unchanged. The palette is read by name, not position: a hand-edited file may list terrains in any order, and a `tile:` reference the editor has no terrain for reads as bare ground. Runs that do not cover `bounds` exactly, or an `encoding` other than `rle`, leave the whole ground bare rather than shifting every row after the break. Which terrain is drawn over which where they meet is the editor's palette order, not the file's ([ground.md](../engine/ground.md)). The `height` layer is not written.
+
+Everything else in §4 — the height layer, the other entity definitions and regions — is unwritten, and a file this editor reads is not required to carry it. What it does read is strict about one thing: a `schema` that is not `simplish/level/1.0` is refused outright rather than partly read, per §10.
 
 **A prop names its asset by reference, never by index.** `mesh:props_crate` for a model on disk, `shape:cube` for a built-in shape. The index a session holds an asset at is renumbered by any rescan, so a level saved with indices would decay the moment a file was added beside it; a reference is resolved against the scan when the level loads. A prop whose asset the project no longer holds is dropped on load and counted in the log — one deleted `.obj` costs that prop and nothing else. A prop with no `id` is given one, so nothing in a level is unnameable even after a hand edit.
 

@@ -21,6 +21,14 @@ inline constexpr uint32_t MESH_PRIMITIVE_SEGMENTS = 24;
 /// segment count, which is what keeps its quads roughly square.
 inline constexpr uint32_t MESH_PRIMITIVE_RINGS = 12;
 
+/// How thick a tile is, as a fraction of its width.
+///
+/// Thick enough to lie clear of the ground plane rather than fight it for
+/// the depth buffer, and to show a sliver of edge at the iso angle so a
+/// tile reads as a thing laid down rather than a hole in the grid; thin
+/// enough that nothing standing on it looks raised.
+inline constexpr float MESH_PRIMITIVE_TILE_THICKNESS = 1.0f / 32.0f;
+
 /// A cube standing on the ground plane.
 ///
 /// Every shape here is built in the same unit box: one across in X and Y,
@@ -41,5 +49,11 @@ inline constexpr uint32_t MESH_PRIMITIVE_RINGS = 12;
 
 /// A cylinder filling that box, with a smooth side and flat caps.
 [[nodiscard]] MeshData makeCylinderMesh();
+
+/// A flat slab lying on the ground: the box's full footprint, but only
+/// `MESH_PRIMITIVE_TILE_THICKNESS` tall — the one shape that does not fill
+/// the box's height. The placement transform scales by footprint alone, so
+/// it still arrives exactly one tile across, and stays flat.
+[[nodiscard]] MeshData makeTileMesh();
 
 }  // namespace eng

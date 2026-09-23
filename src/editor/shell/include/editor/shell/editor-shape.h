@@ -31,4 +31,9 @@ namespace eng::editor {
 /// mesh instead of reading a file.
 size_t appendEditorShapeAssets(std::vector<EditorAsset>& assets);
 
+/// Whether a placement of @p asset starts solid. A model from a file does —
+/// most of what is dropped is a crate or a wall — and a shape does as
+/// `editorShapeCollides` says, which is every shape but the flat tile.
+[[nodiscard]] bool editorAssetCollidesWhenPlaced(const EditorAsset& asset);
+
 }  // namespace eng::editor

@@ -416,6 +416,9 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   viewport->on_placement_picked = [this](int marker) {
     selectMarker(marker);
   };
+  viewport->on_paint = [this](EditorStrokePhase phase, WorldPoint point) {
+    paintStroke(phase, point);
+  };
   viewport_id_ = tree.insertExternalWidget(std::move(viewport), root_panel_);
   initPropertiesPanel(tree);
   initAssetPanel(tree);
@@ -591,6 +594,7 @@ void SimplishEditor::clearDocument() {
   light_prior_.reset();
   player_start_prior_.reset();
   sprite_prior_.reset();
+  stroke_before_.reset();
   clearEditorActions(state_.history);
 }
 
@@ -768,7 +772,8 @@ void SimplishEditor::reportDroppedEntities(size_t dropped) {
 
 void SimplishEditor::refreshAssetPanel() {
   std::vector<std::string> names;
-  names.reserve(state_.assets.size() + EDITOR_GENERAL_ITEM_COUNT);
+  names.reserve(state_.assets.size() + EDITOR_GENERAL_ITEM_COUNT +
+                EDITOR_GROUND_CARD_COUNT);
   for (const EditorAsset& asset : state_.assets) {
     names.push_back(asset.name);
   }
@@ -776,6 +781,9 @@ void SimplishEditor::refreshAssetPanel() {
   // because that is the numbering its folder holds.
   for (const EditorGeneralItem item : EDITOR_GENERAL_ITEMS) {
     names.emplace_back(editorGeneralItemName(item));
+  }
+  for (size_t card = 0; card < EDITOR_GROUND_CARD_COUNT; ++card) {
+    names.emplace_back(editorGroundCardName(card));
   }
   if (auto* panel = dynamic_cast<EditorAssetBrowserWidget*>(
           guiWidgetTree().findWidget(asset_panel_id_))) {
@@ -1008,6 +1016,8 @@ void SimplishEditor::placeBrowserEntry(size_t entry, WorldPoint tile) {
   const size_t item = entry - state_.assets.size();
   if (item < EDITOR_GENERAL_ITEM_COUNT) {
     placeGeneralItem(EDITOR_GENERAL_ITEMS[item], tile);
+  } else if (item - EDITOR_GENERAL_ITEM_COUNT < EDITOR_GROUND_CARD_COUNT) {
+    pickGroundCard(item - EDITOR_GENERAL_ITEM_COUNT, tile);
   }
 }
 
@@ -1050,6 +1060,7 @@ void SimplishEditor::placeAsset(size_t index, WorldPoint position) {
   placement.id = mintEditorPlacementId(state_.document, state_.assets[index]);
   placement.asset = index;
   placement.position = position;
+  placement.collides = editorAssetCollidesWhenPlaced(state_.assets[index]);
   recordAction({.kind = EditorActionKind::PLACE_ASSET,
                 .index = placed,
                 .placement = placement});
@@ -1716,6 +1727,7 @@ void SimplishEditor::appendPlacementInstance(const EditorPlacement& placement) {
 void SimplishEditor::buildSceneInstances() {
   scene_instances_.clear();
   skinned_instances_.clear();
+  appendGroundInstance();
   size_t actor = 0;
   for (size_t i = 0; i < state_.document.placements.size(); ++i) {
     if (isEditorActor(state_.document.placements[i])) {
@@ -1747,8 +1759,8 @@ RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   // cleared to nothing, however little else there is to draw.
   if (device == nullptr ||
       (state_.document.placements.empty() && state_.document.emitters.empty() &&
-       state_.document.sprites.empty() && !isPlaying() &&
-       characterFigures().empty())) {
+       state_.document.sprites.empty() && state_.document.ground.empty() &&
+       !isPlaying() && characterFigures().empty())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -1826,6 +1838,7 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   if (viewport == nullptr) {
     return;
   }
+  refreshGroundMesh();
   buildSceneInstances();
   buildSceneLights();
   mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
@@ -1889,9 +1902,11 @@ void SimplishEditor::refreshToolbar() {
   if (bar == nullptr || viewport == nullptr) {
     return;
   }
+  applyBrushToViewport(*viewport);
+  const std::string brush = viewport->paints ? brushStatus() : std::string{};
   bar->setStatusText(status_override_left_ > 0.0f ? status_override_
-                     : isPlaying()                ? playtestStatus()
-                                                  : formatStatus(*viewport));
+                     : isPlaying() ? playtestStatus()
+                                   : formatStatus(*viewport) + brush);
   bar->setActiveTool(state_.active_tool);
   bar->setPlayMode(state_.playtest.mode);
   bar->tick(tree);
@@ -2452,6 +2467,9 @@ void SimplishEditor::handleEditingKey(uint32_t key, ClientKeyDownKind kind,
 }
 
 void SimplishEditor::handleToolKey(uint32_t key) {
+  if (handleBrushKey(key)) {
+    return;
+  }
   // Number keys select tools, matching the toolbar's left-to-right order.
   constexpr uint32_t KEY_1 = '1';
   const auto count = static_cast<uint32_t>(std::size(EDITOR_TOOLS));
@@ -2464,6 +2482,7 @@ void SimplishEditor::onShutdown() {
   releaseAssetThumbnails();
   releaseAssetTextures();
   releaseSpriteCache();
+  releaseGround();
   shutdownChrome();
   if (rhiDevice() != nullptr) {
     outline_renderer_.shutdown(*rhiDevice());

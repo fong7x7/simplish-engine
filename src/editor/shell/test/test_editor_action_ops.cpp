@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-emitter-ops.h>
+#include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
@@ -758,4 +759,29 @@ TEST_CASE("an emitter is added, changed and removed as undoable edits") {
   REQUIRE(fx.document.emitters[0].effect == "wall_sparks");
   REQUIRE(fx.undo());
   REQUIRE(editorListSize(fx.document, EditorSelectionKind::EMITTER) == 0);
+}
+
+TEST_CASE("a ground paint is undone cell for cell and redone the same way") {
+  EditorActionHistory history;
+  EditorDocument document;
+  eng::GroundGrid painted;
+  paintEditorGround(painted, {0, 0, 3, 1}, 2);
+  performEditorAction(history, document,
+                      {.kind = EditorActionKind::PAINT_GROUND,
+                       .ground = diffEditorGround(document.ground, painted)});
+  REQUIRE(document.ground.at({2, 0}) == 2);
+
+  REQUIRE(undoEditorAction(history, document));
+  REQUIRE(document.ground.empty());
+
+  REQUIRE(redoEditorAction(history, document));
+  REQUIRE(diffEditorGround(document.ground, painted).empty());
+}
+
+TEST_CASE("undoing a ground paint leaves the selection where it was") {
+  const EditorAction paint{.kind = EditorActionKind::PAINT_GROUND};
+  const EditorSelection selected{EditorSelectionKind::LIGHT, 2};
+  REQUIRE(editorSelectionAfterUndo(paint, selected).kind ==
+          EditorSelectionKind::LIGHT);
+  REQUIRE(editorSelectionAfterRedo(paint, selected).index == 2);
 }

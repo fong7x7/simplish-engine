@@ -112,3 +112,25 @@ TEST_CASE("the cylinder's side is smooth and its caps are not") {
   // no vertical component at all.
   REQUIRE(flat_up == MESH_PRIMITIVE_SEGMENTS * 3);
 }
+
+TEST_CASE("the tile lies flat across the whole footprint") {
+  // Kept out of `allPrimitives`: it is the one shape that does not fill the
+  // box's height, which is the point of it.
+  const MeshData tile = makeTileMesh();
+  REQUIRE(tile.min.x == Approx(-0.5f).margin(1e-5f));
+  REQUIRE(tile.min.y == Approx(-0.5f).margin(1e-5f));
+  REQUIRE(tile.min.z == Approx(0.0f).margin(1e-5f));
+  REQUIRE(tile.max.x == Approx(0.5f).margin(1e-5f));
+  REQUIRE(tile.max.y == Approx(0.5f).margin(1e-5f));
+  REQUIRE(tile.max.z == Approx(MESH_PRIMITIVE_TILE_THICKNESS).margin(1e-6f));
+}
+
+TEST_CASE("the tile's normals point out of its own slab") {
+  const MeshData tile = makeTileMesh();
+  REQUIRE(indicesAreInRange(tile));
+  const Vec3 centre{0.0f, 0.0f, MESH_PRIMITIVE_TILE_THICKNESS * 0.5f};
+  for (const MeshVertex& vertex : tile.vertices) {
+    REQUIRE(Vec3::length(vertex.normal) == Approx(1.0f).margin(1e-4f));
+    REQUIRE(Vec3::dot(vertex.position - centre, vertex.normal) >= -1e-6f);
+  }
+}

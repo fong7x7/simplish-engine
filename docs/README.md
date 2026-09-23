@@ -16,6 +16,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [Input](engine/input.md) | Working on actions, key and pad bindings, deadzones, the bindings file, or a platform's pad backend |
 | [Spatial](engine/spatial.md) | Working on the navigation grid, line of sight, or path planning |
 | [Effects](engine/fx.md) | Working on particles, volumetric smoke, flashes of light, the effects pass, or the combat cues that trigger them |
+| [Ground](engine/ground.md) | Working on painted terrain: the ground grid, autotiling, the ground's mesh and atlas, or the level file's tile layer |
 | [Sprites](engine/sprites.md) | Working on sprite sheets, billboards, the alpha cutout, or how 2D art takes part in the depth buffer |
 | [Actors](game/actors.md) | Working on enemies and NPCs: perception, behaviors, steering, facing, attacks, damage and death, stand-in players, or the Behavior row in the editor |
 | [Development](development/REQUIREMENTS.md) | Setting up a build, adding tests, touching CI, or hitting a lint gate |

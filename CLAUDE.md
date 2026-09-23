@@ -22,6 +22,7 @@ these rules.
 | Input: actions, key and pad bindings, deadzones, the bindings file, pad backends | [docs/engine/input.md](docs/engine/input.md) — the engine owns the device-neutral vocabulary; which pads a build supports is `src/platform/input/`'s, one backend per target |
 | Navigation grid, line of sight, path planning | [docs/engine/spatial.md](docs/engine/spatial.md) |
 | Particles, volumetric smoke, flashes of light, combat cues, the effects pass | [docs/engine/fx.md](docs/engine/fx.md) — effects read the simulation's cues and never write it |
+| Painted ground: terrains, the Tile tool's brush, autotiling, the tile layer in a level file | [docs/engine/ground.md](docs/engine/ground.md) — every shape comes from a per-quarter-cell rule, not an authored tile set |
 | Sprite sheets, billboards, the alpha cutout, 2D art in the depth buffer | [docs/engine/sprites.md](docs/engine/sprites.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-22-a-billboard-is-an-upright-quad-not-a-depth-ramp) that makes a billboard an upright quad rather than a depth ramp |
 | GUI: widgets, layout, text, docking, theming, markdown | [docs/engine/gui/README.md](docs/engine/gui/README.md) — one technical doc per subsystem, each naming its source files |
 | Editor: authoring, viewport, assets, project format | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md), [project-format.md](docs/editor/project-format.md) |
@@ -136,7 +137,9 @@ Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
 `render-mesh` (static and skinned), `render-fx` (particles, raymarched volumetric smoke and flashes,
 [docs/engine/fx.md](docs/engine/fx.md)), `render-sprite` (sheet grids and the
 upright quad one frame is drawn on, cut out by the mesh pass's alpha test —
-[docs/engine/sprites.md](docs/engine/sprites.md)), `animation` and `gltf` (rigged models
+[docs/engine/sprites.md](docs/engine/sprites.md)), `render-ground` (a painted
+grid of terrains, autotiled into flat stacked layers —
+[docs/engine/ground.md](docs/engine/ground.md)), `animation` and `gltf` (rigged models
 posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (actions
@@ -155,8 +158,9 @@ for presentation, a blast leaving a cloud of volumetric smoke behind; stand-in p
 them; and the effect each combat cue plays); platform
 `render` (five backends), `input` (pad backends: SDL3 on desktop, none
 elsewhere), `client` (SDL3), `agent` (loopback HTTP); editor
-`project`, `shell` (with the in-editor playtest, and sprite billboards
-standing in a level) and `agent`; `bin/editor`.
+`project`, `shell` (with the in-editor playtest, sprite billboards
+standing in a level, and the Tile tool painting its ground) and `agent`;
+`bin/editor`.
 
 Not written yet: the rest of `engine/spatial` (per-objective fields, the
 tile grid), `render-iso`, the rest of `render-sprite` (atlas packing,

@@ -14,6 +14,8 @@ MeshData makeEditorShapeMesh(EditorShapeKind kind) {
       return makePyramidMesh();
     case EditorShapeKind::SPHERE:
       return makeSphereMesh();
+    case EditorShapeKind::TILE:
+      return makeTileMesh();
   }
   return {};
 }
@@ -29,6 +31,10 @@ size_t appendEditorShapeAssets(std::vector<EditorAsset>& assets) {
     assets.push_back(std::move(asset));
   }
   return first;
+}
+
+bool editorAssetCollidesWhenPlaced(const EditorAsset& asset) {
+  return !asset.shape.has_value() || editorShapeCollides(*asset.shape);
 }
 
 }  // namespace eng::editor

@@ -26,15 +26,17 @@ enum class EditorShapeKind : uint8_t {
   PYRAMID,
   /// A sphere resting on the ground plane.
   SPHERE,
+  /// A thin slab lying on the ground, one tile across: the stand-in for
+  /// anything flat — a floor tile, a rug, a hole, a patch of spilt oil.
+  TILE,
 };
 
 /// Every built-in shape, in the order the shapes folder lists them: by
 /// name, as every other folder in the browser is sorted.
 inline constexpr EditorShapeKind EDITOR_SHAPE_KINDS[] = {
-    EditorShapeKind::CUBE,
-    EditorShapeKind::CYLINDER,
-    EditorShapeKind::PYRAMID,
-    EditorShapeKind::SPHERE,
+    EditorShapeKind::CUBE,    EditorShapeKind::CYLINDER,
+    EditorShapeKind::PYRAMID, EditorShapeKind::SPHERE,
+    EditorShapeKind::TILE,
 };
 
 /// How many built-in shapes there are.
@@ -53,8 +55,21 @@ inline constexpr size_t EDITOR_SHAPE_COUNT =
       return "Pyramid";
     case EditorShapeKind::SPHERE:
       return "Sphere";
+    case EditorShapeKind::TILE:
+      return "Tile";
   }
   return {};
+}
+
+/// Whether a shape is solid when it is first dropped: what a new
+/// placement's `collides` starts as.
+///
+/// Every shape is but the tile. A tile is laid on the floor to be walked
+/// over, so starting it solid would have the playtest stop a player at the
+/// edge of every rug; a hole that should block is the rarer case, and is
+/// one tick in the properties panel.
+[[nodiscard]] constexpr bool editorShapeCollides(EditorShapeKind kind) {
+  return kind != EditorShapeKind::TILE;
 }
 
 }  // namespace eng::editor

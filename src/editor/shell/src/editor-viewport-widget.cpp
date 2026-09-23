@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-placement-pick.h>
 #include <editor/shell/editor-viewport-widget.h>
 #include <engine/gui/gui-color.h>
@@ -19,6 +20,9 @@ namespace {
   constexpr GuiColor AXIS_X{200, 70, 70, 255};
   constexpr GuiColor AXIS_Y{70, 180, 90, 255};
   constexpr GuiColor HOVER_FILL{0, 122, 204, 90};
+  /// The outline of the cells a brush will paint: brighter than the hover
+  /// highlight, since it is what the next press changes.
+  constexpr GuiColor BRUSH_LINE{120, 200, 255, 220};
   constexpr GuiColor PLACEMENT_OUTLINE{210, 170, 90, 200};
   constexpr GuiColor SELECTION_OUTLINE{0, 170, 255, 255};
   /// A prop that does not collide: the prop tan, faded most of the way out.
@@ -315,8 +319,26 @@ void EditorViewportWidget::renderOverScene(GuiRendererContext& renderer,
   if (showsActors()) {
     renderActorOverlays(renderer, view, actor_overlays);
   }
-  if (has_hover_) {
+  if (has_hover_ && paints) {
+    renderBrush(renderer, view);
+  } else if (has_hover_) {
     renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
+  }
+}
+
+void EditorViewportWidget::renderBrush(GuiRendererContext& renderer,
+                                       const IsoView& view) const {
+  const GroundRect cells = editorBrushRect(
+      {hovered_tile_.x + 0.5f, hovered_tile_.y + 0.5f}, brush_size);
+  const auto x0 = static_cast<float>(cells.x);
+  const auto y0 = static_cast<float>(cells.y);
+  const auto x1 = static_cast<float>(cells.x + cells.width);
+  const auto y1 = static_cast<float>(cells.y + cells.height);
+  const IsoPoint corners[] = {
+      worldToScreen(view, {x0, y0}), worldToScreen(view, {x1, y0}),
+      worldToScreen(view, {x1, y1}), worldToScreen(view, {x0, y1})};
+  for (size_t i = 0; i < 4; ++i) {
+    emitIsoLine(renderer, corners[i], corners[(i + 1) % 4], BRUSH_LINE.pack());
   }
 }
 
@@ -347,21 +369,35 @@ void EditorViewportWidget::render(const GuiDrawContext& ctx) const {
 }
 
 bool EditorViewportWidget::handleMouseDown(const GuiMouseEvent& event) {
+  if (paints && event.button == GuiMouseButton::LEFT) {
+    painting_ = true;
+    reportPaint(EditorStrokePhase::BEGIN, event.x, event.y);
+    return true;
+  }
   const bool pan_button = event.button == GuiMouseButton::MIDDLE ||
                           event.button == GuiMouseButton::LEFT;
   if (!pan_button) {
     return false;
   }
+  beginPan(event);
+  return true;
+}
+
+void EditorViewportWidget::beginPan(const GuiMouseEvent& event) {
   panning_ = true;
   drag_last_x_ = event.x;
   drag_last_y_ = event.y;
   press_x_ = event.x;
   press_y_ = event.y;
   left_press_ = event.button == GuiMouseButton::LEFT;
-  return true;
 }
 
 void EditorViewportWidget::handleMouseUp(const GuiMouseEvent& event) {
+  if (painting_) {
+    painting_ = false;
+    reportPaint(EditorStrokePhase::END, event.x, event.y);
+    return;
+  }
   panning_ = false;
   const bool clicked = left_press_ &&
                        std::abs(event.x - press_x_) <= CLICK_SLOP &&
@@ -381,6 +417,10 @@ void EditorViewportWidget::pickAt(float x, float y) {
 }
 
 void EditorViewportWidget::handleMouseMove(const GuiMouseEvent& event) {
+  if (painting_) {
+    reportPaint(EditorStrokePhase::MOVE, event.x, event.y);
+    return;
+  }
   if (panning_) {
     panCamera(camera, event.x - drag_last_x_, event.y - drag_last_y_);
     drag_last_x_ = event.x;
@@ -406,6 +446,18 @@ void EditorViewportWidget::updateHover(float x, float y) {
   hovered_tile_ = {std::floor(world.x), std::floor(world.y)};
   hovered_screen_ = {x, y};
   has_hover_ = true;
+}
+
+void EditorViewportWidget::reportPaint(EditorStrokePhase phase, float x,
+                                       float y) {
+  updateHover(x, y);
+  if (!on_paint) {
+    return;
+  }
+  // Reported off the viewport too, clamped by nothing: a stroke dragged
+  // past the edge still ends, and the tile under the cursor is still a
+  // tile, which the level is free to hold.
+  on_paint(phase, screenToWorld(makeIsoView(camera, rect), {x, y}));
 }
 
 }  // namespace eng::editor

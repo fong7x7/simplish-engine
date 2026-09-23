@@ -29,6 +29,9 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-player.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-atlas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-json.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-list.cpp"
@@ -57,6 +60,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-quad-key.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-transform.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-terrains.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-toolbar-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
@@ -65,6 +69,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-ground.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sprites.cpp"
 )
@@ -80,6 +85,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-gui
         simplish-engine-render
         simplish-engine-render-fx
+        simplish-engine-render-ground
         simplish-engine-render-mesh
         simplish-engine-render-sprite
         simplish-engine-sim

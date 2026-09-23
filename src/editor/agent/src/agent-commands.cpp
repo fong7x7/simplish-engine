@@ -24,6 +24,7 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-shape.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
@@ -637,6 +638,7 @@ AgentResult runAgentPlaceAsset(EditorShellState& state, const json& params) {
   EditorPlacement placement{};
   placement.asset = *asset;
   placement.position = droppedAt(params, *x, *y, 0.0f);
+  placement.collides = editorAssetCollidesWhenPlaced(state.assets[*asset]);
   return addPlacement(state, placement);
 }
 

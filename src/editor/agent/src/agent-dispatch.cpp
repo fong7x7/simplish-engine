@@ -2,6 +2,7 @@
 #include "agent-commands.h"
 #include "agent-effects.h"
 #include "agent-emitters.h"
+#include "agent-ground.h"
 #include "agent-sprites.h"
 #include "agent-waypoints.h"
 
@@ -134,6 +135,10 @@ namespace {
     return runAgentOpenLevel(state, params);
   }
 
+  AgentResult toolGetGround(EditorShellState& state, const json& params) {
+    return runAgentGetGround(state, params);
+  }
+
   AgentResult toolGetPlaytest(EditorShellState& state, const json&) {
     return agentOk(agentPlaytestJson(state));
   }
@@ -159,6 +164,7 @@ namespace {
       AgentTool::ADD_WAYPOINT,
       AgentTool::ADD_EMITTER,
       AgentTool::ADD_SPRITE,
+      AgentTool::PAINT_GROUND,
       AgentTool::SET_PROPERTY,
       AgentTool::SET_ANIMATION,
       AgentTool::SET_CHARACTER,
@@ -197,6 +203,7 @@ namespace {
       toolListWaypoints,
       toolListEmitters,
       toolListSprites,
+      toolGetGround,
       toolGetEffects,
       toolListCharacters,
       toolListBehaviors,
@@ -214,6 +221,7 @@ namespace {
       runAgentAddWaypoint,
       runAgentAddEmitter,
       runAgentAddSprite,
+      runAgentPaintGround,
       runAgentSetProperty,
       runAgentSetAnimation,
       runAgentSetCharacter,

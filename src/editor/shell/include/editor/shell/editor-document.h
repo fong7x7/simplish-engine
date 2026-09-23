@@ -10,14 +10,15 @@
 #include <editor/shell/editor-player-start.h>
 #include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
+#include <engine/render-ground/ground-grid.h>
 #include <vector>
 
 namespace eng::editor {
 
 /// The level as the editor holds it: what has been placed, what lights it,
 /// where the players enter it, the routes its actors patrol, the particle
-/// emitters that show effects in it, and the sprite billboards standing in
-/// it.
+/// emitters that show effects in it, the sprite billboards standing in
+/// it, and the terrain its floor is painted with.
 ///
 /// One record rather than a list per kind passed around separately, because
 /// the history describes all of it: an action names a list and a slot in
@@ -37,6 +38,9 @@ struct EditorDocument {
   std::vector<EditorEmitter> emitters;
   /// Sprite billboards, in the order they were added.
   std::vector<EditorSprite> sprites;
+  /// The terrain painted on each cell of the floor, numbered as
+  /// `EDITOR_TERRAINS` is: 0 is bare, 1 its first terrain.
+  GroundGrid ground;
 };
 
 }  // namespace eng::editor

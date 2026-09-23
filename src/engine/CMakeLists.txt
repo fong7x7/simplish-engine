@@ -29,6 +29,7 @@ add_subdirectory(render)
 add_subdirectory(render-mesh)
 add_subdirectory(render-fx)
 add_subdirectory(render-sprite)
+add_subdirectory(render-ground)
 add_subdirectory(gltf)
 add_subdirectory(gui)
 add_subdirectory(client)
@@ -47,6 +48,7 @@ simplish_add_library(simplish-engine
             simplish-engine-render-mesh
             simplish-engine-render-fx
             simplish-engine-render-sprite
+            simplish-engine-render-ground
             simplish-engine-gltf
             simplish-engine-gui
             simplish-engine-client
