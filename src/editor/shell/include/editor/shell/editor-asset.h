@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <cstdint>
+#include <editor/shell/editor-clip-event-set.h>
 #include <editor/shell/editor-shape-kind.h>
 #include <engine/animation/rig.h>
 #include <engine/math/vec3.h>
@@ -14,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace eng::editor {
 
@@ -105,6 +107,11 @@ struct EditorAsset {
   /// of the asset list — which the agent API takes — is not a copy of every
   /// clip's keys.
   std::shared_ptr<const animation::Rig> rig{};
+  /// The events each of `rig`'s clips plays, in clip order: the project's,
+  /// or the foot contacts found in it. Worked out when the rig loads and
+  /// again whenever the animation events table changes; empty for a model
+  /// with no rig.
+  std::vector<EditorClipEventSet> clip_events{};
 };
 
 /// Whether @p asset's geometry has reached the GPU, by either renderer.

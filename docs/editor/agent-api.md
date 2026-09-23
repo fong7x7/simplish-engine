@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 61 tools, HTTP transport, MCP bridge
+**Status:** Built — 63 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Sixty-one, in three groups. `GET /tools` is authoritative and carries
+Sixty-three, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -166,6 +166,7 @@ each one's parameters; this table is the map.
 | `list_emitters` | Every particle emitter: the preset it was started from and whether it still is exactly that preset, its position, direction, flash tint, and every number of its burst by the name `set_property` writes it under; and every preset an emitter can be started from |
 | `list_sprites` | Every sprite billboard: the sheet it shows, where it stands, and its height, grid and speed by the name `set_property` writes each under; and every sprite sheet the open project holds |
 | `get_ground` | The painted ground: every terrain by number, word and the character rows use for it; the painted rectangle; and a window of it — the painted part, or one the call names — as one string per row, southmost first |
+| `list_animation_events` | Every loaded clip's events — at, sound, gain — and where they came from (authored, detected, none), and the animation events table's clip and sheet rows |
 | `get_effects` | What the viewport's effects are doing now, while editing or playing: whose they are, particles, clouds of volumetric smoke and flashes alive, the bursts each emitter has thrown, and how many effects `play_effect` has played |
 | `list_characters` | Every character in the project's table — id, name, model, speed, health — with the file's path and anything wrong with it |
 | `list_behaviors` | Every behavior a prop can run — the built-in presets, each replaced by the project's own of the same id, then the project's others — with its id, reference, name, whether it is built in, its states, its initial state and whom it targets (`players` or `opponents`); and the behaviors table's path and anything wrong with it |
@@ -208,6 +209,7 @@ each one's parameters; this table is the map.
 | `set_controls` | Changes the control scheme as the Controls screen does — one action's controls (`action`, `controls`), the deadzones, or `reset` to the defaults — saved at once. The user's, not the level's: no undo |
 | `set_volume` | Sets any of `master`, `effects`, `music`, `interface` (0 to 1) and `muted`, as the Sound screen does; saved to the user's volumes file |
 | `set_sound` | Plays one of the project's sound files in one of the game's sounds (`slot`, `file`), or the built-in again with an empty `file`; written to the sounds table |
+| `set_animation_events` | Gives a rigged model's clip (`asset`, `clip`) or a sprite sheet (`sheet`) its events, replacing any — for a clip, its detected foot contacts too — or, without `events`, takes the row away. `events` is the one parameter published as an `array` |
 | `import_sound` | Copies a `.wav` or `.ogg` into the project's `assets/sounds/`, refusing one that will not decode, and optionally plays it in a `slot` |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
 

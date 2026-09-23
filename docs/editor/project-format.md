@@ -541,6 +541,40 @@ Reading is forgiving in the way §8.1 is: a row with no usable or a repeated id 
 
 A row with no `id` or no `file`, or a second row for the same sound, is skipped. An `id` that names no sound, or a file that is missing or will not decode, leaves that sound built-in. Each of those is logged and reported in `get_sound`'s `problems`.
 
+### 8.5 The animation events table
+
+`content/data/animation-events.data.json`, entry schema `simplish/animation_events/1.0` — the sounds animations make ([audio.md §9.2](../engine/audio.md#92-animation-events)). Optional: without it every rigged clip steps where its feet land and nothing else makes a sound. **The editor writes this one too** — an agent's `set_animation_events` changes it, and it is saved at once; a hand edit is read when the project is opened, rescanned or played.
+
+```json
+{
+  "schema": "simplish/data_table/1.0",
+  "id": "animation_events",
+  "name": "Animation events",
+  "content": {
+    "entry_schema": "simplish/animation_events/1.0",
+    "entries": [
+      { "id": "mesh:characters_knight.walk",
+        "asset": "mesh:characters_knight", "clip": "walk",
+        "events": [ { "at": 0.12, "sound": "footstep", "gain": 1.0 },
+                    { "at": 0.62, "sound": "footstep", "gain": 1.0 },
+                    { "at": 0.40, "sound": "sounds/clank.wav", "gain": 0.5 } ] },
+      { "id": "sprites/torch.png", "sheet": "sprites/torch.png",
+        "events": [ { "frame": 2, "sound": "sounds/crackle.wav", "gain": 1.0 } ] }
+    ]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `asset`, `clip` | A rigged model by asset reference, and one of its clips by name. Its events are in seconds (`at`) and **replace** the foot contacts found in the clip; `[]` silences it |
+| `sheet` | A sprite sheet by its path under `assets/`, as a billboard names it. Its events are by `frame`, from 0 |
+| `sound` | `footstep` — the animating thing's feet on the surface under it — or a sound slot of §8.4 (`combat.blast`, `step.boots.wood`), or a `.wav` or `.ogg` under `assets/` by its path |
+| `gain` | How loud, 0 to 4; 1 when absent |
+| `id` | Written for readability; not read |
+
+A row naming neither an asset and a clip nor a sheet, or naming one an earlier row did, is skipped, and so is an event with no sound; `at` below zero reads as zero, a frame is held to 0–4095 and a gain to 0–4. A file an event names that is missing or will not decode plays nothing. Each is logged and reported by `list_animation_events`.
+
 ## 9. What It Becomes
 
 The generator reads a validated project and writes C++ into the build directory. Nothing generated is committed.

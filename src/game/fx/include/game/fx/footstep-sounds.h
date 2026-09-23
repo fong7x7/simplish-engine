@@ -22,8 +22,11 @@
 #include <game/content/step-set.h>
 #include <game/fx/footstep-clip.h>
 #include <game/fx/footstep-cue.h>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace eng::game {
@@ -44,6 +47,11 @@ inline constexpr size_t FOOTSTEPS_HEARD = 6;
 /// `step.boots.sand`. Also the slot a project records it in.
 [[nodiscard]] std::string footstepSoundName(StepSet steps,
                                             FootstepSurface surface);
+
+/// The feet and surface a footstep slot is for — `step.boots.sand` is
+/// boots on sand — or nothing when @p slot is not one.
+[[nodiscard]] std::optional<std::pair<StepSet, FootstepSurface>>
+footstepSlotNamed(std::string_view slot);
 
 /// The recipe @p surface's built-in step is synthesised from.
 [[nodiscard]] const audio::SynthSpec& footstepSynth(FootstepSurface surface);

@@ -7,6 +7,7 @@
 #include <editor/project/project-context.h>
 #include <editor/project/recent-projects-list.h>
 #include <editor/shell/editor-action-history.h>
+#include <editor/shell/editor-animation-event-table.h>
 #include <editor/shell/editor-asset-tree.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-behavior-table.h>
@@ -98,6 +99,11 @@ struct EditorShellState {
   /// of the game's sound slots play one of `sound_files` instead of their
   /// built-in sound. Read with the other tables; written by the editor.
   EditorSoundTable sounds;
+  /// The sounds the project's animations make, from
+  /// `content/data/animation-events.data.json`: at moments of models'
+  /// clips, and at frames of sprite sheets. Clips it says nothing about
+  /// step wherever a foot comes down.
+  EditorAnimationEventTable animation_events;
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;

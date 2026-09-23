@@ -30,6 +30,9 @@ enum class AgentParamType : uint8_t {
   ASSET_REF,
   /// True or false: whether a button is held.
   BOOLEAN,
+  /// A list of objects, each described by the parameter's own text: the
+  /// events a clip plays.
+  ARRAY,
 };
 
 /// The word this type is published as, which the MCP bridge maps to a JSON
@@ -47,6 +50,8 @@ agentParamTypeName(AgentParamType type) {
       return "asset_ref";
     case AgentParamType::BOOLEAN:
       return "boolean";
+    case AgentParamType::ARRAY:
+      return "array";
   }
   return "string";
 }

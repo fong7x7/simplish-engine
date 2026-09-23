@@ -34,6 +34,11 @@ struct EditorCharacterFigure {
   EditorCharacterGait gait = EditorCharacterGait::STILL;
 };
 
+/// The key a playtest's player @p player — 1 to 4 — is drawn and animated
+/// under: `player:1`. One function, so whatever else finds a player by the
+/// key its animation went by asks here rather than parsing it back.
+[[nodiscard]] std::string editorPlayerFigureKey(uint8_t player);
+
 /// The characters standing on @p document's player starts: one per start
 /// naming a character in @p characters, drawn as its model, facing +X —
 /// the way a player spawns aiming — and standing still. A start naming

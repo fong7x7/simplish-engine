@@ -111,3 +111,9 @@ TEST_CASE("a recording taken away stops playing, though the bank keeps it") {
   REQUIRE(clipFor(clips, StepSet::CLAWS, FootstepSurface::METAL).source ==
           FootstepClipSource::BORROWED);
 }
+
+TEST_CASE("a footstep slot is read back into its feet and surface") {
+  REQUIRE(footstepSlotNamed("step.claws.metal") ==
+          std::pair{StepSet::CLAWS, FootstepSurface::METAL});
+  REQUIRE_FALSE(footstepSlotNamed("combat.blast").has_value());
+}

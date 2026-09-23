@@ -3,7 +3,7 @@
 **Parent document:** [Engine REQUIREMENTS](REQUIREMENTS.md) §5
 **Packages:** `src/engine/animation/` (`eng::animation`), `src/engine/gltf/` (`eng::gltf`), and the skinned half of `src/engine/render-mesh/` (`eng`)
 **Governed by:** [ADR-003's 2026-09-10 amendment](../decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters), [ADR-002](../decisions/ADR-002-fixed-timestep-determinism.md)
-**Status:** Built and tested. The editor imports rigged `.gltf` and `.glb` models, places them, and plays a clip on each, crossfading when the clip is changed ([Editor §1](../editor/REQUIREMENTS.md#current-state)). Nothing in the game uses them yet.
+**Status:** Built and tested. The editor imports rigged `.gltf` and `.glb` models, places them, and plays a clip on each, crossfading when the clip is changed ([Editor §1](../editor/REQUIREMENTS.md#current-state)); a clip's moments — its feet landing, found from the skeleton, or events a project writes — are heard in a playtest (§4.5). Nothing in the game uses them yet.
 
 Rigged models posed by animation clips and drawn skinned on the GPU, for the handful of characters ADR-003 admits: players, bosses, set pieces. The horde stays sprites.
 
@@ -104,6 +104,25 @@ Three numbers are restated in every shader because none of them can include a C+
 
 ---
 
+## 4.5 Events: Moments of a Clip
+
+A clip can mark moments — a foot landing, a sword swinging — and whoever plays it hears about each as playback reaches it. The engine owns the timing and nothing about what a moment means; the editor turns them into sounds ([audio.md §9.2](audio.md#92-animation-events)).
+
+| Piece | Header | What it owns |
+|---|---|---|
+| `ClipWindow` | `engine/animation/clip-window.h` | The stretch of a clip one frame played: seconds since the clip started, from the last frame's playhead to this one's, unwrapped |
+| `crossedClipTimes` | `engine/animation/clip-event-crossing.h` | Which marked times a window passed, loops included, in the order reached |
+| `findFootJoints`, `detectFootContacts` | `engine/animation/foot-contacts.h` | When a clip puts each foot down, found from the skeleton |
+| `ClipPlayer::clipStarted` | `engine/animation/clip-player.h` | When the clip playing started, so `now - clipStarted()` is how far into it playback is |
+
+**Crossing.** A time counts when it falls in (from, to]: the frame that reaches it hears it, and the next does not again. A window that runs past the clip's end hears the end's times, then the start's. A window as long as the clip or longer — a stall, a paused frame — hears each time once rather than once a loop, so a hitch is not followed by a burst. A clip just begun starts its window a hair before zero, so an event at its very first moment is heard.
+
+**Foot contacts.** A clip nobody has marked still knows when its feet land. `findFootJoints` takes every joint named with `foot` or `ankle`, not an exporter's helper (`end`, `ik`, `target`, `pole`). `detectFootContacts` samples the clip 120 times a second, reads each foot's height — Z *after the skin's root*, which is where a Y-up glTF is turned upright, so up is up whatever the file's convention — and marks every moment a foot drops into the lowest fifth of its travel, looping round the clip's end. A foot that travels less than 3% of the skeleton's height at rest is standing, not walking, so an idle marks nothing.
+
+Presentation, like every clip time: the tick never reads a moment of a clip, so a foot landing never changes the game.
+
+---
+
 ## 5. Loading glTF
 
 `loadGltfModel` reads `.gltf`, with buffers beside it or in `data:` URIs, and self-contained `.glb`. It tells the two apart by their first four bytes, not their names. It reads:
@@ -126,6 +145,7 @@ Not read yet: images embedded in a buffer or a data URI (the model draws untextu
 
 Everything above the backends runs headless:
 
+- `test_clip_event_crossing.cpp` and `test_foot_contacts.cpp` cover windows across the loop, stalls, a clip's first moment, feet found by name and not their helpers, a contact where the foot drops into its band, none for a foot that barely moves, and a Y-up rig turned upright by its skin root stepping the same as a Z-up one.
 - `animation` tests each interpolation mode, shortest-arc slerp, the parent-first world pass, and that a bind pose gives identity skin matrices. `test_clip_player.cpp` measures every fade: eased weights, the outgoing clip still moving, and a switch mid-fade continuing from exactly the pose on screen.
 - `gltf` tests build documents in memory (`test/support/test-gltf.h`), as `.gltf` with an inline buffer or as `.glb`. A two-joint arm is loaded, posed by its clip, and measured with `poseSkinnedMesh`, alongside every refusal above.
 - `render-mesh` tests the palette packing, CPU posing, and what `SkinnedMeshRenderer` records, against a fake device.

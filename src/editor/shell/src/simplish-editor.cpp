@@ -5,6 +5,7 @@
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-actor-placement.h>
+#include <editor/shell/editor-animation-event-ops.h>
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
@@ -845,6 +846,8 @@ bool SimplishEditor::adoptRiggedModel(EditorAsset& asset,
   asset.max = model.mesh.max;
   asset.texture = uploadMeshTexture(model.mesh.texture_path);
   asset.rig = std::make_shared<const animation::Rig>(std::move(model.rig));
+  asset.clip_events = resolveEditorClipEvents(
+      state_.animation_events, editorAssetRef(asset), *asset.rig);
   return true;
 }
 
@@ -1890,6 +1893,7 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   }
   refreshGroundMesh();
   buildSceneInstances();
+  hearAnimationEvents();
   buildSceneLights();
   mesh_renderer_.draw(cmd, sceneDrawParams(*viewport));
   // Same pass and depth as the static meshes, so a character walking
@@ -2063,7 +2067,7 @@ bool SimplishEditor::onTick(float dt) {
   syncViewState();
   runStateHook();
   tickControls();
-  tickSound();
+  tickTables();
   tickPlaytest();
   if (chromeNeedsLayout()) {
     layoutChrome();

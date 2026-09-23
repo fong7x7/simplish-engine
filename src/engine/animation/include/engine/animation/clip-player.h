@@ -54,6 +54,9 @@ public:
 
   /// The clip playing, or fading in: the last one `play` was given.
   [[nodiscard]] size_t clip() const { return clip_; }
+  /// Clock time the clip playing started, which is where its loops count
+  /// from: `now - clipStarted()` is how far into it playback is, unwrapped.
+  [[nodiscard]] double clipStarted() const { return started_; }
 
   /// How far the fade into the current clip has got at @p now: zero at the
   /// switch, one once it is complete, eased in and out between. One when

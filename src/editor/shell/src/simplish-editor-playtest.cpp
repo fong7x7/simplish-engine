@@ -121,6 +121,7 @@ void SimplishEditor::reloadDataTables() {
   reloadBehaviors();
   reloadEnemies();
   reloadSounds();
+  reloadAnimationEvents();
 }
 
 EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
@@ -235,6 +236,10 @@ game::GameContent SimplishEditor::playtestContent() const {
 
 void SimplishEditor::beginPlaytestState() {
   playtest_->setActorIds(editorActorIds(state_.document));
+  // Events are heard from the first frame of play on: nothing played
+  // before it — while no scene was drawn, perhaps — reaches into it.
+  sprite_events_clock_ = animation_clock_;
+  (void)placement_animator_.takePasses();
   playtest_->setActorFootsteps(editorActorFootsteps(state_.document));
   playtest_->setFootstepSurfaces(
       makeEditorFootstepSurfaces(state_.document, state_.assets));
@@ -484,7 +489,7 @@ std::vector<EditorCharacterFigure> SimplishEditor::characterFigures() const {
   const game::PlayerPool& pool = playtest_->players();
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const auto player = static_cast<uint8_t>(pool.input_slot[i] + 1U);
-    figures.push_back({"player:" + std::to_string(player),
+    figures.push_back({editorPlayerFigureKey(player),
                        playtest_->character(i).model,
                        playtest_->renderPosition(i, playtest_alpha_),
                        pool.aim[i], playtest_->gait(i)});
@@ -532,6 +537,8 @@ void SimplishEditor::appendSkinnedCharacter(const EditorCharacterFigure& figure,
   EditorPlacement posed;
   posed.id = figure.key;
   posed.asset = asset;
+  // Where its feet are, so the clip's events are heard from there.
+  posed.position = {figure.feet.x, figure.feet.y, figure.feet.z};
   posed.animation =
       editorCharacterClip(editorClipNames(model.rig.get()), figure.gait);
   skinned_instances_.push_back(

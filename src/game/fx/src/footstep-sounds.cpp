@@ -191,6 +191,18 @@ std::string footstepSoundName(StepSet steps, FootstepSurface surface) {
          std::string(footstepSurfaceWord(surface));
 }
 
+std::optional<std::pair<StepSet, FootstepSurface>>
+footstepSlotNamed(std::string_view slot) {
+  for (const StepSet steps : ALL_STEP_SETS) {
+    for (const FootstepSurface surface : ALL_FOOTSTEP_SURFACES) {
+      if (footstepSoundName(steps, surface) == slot) {
+        return std::pair{steps, surface};
+      }
+    }
+  }
+  return std::nullopt;
+}
+
 const audio::SynthSpec& footstepSynth(FootstepSurface surface) {
   return SYNTHS[static_cast<size_t>(surface)];
 }

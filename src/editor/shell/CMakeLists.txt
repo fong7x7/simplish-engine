@@ -6,6 +6,8 @@
 
 set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-action-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-animation-event-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-animation-event-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-actor-placement.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-asset-browser-layout.cpp"
@@ -28,6 +30,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-player.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-event-hits.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-footstep-choices.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-footstep-surfaces.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
@@ -71,6 +74,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-animation-events.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-ground.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"

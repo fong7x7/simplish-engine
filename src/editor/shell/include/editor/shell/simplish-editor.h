@@ -115,11 +115,13 @@
 #include <editor/shell/editor-character-figure.h>
 #include <editor/shell/editor-character-select-widget.h>
 #include <editor/shell/editor-choice-kind.h>
+#include <editor/shell/editor-clip-pass.h>
 #include <editor/shell/editor-controls-row.h>
 #include <editor/shell/editor-controls-widget.h>
 #include <editor/shell/editor-dialog-purpose.h>
 #include <editor/shell/editor-effect-shot.h>
 #include <editor/shell/editor-emitter-player.h>
+#include <editor/shell/editor-event-hit.h>
 #include <editor/shell/editor-general-item.h>
 #include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-level-result.h>
@@ -935,6 +937,55 @@ private:
   /// Destroy every uploaded sheet texture and every billboard quad — for a
   /// project being closed, or a cache that has outgrown its bound.
   void releaseSpriteCache();
+  /// Read the animation events table again, work out every loaded rig's
+  /// clip events from it, and load the sound files it names.
+  void reloadAnimationEvents();
+  /// Every event the clips @p passes played reached, then every event the
+  /// level's billboards reached over @p sprite_window of the sprite clock.
+  [[nodiscard]] std::vector<EditorEventHit>
+  eventHits(const std::vector<EditorClipPass>& passes,
+            animation::ClipWindow sprite_window) const;
+  /// Load the sound files the animation events table names, and log what
+  /// could not be.
+  void loadAnimationEventSounds();
+  /// Add every actor to @p walkers, by its prop's id.
+  void
+  addActorWalkers(std::map<std::string, game::FootstepWalker>& walkers) const;
+  /// Work out the events every loaded rig's clips play, from the table.
+  void refreshClipEvents();
+  /// Save the animation events table when it has changed, and reload it.
+  void tickAnimationEvents();
+  /// Hear what the animations drawn this frame reached, while playing:
+  /// every clip's and every sprite sheet's events, each footstep through
+  /// the playtest and every other sound straight to the speakers.
+  void hearAnimationEvents();
+  /// Every player and actor in the playtest, by the key its animation goes
+  /// by (`player:1`, an actor prop's id), each with the key the playtest
+  /// follows it by and its feet. Built once a frame.
+  [[nodiscard]] std::map<std::string, game::FootstepWalker>
+  frameWalkers() const;
+  /// Play @p hits, of a playtest frame, footsteps as @p walkers says whose
+  /// they are.
+  void
+  playEventHits(const std::vector<EditorEventHit>& hits,
+                const std::map<std::string, game::FootstepWalker>& walkers);
+  /// Play the sound @p hit names where it happened; false when there is no
+  /// such sound, or no voice would take it.
+  bool playEventSound(const EditorEventHit& hit);
+  /// Save whichever of the project's editable tables — sounds, animation
+  /// events — have changed since last saved.
+  void tickTables();
+  /// A footstep event of the animation @p hit belongs to, as the walker
+  /// @p walkers knows it by — or, for a prop that walks no playtest, its
+  /// own feet under no walker.
+  [[nodiscard]] game::FootstepWalker
+  eventWalker(const EditorEventHit& hit,
+              const std::map<std::string, game::FootstepWalker>& walkers) const;
+  /// Hand the walkers whose clips step for them to the playtest, from
+  /// @p passes, so the stride stops stepping for them.
+  void noteAnimatedWalkers(
+      const std::vector<EditorClipPass>& passes,
+      const std::map<std::string, game::FootstepWalker>& walkers);
   /// Take card @p card of the ground folder as the brush, switch to the
   /// Tile tool, and paint one dab of it on @p tile — what dropping a
   /// terrain card on the viewport does.
@@ -1174,6 +1225,11 @@ private:
   std::optional<EditorEmitter> emitter_prior_{};
   /// The selected billboard as it was when its gesture began.
   std::optional<EditorSprite> sprite_prior_{};
+  /// The sprite clock when sheets' events were last looked for: where the
+  /// next frame's window over it starts.
+  double sprite_events_clock_ = 0.0;
+  /// The animation events table's revision when last saved.
+  uint64_t saved_animation_events_revision_ = 0;
   /// The terrain the brush paints with, numbered as `EDITOR_TERRAINS` is:
   /// 0 erases.
   uint8_t brush_terrain_ = 1;

@@ -491,6 +491,30 @@ inline constexpr AgentParam AGENT_PARAMS_SET_VOLUME[] = {
      "back. Omitted, kept."},
 };
 
+/// `set_animation_events` gives a clip or a sheet its events.
+inline constexpr AgentParam AGENT_PARAMS_SET_ANIMATION_EVENTS[] = {
+    {"asset", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A rigged model — .gltf or .glb — by its reference "
+     "(mesh:characters_knight), "
+     "id or name, as list_assets lists it. Give it with clip, or give sheet "
+     "instead."},
+    {"clip", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "One of that model's clips, by name (walk). list_animation_events "
+     "lists them once the model has been placed and loaded."},
+    {"sheet", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A sprite sheet, by the path list_sprites lists under sheets "
+     "(sprites/slime.png), in place of asset and clip."},
+    {"events", AgentParamType::ARRAY, AgentParamNeed::OPTIONAL,
+     "A list of events. For a clip, each {\"at\": seconds into the "
+     "clip, \"sound\", \"gain\"}; for a sheet, each {\"frame\": frame "
+     "number from 0, \"sound\", \"gain\"}. sound is \"footstep\" — the "
+     "feet of whoever animates, on the surface under them — or a slot "
+     "get_sound lists (combat.blast), or one of get_sound's sound_files "
+     "(sounds/swoosh.wav). gain is 0 to 4, default 1. An empty array "
+     "silences a clip; omitting events takes the row away, so a clip "
+     "steps at its detected foot contacts again."},
+};
+
 /// `set_sound` puts a project file in a slot.
 inline constexpr AgentParam AGENT_PARAMS_SET_SOUND[] = {
     {"slot", AgentParamType::STRING, AgentParamNeed::REQUIRED,
@@ -1039,6 +1063,27 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "project is open, the slot names no sound, or the file is not one of "
      "get_sound's sound_files. Answers as get_sound does.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_SOUND},
+    {AgentTool::LIST_ANIMATION_EVENTS,
+     "list_animation_events",
+     "The sounds animations make. clips: every clip of every rigged model "
+     "loaded — placed at least once — with its duration, its events (at, "
+     "sound, gain) and where they came from: authored, from the project's "
+     "content/data/animation-events.data.json; detected, a footstep "
+     "wherever a foot joint comes down in the clip; or none. authored_clips "
+     "and sheets are the table's rows, models not yet loaded included. In "
+     "a playtest a clip's events are heard as its playback reaches them, "
+     "and a sheet's as a billboard showing it reaches the frame; a walker "
+     "whose clip has footstep events steps with them rather than every "
+     "stride.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_ANIMATION_EVENTS, "set_animation_events",
+     "Give one clip of a rigged model, or one sprite sheet, the sounds it "
+     "makes as it plays, replacing any it had — for a clip, replacing its "
+     "detected foot contacts too. Omit events to take the row away. Written "
+     "to content/data/animation-events.data.json; not part of the level's "
+     "undo history. Answers as list_animation_events does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_ANIMATION_EVENTS},
     {AgentTool::IMPORT_SOUND, "import_sound",
      "Bring a WAV or Ogg Vorbis file into the open project, as File › "
      "Import Sound does: copied into assets/sounds/ — never over a file "

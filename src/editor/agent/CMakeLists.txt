@@ -7,6 +7,7 @@
 # binding to the running editor in editor-agent-service.cpp.
 
 set(_agent_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-animation-events.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-call.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-commands.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-dispatch.cpp"

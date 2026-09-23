@@ -170,6 +170,24 @@ public:
   /// actor past the end of the list has the default's.
   void setActorFootsteps(std::vector<game::StepSet> footsteps);
 
+  /// The walkers — by the key `walkers` gives them — whose steps their
+  /// clips' footstep events time, from the next tick on: the stride no
+  /// longer steps for them, so a step is not heard twice.
+  void setAnimatedWalkers(std::vector<uint32_t> keys);
+
+  /// Hear a step for each of @p steps — footstep events a clip or a sheet
+  /// played this frame — on the surface under it, keeping the nearest few
+  /// to player 1 as the stride's steps are kept.
+  void addAnimatedSteps(std::span<const game::FootstepWalker> steps);
+
+  /// Count @p played sounds animation events played, for `publish`.
+  void countAnimationSounds(size_t played);
+
+  /// The key `walkers` gives the player in input slot @p slot.
+  [[nodiscard]] static uint32_t playerWalkerKey(uint8_t slot);
+  /// The key `walkers` gives the setup's @p actor-th actor.
+  [[nodiscard]] static uint32_t actorWalkerKey(size_t actor);
+
   /// The effects playing: what the viewport draws and lights the scene by.
   [[nodiscard]] const FxWorld& effects() const { return fx_; }
 
@@ -257,6 +275,8 @@ private:
   /// Follow every walker to where the last tick left it, and keep the
   /// steps player 1 would hear.
   void hearSteps();
+  /// Keep, of @p steps, the ones player 1 would hear.
+  void keepHeardSteps(std::span<const game::FootstepCue> steps);
   /// Every player and actor in the game, as the footstep tracker follows
   /// them.
   [[nodiscard]] std::vector<game::FootstepWalker> walkers() const;
@@ -321,6 +341,10 @@ private:
   std::vector<game::FootstepCue> heard_steps_{};
   /// Steps handed out to be heard since the playtest started.
   uint64_t steps_heard_ = 0;
+  /// Walkers whose clips time their steps, sorted.
+  std::vector<uint32_t> animated_walkers_{};
+  /// Sounds animation events played since the playtest started.
+  uint64_t animation_sounds_ = 0;
   /// The input each slot's pad gives, for the slots a pad plays.
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
 };

@@ -319,26 +319,62 @@ std::vector<game::FootstepWalker> EditorPlaytestSession::walkers() const {
   std::vector<game::FootstepWalker> walking;
   const game::PlayerPool& players = world_->players();
   for (uint32_t i = 0; i < players.slots.size(); ++i) {
-    walking.push_back(
-        {players.input_slot[i], players.position[i], character(i).footsteps});
+    walking.push_back({playerWalkerKey(players.input_slot[i]),
+                       players.position[i], character(i).footsteps});
   }
   // Actors are keyed past every player slot, by their place in the setup,
   // which stays theirs however the pool is compacted.
   for (size_t actor = 0; actor < actorCount(); ++actor) {
     if (const std::optional<uint32_t> index = actorIndex(actor)) {
-      walking.push_back({static_cast<uint32_t>(sim::MAX_PLAYERS + actor),
-                         world_->actors().position[*index],
-                         actor < actor_footsteps_.size()
-                             ? actor_footsteps_[actor]
-                             : game::StepSet::DEFAULT});
+      walking.push_back(
+          {actorWalkerKey(actor), world_->actors().position[*index],
+           actor < actor_footsteps_.size() ? actor_footsteps_[actor]
+                                           : game::StepSet::DEFAULT});
     }
   }
   return walking;
 }
 
+void EditorPlaytestSession::setAnimatedWalkers(std::vector<uint32_t> keys) {
+  std::ranges::sort(keys);
+  animated_walkers_ = std::move(keys);
+}
+
+void EditorPlaytestSession::addAnimatedSteps(
+    std::span<const game::FootstepWalker> steps) {
+  std::vector<game::FootstepCue> cues;
+  for (const game::FootstepWalker& step : steps) {
+    cues.push_back(
+        {step.at, step.steps, game::footstepSurfaceAt(surfaces_, step.at)});
+  }
+  keepHeardSteps(cues);
+}
+
+void EditorPlaytestSession::countAnimationSounds(size_t played) {
+  animation_sounds_ += played;
+}
+
+uint32_t EditorPlaytestSession::playerWalkerKey(uint8_t slot) {
+  return slot;
+}
+
+uint32_t EditorPlaytestSession::actorWalkerKey(size_t actor) {
+  return static_cast<uint32_t>(sim::MAX_PLAYERS + actor);
+}
+
 void EditorPlaytestSession::hearSteps() {
   std::vector<game::FootstepCue> steps;
-  footsteps_.advance(walkers(), surfaces_, steps);
+  std::vector<game::FootstepWalker> striding = walkers();
+  // A walker a clip times steps when its clip says, not every stride.
+  std::erase_if(striding, [this](const game::FootstepWalker& walker) {
+    return std::ranges::binary_search(animated_walkers_, walker.key);
+  });
+  footsteps_.advance(striding, surfaces_, steps);
+  keepHeardSteps(steps);
+}
+
+void EditorPlaytestSession::keepHeardSteps(
+    std::span<const game::FootstepCue> steps) {
   game::hearFootsteps(steps, listenerAt(), heard_steps_);
   if (heard_steps_.size() > EDITOR_PLAYTEST_HEARD_CUES) {
     const auto excess = heard_steps_.size() - EDITOR_PLAYTEST_HEARD_CUES;
@@ -378,6 +414,7 @@ void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
   state.effects.cues = cues_played_;
   state.effects.sounds = sounds_heard_;
   state.effects.footsteps = steps_heard_;
+  state.effects.animation_sounds = animation_sounds_;
 }
 
 void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {

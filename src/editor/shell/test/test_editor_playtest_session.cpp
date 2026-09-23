@@ -589,3 +589,31 @@ TEST_CASE("a player standing still takes no steps") {
   }
   REQUIRE(session.takeHeardSteps().empty());
 }
+
+TEST_CASE("a player whose clip steps for them takes no stride steps") {
+  EditorPlaytestSession session = sessionAt({4.5F, 2.5F, 0});
+  session.setAnimatedWalkers({EditorPlaytestSession::playerWalkerKey(0)});
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 60; ++tick) {
+    session.step(pushingRight(), none);
+  }
+  REQUIRE(session.takeHeardSteps().empty());
+}
+
+TEST_CASE("a clip's footstep is heard on the surface under it") {
+  EditorPlaytestSession session = sessionAt({4.5F, 2.5F, 0});
+  EditorDocument floor;
+  paintEditorGround(floor.ground, {0, 0, 20, 6}, 1);
+  session.setFootstepSurfaces(makeEditorFootstepSurfaces(floor, {}));
+  const game::FootstepWalker step{0, {4.5F, 2.5F, 0}, game::StepSet::BOOTS};
+  session.addAnimatedSteps({&step, 1});
+  session.countAnimationSounds(2);
+
+  const std::vector<game::FootstepCue> heard = session.takeHeardSteps();
+  REQUIRE(heard.size() == 1);
+  REQUIRE(heard[0].surface == game::FootstepSurface::GRASS);
+  REQUIRE(heard[0].steps == game::StepSet::BOOTS);
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE(state.effects.animation_sounds == 2);
+}

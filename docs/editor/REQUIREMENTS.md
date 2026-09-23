@@ -21,7 +21,7 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 684 tests |
 | `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, click-to-select, and ground painting under the Tile tool, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 679 tests |
-| `src/editor/agent/` | The agent API: 61 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
+| `src/editor/agent/` | The agent API: 63 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 
@@ -141,6 +141,11 @@ Footsteps are the seventeenth. In a playtest every player and actor walking is h
 
 - **Steps are timed by distance, not animation.** A stride's worth of ground is a step, so sprites, static models and rigged ones all step, and a faster walker steps more often unasked. Foot-contact events on animation clips, for the few rigged characters, are a follow-up.
 - **Footsteps are presentation.** They read where the tick left everybody and write nothing back; a surface neither slows nor stops anybody.
+
+Animation events are the eighteenth. In a playtest a rigged model's steps come from its clip — the moments a foot joint comes down, found from the skeleton, so a walk steps in time with its feet with nothing written — and any clip, and any sprite sheet a billboard plays, makes the sounds the project gives it in `content/data/animation-events.data.json`: a footstep, a sound slot, or a sound file, at a moment of the clip or a frame of the sheet, each with a gain ([audio.md §9.2](../engine/audio.md#92-animation-events)). A walker whose clip steps for it no longer steps by stride. Reachable through `list_animation_events` and `set_animation_events`; no panel shows or edits events yet. Two decisions:
+
+- **A clip's own events replace what was found.** Detection is the default, not a layer: a row for a clip is the whole of what it plays, so a hand-timed walk is never doubled by the detector, and an empty row silences a clip it hears wrongly.
+- **2D and 3D share one clock rule.** A sheet's frame is a moment `frame / fps` into a loop of `frames / fps`, so a billboard's events are reached exactly as a clip's are, by the same function.
 
 The menu bar is the exception that proves the point. It is built — File, Edit, Level, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 

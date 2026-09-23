@@ -229,6 +229,8 @@ heard.
 
 ### 9.1 Footsteps
 
+*Timing by animation is §9.2; this section is what is underfoot and what it sounds like.*
+
 A walk is heard too. `game/fx`'s `footstep-*.h` work out when somebody
 walking takes a step, what they are standing on, and what that sounds like
 for their feet. Presentation, like the combat sounds: they read positions
@@ -249,7 +251,7 @@ a grate). Feet inside a patch's footprint, and within a quarter tile of its
 height, are on it; where patches overlap the later wins; everywhere else is
 the grid's cell, and outside it bare ground.
 
-**When a foot lands** (`footstep-tracker.h`). The tracker follows every
+**When a foot lands.** A walker whose clip has footstep events — the rigged characters, whose clips' foot contacts are found automatically (§9.2) — steps when its clip says. Everybody else steps by stride (`footstep-tracker.h`). The tracker follows every
 walker by a key that stays theirs — a player's input slot, an actor's place
 in the setup — and adds up the ground each covers; each completed stride is
 a step. Timed by distance, not animation, so a sprite, a static model and a
@@ -286,6 +288,18 @@ every player and actor after each tick, and hands the steps player 1 would
 hear to the speakers beside the combat cues; `get_playtest`'s
 `effects.footsteps` counts them.
 
+### 9.2 Animation events
+
+A clip or a sprite sheet can make sounds as it plays: a footstep as each foot lands, a clank as armour swings, a crackle on a torch's third frame. In a playtest every rigged model and every sprite billboard is heard at the moments its animation reaches.
+
+**Where the moments come from.** `content/data/animation-events.data.json` ([project-format §8.5](../editor/project-format.md#85-the-animation-events-table)) gives a model's clip events in seconds, and a sprite sheet events by frame. A clip it says nothing about gets a footstep wherever a foot comes down, found from its skeleton ([animation.md §4.5](animation.md#45-events-moments-of-a-clip)) — so a rigged walk steps in time with its feet with nothing written. A row for a clip replaces what was found; an empty row silences a clip the detection hears wrongly.
+
+**What they play.** `footstep` — the feet of whoever is animating on the surface under them, exactly as a stride's step (§9.1); one of the game's sound slots (`combat.blast`, `step.boots.wood`); or a `.wav` or `.ogg` under the project's assets by its path (`sounds/swoosh.wav`), loaded into the bank under `file:<path>` when the table is read. Each has a gain, 0 to 4.
+
+**When they are heard.** Every frame the editor's `EditorPlacementAnimator` notes, for each rigged thing it poses — props, actors, players — the stretch of its clip the frame played; `crossedClipTimes` says which events it reached. A billboard's sheet events are timed the same way: frame *f* comes up at *f* / fps, the sheet loops every frames / fps, over the frame's stretch of the sprite clock. A footstep goes to the playtest, which finds the surface, keeps the nearest six and counts it with the stride's; any other sound plays at once, placed where it happened, at priority 90 — above a footstep, below a fight. A walker whose clip has footstep events is told to the playtest, which stops stepping it by stride, so no step is heard twice. `get_playtest`'s `effects.animation_sounds` counts the rest. Nothing is heard while a playtest is paused — its clips keep looping on the frame clock, but nothing in the frame is moving — and an event naming a footstep slot (`step.boots.wood`) plays as a footstep does, falling back to the nearest recording its feet have.
+
+**Agents.** `list_animation_events` gives every loaded clip's events and where they came from — authored, detected, none — and the table's rows; `set_animation_events` writes or removes one clip's or sheet's row.
+
 ## 10. Files and tests
 
 | File | Holds |
@@ -304,6 +318,10 @@ hear to the speakers beside the combat cues; `get_playtest`'s
 | `game/fx/footstep-tracker.h`, `footstep-gait.h`, `footstep-walker.h`, `footstep-cue.h` | When a walker steps |
 | `game/fx/footstep-sounds.h`, `footstep-clip.h`, `footstep-clip-source.h` | Built-in steps, the fallback chain, and how a step is played |
 | `editor/shell/editor-footstep-surfaces.h`, `editor-footstep-choices.h` | A level's surfaces from the document; the Surface and Footsteps rows |
+| `engine/animation/clip-event-crossing.h`, `clip-window.h`, `foot-contacts.h` | Which marked moments a frame passed; feet found and their contacts |
+| `editor/shell/editor-animation-event-table.h` and its entry and event headers | The animation events table |
+| `editor/shell/editor-animation-event-ops.h`, `editor-event-hits.h`, `editor-clip-pass.h` | What each clip and sheet plays, which a frame reached, and the stretch of clip each pose played |
+| `editor/shell/simplish-editor-animation-events.cpp`, `editor/agent/src/agent-animation-events.cpp` | Hearing them in a playtest; `list_animation_events`, `set_animation_events` |
 | `editor/shell/editor-audio-volumes.h` | The user's volumes file |
 | `editor/shell/editor-sound-table.h`, `editor-sound-ops.h`, `editor-sound-import.h` | The project's sounds table, loading its files over the built-in sounds, and importing a file |
 | `editor/shell/editor-sound-widget.h`, `simplish-editor-sound.cpp` | The Sound screen, and the editor applying and saving what it changes |
@@ -321,7 +339,9 @@ hear to the speakers beside the combat cues; `get_playtest`'s
 | `test_audio_volumes`, `test_audio_volumes_json` | The square law; volumes applied are what is heard; mute keeps the levels; the file round-trips, clamps, and skips what it cannot read |
 | `test_combat_sounds` | Every cue has its clip; blast ducks and outranks; own shots louder; pitch spread; the nearest four heard, in order |
 | `test_footstep_tracker`, `test_footstep_surfaces`, `test_footstep_sounds`, `test_footstep_names` | A step a stride, claws quicker than heavy feet, none standing still or across a jump; ground, patches and the later patch winning; built-ins for every surface, the fallback chain, a removed recording no longer counting, stood-in pitch; the nearest six heard |
-| `test_editor_footstep_surfaces`, `test_editor_footstep_choices`, `test_editor_playtest_session` | Terrains become surfaces and a rug is cloth; the rows' choices; a player walking on painted sand is heard on sand, one standing still is not |
+| `test_editor_footstep_surfaces`, `test_editor_footstep_choices`, `test_editor_playtest_session` | Terrains become surfaces and a rug is cloth; the rows' choices; a player walking on painted sand is heard on sand, one standing still is not; a walker a clip steps for takes no stride steps, and a clip's footstep is heard on the surface under it |
+| `test_clip_event_crossing`, `test_foot_contacts` | See [animation.md §6](animation.md#6-testing) |
+| `test_editor_animation_event_table`, `test_editor_animation_event_ops`, `test_editor_event_hits`, `test_editor_placement_animator`, `test_agent_animation_events` | The table round-trips and skips bad rows; authored beats detected and a walk steps where nobody wrote a thing; a clip's events hit across the loop and a sheet's as its frame comes up; a pose's pass, restarting on a change of clip; the agent tools, a refused write changing nothing |
 | `test_editor_sound_table`, `test_editor_sound_ops`, `test_editor_sound_import`, `test_editor_audio_volumes`, `test_editor_sound_widget` | The table round-trips and skips bad rows; a project file replaces a built-in clip under the same id, and a broken one leaves the built-in and says so; an import copies, never overwrites, and refuses what will not decode; the volumes file; the screen skips headings and turns a bar click into a level |
 | `test_agent_sound` | Each sound tool, and each refusal changing nothing |
 | `test_editor_playtest_session` | A shot fired in a playtest is heard, once, and counted; unheard cues are capped |
@@ -344,9 +364,14 @@ hear to the speakers beside the combat cues; `get_playtest`'s
 - **Moving sources** — a sound's place is fixed when it starts.
 - **Cues for everything else** — bites, pools landing, deaths —
   wait on the same cues effects are waiting on ([fx.md §10](fx.md#10-not-yet)).
-- **Footsteps timed by animation.** Steps land every stride, not when a
-  rigged character's foot touches down in its clip; foot-contact events on
-  clips are the follow-up for the few rigged characters. Footsteps are also
-  editor-only until the game has a runtime that plays sound.
+- **An editor panel for animation events.** They are written by an agent's
+  `set_animation_events` or by hand; the editor shows and edits them on no
+  panel yet — a timeline under the properties panel is the natural place.
+- **Events in the game.** Footsteps and animation events play in the
+  editor's playtest only, until the game has a runtime that plays sound;
+  and while editing, only in a playtest — a prop looping a walk in the
+  viewport makes no sound.
+- **Events on a clip that is fading out.** Only the clip playing, or fading
+  in, is heard; the one it fades from falls silent at the switch.
 - **Occlusion and reverb.** Walls do not muffle; rooms do not ring.
 - **Console backends**, in the private overlay.

@@ -89,3 +89,35 @@ TEST_CASE("props not posed in a frame are forgotten at its end") {
   animator.endFrame();
   REQUIRE(animator.size() == 1);
 }
+
+TEST_CASE("a pose passes the stretch of its clip since the last frame") {
+  EditorPlacementAnimator animator;
+  const Rig rig = leftRight();
+  const EditorPlacement placement = prop("guard_01", "left");
+  (void)animator.pose(placement, rig, 10.0);
+  (void)animator.pose(placement, rig, 10.25);
+
+  const auto passes = animator.takePasses();
+  REQUIRE(passes.size() == 2);
+  // The first frame of a clip starts just before its first moment.
+  REQUIRE(passes[0].window.from < 0.0);
+  REQUIRE(passes[0].window.to == Approx(0.0));
+  REQUIRE(passes[1].window.from == Approx(0.0));
+  REQUIRE(passes[1].window.to == Approx(0.25));
+  REQUIRE(passes[1].key == "guard_01");
+  REQUIRE(passes[1].clip == 0);
+  REQUIRE(animator.takePasses().empty());
+}
+
+TEST_CASE("a change of clip starts its pass again from the clip's start") {
+  EditorPlacementAnimator animator;
+  const Rig rig = leftRight();
+  (void)animator.pose(prop("guard_01", "left"), rig, 0.0);
+  (void)animator.pose(prop("guard_01", "left"), rig, 0.5);
+  (void)animator.pose(prop("guard_01", "right"), rig, 0.6);
+
+  const auto passes = animator.takePasses();
+  REQUIRE(passes.back().clip == 1);
+  REQUIRE(passes.back().window.from < 0.0);
+  REQUIRE(passes.back().window.to == Approx(0.0));
+}

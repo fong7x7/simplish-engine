@@ -432,9 +432,13 @@ namespace {
       cues[std::string(agentCombatCueName(
           static_cast<game::CombatCueKind>(kind)))] = effects.cues[kind];
     }
-    return {{"particles", effects.particles}, {"volumes", effects.volumes},
-            {"lights", effects.lights},       {"cues", cues},
-            {"sounds", effects.sounds},       {"footsteps", effects.footsteps}};
+    return {{"particles", effects.particles},
+            {"volumes", effects.volumes},
+            {"lights", effects.lights},
+            {"cues", cues},
+            {"sounds", effects.sounds},
+            {"footsteps", effects.footsteps},
+            {"animation_sounds", effects.animation_sounds}};
   }
 
   /// Ticks of scripted input still waiting to run.

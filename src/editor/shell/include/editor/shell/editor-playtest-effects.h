@@ -30,6 +30,9 @@ struct EditorPlaytestEffects {
   /// Footsteps handed out to be heard since the playtest started: the
   /// nearest few of the steps each tick's walkers took.
   uint64_t footsteps = 0;
+  /// Sounds animation events played since the playtest started, footsteps
+  /// apart: what clips' and sprite sheets' own events asked for.
+  uint64_t animation_sounds = 0;
 };
 
 }  // namespace eng::editor

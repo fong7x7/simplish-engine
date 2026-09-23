@@ -22,4 +22,8 @@ editorStartFigures(const EditorDocument& document,
   return figures;
 }
 
+std::string editorPlayerFigureKey(uint8_t player) {
+  return "player:" + std::to_string(player);
+}
+
 }  // namespace eng::editor

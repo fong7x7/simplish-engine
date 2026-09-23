@@ -107,6 +107,10 @@ The path rather than an index: sheets are not placeable assets and carry no inde
 
 ---
 
+## 6.1 Frame Events
+
+A sheet can make sounds as a billboard plays it — by frame, since a sheet's speed is each billboard's own. The project's animation events table gives a sheet's frames their sounds, and in a playtest a frame's event is heard the moment the frame comes up, from where the billboard stands; a billboard held on its first frame makes none. The timing is the rigged clips' own (`crossedClipTimes`): frame *f* comes up at *f* / fps, looping every frames / fps. See [audio.md §9.2](audio.md#92-animation-events).
+
 ## 7. What Is Not Here
 
 - **No atlas, and no batcher.** One draw per billboard, which is right for the handful a level is authored with and wrong for a horde. §5.2's batching by atlas page is what the horde will need, and it needs the offline packer too (§4.1's asset pipeline).

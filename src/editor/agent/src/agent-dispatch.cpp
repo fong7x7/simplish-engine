@@ -1,3 +1,4 @@
+#include "agent-animation-events.h"
 #include "agent-call.h"
 #include "agent-commands.h"
 #include "agent-controls.h"
@@ -254,6 +255,8 @@ namespace {
       runAgentGetSound,
       runAgentSetVolume,
       runAgentSetSound,
+      runAgentListAnimationEvents,
+      runAgentSetAnimationEvents,
       runAgentImportSound,
       runAgentPlaySound,
   };
