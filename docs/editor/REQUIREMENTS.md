@@ -21,7 +21,7 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 684 tests |
 | `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, click-to-select, and ground painting under the Tile tool, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 679 tests |
-| `src/editor/agent/` | The agent API: 53 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
+| `src/editor/agent/` | The agent API: 60 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 

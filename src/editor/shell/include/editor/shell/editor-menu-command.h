@@ -88,6 +88,12 @@ enum class EditorMenuCommand : uint8_t {
   PLAY_TWO_STAND_INS,
   /// Play the next playtest with three stand-in players: a full session.
   PLAY_THREE_STAND_INS,
+  /// Open the Controls screen, to remap keys and pad controls.
+  CONTROLS,
+  /// Open the Sound screen: the volumes, and the project's own sounds.
+  SOUND,
+  /// Pick a WAV or Ogg Vorbis file and copy it into the project's assets.
+  IMPORT_SOUND,
 };
 
 /// The stand-in rows, indexed by how many stand-ins each plays with.
@@ -157,6 +163,9 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::PLAY_ONE_STAND_IN, "Play with 1 Stand-in", ""},
     {EditorMenuCommand::PLAY_TWO_STAND_INS, "Play with 2 Stand-ins", ""},
     {EditorMenuCommand::PLAY_THREE_STAND_INS, "Play with 3 Stand-ins", ""},
+    {EditorMenuCommand::CONTROLS, "Controls...", ""},
+    {EditorMenuCommand::SOUND, "Sound...", ""},
+    {EditorMenuCommand::IMPORT_SOUND, "Import Sound...", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is

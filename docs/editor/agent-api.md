@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 53 tools, HTTP transport, MCP bridge
+**Status:** Built — 60 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Fifty-three, in three groups. `GET /tools` is authoritative and carries
+Sixty, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -177,7 +177,9 @@ each one's parameters; this table is the map.
 | `get_level` | The level file behind the document: its id and path, whether one is on disk, whether it could be read, and whether the document has unwritten changes |
 | `list_levels` | Every level the open project holds, which one is being edited, and whether each has a file yet |
 | `list_commands` | Every menu command, its label, its shortcut, whether it is built, and whether it would work right now |
-| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the latest tick hash, dropped ticks, and queued input |
+| `get_controls` | The user's control scheme, as Edit › Controls shows it and in the bindings file's own words: each action's controls (`key:w`, `pad:south`, `pad:-left_y`), the pad's deadzones, and the file they are kept in |
+| `get_sound` | The user's volumes and where they are kept, each of the game's sounds and the project file it plays (or the built-in), the project's `.wav` and `.ogg` files, and what was wrong with the sounds table |
+| `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in or a seated pad (`pad`) plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the effects playing and the cues played and heard (`effects.sounds`), the latest tick hash, dropped ticks, and queued input |
 
 ### Editing
 
@@ -202,6 +204,10 @@ each one's parameters; this table is the map.
 | `select` | Selects a placement, a light, a player start, a waypoint, an emitter or a billboard, or clears the selection |
 | `set_tool` | Chooses the active toolbar tool |
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
+| `set_controls` | Changes the control scheme as the Controls screen does — one action's controls (`action`, `controls`), the deadzones, or `reset` to the defaults — saved at once. The user's, not the level's: no undo |
+| `set_volume` | Sets any of `master`, `effects`, `music`, `interface` (0 to 1) and `muted`, as the Sound screen does; saved to the user's volumes file |
+| `set_sound` | Plays one of the project's sound files in one of the game's sounds (`slot`, `file`), or the built-in again with an empty `file`; written to the sounds table |
+| `import_sound` | Copies a `.wav` or `.ogg` into the project's `assets/sounds/`, refusing one that will not decode, and optionally plays it in a `slot` |
 | `undo` / `redo` | Walks the same history the Edit menu walks |
 
 ### Driving the editor
@@ -211,6 +217,7 @@ each one's parameters; this table is the map.
 | `run_command` | Runs a menu command — camera, grid, close project, quit |
 | `open_project` | Opens the project in a directory |
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
+| `play_sound` | Plays a slot as the game plays it now, or a project sound file, once through the editor's speakers |
 | `create_level` | Adds an empty level to the project and starts editing it |
 | `open_level` | Edits another of the project's levels, replacing the document, the selection and the history with it |
 | `start_playtest` | Plays the open level in the real simulation, as the Play button does — with no selector: as the `character` given, or the one the selector would open on — and with `stand_ins` stand-in players beside player 1 when asked |

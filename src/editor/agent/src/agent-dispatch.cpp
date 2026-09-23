@@ -1,8 +1,10 @@
 #include "agent-call.h"
 #include "agent-commands.h"
+#include "agent-controls.h"
 #include "agent-effects.h"
 #include "agent-emitters.h"
 #include "agent-ground.h"
+#include "agent-sound.h"
 #include "agent-sprites.h"
 #include "agent-waypoints.h"
 
@@ -245,6 +247,13 @@ namespace {
       toolStopPlaytest,
       runAgentSendInput,
       toolStepPlaytest,
+      runAgentGetControls,
+      runAgentSetControls,
+      runAgentGetSound,
+      runAgentSetVolume,
+      runAgentSetSound,
+      runAgentImportSound,
+      runAgentPlaySound,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

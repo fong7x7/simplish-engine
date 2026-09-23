@@ -376,7 +376,8 @@ namespace {
                          {"max_health", player.max_health},
                          {"downed", player.downed},
                          {"out", player.out},
-                         {"stand_in", player.stand_in}});
+                         {"stand_in", player.stand_in},
+                         {"pad", player.pad}});
     }
     return players;
   }
@@ -422,8 +423,8 @@ namespace {
     return {{"projectiles", projectiles}, {"hazards", hazards}};
   }
 
-  /// The effects a playtest is playing, and every cue it has played, as
-  /// the agent API reports them.
+  /// The effects a playtest is playing, every cue it has played, and how
+  /// many it sent to be heard, as the agent API reports them.
   json playtestEffectsJson(const EditorPlaytestEffects& effects) {
     json cues = json::object();
     for (size_t kind = 0; kind < effects.cues.size(); ++kind) {
@@ -433,7 +434,8 @@ namespace {
     return {{"particles", effects.particles},
             {"volumes", effects.volumes},
             {"lights", effects.lights},
-            {"cues", cues}};
+            {"cues", cues},
+            {"sounds", effects.sounds}};
   }
 
   /// Ticks of scripted input still waiting to run.

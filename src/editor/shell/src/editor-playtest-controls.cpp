@@ -3,6 +3,8 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/gui/gui-nav-buttons.h>
+#include <engine/input/gamepad-actions.h>
+#include <engine/input/player-input-builder.h>
 
 namespace eng::editor {
 
@@ -75,6 +77,24 @@ std::optional<uint32_t> editorChoosingKeyFor(input::GamepadButton button,
     }
   }
   return std::nullopt;
+}
+
+sim::PlayerInput editorPadInput(const input::GamepadState& pad,
+                                const input::InputBindings& bindings,
+                                const input::MoveBasis& basis) {
+  input::ActionValues values;
+  input::offerGamepad(values, pad, bindings);
+  return input::makePlayerInput(values, {}, basis);
+}
+
+uint8_t editorPadPlayers(const input::GamepadSeats& seats) {
+  uint8_t top = 0;
+  for (uint8_t seat = 1; seat < sim::MAX_PLAYERS; ++seat) {
+    if (seats.occupied(seat)) {
+      top = seat;
+    }
+  }
+  return top;
 }
 
 input::MoveBasis editorMoveBasis(const IsoAxes& axes) {

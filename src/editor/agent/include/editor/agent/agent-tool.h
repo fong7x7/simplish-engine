@@ -135,6 +135,20 @@ enum class AgentTool : uint8_t {
   SEND_INPUT,
   /// Pause a running playtest and run an exact number of ticks of it.
   STEP_PLAYTEST,
+  /// The user's keys and pad controls, as the Controls screen shows them.
+  GET_CONTROLS,
+  /// Rebind an action, set the pad's deadzones, or reset the controls.
+  SET_CONTROLS,
+  /// The user's volumes, and the project's own sounds.
+  GET_SOUND,
+  /// Set the master or a bus's volume, or the mute.
+  SET_VOLUME,
+  /// Play one of the project's sound files in a slot, or the built-in one.
+  SET_SOUND,
+  /// Bring a sound file into the project.
+  IMPORT_SOUND,
+  /// Play a slot or a project sound file once.
+  PLAY_SOUND,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -169,7 +183,10 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::CREATE_LEVEL,   AgentTool::OPEN_LEVEL,
     AgentTool::GET_PLAYTEST,   AgentTool::START_PLAYTEST,
     AgentTool::STOP_PLAYTEST,  AgentTool::SEND_INPUT,
-    AgentTool::STEP_PLAYTEST,
+    AgentTool::STEP_PLAYTEST,  AgentTool::GET_CONTROLS,
+    AgentTool::SET_CONTROLS,   AgentTool::GET_SOUND,
+    AgentTool::SET_VOLUME,     AgentTool::SET_SOUND,
+    AgentTool::IMPORT_SOUND,   AgentTool::PLAY_SOUND,
 };
 
 }  // namespace eng::editor

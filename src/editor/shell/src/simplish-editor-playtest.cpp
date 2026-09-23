@@ -119,6 +119,7 @@ void SimplishEditor::reloadDataTables() {
   reloadCharacters();
   reloadBehaviors();
   reloadEnemies();
+  reloadSounds();
 }
 
 EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
@@ -200,7 +201,7 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   game::GameSetup setup = makeEditorPlaytestSetup(
       state_.document, state_.assets, playtestFallback());
   setup.characters[0] = character;
-  addEditorStandIns(setup, state_.document, state_.playtest_stand_ins);
+  addPlaytestPlayers(setup);
   playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
                                                       state_.level_id);
   beginPlaytestState();
@@ -209,10 +210,21 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   showStatusMessage(playingMessage());
 }
 
+void SimplishEditor::addPlaytestPlayers(game::GameSetup& setup) const {
+  // Room for everyone holding a pad, and stand-ins in whatever seats are
+  // left up to the number asked for.
+  addEditorStandIns(
+      setup, state_.document,
+      std::max(state_.playtest_stand_ins, editorPadPlayers(seats_)));
+}
+
 std::string SimplishEditor::playingMessage() const {
   const std::string& name = playtest_->character(0).name;
+  const uint8_t pads = editorPadPlayers(seats_);
+  const std::string on_pads =
+      pads == 0 ? "" : ", players 2–" + std::to_string(pads + 1) + " on pads";
   return "Playing " + state_.level_id + (name.empty() ? "" : " as " + name) +
-         " — F5 or Esc to stop";
+         on_pads + " — F5 or Esc to stop";
 }
 
 game::GameContent SimplishEditor::playtestContent() const {
@@ -239,6 +251,7 @@ void SimplishEditor::stopPlaytest() {
     return;
   }
   saveLastPlaytestReplay();
+  audio().stopAll();
   playtest_.reset();
   resetEditEffects();
   state_.playtest = EditorPlaytestState{};
@@ -269,6 +282,7 @@ void SimplishEditor::tickPlaytest() {
   if (state_.playtest.clock == EditorPlaytestClock::PAUSED) {
     return;
   }
+  feedPadPlayers();
   const FixedStepAdvance due =
       playtest_->advance(elapsed, livePlayerInput(), state_.playtest.scripted);
   playtest_alpha_ = due.interpolation;
@@ -279,6 +293,13 @@ void SimplishEditor::tickPlaytest() {
 }
 
 void SimplishEditor::afterPlaytestTicks() {
+  // What the ticks did to player 1, felt through the pad in their seat.
+  const input::GamepadRumble felt = playtest_->takeRumble();
+  if (const std::optional<uint64_t> pad = seats_.device(0);
+      pad && input::isRumbling(felt)) {
+    (void)rumbleGamepad(*pad, felt);
+  }
+  hearPlaytest();
   playtest_->publish(state_.playtest);
   followPlayer();
   refreshPlacementMarkers();
@@ -301,6 +322,7 @@ void SimplishEditor::stepPlaytest(uint32_t ticks) {
     return;
   }
   state_.playtest.clock = EditorPlaytestClock::PAUSED;
+  feedPadPlayers();
   for (uint32_t i = 0; i < ticks; ++i) {
     playtest_->step(livePlayerInput(), state_.playtest.scripted);
     // A step is a tick's worth of time for the effects too.
@@ -328,8 +350,8 @@ sim::PlayerInput SimplishEditor::livePlayerInput() {
   // Keys and the pad in use through the same bindings, the stronger of the
   // two winning, so either can be picked up mid-run.
   input::ActionValues values{held_actions_};
-  if (const input::GamepadState* pad = gamepads().active()) {
-    input::offerGamepad(values, *pad, input_bindings_);
+  if (const input::GamepadState* pad = playerOnePad()) {
+    input::offerGamepad(values, *pad, state_.controls.bindings);
   }
   const EditorViewportWidget* viewport = viewportWidget();
   if (viewport == nullptr) {
@@ -340,9 +362,34 @@ sim::PlayerInput SimplishEditor::livePlayerInput() {
   }
   // Movement and stick aim follow the camera: up is up the screen, whichever
   // of the two projections the project draws with. A resting aim stick
-  // leaves the cursor aiming.
-  return input::makePlayerInput(values, cursorAim(),
+  // leaves the cursor aiming — unless the pad is what is in use, when a
+  // cursor left lying in the viewport would drag the aim to it; then the
+  // player keeps the aim they had.
+  const Vec2 fallback =
+      inputMethod() == input::InputMethod::GAMEPAD ? Vec2{} : cursorAim();
+  return input::makePlayerInput(values, fallback,
                                 editorMoveBasis(viewport->camera.axes));
+}
+
+const input::GamepadState* SimplishEditor::playerOnePad() const {
+  const std::optional<uint64_t> device = seats_.device(0);
+  return device ? gamepads().state(*device) : nullptr;
+}
+
+void SimplishEditor::feedPadPlayers() {
+  const EditorViewportWidget* viewport = viewportWidget();
+  const input::MoveBasis basis = viewport != nullptr
+                                     ? editorMoveBasis(viewport->camera.axes)
+                                     : input::MoveBasis{};
+  for (uint8_t slot = 1; slot < sim::MAX_PLAYERS; ++slot) {
+    const std::optional<uint64_t> device = seats_.device(slot);
+    const input::GamepadState* pad =
+        device ? gamepads().state(*device) : nullptr;
+    playtest_->setPadInput(
+        slot, pad != nullptr ? std::optional{editorPadInput(
+                                   *pad, state_.controls.bindings, basis)}
+                             : std::nullopt);
+  }
 }
 
 Vec2 SimplishEditor::cursorAim() {
@@ -368,6 +415,24 @@ void SimplishEditor::followPlayer() {
   const Vec3 at = playtest_->renderPosition(0, playtest_alpha_);
   viewport->camera.focus =
       worldToIso(viewport->camera.axes, {at.x, at.y, at.z});
+}
+
+void SimplishEditor::hearPlaytest() {
+  audio().setListener(playtestListener());
+  for (const game::CombatCue& cue : playtest_->takeHeardCues()) {
+    (void)audio().play(game::combatCueSound(cue, combat_sounds_));
+  }
+}
+
+audio::AudioListener SimplishEditor::playtestListener() {
+  audio::AudioListener listener;
+  if (playtest_->players().slots.size() > 0) {
+    listener.at = playtest_->renderPosition(0, playtest_alpha_);
+  }
+  if (const EditorViewportWidget* viewport = viewportWidget()) {
+    listener.right = editorMoveBasis(viewport->camera.axes).right;
+  }
+  return listener;
 }
 
 void SimplishEditor::appendPlaytestMarkers(
@@ -575,7 +640,7 @@ bool SimplishEditor::handlePlayingKey(uint32_t key) {
     return true;
   }
   const std::vector<input::InputAction> actions =
-      input_bindings_.actionsFor(input::InputSource::key(key));
+      state_.controls.bindings.actionsFor(input::InputSource::key(key));
   for (const input::InputAction action : actions) {
     held_actions_.press(action);
   }
@@ -584,12 +649,15 @@ bool SimplishEditor::handlePlayingKey(uint32_t key) {
 
 void SimplishEditor::onClientKeyUp(uint32_t key) {
   for (const input::InputAction action :
-       input_bindings_.actionsFor(input::InputSource::key(key))) {
+       state_.controls.bindings.actionsFor(input::InputSource::key(key))) {
     held_actions_.release(action);
   }
 }
 
 void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
+  if (handleControlsButton(button) || handleSoundButton(button)) {
+    return;
+  }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
     if (const std::optional<uint32_t> key =
             editorChoosingKeyFor(button, gamepads().activeFamily())) {

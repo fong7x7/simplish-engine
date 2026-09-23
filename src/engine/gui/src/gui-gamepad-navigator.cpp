@@ -2,6 +2,7 @@
 #include <cmath>
 #include <engine/gui/gui-gamepad-navigator.h>
 #include <engine/gui/gui-nav-buttons.h>
+#include <engine/input/gamepad-actions.h>
 
 namespace eng {
 
@@ -16,6 +17,10 @@ namespace {
   constexpr float REPEAT_INTERVAL = 0.12f;
   /// How far the stick must lean to count as a direction: well past drift.
   constexpr float STICK_THRESHOLD = 0.5f;
+  /// The right stick's deadzone when it scrolls, and how many pixels a
+  /// second a full push scrolls.
+  constexpr float SCROLL_DEADZONE = 0.2f;
+  constexpr float SCROLL_SPEED = 900.0f;
 
   /// One button a menu reads, and what it asks for.
   struct NavButton {
@@ -80,6 +85,19 @@ GuiGamepadNavigator::update(const input::GamepadState* pad,
   pressButtons(*pad, family, out);
   before_ = *pad;
   return out;
+}
+
+Vec2 GuiGamepadNavigator::scrollDelta(const input::GamepadState* pad,
+                                      float dt_seconds) {
+  if (pad == nullptr) {
+    return {};
+  }
+  const Vec2 stick = input::applyStickDeadzone(
+      {pad->axis(GamepadAxis::RIGHT_X), pad->axis(GamepadAxis::RIGHT_Y)},
+      SCROLL_DEADZONE);
+  const float length = std::sqrt(stick.x * stick.x + stick.y * stick.y);
+  const float scale = length * SCROLL_SPEED * dt_seconds;
+  return {stick.x * scale, stick.y * scale};
 }
 
 void GuiGamepadNavigator::reset(const input::GamepadState* pad) {

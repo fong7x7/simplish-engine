@@ -105,3 +105,19 @@ TEST_CASE("a Nintendo pad confirms with A, on the right, and cancels with B") {
   REQUIRE(nav.update(&south, input::GamepadFamily::NINTENDO, 0.0f) ==
           Commands{GuiNavCommand::CANCEL});
 }
+
+TEST_CASE("the right stick scrolls faster the further it is pushed") {
+  GamepadState resting;
+  resting.setAxis(GamepadAxis::RIGHT_Y, 0.1f);
+  REQUIRE(GuiGamepadNavigator::scrollDelta(&resting, 1.0f).y == 0.0f);
+
+  GamepadState half;
+  half.setAxis(GamepadAxis::RIGHT_Y, 0.6f);
+  GamepadState full;
+  full.setAxis(GamepadAxis::RIGHT_Y, 1.0f);
+  const float slow = GuiGamepadNavigator::scrollDelta(&half, 1.0f).y;
+  const float fast = GuiGamepadNavigator::scrollDelta(&full, 1.0f).y;
+  REQUIRE(slow > 0.0f);
+  REQUIRE(fast > slow * 2.0f);
+  REQUIRE(GuiGamepadNavigator::scrollDelta(nullptr, 1.0f).y == 0.0f);
+}

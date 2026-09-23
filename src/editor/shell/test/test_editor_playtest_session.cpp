@@ -467,6 +467,28 @@ TEST_CASE("a shot fired in a playtest throws particles and a flash") {
   REQUIRE(session.effects().particles.live == state.effects.particles);
 }
 
+TEST_CASE("a shot fired in a playtest is heard, once, then counted") {
+  EditorPlaytestSession session = skirmisherSession();
+  (void)untilFired(session);
+
+  const std::vector<game::CombatCue> heard = session.takeHeardCues();
+  REQUIRE_FALSE(heard.empty());
+  REQUIRE(heard.front().kind == game::CombatCueKind::SHOT_FIRED);
+  REQUIRE(session.takeHeardCues().empty());
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE(state.effects.sounds == heard.size());
+}
+
+TEST_CASE("cues nobody takes to be heard stop piling up") {
+  EditorPlaytestSession session = skirmisherSession();
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 2000; ++tick) {
+    session.step({}, none);
+  }
+  REQUIRE(session.takeHeardCues().size() <= EDITOR_PLAYTEST_HEARD_CUES);
+}
+
 TEST_CASE("a playtest's effects age on the frame's time, not the tick's") {
   EditorPlaytestSession session = skirmisherSession();
   (void)untilFired(session);
@@ -494,4 +516,46 @@ TEST_CASE("however a playtest's effects are aged, its ticks hash the same") {
   aged.publish(a);
   untouched.publish(b);
   REQUIRE(a.hash == b.hash);
+}
+
+TEST_CASE("walking about with nothing happening rumbles nothing") {
+  EditorPlaytestSession session = sessionAt({0, 0, 0});
+  std::vector<EditorScriptedInput> none;
+  session.step(pushingRight(), none);
+  session.step(pushingRight(), none);
+  REQUIRE_FALSE(input::isRumbling(session.takeRumble()));
+}
+
+TEST_CASE("a pad seated for a player plays them in place of the stand-in") {
+  EditorDocument document = documentWithStarts();
+  game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+  addEditorStandIns(setup, document, 1);
+  setup.spawns[1] = {setup.spawns[0].x + 8.0F, setup.spawns[0].y, 0.0F};
+  EditorPlaytestSession session(setup, {}, "main");
+  // The pad pushes player 2 further away, where the stand-in would come
+  // back.
+  sim::PlayerInput away;
+  away.move_x = input::INPUT_AXIS_MAX;
+  session.setPadInput(1, away);
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 30; ++tick) {
+    session.step({}, none);
+  }
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE_FALSE(state.players[1].stand_in);
+  REQUIRE(state.players[1].position.x > setup.spawns[1].x);
+}
+
+TEST_CASE("a player whose pad is gone goes back to the stand-in") {
+  EditorDocument document = documentWithStarts();
+  game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
+  addEditorStandIns(setup, document, 1);
+  EditorPlaytestSession session(setup, {}, "main");
+  session.setPadInput(1, sim::PlayerInput{});
+  session.setPadInput(1, std::nullopt);
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE(state.players[1].stand_in);
+  REQUIRE_FALSE(state.players[1].pad);
 }

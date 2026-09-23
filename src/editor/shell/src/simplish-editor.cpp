@@ -8,6 +8,7 @@
 #include <editor/shell/editor-asset-scan.h>
 #include <editor/shell/editor-asset-thumbnail.h>
 #include <editor/shell/editor-asset-tree.h>
+#include <editor/shell/editor-audio-volumes.h>
 #include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
@@ -214,7 +215,15 @@ namespace {
 }  // namespace
 
 void SimplishEditor::setInputBindingsPath(const std::filesystem::path& path) {
-  input_bindings_ = loadEditorInputBindings(path);
+  state_.controls.file = path;
+  state_.controls.bindings = loadEditorInputBindings(path);
+  saved_controls_revision_ = state_.controls.revision;
+}
+
+void SimplishEditor::setAudioVolumesPath(const std::filesystem::path& path) {
+  state_.sound.file = path;
+  state_.sound.volumes = loadEditorAudioVolumes(path);
+  saved_sound_revision_.reset();
 }
 
 void SimplishEditor::setRecentProjectsPath(std::filesystem::path path) {
@@ -274,6 +283,8 @@ bool SimplishEditor::onInit() {
     return false;
   }
   initSceneRenderers();
+  combat_sounds_ =
+      game::loadCombatSounds(audio().clips(), audio().sampleRate());
   initChrome();
   applyProjectToChrome();
   layoutChrome();
@@ -424,6 +435,8 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   initAssetPanel(tree);
   // Last, so it draws over and is hit before everything it covers.
   initCharacterSelect(tree);
+  initControls(tree);
+  initSound(tree);
 }
 
 void SimplishEditor::initCharacterSelect(GuiWidgetTree& tree) {
@@ -527,10 +540,17 @@ void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
   if (auto* panel = tree.findWidget(asset_panel_id_)) {
     panel->rect = makeRect(0.0f, panel_top, window.w, window.h - panel_top);
   }
+  layoutOverlays(tree, makeRect(0.0f, top, viewport_w, panel_top - top));
+}
+
+void SimplishEditor::layoutOverlays(GuiWidgetTree& tree, const Rect& viewport) {
   // Over the viewport and nothing else: the selector is about the level
-  // being played, and the panels around it stay where they are.
-  if (auto* select = tree.findWidget(character_select_id_)) {
-    select->rect = makeRect(0.0f, top, viewport_w, panel_top - top);
+  // being played, the Controls screen about playing it, and the panels
+  // around them stay where they are.
+  for (const GuiWidgetId id : {character_select_id_, controls_id_, sound_id_}) {
+    if (auto* overlay = tree.findWidget(id)) {
+      overlay->rect = viewport;
+    }
   }
 }
 
@@ -601,6 +621,7 @@ void SimplishEditor::clearDocument() {
 void SimplishEditor::adoptAssetScan(EditorAssetScan scan) {
   state_.asset_tree = buildEditorAssetTree(scan);
   state_.sheets = std::move(scan.sheets);
+  state_.sound_files = std::move(scan.sounds);
   state_.assets = std::move(scan.assets);
   // The built-in shapes go on the end of the asset list, so a placement
   // names one exactly as it names a scanned model; the lights are numbered
@@ -2012,6 +2033,8 @@ void SimplishEditor::runStateHook() {
 bool SimplishEditor::onTick(float dt) {
   syncViewState();
   runStateHook();
+  tickControls();
+  tickSound();
   tickPlaytest();
   if (chromeNeedsLayout()) {
     layoutChrome();
@@ -2019,13 +2042,17 @@ bool SimplishEditor::onTick(float dt) {
   if (status_override_left_ > 0.0f) {
     status_override_left_ -= dt;
   }
-  animation_clock_ += dt;
-  tickEditEffects(dt);
-  publishEffects();
+  tickPresentation(dt);
   tickMenuBar();
   refreshToolbar();
   pumpThumbnails();
   return !quit_requested_;
+}
+
+void SimplishEditor::tickPresentation(float dt) {
+  animation_clock_ += dt;
+  tickEditEffects(dt);
+  publishEffects();
 }
 
 void SimplishEditor::tickMenuBar() {
@@ -2140,13 +2167,8 @@ bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
 }
 
 void SimplishEditor::executeCommand(EditorMenuCommand command) {
-  if (runProjectCommand(command)) {
-    return;
-  }
-  if (runEditCommand(command)) {
-    return;
-  }
-  if (runPlaytestCommand(command)) {
+  if (runProjectCommand(command) || runEditCommand(command) ||
+      runPlaytestCommand(command) || runSettingsCommand(command)) {
     return;
   }
   if (command == EditorMenuCommand::ABOUT) {
@@ -2154,6 +2176,19 @@ void SimplishEditor::executeCommand(EditorMenuCommand command) {
   } else {
     applyViewCommand(command);
   }
+}
+
+bool SimplishEditor::runSettingsCommand(EditorMenuCommand command) {
+  if (command == EditorMenuCommand::CONTROLS) {
+    openControls();
+  } else if (command == EditorMenuCommand::SOUND) {
+    openSound();
+  } else if (command == EditorMenuCommand::IMPORT_SOUND) {
+    importSound();
+  } else {
+    return false;
+  }
+  return true;
 }
 
 bool SimplishEditor::runPlaytestCommand(EditorMenuCommand command) {
@@ -2427,7 +2462,8 @@ bool SimplishEditor::handleSelectionKey(uint32_t key) {
 
 void SimplishEditor::onClientKeyDown(uint32_t key, ClientKeyDownKind kind,
                                      ClientKeyModifiers modifiers) {
-  if (handlePlaytestKey(key, kind)) {
+  if (handleControlsKey(key, kind) || handleSoundKey(key, kind) ||
+      handlePlaytestKey(key, kind)) {
     return;
   }
   if (isPlaying()) {
@@ -2512,9 +2548,10 @@ void SimplishEditor::shutdownChrome() {
 
 void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   // The root goes last: destroying it takes every descendant with it.
-  for (GuiWidgetId* id : {&character_select_id_, &asset_panel_id_,
-                          &properties_panel_id_, &menu_bar_id_, &toolbar_id_,
-                          &viewport_id_, &title_panel_, &root_panel_}) {
+  for (GuiWidgetId* id :
+       {&controls_id_, &sound_id_, &character_select_id_, &asset_panel_id_,
+        &properties_panel_id_, &menu_bar_id_, &toolbar_id_, &viewport_id_,
+        &title_panel_, &root_panel_}) {
     tree.destroyWidget(*id);
     *id = GUI_WIDGET_ID_INVALID;
   }

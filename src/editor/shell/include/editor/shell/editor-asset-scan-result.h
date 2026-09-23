@@ -29,6 +29,10 @@ struct EditorAssetScan {
   /// mesh, no thumbnail and no index for a placement to name. What points
   /// at one is a billboard's `sheet` field, which holds this path.
   std::vector<std::filesystem::path> sheets;
+  /// Every sound file found, as paths relative to the assets root, sorted.
+  /// Paths, as sheets are: what points at one is a row of the project's
+  /// sounds table (`editor-sound-table.h`), which holds this path.
+  std::vector<std::filesystem::path> sounds;
 };
 
 }  // namespace eng::editor

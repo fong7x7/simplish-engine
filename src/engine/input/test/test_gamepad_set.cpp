@@ -68,3 +68,13 @@ TEST_CASE("a pad plugged back in starts from all released") {
   pads.update(std::array{holding(3, GamepadButton::START)});
   REQUIRE(pads.pressed(GamepadButton::START));
 }
+
+TEST_CASE("a pad is touched on the frame it is picked up, not after") {
+  GamepadSet pads;
+  pads.update(std::array{pushing(1, 0.0F)});
+  REQUIRE_FALSE(pads.touched());
+  pads.update(std::array{pushing(1, 0.9F)});
+  REQUIRE(pads.touched());
+  pads.update(std::array{pushing(1, 0.9F)});
+  REQUIRE_FALSE(pads.touched());
+}

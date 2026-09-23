@@ -11,6 +11,8 @@
 #include <game/combat/combat-system.h>
 #include <game/content/character-lookup.h>
 #include <game/fx/combat-fx.h>
+#include <game/fx/combat-rumble.h>
+#include <game/fx/combat-sounds.h>
 #include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
@@ -234,12 +236,64 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
                                  std::vector<EditorScriptedInput>& scripted) {
   previous_ = world_->players().position;
   previous_actors_ = world_->actors().position;
+  const std::optional<uint32_t> one = playerOneIndex();
+  const std::optional<uint16_t> health_before =
+      one ? std::optional{world_->players().health[*one]} : std::nullopt;
   sim::TickInput input = nextTickInput(live, scripted);
   addStandInInput(input);
   const sim::TickResult result = simulation_.step(input);
   recorder_.record(input, result);
   last_hash_ = result.hash;
   playCues();
+  feelTick(health_before);
+}
+
+std::optional<uint32_t> EditorPlaytestSession::playerOneIndex() const {
+  const game::PlayerPool& pool = world_->players();
+  for (uint32_t i = 0; i < pool.slots.size(); ++i) {
+    if (pool.input_slot[i] == 0) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+void EditorPlaytestSession::feelTick(std::optional<uint16_t> health_before) {
+  const std::optional<uint32_t> one = playerOneIndex();
+  if (!one) {
+    return;
+  }
+  const game::PlayerPool& pool = world_->players();
+  const uint16_t now = pool.health[*one];
+  const uint16_t before = health_before.value_or(now);
+  const auto lost = static_cast<uint16_t>(before > now ? before - now : 0);
+  pending_rumble_ = input::strongerRumble(
+      pending_rumble_,
+      input::strongerRumble(
+          game::combatCuesRumble(world_->combatCues(), pool.position[*one]),
+          game::hurtRumble(lost, pool.max_health[*one])));
+}
+
+input::GamepadRumble EditorPlaytestSession::takeRumble() {
+  return std::exchange(pending_rumble_, input::GamepadRumble{});
+}
+
+std::vector<game::CombatCue> EditorPlaytestSession::takeHeardCues() {
+  sounds_heard_ += heard_cues_.size();
+  return std::exchange(heard_cues_, {});
+}
+
+void EditorPlaytestSession::hearCues() {
+  // Ticks a frame runs are heard together; past a few frames' worth
+  // unheard — nobody is taking them — the oldest are what is lost.
+  const std::optional<uint32_t> one = playerOneIndex();
+  const Vec3 listener = one ? world_->players().position[*one] : Vec3{};
+  game::hearCombatCues(world_->combatCues(), listener, heard_cues_);
+  if (heard_cues_.size() > EDITOR_PLAYTEST_HEARD_CUES) {
+    const auto excess = heard_cues_.size() - EDITOR_PLAYTEST_HEARD_CUES;
+    heard_cues_.erase(heard_cues_.begin(),
+                      heard_cues_.begin() + static_cast<ptrdiff_t>(excess));
+  }
 }
 
 void EditorPlaytestSession::playCues() {
@@ -248,6 +302,7 @@ void EditorPlaytestSession::playCues() {
   for (const game::CombatCue& cue : cues) {
     ++cues_played_[static_cast<size_t>(cue.kind)];
   }
+  hearCues();
 }
 
 void EditorPlaytestSession::stepEffects(float seconds) {
@@ -269,6 +324,7 @@ void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
   state.effects.volumes = fx_.volumes.live;
   state.effects.lights = fx_.lights.live;
   state.effects.cues = cues_played_;
+  state.effects.sounds = sounds_heard_;
 }
 
 void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {
@@ -276,27 +332,38 @@ void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {
   state.players.clear();
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     const Vec3& at = pool.position[i];
-    state.players.push_back(
-        {.player = static_cast<uint8_t>(pool.input_slot[i] + 1U),
-         .position = {at.x, at.y, at.z},
-         .character = character(i).id,
-         .health = pool.health[i],
-         .max_health = pool.max_health[i],
-         .downed = pool.downed[i] != 0,
-         .out = pool.out[i] != 0,
-         .stand_in = pool.input_slot[i] != 0});
+    const uint8_t slot = pool.input_slot[i];
+    const bool on_pad = slot != 0 && pad_input_[slot].has_value();
+    state.players.push_back({.player = static_cast<uint8_t>(slot + 1U),
+                             .position = {at.x, at.y, at.z},
+                             .character = character(i).id,
+                             .health = pool.health[i],
+                             .max_health = pool.max_health[i],
+                             .downed = pool.downed[i] != 0,
+                             .out = pool.out[i] != 0,
+                             .stand_in = slot != 0 && !on_pad,
+                             .pad = on_pad});
   }
 }
 
 void EditorPlaytestSession::addStandInInput(sim::TickInput& input) const {
-  // Every player past the first is a stand-in: their input is worked out
-  // from the world as it stands, and recorded like anyone's.
+  // Every player past the first is a pad seated for them or, without one,
+  // a stand-in, whose input is worked out from the world as it stands.
+  // Either is recorded like anyone's.
   const game::PlayerPool& players = world_->players();
   for (uint32_t p = 0; p < players.slots.size(); ++p) {
     const uint8_t slot = players.input_slot[p];
     if (slot != 0) {
-      input.players[slot] = game::standInInput(*world_, slot);
+      input.players[slot] =
+          pad_input_[slot].value_or(game::standInInput(*world_, slot));
     }
+  }
+}
+
+void EditorPlaytestSession::setPadInput(uint8_t slot,
+                                        std::optional<sim::PlayerInput> input) {
+  if (slot > 0 && slot < pad_input_.size()) {
+    pad_input_[slot] = input;
   }
 }
 

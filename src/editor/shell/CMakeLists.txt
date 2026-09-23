@@ -71,6 +71,15 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-ground.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-controls.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-controls-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-controls-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-audio-volumes.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sound-import.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sound-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sound-table.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sound-widget.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sound.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sprites.cpp"
 )
 

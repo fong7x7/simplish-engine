@@ -160,6 +160,13 @@ bool RenderedGameClient::guiDispatchKey(uint32_t keycode) const {
   return gui_.tree->dispatchKey(keycode);
 }
 
+bool RenderedGameClient::guiScrollFocusBy(float dx, float dy) const {
+  if (gui_.tree == nullptr) {
+    return false;
+  }
+  return gui_.tree->scrollFocusBy(dx, dy);
+}
+
 bool RenderedGameClient::guiDispatchNav(eng::GuiNavCommand command) const {
   if (gui_.tree == nullptr) {
     return false;

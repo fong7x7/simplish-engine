@@ -162,6 +162,11 @@ public:
   /// the caller's, to close the menu.
   bool routeNav(GuiNavCommand command);
 
+  /// Scroll the nearest ancestor of the focused widget that scrolls by
+  /// (@p dx, @p dy) pixels — what a pad's right stick does. True if one
+  /// moved.
+  bool scrollFocusBy(float dx, float dy);
+
   /// Keep navigation inside @p scope's subtree — the menu or dialog that
   /// is open — and move focus into it when it is outside.
   /// GUI_WIDGET_ID_INVALID lets it range over the whole tree again.
@@ -302,6 +307,9 @@ private:
   /// dropping typing focus from any other text field, and scrolling it
   /// into view.
   void moveFocus(GuiWidget* widget);
+
+  /// Tell @p was it lost focus and @p now it gained it; either may be null.
+  static void announceFocusChange(GuiWidget* was, GuiWidget* now);
 
   /// Scroll every scrolling ancestor of the focused tree widget so it
   /// shows, innermost first.

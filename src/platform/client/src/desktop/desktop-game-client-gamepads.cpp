@@ -21,6 +21,9 @@ void DesktopGameClient::openGamepads() {
 
 void DesktopGameClient::pollGamepads(float dt_seconds) {
   gamepads_.poll();
+  if (gamepads_.pads().touched()) {
+    noteInputMethod(eng::input::InputMethod::GAMEPAD);
+  }
   for (std::size_t i = 0; i < eng::input::GAMEPAD_BUTTON_COUNT; ++i) {
     const auto button = static_cast<eng::input::GamepadButton>(i);
     if (gamepads_.pads().pressed(button)) {
@@ -37,6 +40,12 @@ void DesktopGameClient::navigateGuiByPad(float dt_seconds) {
   for (const eng::GuiNavCommand command :
        gui_navigator_.update(pads.active(), pads.activeFamily(), dt_seconds)) {
     dispatchNav(command);
+  }
+  // The right stick scrolls whatever list focus is in.
+  const eng::Vec2 scroll =
+      eng::GuiGamepadNavigator::scrollDelta(pads.active(), dt_seconds);
+  if (scroll.x != 0.0f || scroll.y != 0.0f) {
+    (void)guiScrollFocusBy(scroll.x, scroll.y);
   }
 }
 
@@ -64,6 +73,29 @@ bool DesktopGameClient::navigateGuiByKey(const SDL_Event& event) {
 void DesktopGameClient::setGuiPadNavigation(GuiPadNavigation mode) {
   gui_pad_navigation_ = mode;
   gui_navigator_.reset(gamepads_.pads().active());
+}
+
+void DesktopGameClient::trackInputMethod(const SDL_Event& event) {
+  using eng::input::InputMethod;
+  switch (event.type) {
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_WHEEL:
+      noteInputMethod(InputMethod::POINTER);
+      break;
+    case SDL_EVENT_KEY_DOWN:
+      noteInputMethod(InputMethod::KEYBOARD);
+      break;
+    default:
+      break;
+  }
+}
+
+void DesktopGameClient::noteInputMethod(eng::input::InputMethod method) {
+  if (method != input_method_) {
+    input_method_ = method;
+    onClientInputMethodChanged(method);
+  }
 }
 
 void DesktopGameClient::trackGamepadFocus(const SDL_Event& event) {

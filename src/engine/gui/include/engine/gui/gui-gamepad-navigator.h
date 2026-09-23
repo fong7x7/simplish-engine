@@ -9,6 +9,7 @@
 
 #include <engine/input/gamepad-family.h>
 #include <engine/input/gamepad-state.h>
+#include <engine/math/vec2.h>
 #include <optional>
 #include <vector>
 
@@ -31,6 +32,13 @@ public:
   [[nodiscard]] std::vector<GuiNavCommand>
   update(const input::GamepadState* pad, input::GamepadFamily family,
          float dt_seconds);
+
+  /// How far @p pad's right stick scrolls in @p dt_seconds, in pixels:
+  /// nothing inside its deadzone, then faster the further it is pushed —
+  /// squared, so a small push reads a paragraph and a full one skims.
+  /// +Y scrolls towards the end, as the stick's +Y is down.
+  [[nodiscard]] static Vec2 scrollDelta(const input::GamepadState* pad,
+                                        float dt_seconds);
 
   /// Start over from @p pad as it reads now — or from nothing — treating
   /// whatever is already down as handled: the South press that opened a

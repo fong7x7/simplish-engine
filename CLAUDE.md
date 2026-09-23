@@ -20,6 +20,7 @@ these rules.
 | Skeletons, animation clips, glTF rigs, skinned drawing | [docs/engine/animation.md](docs/engine/animation.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters) that limits it to a handful of characters |
 | Enemies and NPCs: perception, behaviors, steering, attacks and damage, the Behavior row | [docs/game/actors.md](docs/game/actors.md) and [ADR-009](docs/decisions/ADR-009-actor-behavior-state-machines.md) — an actor's intelligence is a data state machine over closed sets, never a script |
 | Input: actions, key and pad bindings, deadzones, the bindings file, pad backends | [docs/engine/input.md](docs/engine/input.md) — the engine owns the device-neutral vocabulary; which pads a build supports is `src/platform/input/`'s, one backend per target |
+| Sound: clips, the mixer, voice stealing, ducking, panning, audio output, combat sounds, volume settings, a project's sound files | [docs/engine/audio.md](docs/engine/audio.md) and [ADR-010](docs/decisions/ADR-010-software-mixer.md) — the engine mixes; a platform supplies only an output, one backend a build |
 | Navigation grid, line of sight, path planning | [docs/engine/spatial.md](docs/engine/spatial.md) |
 | Particles, volumetric smoke, flashes of light, combat cues, the effects pass | [docs/engine/fx.md](docs/engine/fx.md) — effects read the simulation's cues and never write it |
 | Painted ground: terrains, the Tile tool's brush, autotiling, the tile layer in a level file | [docs/engine/ground.md](docs/engine/ground.md) — every shape comes from a per-quarter-cell rule, not an authored tile set |
@@ -144,7 +145,11 @@ posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (actions
 from keys and pads through a remappable binding scheme, quantised into a
-`PlayerInput` — [docs/engine/input.md](docs/engine/input.md)), `physics` (a first slice: cylinder
+`PlayerInput` — [docs/engine/input.md](docs/engine/input.md)), `audio` (WAV
+and Ogg clips, synthesised stand-ins, a software mixer with priority voice
+stealing, buses, music ducking and panning around a listener, fed through a
+lock-free queue to the output's thread, and volume settings a player saves —
+[docs/engine/audio.md](docs/engine/audio.md)), `physics` (a first slice: cylinder
 against boxes, and a static-box broadphase), `spatial` (navigation grid,
 line of sight, A*, flow fields, a neighbour grid —
 [docs/engine/spatial.md](docs/engine/spatial.md)); game `content`,
@@ -154,18 +159,21 @@ by props, hurt, downed and revived; actors that perceive, plan paths, move
 and attack by their behavior, 2,000 of them inside the AI budget —
 [docs/game/actors.md](docs/game/actors.md); projectiles, hazard pools and
 blasts through an effects buffer the damage phase applies, each cued
-for presentation, a blast leaving a cloud of volumetric smoke behind; stand-in players; the `SimulationSystems` composing
+for presentation, a blast leaving a cloud of volumetric smoke behind,
+and the nearest few of each cue heard; stand-in players; the `SimulationSystems` composing
 them; and the effect each combat cue plays); platform
 `render` (five backends), `input` (pad backends: SDL3 on desktop, none
-elsewhere), `client` (SDL3), `agent` (loopback HTTP); editor
+elsewhere), `audio` (output backends, the same way), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest, sprite billboards
-standing in a level, and the Tile tool painting its ground) and `agent`;
-`bin/editor`.
+standing in a level, and the Sound screen: volumes, and a project's own
+sound files imported and played in the game's sound slots, and the Tile
+tool painting its ground) and `agent`; `bin/editor`.
 
 Not written yet: the rest of `engine/spatial` (per-objective fields, the
 tile grid), `render-iso`, the rest of `render-sprite` (atlas packing,
 eight-direction facing, the batcher), the rest of `render-fx` (decals,
-trails, screen shake), `audio`, `content`, `net`,
+trails, screen shake), the rest of `audio` (music streaming, occlusion,
+loudness normalisation on import), `content`, `net`,
 `debug`, the rest of `physics`, and everything in `src/game/` past
 characters, players, actors and what actors' attacks do — weapons,
 loadouts, the director, the run's structure. The isometric renderer is ahead, not behind — check

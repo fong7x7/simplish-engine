@@ -31,6 +31,9 @@ struct EditorPlaytestPlayer {
   bool out = false;
   /// Whether a stand-in plays them rather than the keyboard or the agent.
   bool stand_in = false;
+  /// Whether a pad seated for them plays them — players 2 to 4 only;
+  /// player 1 is the keyboard and whatever pad is in their seat.
+  bool pad = false;
 };
 
 }  // namespace eng::editor

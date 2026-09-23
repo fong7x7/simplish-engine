@@ -6,6 +6,7 @@
 
 set(_client_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client-audio.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-game-client-gamepads.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-gui-nav-keys.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/desktop/desktop-key-names.cpp"
@@ -20,8 +21,10 @@ simplish_add_module(simplish-platform-client
         simplish-engine-core
         simplish-engine-gui
         simplish-engine-render
+        simplish-engine-audio
         simplish-engine-client
         simplish-engine-input
+        simplish-platform-audio
         simplish-platform-input
         simplish-platform-render
 )

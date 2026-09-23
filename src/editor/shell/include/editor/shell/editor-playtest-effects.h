@@ -24,6 +24,9 @@ struct EditorPlaytestEffects {
   uint32_t lights = 0;
   /// Cues played since the playtest started, indexed by `CombatCueKind`.
   std::array<uint64_t, game::COMBAT_CUE_KIND_COUNT> cues{};
+  /// Cues handed to the speakers since the playtest started: of each
+  /// kind a tick left, the few nearest player 1.
+  uint64_t sounds = 0;
 };
 
 }  // namespace eng::editor

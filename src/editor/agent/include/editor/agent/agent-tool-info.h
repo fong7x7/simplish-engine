@@ -338,7 +338,9 @@ inline constexpr AgentParam AGENT_PARAMS_START_PLAYTEST[] = {
      "Stand-in players to add beside player 1, 0 to 3 — the multi-player "
      "preview: each spawns on its player's start, or beside player 1, and "
      "is played by the game's stand-in, which revives teammates who are "
-     "down, backs away from hostiles and keeps up with the others. "
+     "down, backs away from hostiles and keeps up with the others. A "
+     "player a pad is seated for is played by that pad instead, and the "
+     "playtest adds as many players as there are pads even past this. "
      "Omitted, it is what Level › Play with N Stand-ins last chose, or "
      "none. Remembered for later playtests."},
 };
@@ -454,6 +456,69 @@ inline constexpr AgentParam AGENT_PARAMS_FIND_PATH[] = {
 inline constexpr AgentParam AGENT_PARAMS_STEP_PLAYTEST[] = {
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to run, 1 to 3600 (60 is a second). Defaults to 1."},
+};
+
+/// `set_volume` sets any of the volumes, and the mute.
+inline constexpr AgentParam AGENT_PARAMS_SET_VOLUME[] = {
+    {"master", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "The volume over everything, 0 to 1 — a slider's position; the gain is "
+     "its square. Omitted, kept."},
+    {"effects", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "The effects bus — shots, hits, blasts — 0 to 1. Omitted, kept."},
+    {"music", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "The music bus, 0 to 1. Omitted, kept."},
+    {"interface", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "The interface bus — menus and the HUD — 0 to 1. Omitted, kept."},
+    {"muted", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "true silences everything, keeping the volumes; false brings them "
+     "back. Omitted, kept."},
+};
+
+/// `set_sound` puts a project file in a slot.
+inline constexpr AgentParam AGENT_PARAMS_SET_SOUND[] = {
+    {"slot", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The sound, as get_sound lists it — combat.shot_fired, "
+     "combat.shot_hit_body, combat.shot_hit_wall or combat.blast, or the "
+     "part after the dot."},
+    {"file", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "One of get_sound's sound_files, relative to assets/ "
+     "(sounds/boom.wav); an empty string plays the built-in sound again."},
+};
+
+/// `import_sound` brings a file into the project.
+inline constexpr AgentParam AGENT_PARAMS_IMPORT_SOUND[] = {
+    {"path", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The absolute path of a .wav or .ogg file on this machine."},
+    {"slot", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "A sound to play it in from now on, as set_sound takes it. Omitted, "
+     "the file is only added."},
+};
+
+/// `play_sound` plays something once.
+inline constexpr AgentParam AGENT_PARAMS_PLAY_SOUND[] = {
+    {"name", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "A slot (combat.blast, or blast) as the game plays it now, or one of "
+     "get_sound's sound_files."},
+};
+
+/// `set_controls` rebinds one action, tunes the deadzones, or resets.
+inline constexpr AgentParam AGENT_PARAMS_SET_CONTROLS[] = {
+    {"action", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The action to rebind, as get_controls names it — move_up, fire, "
+     "aim_left and so on. Needs controls."},
+    {"controls", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The action's controls, comma-separated, as the bindings file names "
+     "them — key:w, key:space, pad:south, pad:-left_y, pad:right_trigger. "
+     "They replace all it had; an empty string unbinds it."},
+    {"left_stick", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Left stick radial deadzone, 0 to 0.95; omitted, kept."},
+    {"right_stick", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Right stick radial deadzone, 0 to 0.95; omitted, kept."},
+    {"trigger", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Trigger deadzone, 0 to 0.95; omitted, kept."},
+    {"reset", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "True first puts every action back on its defaults, keeping the "
+     "deadzones, as R on the Controls screen does. Defaults to false."},
 };
 
 /// `open_project` points the editor at a directory.
@@ -849,12 +914,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
      "simulation is on, where each player is, who they play as, their "
-     "health, whether they are down or out and whether a stand-in plays "
-     "them; every actor with its state, target and health; every "
+     "health, whether they are down or out and whether a stand-in or a "
+     "seated pad (players 2 to 4) plays them; every actor with its state, "
+     "target and health; every "
      "projectile in flight and hazard pool on the floor; the effects "
      "shots, hits and blasts are playing — particles and flashes live now, "
      "and how many shot_fired, shot_hit_body, shot_hit_wall and blast cues "
-     "the run has played; whether the run is over (no player up); the "
+     "the run has played, and how many of those were sent to be heard "
+     "(sounds: the nearest few of each kind a tick); whether the run is "
+     "over (no player up); the "
      "latest tick hash, how many ticks the frame clock has dropped, and "
      "how many ticks of queued input are left. Poll it after "
      "start_playtest or send_input to watch the game run.",
@@ -898,6 +966,67 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "actor's decisions tick by tick. Carried out by the running editor on "
      "its next frame; get_playtest shows the result.",
      AgentToolEffect::HOST, AGENT_PARAMS_STEP_PLAYTEST},
+    {AgentTool::GET_CONTROLS,
+     "get_controls",
+     "The user's control scheme — the keys and pad controls the playtest "
+     "reads, as Edit › Controls shows them — in the bindings file's own "
+     "shape: each action's controls (key:w, pad:south, pad:-left_y), the "
+     "pad's deadzones, and the file they are kept in, in the user's "
+     "application data rather than the project.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_CONTROLS, "set_controls",
+     "Change the user's control scheme, as the Controls screen does: give "
+     "one action exactly the controls listed, set the pad's deadzones, or "
+     "reset every action to its defaults — any of them in one call, reset "
+     "first. Saved to the controls file at once and used by the next tick "
+     "of play; not part of the level's undo history. Refused, changing "
+     "nothing, when an action or a control is not one there is. Answers "
+     "as get_controls does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_CONTROLS},
+    {AgentTool::GET_SOUND,
+     "get_sound",
+     "The editor's sound, as Edit › Sound shows it: the user's volumes — "
+     "master, effects, music, interface, each 0 to 1 — whether it is "
+     "muted, and the file they are kept in, in the user's application "
+     "data; then each of the game's sounds (slots: combat.shot_fired, "
+     "combat.shot_hit_body, combat.shot_hit_wall, combat.blast) and the "
+     "project file it plays, null for its built-in sound, and whether that "
+     "file is missing; every .wav and .ogg under the project's assets/; the "
+     "sounds table's path; and what was wrong with it or the files it "
+     "names.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_VOLUME, "set_volume",
+     "Set the user's volumes or mute, as the Sound screen does — any of "
+     "them in one call. Heard from the next frame and saved to the volumes "
+     "file at once; not part of the level's undo history, and allowed while "
+     "playing. Refused, changing nothing, on a volume outside 0 to 1. "
+     "Answers as get_sound does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_VOLUME},
+    {AgentTool::SET_SOUND, "set_sound",
+     "Play one of the project's sound files in one of the game's sounds, "
+     "or the built-in sound again, as the Sound screen's left and right "
+     "do. Written to content/data/sounds.data.json and heard from the next "
+     "sound played; not part of the level's undo history. Refused when no "
+     "project is open, the slot names no sound, or the file is not one of "
+     "get_sound's sound_files. Answers as get_sound does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_SOUND},
+    {AgentTool::IMPORT_SOUND, "import_sound",
+     "Bring a WAV or Ogg Vorbis file into the open project, as File › "
+     "Import Sound does: copied into assets/sounds/ — never over a file "
+     "already there; a taken name gets -2, -3 — or used where it is when "
+     "it is already under assets/. The file must decode, or it is refused "
+     "before anything is copied. With slot, it also plays there from now "
+     "on. Answers as get_sound does; the new file is in sound_files.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_IMPORT_SOUND},
+    {AgentTool::PLAY_SOUND, "play_sound",
+     "Play a sound once through the editor's speakers, as Enter on the "
+     "Sound screen does: a slot as the game plays it now — the project's "
+     "file or the built-in one — or a project sound file. Heard at the "
+     "user's volumes; carried out by the running editor on its next frame. "
+     "Refused when the name is neither.",
+     AgentToolEffect::HOST, AGENT_PARAMS_PLAY_SOUND},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

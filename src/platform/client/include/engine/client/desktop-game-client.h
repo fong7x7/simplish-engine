@@ -2,12 +2,15 @@
 
 #include <chrono>
 #include <cstdint>
+#include <engine/audio/audio-device.h>
+#include <engine/audio/audio-engine.h>
 #include <engine/client/rendered-game-client.h>
 #include <engine/gui/gui-gamepad-navigator.h>
 #include <engine/gui/gui-nav-command.h>
 #include <engine/input/gamepad-button.h>
 #include <engine/input/gamepad-set.h>
 #include <engine/input/gamepads.h>
+#include <engine/input/input-method.h>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -31,6 +34,8 @@ namespace eng::client {
 // - Poll SDL3 events; map SDL_EVENT_* to RenderedGameClient guiDispatch* calls
 // - Expose windowClientSizePx() and onClientKeyDown() so game/editor code
 //   stays free of SDL includes, modifier state included
+// - Own the game's sound: an AudioEngine, and the platform's AudioDevice
+//   (platform/audio) pulling it from the audio thread
 // - Own the platform's pads (platform/input), poll them once a frame, and
 //   raise onClientGamepadButtonDown for presses on the pad in use
 // - When asked to, drive the GUI's focus navigation from the pad in use
@@ -44,13 +49,15 @@ namespace eng::client {
 
 class DesktopGameClient : public eng::client::RenderedGameClient {
 public:
-  /// Which dialog an answer came back from. One pending slot serves both,
-  /// so the purpose is what routes the answer to the right handler.
+  /// Which dialog an answer came back from. One pending slot serves them
+  /// all, so the purpose is what routes the answer to the right handler.
   enum class DialogPurpose : uint8_t {
     /// A location and name for something to be created.
     SAVE_LOCATION,
     /// An existing folder.
     OPEN_FOLDER,
+    /// An existing sound file: WAV or Ogg Vorbis.
+    OPEN_SOUND,
   };
 
   /// Whether the pad in use drives the GUI's focus navigation.
@@ -142,6 +149,11 @@ protected:
   /// moment will never arrive, so whatever tracks held keys drops them here.
   virtual void onClientFocusLost() {}
 
+  /// The game's sound: clips to load, sounds to play, the listener to
+  /// move. Mixed on the audio device's thread while one is open; silent,
+  /// but still usable, when none would open.
+  [[nodiscard]] eng::audio::AudioEngine& audio() { return audio_; }
+
   /// Every connected pad, as read at the start of this frame, in the
   /// engine's canonical buttons and axes. Which pads can appear here is
   /// the platform's pad backend's decision, not the caller's.
@@ -154,6 +166,28 @@ protected:
   virtual void
   onClientGamepadButtonDown([[maybe_unused]] eng::input::GamepadButton button) {
   }
+
+  /// Play @p rumble on the pad in use (`input::Gamepads::rumble`); false
+  /// when nothing played it.
+  bool rumbleGamepad(const eng::input::GamepadRumble& rumble) {
+    return gamepads_.rumble(rumble);
+  }
+
+  /// Play @p rumble on pad @p device; false when nothing played it.
+  bool rumbleGamepad(uint64_t device, const eng::input::GamepadRumble& rumble) {
+    return gamepads_.rumble(device, rumble);
+  }
+
+  /// The kind of device the player last used: a mouse move or click, a
+  /// key press, or a pad touched. POINTER until one of them happens.
+  [[nodiscard]] eng::input::InputMethod inputMethod() const {
+    return input_method_;
+  }
+
+  /// The player switched devices — picked up a pad, touched the mouse —
+  /// for prompts and menus to follow. Raised on the change only.
+  virtual void
+  onClientInputMethodChanged([[maybe_unused]] eng::input::InputMethod method) {}
 
   /// Let the pad in use navigate the GUI, or stop it. Off by default: in
   /// play the pad steers a character, and a menu turns this on while it is
@@ -190,6 +224,15 @@ protected:
   /// `onFolderChosen`, with the same timing and cancellation behaviour.
   void showOpenFolderDialog();
 
+  /// Open the OS file picker for one sound file — `.wav` or `.ogg`, the
+  /// formats `engine/audio` decodes — starting in the same place. Answers
+  /// through `onSoundFileChosen`, with the same timing and cancellation
+  /// behaviour.
+  void showOpenSoundDialog();
+
+  /// Called on the main thread with a chosen sound file. Default no-op.
+  virtual void onSoundFileChosen(const std::filesystem::path& /*path*/) {}
+
   /// Called on the main thread with a chosen save location. Default no-op.
   virtual void onSaveLocationChosen(const std::filesystem::path& /*path*/) {}
 
@@ -203,6 +246,14 @@ private:
 
   /// Start the pad backend, logging rather than failing when it cannot.
   void openGamepads();
+
+  /// Open the audio device on `audio_`, logging rather than failing when
+  /// it cannot: a game without sound is still a game.
+  void openAudio();
+
+  /// Open the pads and the audio device, neither of which failing stops
+  /// the client starting.
+  void openDevices();
 
   /// Read the pads, raise `onClientGamepadButtonDown` for each press, and
   /// navigate the GUI by them when that is on, @p dt_seconds after the
@@ -221,11 +272,22 @@ private:
   /// did not use it.
   void dispatchNav(eng::GuiNavCommand command);
 
+  /// Note the device @p event came from, raising
+  /// `onClientInputMethodChanged` when it is a different kind.
+  void trackInputMethod(const SDL_Event& event);
+
+  /// Switch to @p method, raising the hook when it is new.
+  void noteInputMethod(eng::input::InputMethod method);
+
   /// Tell the pads when @p event is the window gaining or losing focus.
   void trackGamepadFocus(const SDL_Event& event);
 
   /// Hand any pending dialog answer to the handler its purpose names.
   void drainDialogPath();
+
+  /// Hand @p path to the handler @p purpose names.
+  void dispatchDialogPath(DialogPurpose purpose,
+                          const std::filesystem::path& path);
 
   /// Store a dialog answer for the main thread to pick up. Called from
   /// whichever thread SDL runs the dialog callback on.
@@ -266,12 +328,19 @@ private:
   std::unique_ptr<eng::RhiDevice> rhi_device_{};
   /// The platform's pads; opened in init(), closed in shutdown().
   eng::input::Gamepads gamepads_{};
+  /// The game's sound, mixed by `audio_device_` while it is open.
+  eng::audio::AudioEngine audio_{};
+  /// The platform's audio output; opened in init(), closed in shutdown(),
+  /// and declared after `audio_` so it stops pulling before that goes.
+  eng::audio::AudioDevice audio_device_{};
   /// Turns the pad in use into GUI navigation commands.
   eng::GuiGamepadNavigator gui_navigator_{};
   /// Whether it runs.
   GuiPadNavigation gui_pad_navigation_ = GuiPadNavigation::OFF;
   /// Whether the keyboard navigates the GUI.
   GuiKeyNavigation gui_key_navigation_ = GuiKeyNavigation::OFF;
+  /// The kind of device the player last used.
+  eng::input::InputMethod input_method_ = eng::input::InputMethod::POINTER;
   /// Guards `pending_dialog_path_` against the dialog callback's thread.
   std::mutex dialog_mutex_{};
   /// Path chosen but not yet handed to the main thread, and what it is for.

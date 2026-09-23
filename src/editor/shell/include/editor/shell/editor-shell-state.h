@@ -11,6 +11,7 @@
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
+#include <editor/shell/editor-controls.h>
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-effects-state.h>
 #include <editor/shell/editor-enemy-table.h>
@@ -18,6 +19,8 @@
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-selection.h>
+#include <editor/shell/editor-sound-settings.h>
+#include <editor/shell/editor-sound-table.h>
 #include <editor/shell/editor-tool.h>
 #include <editor/shell/editor-view-state.h>
 #include <filesystem>
@@ -49,6 +52,9 @@ struct EditorShellState {
   /// billboards name a path out of this list rather than an index, so a
   /// rescan that finds another sheet renumbers nothing.
   std::vector<std::filesystem::path> sheets;
+  /// Sound files found under the open project, as paths relative to its
+  /// `assets/` directory, sorted: what a sound slot can be given.
+  std::vector<std::filesystem::path> sound_files;
   /// Which of the project's levels is open, by id. The file it is written
   /// to is `<root>/content/levels/<level_id>.level.json`.
   std::string level_id{EDITOR_LEVEL_ID};
@@ -88,6 +94,10 @@ struct EditorShellState {
   /// The project's enemy archetypes, from `content/data/enemies.data.json`
   /// — read with the others. Nothing spawns them yet; the director will.
   EditorEnemyTable enemies;
+  /// The project's own sounds, from `content/data/sounds.data.json`: which
+  /// of the game's sound slots play one of `sound_files` instead of their
+  /// built-in sound. Read with the other tables; written by the editor.
+  EditorSoundTable sounds;
   /// Whether the level is being played, and what the playtest has done —
   /// refreshed from the running game after every frame of play.
   EditorPlaytestState playtest;
@@ -98,6 +108,12 @@ struct EditorShellState {
   /// to 3: the multi-player preview (Editor §7). Kept here rather than in
   /// `playtest`, which every Play starts afresh.
   uint8_t playtest_stand_ins = 0;
+  /// The user's keys and pad controls, and where they are kept. Not the
+  /// project's: a remapped pad follows the person across projects.
+  EditorControls controls;
+  /// The user's volume settings, and where they are kept — theirs, as
+  /// their controls are.
+  EditorSoundSettings sound;
 };
 
 }  // namespace eng::editor

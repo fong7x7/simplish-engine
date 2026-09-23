@@ -5,6 +5,8 @@
 #include <engine/gui/gui-text-input.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace eng;
 
@@ -355,4 +357,23 @@ TEST_CASE("a focus scope leaves overlays out") {
   REQUIRE(fx.tree.focused_id == ok);
   REQUIRE_FALSE(fx.tree.routeNav(GuiNavCommand::DOWN));
   fx.tree.unregisterComponent(overlay);
+}
+
+TEST_CASE("a widget hears when it gains and loses focus") {
+  MenuFixture fx;
+  const GuiWidgetId first = fx.button(fx.root, {100, 100, 100, 40});
+  const GuiWidgetId second = fx.button(fx.root, {100, 200, 100, 40});
+  std::vector<std::string> heard;
+  fx.tree.findWidget(first)->onFocusChange([&heard](GuiFocusChange change) {
+    heard.emplace_back(change == GuiFocusChange::GAINED ? "first+" : "first-");
+  });
+  fx.tree.findWidget(second)->onFocusChange([&heard](GuiFocusChange change) {
+    heard.emplace_back(change == GuiFocusChange::GAINED ? "second+"
+                                                        : "second-");
+  });
+
+  fx.tree.setFocus(first);
+  fx.tree.setFocus(first);
+  REQUIRE(fx.tree.routeNav(GuiNavCommand::DOWN));
+  REQUIRE(heard == std::vector<std::string>{"first+", "first-", "second+"});
 }

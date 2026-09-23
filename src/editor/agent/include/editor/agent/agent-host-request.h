@@ -41,6 +41,9 @@ struct AgentHostRequest {
   uint32_t ticks = 0;
   /// The effect to play, meaningful only for `PLAY_EFFECT`.
   EditorEffectShot effect{};
+  /// The slot or project sound file to play, meaningful only for
+  /// `PLAY_SOUND`.
+  std::string sound{};
 };
 
 }  // namespace eng::editor

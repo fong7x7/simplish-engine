@@ -38,8 +38,21 @@ namespace {
     return !name.empty() && name.front() == '.';
   }
 
-  /// Add one directory entry to the scan, as a folder, a mesh file or a
-  /// sprite sheet.
+  /// Add the file at @p path, @p relative to the root, to the scan as a
+  /// mesh, a sprite sheet or a sound; anything else is not listed.
+  void collectFile(const fs::path& path, const fs::path& relative,
+                   EditorAssetScan& out) {
+    if (isMeshFile(path)) {
+      out.assets.push_back({path.stem().string(), path, relative});
+    } else if (isSheetFile(path)) {
+      out.sheets.push_back(relative);
+    } else if (isSoundFile(path)) {
+      out.sounds.push_back(relative);
+    }
+  }
+
+  /// Add one directory entry to the scan, as a folder, a mesh file, a
+  /// sprite sheet or a sound.
   void collectEntry(const fs::directory_entry& entry, const fs::path& root,
                     EditorAssetScan& out) {
     // Lexical, not `fs::relative`: the entry came from a walk of `root`, so
@@ -53,12 +66,7 @@ namespace {
     if (!entry.is_regular_file(ec)) {
       return;
     }
-    if (isMeshFile(entry.path())) {
-      out.assets.push_back(
-          {entry.path().stem().string(), entry.path(), relative});
-    } else if (isSheetFile(entry.path())) {
-      out.sheets.push_back(relative);
-    }
+    collectFile(entry.path(), relative, out);
   }
 
   /// Walk from @p it to the end, collecting entries and pruning hidden
@@ -85,9 +93,16 @@ namespace {
     std::ranges::sort(scan.assets, {}, &EditorAsset::relative_path);
     std::ranges::sort(scan.folders);
     std::ranges::sort(scan.sheets);
+    std::ranges::sort(scan.sounds);
   }
 
 }  // namespace
+
+bool isSoundFile(const std::filesystem::path& path) {
+  const std::string extension = toLower(path.extension().string());
+  return std::ranges::find(ASSET_SOUND_EXTENSIONS, extension) !=
+         std::end(ASSET_SOUND_EXTENSIONS);
+}
 
 bool isRiggedModelFile(const std::filesystem::path& path) {
   const std::string extension = toLower(path.extension().string());

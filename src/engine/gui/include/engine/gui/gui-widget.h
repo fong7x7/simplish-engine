@@ -6,6 +6,7 @@
 
 #include "gui-animation.h"
 #include "gui-draw-context.h"
+#include "gui-focus-change.h"
 #include "gui-mouse-event.h"
 #include "gui-nav-command.h"
 #include "gui-rect.h"
@@ -83,6 +84,9 @@ public:
   /// Subscribes to click events on this component.
   void onClick(const std::function<void(const GuiMouseEvent&)>& handler);
 
+  /// Subscribes to this widget taking or losing navigation focus.
+  void onFocusChange(const std::function<void(GuiFocusChange)>& handler);
+
   /// Removes all registered click handlers.
   void clearClickHandlers();
 
@@ -114,10 +118,19 @@ public:
   /// has click handlers, as a click at its centre would.
   virtual bool handleNav(GuiNavCommand command);
 
+  /// Called when this widget takes or loses focus (`GuiWidgetTree`
+  /// focus, from navigation, a click, or `setFocus`). The default fires the
+  /// `onFocusChange` handlers.
+  virtual void handleFocusChange(GuiFocusChange change);
+
   /// Scroll so @p child, a descendant's rect, shows inside this widget.
   /// Return true if the scroll moved; the tree then calls
   /// `arrangeAfterScroll`. Default: this widget does not scroll.
   virtual bool revealChild(const Rect& child);
+
+  /// Scroll by (@p dx, @p dy) pixels — a pad's right stick, say. Return
+  /// true if it moved. Default: this widget does not scroll.
+  virtual bool scrollBy(float dx, float dy);
 
   /// Scroll one step in @p command's direction, for a pad or arrow key
   /// that found nothing focusable that way. Return true if it moved.
@@ -218,6 +231,8 @@ private:
       on_mouse_move_handlers_{};
   /// Scroll-wheel callbacks for this widget.
   std::vector<std::function<void(const GuiScrollEvent&)>> on_scroll_handlers_{};
+  /// Focus gained and lost callbacks for this widget.
+  std::vector<std::function<void(GuiFocusChange)>> on_focus_handlers_{};
   /// Per-widget animation state (active animations ticked in update).
   GuiWidgetAnimator animator_{};
 };
