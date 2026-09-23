@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <editor/shell/editor-ground-atlas.h>
+#include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-terrains.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/core/logger.h>
@@ -152,6 +153,41 @@ void SimplishEditor::releaseGround() {
   ground_mesh_ = MESH_GPU_INVALID;
   ground_atlas_ = RHI_TEXTURE_INVALID;
   drawn_ground_ = GroundGrid{};
+}
+
+void SimplishEditor::showGroundSelection(EditorPropertiesWidget& panel) {
+  const uint8_t terrain = editorSelectedTerrain(state_).value_or(0);
+  const GroundCell first = state_.ground_selection.front();
+  const size_t tiles = state_.ground_selection.size();
+  panel.setGroundSelection(
+      std::string(editorGroundCardName(terrain == 0 ? EDITOR_TERRAIN_COUNT
+                                                    : terrain - 1U)) +
+          " — " + std::to_string(tiles) + (tiles == 1 ? " tile" : " tiles"),
+      "ground:" + std::to_string(first.x) + "," + std::to_string(first.y));
+  std::vector<std::string> terrains;
+  for (size_t card = 0; card < EDITOR_GROUND_CARD_COUNT; ++card) {
+    terrains.emplace_back(editorGroundCardName(card));
+  }
+  panel.addChoices(EditorChoiceKind::TERRAIN, std::move(terrains),
+                   terrain == 0 ? EDITOR_TERRAIN_COUNT : terrain - 1U);
+}
+
+void SimplishEditor::repaintSelectedGround(uint8_t terrain) {
+  if (isPlaying() ||
+      !selectionIs(state_.selection, EditorSelectionKind::GROUND)) {
+    return;
+  }
+  const std::optional<EditorAction> action =
+      editorGroundRepaint(state_.document, state_.ground_selection, terrain);
+  // Erased is gone, so nothing is left to show; any other terrain leaves
+  // the same cells selected, now painted with it.
+  if (terrain == 0) {
+    state_.selection = {};
+  }
+  if (action) {
+    recordAction(*action);
+  }
+  applySelectionToChrome();
 }
 
 }  // namespace eng::editor

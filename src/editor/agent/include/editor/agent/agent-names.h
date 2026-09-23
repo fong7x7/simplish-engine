@@ -127,11 +127,11 @@ agentLightKindName(EditorLightKind kind) {
 /// a table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one.
 inline constexpr std::string_view AGENT_SELECTION_KIND_NAMES[] = {
     "none",     "placement", "light",  "player_start",
-    "waypoint", "emitter",   "sprite",
+    "waypoint", "emitter",   "sprite", "ground",
 };
 
 static_assert(std::size(AGENT_SELECTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorSelectionKind::SPRITE) + 1,
+                  static_cast<size_t>(EditorSelectionKind::GROUND) + 1,
               "every kind of selection needs a name the API reports it by");
 
 /// Wire name of what a selection names.

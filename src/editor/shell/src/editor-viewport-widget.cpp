@@ -1,5 +1,6 @@
 #include "editor-viewport-overlays.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <editor/shell/editor-ground-ops.h>
@@ -23,6 +24,40 @@ namespace {
   /// The outline of the cells a brush will paint: brighter than the hover
   /// highlight, since it is what the next press changes.
   constexpr GuiColor BRUSH_LINE{120, 200, 255, 220};
+
+  /// One side of a cell: the neighbour across it, and the corners it runs
+  /// between, as offsets from the cell's south-west corner.
+  struct CellSide {
+    /// Towards the neighbour along X.
+    int32_t dx;
+    /// Towards the neighbour along Y.
+    int32_t dy;
+    /// Where the side starts along X.
+    float x0;
+    /// Where the side starts along Y.
+    float y0;
+    /// Where it ends along X.
+    float x1;
+    /// Where it ends along Y.
+    float y1;
+  };
+
+  /// A cell's four sides: south, east, north, west.
+  constexpr CellSide GROUND_CELL_SIDES[] = {
+      {0, -1, 0.0f, 0.0f, 1.0f, 0.0f},
+      {1, 0, 1.0f, 0.0f, 1.0f, 1.0f},
+      {0, 1, 1.0f, 1.0f, 0.0f, 1.0f},
+      {-1, 0, 0.0f, 1.0f, 0.0f, 0.0f},
+  };
+  /// Whether @p cell is one of @p cells, which run row by row from the
+  /// south-west.
+  bool cellListed(const std::vector<GroundCell>& cells, GroundCell cell) {
+    return std::ranges::binary_search(
+        cells, cell, [](GroundCell a, GroundCell b) {
+          return a.y != b.y ? a.y < b.y : a.x < b.x;
+        });
+  }
+
   constexpr GuiColor PLACEMENT_OUTLINE{210, 170, 90, 200};
   constexpr GuiColor SELECTION_OUTLINE{0, 170, 255, 255};
   /// A prop that does not collide: the prop tan, faded most of the way out.
@@ -299,7 +334,8 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
   // scene is composited between them, and a clip cannot span the two.
   renderGround(renderer, view);
   renderer.markSceneSplit();
-  if (!hasSelectedMarker() && !has_hover_ && !showsActors()) {
+  if (!hasSelectedMarker() && !has_hover_ && !showsActors() &&
+      ground_highlight.empty()) {
     return;
   }
   // The selection box, the AI overlay and the cursor feedback belong on
@@ -313,6 +349,7 @@ void EditorViewportWidget::renderScene(GuiRendererContext& renderer) const {
 
 void EditorViewportWidget::renderOverScene(GuiRendererContext& renderer,
                                            const IsoView& view) const {
+  renderGroundHighlight(renderer, view);
   if (hasSelectedMarker()) {
     renderSelection(renderer, view);
   }
@@ -323,6 +360,23 @@ void EditorViewportWidget::renderOverScene(GuiRendererContext& renderer,
     renderBrush(renderer, view);
   } else if (has_hover_) {
     renderTileOutline(renderer, view, hovered_tile_, HOVER_FILL.pack());
+  }
+}
+
+void EditorViewportWidget::renderGroundHighlight(GuiRendererContext& renderer,
+                                                 const IsoView& view) const {
+  for (const GroundCell cell : ground_highlight) {
+    // Each of the cell's four sides, as the neighbour across it and the two
+    // corners it runs between; drawn only where the area ends.
+    for (const auto& side : GROUND_CELL_SIDES) {
+      if (!cellListed(ground_highlight, {cell.x + side.dx, cell.y + side.dy})) {
+        const auto x = static_cast<float>(cell.x);
+        const auto y = static_cast<float>(cell.y);
+        emitIsoLine(renderer, worldToScreen(view, {x + side.x0, y + side.y0}),
+                    worldToScreen(view, {x + side.x1, y + side.y1}),
+                    SELECTION_OUTLINE.pack());
+      }
+    }
   }
 }
 

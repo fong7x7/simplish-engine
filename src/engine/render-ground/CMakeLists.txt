@@ -14,6 +14,7 @@ simplish_add_module(simplish-engine-render-ground
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/ground-grid.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ground-mesh.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ground-quarter-shape.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ground-region.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ground-runs.cpp
     DEPENDENCIES simplish-engine-math
                  simplish-engine-render-mesh
@@ -24,6 +25,7 @@ if(ENGINE_BUILD_TESTS)
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ground_grid.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ground_mesh.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ground_quarter_shape.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ground_region.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ground_runs.cpp
         DEPENDENCIES simplish-engine-render-ground
     )

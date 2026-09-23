@@ -27,6 +27,7 @@
 #include <editor/shell/editor-project-title.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-shape.h>
+#include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-thumbnail-cache.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <editor/shell/iso-view-matrix.h>
@@ -1128,7 +1129,7 @@ void SimplishEditor::placePlayerStart(WorldPoint tile) {
 size_t SimplishEditor::selectionCount() const {
   // Nothing selected has no list, so no index is ever in range — which is
   // what every caller here asks this in order to find out.
-  return editorListSize(state_.document, state_.selection.kind);
+  return editorSelectableCount(state_, state_.selection.kind);
 }
 
 bool SimplishEditor::isSelected(EditorSelectionKind kind, size_t index) const {
@@ -1155,10 +1156,28 @@ void SimplishEditor::selectMarker(int marker) {
     return;
   }
   if (marker < 0) {
-    select({});
+    selectGroundUnderCursor();
     return;
   }
   select(markerSelection(state_.document, static_cast<size_t>(marker)));
+}
+
+void SimplishEditor::selectGroundUnderCursor() {
+  // A click on nothing picks the painted area under it, if there is one;
+  // on bare ground it clears the selection, as it always did.
+  const EditorViewportWidget* viewport = viewportWidget();
+  if (viewport == nullptr) {
+    select({});
+    return;
+  }
+  const WorldPoint tile = viewport->hoveredTile();
+  commitPendingEdit();
+  if (selectEditorGround(state_, {static_cast<int32_t>(tile.x),
+                                  static_cast<int32_t>(tile.y)})) {
+    applySelectionToChrome();
+  } else {
+    select({});
+  }
 }
 
 void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
@@ -1247,6 +1266,8 @@ void SimplishEditor::showSelection(EditorPropertiesWidget& panel) {
     showEmitterSelection(panel);
   } else if (selectionIs(selection, EditorSelectionKind::SPRITE)) {
     showSpriteSelection(panel);
+  } else if (selectionIs(selection, EditorSelectionKind::GROUND)) {
+    showGroundSelection(panel);
   } else {
     showPlayerStartSelection(panel);
   }
@@ -1335,6 +1356,8 @@ void SimplishEditor::applyEntryChoice(EditorChoiceKind kind, size_t index) {
     applyCharacterChoice(index);
   } else if (kind == EditorChoiceKind::EFFECT) {
     applyEffectChoice(index);
+  } else if (kind == EditorChoiceKind::TERRAIN) {
+    repaintSelectedGround(editorGroundCardTerrain(index));
   } else {
     applySheetChoice(index);
   }
@@ -1695,6 +1718,10 @@ void SimplishEditor::refreshPlacementMarkers() {
   appendEntityMarkers(markers);
   appendPlaytestMarkers(markers);
   viewport->route_lines = routeLines();
+  viewport->ground_highlight =
+      selectionIs(state_.selection, EditorSelectionKind::GROUND)
+          ? state_.ground_selection
+          : std::vector<GroundCell>{};
   refreshOverlays();
 }
 
@@ -2172,6 +2199,11 @@ void SimplishEditor::runDelete() {
     return;
   }
   commitPendingEdit();
+  // An area of ground is erased: painted over with bare ground.
+  if (selectionIs(state_.selection, EditorSelectionKind::GROUND)) {
+    repaintSelectedGround(0);
+    return;
+  }
   const std::optional<EditorAction> action =
       editorDeleteAction(state_.document, state_.selection);
   if (!action) {

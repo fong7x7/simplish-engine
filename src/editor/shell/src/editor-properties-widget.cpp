@@ -124,6 +124,11 @@ void EditorPropertiesWidget::beginSelection(
   visible = true;
 }
 
+void EditorPropertiesWidget::setGroundSelection(std::string name,
+                                                std::string reference) {
+  beginSelection(std::move(name), std::move(reference), {});
+}
+
 void EditorPropertiesWidget::setSelection(std::string name,
                                           const EditorPlacement& placement) {
   beginSelection(std::move(name), editorPlacementRef(placement),

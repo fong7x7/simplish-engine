@@ -24,6 +24,7 @@
 #include <editor/shell/editor-sound-table.h>
 #include <editor/shell/editor-tool.h>
 #include <editor/shell/editor-view-state.h>
+#include <engine/render-ground/ground-cell.h>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -69,6 +70,11 @@ struct EditorShellState {
   EditorDocument document;
   /// The one entry of that document the properties panel edits, or nothing.
   EditorSelection selection;
+  /// The cells of the painted area selected, when `selection` is `GROUND`,
+  /// row by row from the south-west. Kept as cells rather than found again
+  /// from one of them, so repainting the area in a terrain that touches
+  /// another area of it does not grow the selection to swallow that one.
+  std::vector<GroundCell> ground_selection;
   /// Every edit made to `document` this session, the undo cursor into them,
   /// and whether any of them are unwritten. Cleared with the document,
   /// since it describes it by index.

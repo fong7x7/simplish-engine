@@ -24,6 +24,7 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-property-traits.h>
+#include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-terrains.h>
 #include <editor/shell/editor-waypoint-ops.h>
@@ -340,6 +341,27 @@ namespace {
     return {{"target", agentSelectionKindName(EditorSelectionKind::NONE)}};
   }
 
+  /// The selected area of ground: what it is painted with, how many tiles,
+  /// and the rectangle round them.
+  json groundSelectionJson(const EditorShellState& state) {
+    const std::vector<GroundCell>& cells = state.ground_selection;
+    GroundRect box{cells.front().x, cells.front().y, 1, 1};
+    for (const GroundCell cell : cells) {
+      const int32_t x1 = std::max(box.x + box.width, cell.x + 1);
+      box.x = std::min(box.x, cell.x);
+      box.width = x1 - box.x;
+      box.height = cell.y + 1 - box.y;
+    }
+    return {{"target", agentSelectionKindName(EditorSelectionKind::GROUND)},
+            {"terrain", editorTerrainWord(*editorSelectedTerrain(state))},
+            {"tiles", cells.size()},
+            {"bounds",
+             {{"x", box.x},
+              {"y", box.y},
+              {"width", box.width},
+              {"height", box.height}}}};
+  }
+
   /// What is selected, as the panel shows it. Only asked of a selection
   /// naming an entry that is there.
   json selectedEntryJson(const EditorShellState& state) {
@@ -349,6 +371,9 @@ namespace {
     }
     if (state.selection.kind == EditorSelectionKind::LIGHT) {
       return lightSelectionJson(state, index);
+    }
+    if (state.selection.kind == EditorSelectionKind::GROUND) {
+      return groundSelectionJson(state);
     }
     return selectedMarkerJson(state, index);
   }
@@ -790,7 +815,7 @@ std::string agentNavigationJson(const EditorShellState& state) {
 
 std::string agentSelectionJson(const EditorShellState& state) {
   const EditorSelection& selection = state.selection;
-  if (selection.index >= editorListSize(state.document, selection.kind)) {
+  if (selection.index >= editorSelectableCount(state, selection.kind)) {
     return json{{"target", agentSelectionKindName(EditorSelectionKind::NONE)}}
         .dump(2);
   }

@@ -544,3 +544,26 @@ TEST_CASE("a stroke reports the world point under the cursor") {
   REQUIRE(std::floor(reported.x) == Approx(hovered.x));
   REQUIRE(std::floor(reported.y) == Approx(hovered.y));
 }
+
+TEST_CASE("a selected patch of ground is outlined over the scene, round its "
+          "edge only") {
+  EditorViewportWidget joined = makeViewport();
+  joined.ground_highlight = {{0, 0}, {1, 0}};
+  EditorViewportWidget apart = makeViewport();
+  apart.ground_highlight = {{0, 0}, {2, 0}};
+  const RenderedViewport with_joined(joined);
+  const RenderedViewport with_apart(apart);
+  const RenderedViewport with_none(makeViewport());
+
+  // The clip over the scene opens for it.
+  size_t pushes = 0;
+  for (const auto& cmd : with_joined.renderer.commands) {
+    pushes += cmd.type == eng::DrawCommandType::PUSH_SCISSOR ? 1 : 0;
+  }
+  REQUIRE(pushes == 2);
+  // Two cells side by side share a side, which is not drawn: six sides
+  // against eight.
+  const size_t base = with_none.renderer.vertices.size();
+  REQUIRE((with_joined.renderer.vertices.size() - base) * 4 ==
+          (with_apart.renderer.vertices.size() - base) * 3);
+}

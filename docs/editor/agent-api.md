@@ -192,7 +192,7 @@ each one's parameters; this table is the map.
 | `add_waypoint` | Adds a waypoint to a patrol route and selects it: to the route named, or the selected waypoint's, after its last waypoint unless a place is named |
 | `add_emitter` | Adds a particle emitter and selects it, started from a named preset or the default sparks, as dragging the Particle Emitter from general › effects does |
 | `add_sprite` | Adds a sprite billboard and selects it, showing a named sheet or the project's first, as dragging the Sprite Billboard from general › sprites does |
-| `paint_ground` | Fills a rectangle of cells with one terrain, or erases it with `none`, as the Tile tool's brush does — one undoable edit. Painted areas autotile as they are drawn, so a road is laid by painting its cells |
+| `paint_ground` | Fills a rectangle of cells with one terrain, or erases it with `none`, as the Tile tool's brush does — one undoable edit. Painted areas autotile as they are drawn, so a road is laid by painting its cells With `target` `selection`, repaints the selected area of ground instead of a rectangle. |
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |
@@ -202,8 +202,8 @@ each one's parameters; this table is the map.
 | `set_sheet` | Points a sprite billboard at another of the project's sheets, as its Sheet row does: its grid, speed and height are kept |
 | `play_effect` | Plays an effect once, now, into the viewport's effects — a preset burst, a whole combat effect (`shot_fired`, `shot_hit_body`, `shot_hit_wall`, `blast`), or a placed emitter's own burst. `blast` also leaves a cloud of volumetric smoke standing, which is how an agent puts smoke in front of the camera. Not an edit: nothing is recorded, and it works while playing |
 | `translate` | Moves a placement, a light, a player start, a waypoint, an emitter or a billboard by a delta in tiles |
-| `delete` | Removes a placement, a light, a player start, a waypoint, an emitter or a billboard, as the Delete key does |
-| `select` | Selects a placement, a light, a player start, a waypoint, an emitter or a billboard, or clears the selection |
+| `delete` | Removes a placement, a light, a player start, a waypoint, an emitter or a billboard, as the Delete key does With an area of ground selected, erases it. |
+| `select` | Selects a placement, a light, a player start, a waypoint, an emitter or a billboard, or clears the selection A `ground` target, with the `x` and `y` of a painted tile, selects every tile of its terrain joined to it. |
 | `set_tool` | Chooses the active toolbar tool |
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
 | `set_controls` | Changes the control scheme as the Controls screen does — one action's controls (`action`, `controls`), the deadzones, or `reset` to the defaults — saved at once. The user's, not the level's: no undo |

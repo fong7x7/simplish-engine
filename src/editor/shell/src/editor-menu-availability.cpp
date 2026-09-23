@@ -1,8 +1,21 @@
 #include <algorithm>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-menu-availability.h>
+#include <editor/shell/editor-shell-selection.h>
 
 namespace eng::editor {
+
+namespace {
+
+  /// Whether Delete reaches anything: an entry a removal takes out, or an
+  /// area of ground it erases.
+  bool canDelete(const EditorShellState& state) {
+    return editorDeleteAction(state.document, state.selection).has_value() ||
+           (selectionIs(state.selection, EditorSelectionKind::GROUND) &&
+            editorSelectableCount(state, EditorSelectionKind::GROUND) > 0);
+  }
+
+}  // namespace
 
 bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
   return command == EditorMenuCommand::CLOSE_PROJECT ||
@@ -48,7 +61,7 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
     // Live only when something is selected that a removal would actually
     // reach — the same question the key and the agent's tool both ask, so
     // the greyed row and the refused call never disagree.
-    return editorDeleteAction(state.document, state.selection).has_value();
+    return canDelete(state);
   }
   return editorMenuCommandImplemented(command);
 }

@@ -46,6 +46,27 @@ bool paintEditorGround(GroundGrid& grid, GroundRect rect, uint8_t terrain) {
   return changed;
 }
 
+void paintEditorGroundCells(GroundGrid& grid, std::span<const GroundCell> cells,
+                            uint8_t terrain) {
+  for (const GroundCell cell : cells) {
+    grid.set(cell, terrain);
+  }
+}
+
+std::optional<EditorAction>
+editorGroundRepaint(const EditorDocument& document,
+                    std::span<const GroundCell> cells, uint8_t terrain) {
+  GroundGrid painted = document.ground;
+  paintEditorGroundCells(painted, cells, terrain);
+  std::vector<EditorGroundChange> changes =
+      diffEditorGround(document.ground, painted);
+  if (changes.empty()) {
+    return std::nullopt;
+  }
+  return EditorAction{.kind = EditorActionKind::PAINT_GROUND,
+                      .ground = std::move(changes)};
+}
+
 std::vector<EditorGroundChange> diffEditorGround(const GroundGrid& before,
                                                  const GroundGrid& after) {
   const GroundRect span = unionOf(before.bounds(), after.bounds());

@@ -143,6 +143,11 @@ public:
   /// how its sheet is cut and played.
   void setSelection(std::string name, const EditorSprite& sprite);
 
+  /// Show an area of painted ground, called @p name — its terrain and how
+  /// many tiles — under @p reference. It has no number rows: what it is
+  /// painted with is its one choice row, offered after.
+  void setGroundSelection(std::string name, std::string reference);
+
   /// Offer @p choices as the @p kind row — below the property rows and any
   /// choice rows already offered, or above them all for a kind that leads
   /// (`editorChoiceLeads`) — showing the one at @p current — or the

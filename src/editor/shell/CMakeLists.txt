@@ -62,6 +62,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-scale-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shape.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shell-selection.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-quad-key.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sprite-transform.cpp"

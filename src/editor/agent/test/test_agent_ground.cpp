@@ -110,3 +110,52 @@ TEST_CASE("get_ground reads any window, and refuses one too large") {
                        R"({"x": 0, "y": 0, "width": 1000, "height": 1000})")
               .status == AgentStatus::BAD_PARAMS);
 }
+
+TEST_CASE("select picks the patch a tile is in, and get_selection says so") {
+  EditorShellState state = openProject();
+  (void)call(state, "paint_ground",
+             R"({"terrain": "sand", "x": 0, "y": 0, "width": 4, "height": 2})");
+
+  const json selected =
+      call(state, "select", R"({"target": "ground", "x": 2.5, "y": 1.5})");
+
+  REQUIRE(selected.at("target") == "ground");
+  REQUIRE(selected.at("terrain") == "sand");
+  REQUIRE(selected.at("tiles") == 8);
+  REQUIRE(selected.at("bounds").at("width") == 4);
+  REQUIRE(
+      runAgentTool(state, "select", R"({"target": "ground", "x": 9, "y": 9})")
+          .status == AgentStatus::NOT_FOUND);
+}
+
+TEST_CASE("the selected patch is repainted in one edit, and erased by delete") {
+  EditorShellState state = openProject();
+  (void)call(state, "paint_ground",
+             R"({"terrain": "sand", "x": 0, "y": 0, "width": 3})");
+  (void)call(state, "select", R"({"target": "ground", "x": 0, "y": 0})");
+
+  const json repainted = call(state, "paint_ground",
+                              R"({"target": "selection", "terrain": "road"})");
+  REQUIRE(repainted.at("changed") == 3);
+  REQUIRE(state.document.ground.at({2, 0}) == 6);
+  REQUIRE(state.history.actions.size() == 2);
+
+  (void)call(state, "delete", R"({"target": "selection"})");
+  REQUIRE(state.document.ground.empty());
+  REQUIRE(state.selection.kind == EditorSelectionKind::NONE);
+}
+
+TEST_CASE("a patch of ground has no numbers to set, and does not move") {
+  EditorShellState state = openProject();
+  (void)call(state, "paint_ground", R"({"terrain": "dirt", "x": 0, "y": 0})");
+  (void)call(state, "select", R"({"target": "ground", "x": 0, "y": 0})");
+  REQUIRE(runAgentTool(state, "set_property",
+                       R"({"target": "selection", "field": "x", "value": 3})")
+              .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(
+      runAgentTool(state, "translate", R"({"target": "selection", "dx": 1})")
+          .status == AgentStatus::BAD_PARAMS);
+  REQUIRE(runAgentTool(state, "paint_ground",
+                       R"({"target": "selection", "terrain": "lava"})")
+              .status == AgentStatus::BAD_PARAMS);
+}

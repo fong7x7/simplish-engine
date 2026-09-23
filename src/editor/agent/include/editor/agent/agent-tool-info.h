@@ -172,10 +172,14 @@ inline constexpr AgentParam AGENT_PARAMS_PAINT_GROUND[] = {
      "The terrain to paint, by word — grass, dirt, sand, water, stone, "
      "road, hole; get_ground lists them — or \"none\" to erase back to bare "
      "ground."},
-    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+    {"target", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"selection\" to repaint the selected area of ground — select it "
+     "with select's target \"ground\" — in place of a rectangle, as the "
+     "properties panel's Terrain row does. x and y are then not needed."},
+    {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
      "World X of the rectangle's west column, in tiles. A fraction names "
-     "the tile it falls in."},
-    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "the tile it falls in. Needed unless target is \"selection\"."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
      "World Y of the rectangle's south row, in tiles."},
     {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Columns to paint, from x east, 1 to 256. Defaults to 1."},
@@ -396,10 +400,16 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", \"sprite\", or "
-     "\"none\" to clear the selection."},
+     "\"emitter\", \"sprite\", \"ground\" for the area of painted ground "
+     "holding a tile, or \"none\" to clear the selection."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
-     "Position in that list. Not needed when target is \"none\"."},
+     "Position in that list. Not needed when target is \"none\" or "
+     "\"ground\"."},
+    {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "With target \"ground\": world X of a painted tile. The area selected "
+     "is every tile of its terrain joined to it, corner to corner included."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "With target \"ground\": world Y of that tile."},
 };
 
 /// `set_tool` chooses the toolbar tool.
@@ -910,16 +920,19 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      AgentToolEffect::EDIT, AGENT_PARAMS_TRANSLATE},
     {AgentTool::DELETE_ENTRY, "delete",
      "Remove a placement, a light, a player start, a waypoint or a particle "
-     "emitter from the level, as the "
+     "emitter from the level — or erase the selected area of ground back to "
+     "bare, with target \"selection\" — as the "
      "Delete key does to what is selected. Recorded as one undoable edit, so "
      "undo puts the "
      "entry back where it was; the selection is cleared, and everything "
      "after it in that list is renumbered down one.",
      AgentToolEffect::EDIT, AGENT_PARAMS_DELETE},
     {AgentTool::SELECT, "select",
-     "Select a placement, a light, a player start, a waypoint or a particle "
-     "emitter, which opens the "
-     "properties panel on it, or clear the selection.",
+     "Select a placement, a light, a player start, a waypoint, a particle "
+     "emitter, a billboard, or an area of painted ground — every tile of one "
+     "terrain joined to the one named — which opens the properties panel "
+     "on it, or clear the selection. A selected area is repainted with "
+     "paint_ground's target \"selection\", and erased with delete's.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SELECT},
     {AgentTool::SET_TOOL, "set_tool", "Choose the active toolbar tool.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_TOOL},

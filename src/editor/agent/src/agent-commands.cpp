@@ -7,6 +7,7 @@
 #include "agent-waypoints.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <editor/agent/agent-names.h>
 #include <editor/agent/agent-state-json.h>
@@ -15,6 +16,7 @@
 #include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
+#include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-level-ops.h>
 #include <editor/shell/editor-light-ops.h>
 #include <editor/shell/editor-menu-availability.h>
@@ -25,6 +27,7 @@
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-shape.h>
+#include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
@@ -46,15 +49,20 @@ namespace {
   /// typo cannot queue a day of input nobody can see the end of.
   constexpr uint64_t MAX_SEND_INPUT_TICKS = 60U * 60U;
 
+  /// What `set_property` says of an area of ground, which has no numbers.
+  constexpr std::string_view GROUND_HAS_NO_FIELDS =
+      "an area of ground has no number properties; paint_ground with "
+      "target \"selection\" repaints it";
+
   /// What `add_player_start` says when it is called wrongly.
   constexpr std::string_view ADD_PLAYER_START_USAGE =
       "x and y are required, and player, when given, is a number from 1 "
       "to 4";
 
-  /// How many entries the list @p kind names holds.
-  size_t documentCount(const EditorDocument& document,
+  /// How many entries a selection of @p kind can name in @p state.
+  size_t documentCount(const EditorShellState& state,
                        EditorSelectionKind kind) {
-    return editorListSize(document, kind);
+    return editorSelectableCount(state, kind);
   }
 
   /// Whether @p field names one of the three rotation angles, which is
@@ -83,7 +91,7 @@ namespace {
   /// Select @p selection, dropping it when it names an entry that is not
   /// there. The same rule the editor's own `select` applies.
   void selectEntry(EditorShellState& state, EditorSelection selection) {
-    const size_t count = documentCount(state.document, selection.kind);
+    const size_t count = documentCount(state, selection.kind);
     state.selection = selection.index < count ? selection : EditorSelection{};
   }
 
@@ -94,7 +102,7 @@ namespace {
       return agentFailure(AgentStatus::UNAVAILABLE,
                           "nothing is selected; name a target and an index");
     }
-    if (entry.index >= documentCount(state.document, entry.kind)) {
+    if (entry.index >= documentCount(state, entry.kind)) {
       return agentFailure(AgentStatus::NOT_FOUND,
                           "no entry at that index in that list");
     }
@@ -677,6 +685,9 @@ AgentResult runAgentSetProperty(EditorShellState& state, const json& params) {
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
+  if (entry.kind == EditorSelectionKind::GROUND) {
+    return agentFailure(AgentStatus::BAD_PARAMS, GROUND_HAS_NO_FIELDS);
+  }
   EditorPropertyField field{};
   float value = 0.0f;
   const AgentResult named = propertyOf(params, field, value);
@@ -1045,8 +1056,8 @@ namespace {
         return translateAgentEmitter(state, entry.index, params);
       case EditorSelectionKind::SPRITE:
         return translateAgentSprite(state, entry.index, params);
-      case EditorSelectionKind::LIGHT:
-      case EditorSelectionKind::NONE:
+      default:
+        // A light moves by its own rule; ground is refused before this.
         break;
     }
     return translateLight(state, entry.index, params);
@@ -1060,14 +1071,56 @@ AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
+  if (entry.kind == EditorSelectionKind::GROUND) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "an area of ground does not move; paint it where it "
+                        "should be with paint_ground");
+  }
   return translateEntry(state, entry, params);
 }
+
+namespace {
+
+  /// Select the painted area holding the tile at the call's x and y.
+  AgentResult selectGroundAt(EditorShellState& state, const json& params) {
+    const std::optional<double> x = agentNumberParam(params, "x");
+    const std::optional<double> y = agentNumberParam(params, "y");
+    if (!x || !y || std::abs(*x) > GROUND_COORDINATE_LIMIT ||
+        std::abs(*y) > GROUND_COORDINATE_LIMIT) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "target \"ground\" takes the x and y of a tile");
+    }
+    if (!selectEditorGround(state, {static_cast<int32_t>(std::floor(*x)),
+                                    static_cast<int32_t>(std::floor(*y))})) {
+      return agentFailure(AgentStatus::NOT_FOUND,
+                          "nothing is painted on that tile; get_ground "
+                          "shows what is");
+    }
+    return agentEdited(agentSelectionJson(state));
+  }
+
+  /// Erase the selected area of ground, as the Delete key does, as one
+  /// undoable edit, and clear the selection.
+  AgentResult eraseSelectedGround(EditorShellState& state) {
+    const std::optional<EditorAction> action =
+        editorGroundRepaint(state.document, state.ground_selection, 0);
+    state.selection = EditorSelection{};
+    if (action) {
+      performEditorAction(state.history, state.document, *action);
+    }
+    return agentEdited(agentSelectionJson(state));
+  }
+
+}  // namespace
 
 AgentResult runAgentDelete(EditorShellState& state, const json& params) {
   EditorSelection entry{};
   AgentResult resolved = resolveTarget(state, params, entry);
   if (resolved.status != AgentStatus::OK) {
     return resolved;
+  }
+  if (entry.kind == EditorSelectionKind::GROUND) {
+    return eraseSelectedGround(state);
   }
   // Built from the document rather than from the target, so the editor's
   // Delete key and this tool remove an entry by the same description of
@@ -1082,9 +1135,13 @@ AgentResult runAgentDelete(EditorShellState& state, const json& params) {
 }
 
 AgentResult runAgentSelect(EditorShellState& state, const json& params) {
-  if (agentStringParam(params, "target").value_or("") == "none") {
+  const std::string target = agentStringParam(params, "target").value_or("");
+  if (target == "none") {
     state.selection = EditorSelection{};
     return agentEdited(agentSelectionJson(state));
+  }
+  if (target == "ground") {
+    return selectGroundAt(state, params);
   }
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);

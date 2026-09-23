@@ -5,6 +5,7 @@
 #include <cmath>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-ground-ops.h>
+#include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-terrains.h>
 #include <optional>
 #include <string>
@@ -143,6 +144,29 @@ namespace {
     return agentEdited(out.dump(2));
   }
 
+  /// Paint the selected area of ground with the call's terrain, as the
+  /// panel's Terrain row does; erasing it clears the selection, as the
+  /// Delete key does.
+  AgentResult paintSelection(EditorShellState& state, const json& params) {
+    const auto terrain = editorTerrainNamed(
+        agentStringParam(params, "terrain").value_or(std::string{}));
+    if (!terrain) {
+      return agentFailure(AgentStatus::BAD_PARAMS, PAINT_GROUND_USAGE);
+    }
+    if (editorSelectableCount(state, EditorSelectionKind::GROUND) == 0 ||
+        state.selection.kind != EditorSelectionKind::GROUND) {
+      return agentFailure(AgentStatus::UNAVAILABLE,
+                          "no area of ground is selected; select it with "
+                          "target \"ground\" first");
+    }
+    GroundGrid painted = state.document.ground;
+    paintEditorGroundCells(painted, state.ground_selection, *terrain);
+    // Erased is gone, so nothing is left selected, as the Delete key leaves
+    // it.
+    state.selection = *terrain == 0 ? EditorSelection{} : state.selection;
+    return recordPaint(state, painted);
+  }
+
 }  // namespace
 
 AgentResult runAgentGetGround(const EditorShellState& state,
@@ -160,6 +184,9 @@ AgentResult runAgentGetGround(const EditorShellState& state,
 }
 
 AgentResult runAgentPaintGround(EditorShellState& state, const json& params) {
+  if (agentStringParam(params, "target").value_or("") == "selection") {
+    return paintSelection(state, params);
+  }
   const std::optional<uint8_t> terrain = editorTerrainNamed(
       agentStringParam(params, "terrain").value_or(std::string{}));
   const std::optional<GroundRect> fill = readFill(params);

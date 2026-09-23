@@ -5,11 +5,14 @@
 /// @par Threading Thread-safe (pure functions over value types).
 
 #include <cstdint>
+#include <editor/shell/editor-action.h>
+#include <editor/shell/editor-document.h>
 #include <editor/shell/editor-ground-change.h>
 #include <editor/shell/editor-ground-side.h>
 #include <editor/shell/iso-projection.h>
 #include <engine/render-ground/ground-grid.h>
 #include <engine/render-ground/ground-rect.h>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -33,6 +36,17 @@ inline constexpr int32_t EDITOR_GROUND_FILL_MAX = 256;
 /// Paint every cell of @p rect in @p grid with @p terrain. Cells past the
 /// grid's coordinate limit are left alone. True when any cell changed.
 bool paintEditorGround(GroundGrid& grid, GroundRect rect, uint8_t terrain);
+
+/// Paint every one of @p cells of @p grid with @p terrain.
+void paintEditorGroundCells(GroundGrid& grid, std::span<const GroundCell> cells,
+                            uint8_t terrain);
+
+/// The edit that paints every one of @p cells of @p document's ground with
+/// @p terrain, as one undoable action; nothing when every cell already
+/// holds it.
+[[nodiscard]] std::optional<EditorAction>
+editorGroundRepaint(const EditorDocument& document,
+                    std::span<const GroundCell> cells, uint8_t terrain);
 
 /// Every cell that differs between @p before and @p after, in row order
 /// from the south-west: what one edit that turned the first into the second

@@ -986,6 +986,15 @@ private:
   void noteAnimatedWalkers(
       const std::vector<EditorClipPass>& passes,
       const std::map<std::string, game::FootstepWalker>& walkers);
+  /// Select the painted area under the cursor, or clear the selection when
+  /// the cursor is over bare ground — what a click on nothing does.
+  void selectGroundUnderCursor();
+  /// Show the selected area of ground: its terrain and size, and a Terrain
+  /// row to repaint it with.
+  void showGroundSelection(EditorPropertiesWidget& panel);
+  /// Paint every cell of the selected area of ground with @p terrain, as
+  /// one undoable edit; 0 erases it and drops the selection.
+  void repaintSelectedGround(uint8_t terrain);
   /// Take card @p card of the ground folder as the brush, switch to the
   /// Tile tool, and paint one dab of it on @p tile — what dropping a
   /// terrain card on the viewport does.

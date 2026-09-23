@@ -54,6 +54,7 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/gui/gui-color.h>
 #include <engine/gui/gui-widget.h>
+#include <engine/render-ground/ground-cell.h>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -178,6 +179,11 @@ public:
   /// colour so a route reads as the round it is.
   std::vector<EditorRouteLine> route_lines{};
 
+  /// The cells of the area of ground selected, row by row from the
+  /// south-west — outlined over the scene, where it meets ground outside
+  /// it — or empty when none is.
+  std::vector<GroundCell> ground_highlight{};
+
   /// Raised on a left click that did not pan, with the index of the marker
   /// under the cursor or `EDITOR_PLACEMENT_NONE` for bare ground.
   std::function<void(int)> on_placement_picked{};
@@ -235,6 +241,10 @@ private:
 
   /// Report @p phase of the paint stroke at screen (@p x, @p y).
   void reportPaint(EditorStrokePhase phase, float x, float y);
+
+  /// Outline the selected area of ground along its edge.
+  void renderGroundHighlight(GuiRendererContext& renderer,
+                             const IsoView& view) const;
 
   /// Outline the cells the brush covers round the hovered tile.
   void renderBrush(GuiRendererContext& renderer, const IsoView& view) const;
