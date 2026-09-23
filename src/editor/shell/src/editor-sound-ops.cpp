@@ -2,6 +2,7 @@
 #include <array>
 #include <editor/shell/editor-sound-ops.h>
 #include <engine/audio/audio-decode.h>
+#include <game/content/footstep-names.h>
 
 namespace eng::editor {
 
@@ -23,12 +24,43 @@ namespace {
     return std::nullopt;
   }
 
+  /// Every footstep slot, step set by step set.
+  std::vector<std::string> footstepSlots() {
+    std::vector<std::string> slots;
+    for (const game::StepSet steps : game::ALL_STEP_SETS) {
+      for (const game::FootstepSurface surface : game::ALL_FOOTSTEP_SURFACES) {
+        slots.push_back(game::footstepSoundName(steps, surface));
+      }
+    }
+    return slots;
+  }
+
+  /// Whether @p slot is one a project may record a sound in.
+  bool knownSlot(std::string_view slot) {
+    const std::vector<std::string> slots = editorSoundSlots();
+    return std::ranges::find(slots, slot) != slots.end();
+  }
+
+  /// What the Sound screen calls footstep slot @p slot — "Boots on sand" —
+  /// or nothing when it is not one.
+  std::optional<std::string> footstepLabel(std::string_view slot) {
+    for (const game::StepSet steps : game::ALL_STEP_SETS) {
+      for (const game::FootstepSurface surface : game::ALL_FOOTSTEP_SURFACES) {
+        if (game::footstepSoundName(steps, surface) == slot) {
+          return std::string(game::stepSetLabel(steps)) + " on " +
+                 std::string(game::footstepSurfaceWord(surface));
+        }
+      }
+    }
+    return std::nullopt;
+  }
+
   /// Load @p entry's file from under @p assets_dir into @p bank over its
   /// slot, or say why not.
   void loadEntry(audio::AudioClipBank& bank, const EditorSoundEntry& entry,
                  const std::filesystem::path& assets_dir,
                  EditorSoundLoad& out) {
-    if (!combatKindOf(entry.slot)) {
+    if (!knownSlot(entry.slot)) {
       out.problems.push_back(entry.slot + ": no such sound");
       return;
     }
@@ -40,23 +72,37 @@ namespace {
       return;
     }
     (void)bank.add(entry.slot, std::move(*clip));
+    out.loaded.push_back(entry.slot);
   }
 
 }  // namespace
 
 std::vector<std::string> editorSoundSlots() {
   std::vector<std::string> slots;
-  slots.reserve(game::COMBAT_CUE_KIND_COUNT);
   for (uint8_t i = 0; i < game::COMBAT_CUE_KIND_COUNT; ++i) {
     slots.emplace_back(
         game::combatSoundName(static_cast<game::CombatCueKind>(i)));
   }
+  const std::vector<std::string> steps = footstepSlots();
+  slots.insert(slots.end(), steps.begin(), steps.end());
   return slots;
 }
 
 std::string editorSoundSlotLabel(std::string_view slot) {
-  const std::optional<game::CombatCueKind> kind = combatKindOf(slot);
-  return std::string{kind ? COMBAT_LABELS[static_cast<size_t>(*kind)] : slot};
+  if (const std::optional<game::CombatCueKind> kind = combatKindOf(slot)) {
+    return std::string{COMBAT_LABELS[static_cast<size_t>(*kind)]};
+  }
+  return footstepLabel(slot).value_or(std::string{slot});
+}
+
+std::optional<std::string> editorSoundGroupHeading(std::string_view slot) {
+  for (const game::StepSet steps : game::ALL_STEP_SETS) {
+    if (game::footstepSoundName(steps, game::ALL_FOOTSTEP_SURFACES[0]) ==
+        slot) {
+      return "Footsteps — " + std::string(game::stepSetLabel(steps));
+    }
+  }
+  return std::nullopt;
 }
 
 std::optional<std::string> findEditorSoundSlot(std::string_view name) {
@@ -109,9 +155,11 @@ EditorSoundLoad loadEditorSounds(audio::AudioClipBank& bank,
                                  const std::filesystem::path& assets_dir,
                                  uint32_t sample_rate) {
   EditorSoundLoad out{.clips = game::loadCombatSounds(bank, sample_rate)};
+  game::loadFootstepSounds(bank, sample_rate);
   for (const EditorSoundEntry& entry : table.sounds) {
     loadEntry(bank, entry, assets_dir, out);
   }
+  out.footsteps = game::resolveFootstepClips(bank, out.loaded);
   return out;
 }
 

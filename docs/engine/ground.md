@@ -90,6 +90,7 @@ The eight layers together stay well under the 1/32-tile thickness of the editor'
 - **Drawing.** The editor rebuilds and re-uploads the ground mesh whenever the document's ground differs from the one it last built, so a stroke, an undo, an agent's fill and a level being opened are all drawn without any of them saying so.
 - **Saving.** `bounds`, `tile_palette` and `layers.terrain` in the level file ([project-format.md §4.1](../editor/project-format.md#41-what-the-editor-writes-today)).
 - **Agents.** `get_ground` and `paint_ground` ([capabilities.md](../editor/capabilities.md)).
+- **Footsteps.** Each terrain also names the surface a step on it sounds like — road and stone are both stone, a hole is bare ground — and a playtest hears steps on the painted cell under each walker ([audio.md §9.1](audio.md#91-footsteps)).
 
 ---
 

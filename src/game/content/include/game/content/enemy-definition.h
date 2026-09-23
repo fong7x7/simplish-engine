@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <game/content/faction.h>
+#include <game/content/step-set.h>
 #include <string>
 
 namespace eng::game {
@@ -52,6 +53,8 @@ struct EnemyDefinition {
   std::string behavior{};
   /// The side it is on.
   Faction faction = Faction::HOSTILE;
+  /// What its feet sound like. Presentation: the simulation never reads it.
+  StepSet footsteps = StepSet::DEFAULT;
   /// How far the blast it goes off in when it dies reaches, in tiles; 0
   /// for none. Game §5.1's bloater.
   float death_blast_radius = 0.0F;

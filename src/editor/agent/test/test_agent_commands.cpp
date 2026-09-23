@@ -1118,3 +1118,37 @@ TEST_CASE("start_playtest takes how many stand-ins to add, and remembers it") {
   REQUIRE(state.playtest_stand_ins == 2);
   REQUIRE(json::parse(agentPlaytestJson(state)).at("stand_ins") == 2);
 }
+
+TEST_CASE("set_surface gives a prop a surface, and none takes it away") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+
+  const json wood = call(state, "set_surface",
+                         R"({"target": "placement", "index": 0,
+                             "surface": "wood"})");
+  REQUIRE(wood.at("surface") == "wood");
+  REQUIRE(state.document.placements[0].surface == game::FootstepSurface::WOOD);
+  REQUIRE(state.history.actions.size() == 2);
+
+  (void)call(state, "set_surface",
+             R"({"target": "selection", "surface": "none"})");
+  REQUIRE_FALSE(state.document.placements[0].surface.has_value());
+  REQUIRE(runAgentTool(state, "set_surface",
+                       R"({"target": "selection", "surface": "lava"})")
+              .status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("set_behavior names what an actor's feet sound like") {
+  EditorShellState state = stateWithAssets();
+  (void)call(state, "place_asset", R"({"asset": 0, "x": 0, "y": 0})");
+
+  const json actor = call(state, "set_behavior",
+                          R"({"target": "selection", "behavior": "guard",
+                              "footsteps": "claws"})");
+
+  REQUIRE(actor.at("footsteps") == "claws");
+  REQUIRE(state.document.placements[0].footsteps == game::StepSet::CLAWS);
+  REQUIRE(runAgentTool(state, "set_behavior",
+                       R"({"target": "selection", "footsteps": "hooves"})")
+              .status == AgentStatus::BAD_PARAMS);
+}

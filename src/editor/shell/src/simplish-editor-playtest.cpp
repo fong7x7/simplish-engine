@@ -9,6 +9,7 @@
 #include <editor/shell/editor-character-card.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-character-transform.h>
+#include <editor/shell/editor-footstep-surfaces.h>
 #include <editor/shell/editor-placement-clip.h>
 #include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-player-start-ops.h>
@@ -234,6 +235,9 @@ game::GameContent SimplishEditor::playtestContent() const {
 
 void SimplishEditor::beginPlaytestState() {
   playtest_->setActorIds(editorActorIds(state_.document));
+  playtest_->setActorFootsteps(editorActorFootsteps(state_.document));
+  playtest_->setFootstepSurfaces(
+      makeEditorFootstepSurfaces(state_.document, state_.assets));
   state_.playtest = EditorPlaytestState{};
   state_.playtest.mode = EditorPlayMode::PLAYING;
   playtest_->publish(state_.playtest);
@@ -421,6 +425,9 @@ void SimplishEditor::hearPlaytest() {
   audio().setListener(playtestListener());
   for (const game::CombatCue& cue : playtest_->takeHeardCues()) {
     (void)audio().play(game::combatCueSound(cue, combat_sounds_));
+  }
+  for (const game::FootstepCue& step : playtest_->takeHeardSteps()) {
+    (void)audio().play(game::footstepSound(step, footstep_sounds_));
   }
 }
 

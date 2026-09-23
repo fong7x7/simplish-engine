@@ -33,6 +33,11 @@
 #include <game/content/behavior-state.h>
 #include <game/content/character-definition.h>
 #include <game/content/game-content.h>
+#include <game/content/step-set.h>
+#include <game/fx/footstep-cue.h>
+#include <game/fx/footstep-surfaces.h>
+#include <game/fx/footstep-tracker.h>
+#include <game/fx/footstep-walker.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/game-world.h>
@@ -150,6 +155,21 @@ public:
   /// whoever owns the speakers turns them into sounds.
   [[nodiscard]] std::vector<game::CombatCue> takeHeardCues();
 
+  /// The steps worth hearing from player 1 since the last call — of the
+  /// steps each tick's walkers took, the nearest few (`game::hearFootsteps`)
+  /// — in the order they fell, and forget them. Presentation, as the cues
+  /// are.
+  [[nodiscard]] std::vector<game::FootstepCue> takeHeardSteps();
+
+  /// Hear steps land on @p surfaces from the next tick on: the level's
+  /// floor, as `makeEditorFootstepSurfaces` builds it. Bare ground until
+  /// then.
+  void setFootstepSurfaces(game::FootstepSurfaces surfaces);
+
+  /// What each of the setup's actors' feet sound like, in its order; an
+  /// actor past the end of the list has the default's.
+  void setActorFootsteps(std::vector<game::StepSet> footsteps);
+
   /// The effects playing: what the viewport draws and lights the scene by.
   [[nodiscard]] const FxWorld& effects() const { return fx_; }
 
@@ -234,6 +254,15 @@ private:
   void playCues();
   /// Keep the cues the last tick left that player 1 would hear.
   void hearCues();
+  /// Follow every walker to where the last tick left it, and keep the
+  /// steps player 1 would hear.
+  void hearSteps();
+  /// Every player and actor in the game, as the footstep tracker follows
+  /// them.
+  [[nodiscard]] std::vector<game::FootstepWalker> walkers() const;
+  /// Where player 1 hears from: where they stand, or the origin with no
+  /// player 1.
+  [[nodiscard]] Vec3 listenerAt() const;
   /// Add what the last tick did to player 1 to the pending rumble, given
   /// their health before it, @p health_before.
   void feelTick(std::optional<uint16_t> health_before);
@@ -282,6 +311,16 @@ private:
   std::vector<game::CombatCue> heard_cues_{};
   /// Cues handed out to be heard since the playtest started.
   uint64_t sounds_heard_ = 0;
+  /// What the level sounds like underfoot.
+  game::FootstepSurfaces surfaces_{};
+  /// When each walker takes a step.
+  game::FootstepTracker footsteps_{};
+  /// What each of the setup's actors' feet sound like, in its order.
+  std::vector<game::StepSet> actor_footsteps_{};
+  /// Steps to be heard since `takeHeardSteps` last ran.
+  std::vector<game::FootstepCue> heard_steps_{};
+  /// Steps handed out to be heard since the playtest started.
+  uint64_t steps_heard_ = 0;
   /// The input each slot's pad gives, for the slots a pad plays.
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
 };

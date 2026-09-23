@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 60 tools, HTTP transport, MCP bridge
+**Status:** Built — 61 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -147,7 +147,7 @@ the list of paths that do exist.
 
 ## 5. The tools
 
-Sixty, in three groups. `GET /tools` is authoritative and carries
+Sixty-one, in three groups. `GET /tools` is authoritative and carries
 each one's parameters; this table is the map.
 
 ### Reading
@@ -195,7 +195,8 @@ each one's parameters; this table is the map.
 | `set_property` | Writes one property to an absolute value |
 | `set_animation` | Names the clip a placed rigged model plays |
 | `set_character` | Names the character a player start's player plays as by default, or none |
-| `set_behavior` | Gives a placed prop a behavior, a faction and a patrol route — making it an actor in a playtest — or takes its behavior away |
+| `set_behavior` | Gives a placed prop a behavior, a faction, a patrol route and the sound of its feet — making it an actor in a playtest — or takes its behavior away |
+| `set_surface` | Gives a placed prop the surface a step on it sounds like — wood, cloth, metal… — or `none` to leave the ground's heard, as its Surface row does |
 | `set_effect` | Starts a particle emitter from a named preset, as its Effect row does: its burst and flash become the preset's |
 | `set_sheet` | Points a sprite billboard at another of the project's sheets, as its Sheet row does: its grid, speed and height are kept |
 | `play_effect` | Plays an effect once, now, into the viewport's effects — a preset burst, a whole combat effect (`shot_fired`, `shot_hit_body`, `shot_hit_wall`, `blast`), or a placed emitter's own burst. `blast` also leaves a cloud of volumetric smoke standing, which is how an agent puts smoke in front of the camera. Not an edit: nothing is recorded, and it works while playing |

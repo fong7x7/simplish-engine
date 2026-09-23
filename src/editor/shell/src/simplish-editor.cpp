@@ -12,6 +12,7 @@
 #include <editor/shell/editor-behavior-choices.h>
 #include <editor/shell/editor-character-choices.h>
 #include <editor/shell/editor-entity-id.h>
+#include <editor/shell/editor-footstep-choices.h>
 #include <editor/shell/editor-general-section.h>
 #include <editor/shell/editor-input-bindings.h>
 #include <editor/shell/editor-level-io.h>
@@ -102,7 +103,8 @@ namespace {
            a.rotation.y == b.rotation.y && a.rotation.z == b.rotation.z &&
            a.scale == b.scale && a.collides == b.collides &&
            a.animation == b.animation && a.behavior == b.behavior &&
-           a.faction == b.faction && a.route == b.route;
+           a.faction == b.faction && a.route == b.route &&
+           a.surface == b.surface && a.footsteps == b.footsteps;
   }
 
   /// Whether two lights shine exactly alike, for the same reason
@@ -285,6 +287,8 @@ bool SimplishEditor::onInit() {
   initSceneRenderers();
   combat_sounds_ =
       game::loadCombatSounds(audio().clips(), audio().sampleRate());
+  game::loadFootstepSounds(audio().clips(), audio().sampleRate());
+  footstep_sounds_ = game::resolveFootstepClips(audio().clips(), {});
   initChrome();
   applyProjectToChrome();
   layoutChrome();
@@ -1169,6 +1173,8 @@ void SimplishEditor::showPlacementSelection(EditorPropertiesWidget& panel) {
     const size_t current = editorClipIndex(clips, placement.animation);
     panel.addChoices(EditorChoiceKind::ANIMATION, std::move(clips), current);
   }
+  panel.addChoices(EditorChoiceKind::SURFACE, editorSurfaceChoiceNames(),
+                   editorSurfaceChoiceIndex(placement.surface));
   showActorChoices(panel, placement);
 }
 
@@ -1187,6 +1193,8 @@ void SimplishEditor::showActorChoices(EditorPropertiesWidget& panel,
         editorRouteChoices(state_.document, placement.route);
     panel.addChoices(EditorChoiceKind::ROUTE, std::move(routes.names),
                      routes.current);
+    panel.addChoices(EditorChoiceKind::FOOTSTEPS, editorFootstepChoiceNames(),
+                     static_cast<size_t>(placement.footsteps));
   }
 }
 
@@ -1290,10 +1298,31 @@ void SimplishEditor::applyChoiceEdit(EditorChoiceKind kind, size_t index) {
     case EditorChoiceKind::ROUTE:
       applyActorChoice(kind, index);
       break;
+    case EditorChoiceKind::SURFACE:
+    case EditorChoiceKind::FOOTSTEPS:
+      applyFootstepChoice(kind, index);
+      break;
     default:
       applyEntryChoice(kind, index);
       break;
   }
+}
+
+void SimplishEditor::applyFootstepChoice(EditorChoiceKind kind, size_t index) {
+  if (isPlaying() || !editSubjectSelected(EditorSelectionKind::PLACEMENT)) {
+    return;
+  }
+  EditorPlacement& placement =
+      state_.document.placements[state_.selection.index];
+  placement_prior_ = placement;
+  if (kind == EditorChoiceKind::SURFACE &&
+      index <= game::FOOTSTEP_SURFACE_COUNT) {
+    placement.surface = editorSurfaceChoice(index);
+  } else if (kind == EditorChoiceKind::FOOTSTEPS &&
+             index < game::STEP_SET_COUNT) {
+    placement.footsteps = game::ALL_STEP_SETS[index];
+  }
+  commitPlacementEdit();
 }
 
 void SimplishEditor::applyEntryChoice(EditorChoiceKind kind, size_t index) {

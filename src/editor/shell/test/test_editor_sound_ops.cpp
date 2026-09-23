@@ -37,7 +37,10 @@ void writeWav(const fs::path& path, size_t frames, int16_t value) {
 
 TEST_CASE("every combat cue has a slot with a name of its own") {
   const std::vector<std::string> slots = editorSoundSlots();
-  REQUIRE(slots.size() == game::COMBAT_CUE_KIND_COUNT);
+  // Then every step set's footstep on every surface.
+  REQUIRE(slots.size() ==
+          game::COMBAT_CUE_KIND_COUNT +
+              game::STEP_SET_COUNT * game::FOOTSTEP_SURFACE_COUNT);
   REQUIRE(slots.front() == "combat.shot_fired");
   REQUIRE(editorSoundSlotLabel("combat.blast") == "Blast");
   REQUIRE(editorSoundSlotLabel("combat.shot_hit_wall") == "Shot hits a wall");
@@ -95,4 +98,24 @@ TEST_CASE("a file that will not play leaves the built-in, and says so") {
       loadEditorSounds(bank, table, "/nonexistent", 48000);
   REQUIRE(load.problems.size() == 2);
   REQUIRE(bank.clip(load.clips.back())->samples.size() > 100);
+}
+
+TEST_CASE("a footstep slot is labelled by its feet and what they are on") {
+  REQUIRE(editorSoundSlotLabel("step.boots.sand") == "Boots on sand");
+  REQUIRE(findEditorSoundSlot("step.claws.metal") == "step.claws.metal");
+  REQUIRE(editorSoundGroupHeading("step.heavy.ground") == "Footsteps — Heavy");
+  REQUIRE_FALSE(editorSoundGroupHeading("step.heavy.sand").has_value());
+}
+
+TEST_CASE("the built-in footsteps load with the combat sounds, and every "
+          "step set borrows them") {
+  audio::AudioClipBank bank;
+  const EditorSoundLoad load = loadEditorSounds(bank, {}, {}, 48000);
+  REQUIRE(bank.find("step.default.wood").has_value());
+  const game::FootstepClip& claws =
+      load.footsteps[static_cast<size_t>(game::StepSet::CLAWS)]
+                    [static_cast<size_t>(game::FootstepSurface::WOOD)];
+  REQUIRE(claws.clip == *bank.find("step.default.wood"));
+  REQUIRE(claws.source == game::FootstepClipSource::BORROWED);
+  REQUIRE(load.loaded.empty());
 }

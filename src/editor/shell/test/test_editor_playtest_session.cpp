@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <editor/shell/editor-actor-placement.h>
+#include <editor/shell/editor-footstep-surfaces.h>
+#include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-waypoint-ops.h>
@@ -558,4 +560,32 @@ TEST_CASE("a player whose pad is gone goes back to the stand-in") {
   session.publish(state);
   REQUIRE(state.players[1].stand_in);
   REQUIRE_FALSE(state.players[1].pad);
+}
+
+TEST_CASE("a player walking is heard stepping on what is painted there") {
+  EditorPlaytestSession session = sessionAt({4.5F, 2.5F, 0});
+  EditorDocument floor;
+  paintEditorGround(floor.ground, {0, 0, 20, 6}, 3);
+  session.setFootstepSurfaces(makeEditorFootstepSurfaces(floor, {}));
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 60; ++tick) {
+    session.step(pushingRight(), none);
+  }
+
+  const std::vector<game::FootstepCue> heard = session.takeHeardSteps();
+  // Five tiles a second for a second is several strides.
+  REQUIRE(heard.size() >= 4);
+  REQUIRE(heard.front().surface == game::FootstepSurface::SAND);
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE(state.effects.footsteps == heard.size());
+}
+
+TEST_CASE("a player standing still takes no steps") {
+  EditorPlaytestSession session = sessionAt({4.5F, 2.5F, 0});
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 120; ++tick) {
+    session.step({}, none);
+  }
+  REQUIRE(session.takeHeardSteps().empty());
 }

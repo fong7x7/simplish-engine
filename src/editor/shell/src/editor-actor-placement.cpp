@@ -45,6 +45,15 @@ std::vector<std::string> editorActorIds(const EditorDocument& document) {
   return ids;
 }
 
+std::vector<game::StepSet>
+editorActorFootsteps(const EditorDocument& document) {
+  std::vector<game::StepSet> footsteps;
+  for (const size_t index : editorActorPlacements(document)) {
+    footsteps.push_back(document.placements[index].footsteps);
+  }
+  return footsteps;
+}
+
 float editorActorYawDegrees(const EditorPlacement& placement) {
   return placement.rotation.z + EDITOR_MODEL_FRONT_DEGREES;
 }

@@ -325,6 +325,23 @@ inline constexpr AgentParam AGENT_PARAMS_SET_BEHAVIOR[] = {
      "waypoints are what list_waypoints reports — or 0 for none. Omitted "
      "keeps the prop's route. A patrolling actor with no route stands "
      "where it is."},
+    {"footsteps", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "What the actor's feet sound like when it walks in a playtest: "
+     "\"default\", \"boots\", \"bare\", \"claws\" or \"heavy\". "
+     "Omitted keeps the prop's, which is default until one is chosen."},
+};
+
+/// `set_surface` gives a prop the surface a step on it sounds like.
+inline constexpr AgentParam AGENT_PARAMS_SET_SURFACE[] = {
+    {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "\"placement\", or \"selection\" when a placement is selected."},
+    {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Position in the placement list. Not needed when target is "
+     "\"selection\"."},
+    {"surface", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "ground, grass, dirt, sand, water, stone, wood, metal or cloth; or "
+     "\"none\" to take the prop's surface away, so steps on it sound like "
+     "the ground under it."},
 };
 
 /// `start_playtest` may name who player 1 plays as.
@@ -820,14 +837,24 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_CHARACTER},
     {AgentTool::SET_BEHAVIOR, "set_behavior",
      "Give a placed prop the behavior it runs in a playtest, the side it "
-     "is on, and the route it patrols, as the properties panel's Behavior, "
-     "Faction and Route rows do. A "
+     "is on, the route it patrols and what its feet sound like, as the "
+     "properties panel's Behavior, "
+     "Faction, Route and Footsteps rows do. A "
      "prop with a behavior is an actor: when the level is played it sees "
      "and hears the players, plans paths round the level's props, turns "
      "and moves as its behavior's states say, and is no longer a "
      "collision box for players. Recorded as one undoable edit, and saved "
      "with the level.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_BEHAVIOR},
+    {AgentTool::SET_SURFACE, "set_surface",
+     "Give a placed prop the surface a step on it sounds like — wood for a "
+     "deck, cloth for a rug, metal for a grate — as the properties panel's "
+     "Surface row does. In a playtest, anybody whose feet are inside the "
+     "prop's box, near its height, steps on that surface rather than the "
+     "ground's; where two such props overlap, the later in the placement "
+     "list wins. Footstep sounds only: it neither stops nor slows anybody. "
+     "Recorded as one undoable edit, and saved with the level.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_SURFACE},
     {AgentTool::SET_EFFECT, "set_effect",
      "Start a particle emitter from one of the built-in presets — the "
      "bursts shots, hits and blasts throw — as the properties panel's "

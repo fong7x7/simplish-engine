@@ -137,6 +137,12 @@ void SimplishEditor::appendSlotRows(std::vector<EditorSoundRow>& rows) const {
   }
   rows.push_back({.name = "Project sounds"});
   for (const std::string& slot : editorSoundSlots()) {
+    // Footsteps are grouped by the feet they belong to, each group headed
+    // by its step set, so forty-five rows read as five short lists.
+    if (const std::optional<std::string> heading =
+            editorSoundGroupHeading(slot)) {
+      rows.push_back({.name = *heading});
+    }
     rows.push_back(
         {.kind = EditorSoundRowKind::SLOT,
          .name = editorSoundSlotLabel(slot),
@@ -385,6 +391,7 @@ void SimplishEditor::loadSoundClips() {
   EditorSoundLoad load = loadEditorSounds(audio().clips(), state_.sounds,
                                           assets, audio().sampleRate());
   combat_sounds_ = load.clips;
+  footstep_sounds_ = load.footsteps;
   state_.sounds.problems.insert(state_.sounds.problems.end(),
                                 load.problems.begin(), load.problems.end());
   for (const std::string& problem : state_.sounds.problems) {

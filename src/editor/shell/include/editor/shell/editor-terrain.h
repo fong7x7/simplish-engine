@@ -5,6 +5,7 @@
 /// @par Threading Thread-safe (immutable value type).
 
 #include <cstdint>
+#include <game/content/footstep-surface.h>
 #include <string_view>
 
 namespace eng::editor {
@@ -32,6 +33,8 @@ struct EditorTerrain {
   /// from the base colour: the speckle that makes sand read as sand rather
   /// than as a flat fill.
   uint8_t grain = 0;
+  /// What a step on it sounds like.
+  game::FootstepSurface surface = game::FootstepSurface::GROUND;
 };
 
 }  // namespace eng::editor

@@ -18,12 +18,18 @@
 namespace eng::editor {
 
 /// Every slot a project can give its own sound, in the order the Sound
-/// screen lists them: today, each combat cue's (`combat.shot_fired` …).
+/// screen lists them: each combat cue's (`combat.shot_fired` …), then every
+/// step set's footstep on every surface (`step.boots.sand` …).
 [[nodiscard]] std::vector<std::string> editorSoundSlots();
 
 /// What the Sound screen calls @p slot: "Shot fired", "Blast"; the slot
 /// itself for one it does not know.
 [[nodiscard]] std::string editorSoundSlotLabel(std::string_view slot);
+
+/// The heading the Sound screen puts above @p slot, when @p slot starts a
+/// group: "Footsteps — Boots" above the first of boots' slots.
+[[nodiscard]] std::optional<std::string>
+editorSoundGroupHeading(std::string_view slot);
 
 /// The slot @p name names — as the bank does (`combat.blast`) or by the cue
 /// alone (`blast`) — or nothing.

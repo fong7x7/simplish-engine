@@ -27,6 +27,9 @@ struct EditorPlaytestEffects {
   /// Cues handed to the speakers since the playtest started: of each
   /// kind a tick left, the few nearest player 1.
   uint64_t sounds = 0;
+  /// Footsteps handed out to be heard since the playtest started: the
+  /// nearest few of the steps each tick's walkers took.
+  uint64_t footsteps = 0;
 };
 
 }  // namespace eng::editor

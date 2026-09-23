@@ -13,6 +13,7 @@
 #include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-names.h>
+#include <game/content/footstep-names.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -94,6 +95,19 @@ namespace {
                                  : std::string{};
   }
 
+  /// The sound keys a prop carries only when they say something, into
+  /// @p out: the surface it overrides the ground with, and — for an actor
+  /// whose feet are not the default — what its feet sound like.
+  void addPropSounds(json& out, const EditorPlacement& placement) {
+    if (placement.surface) {
+      out["surface"] = game::footstepSurfaceWord(*placement.surface);
+    }
+    if (!placement.behavior.empty() &&
+        placement.footsteps != game::StepSet::DEFAULT) {
+      out["footsteps"] = game::stepSetWord(placement.footsteps);
+    }
+  }
+
   /// The keys a prop carries only when they say something, into @p out.
   void addPropExtras(json& out, const EditorPlacement& placement) {
     // Only when it is not the size the prop was dropped at, so a level saved
@@ -129,6 +143,7 @@ namespace {
     out["rotation"] = tripleJson(placement.rotation.x, placement.rotation.y,
                                  placement.rotation.z);
     addPropExtras(out, placement);
+    addPropSounds(out, placement);
     return out;
   }
 
@@ -332,6 +347,16 @@ namespace {
                : editorBehaviorRef(behavior);
   }
 
+  /// A prop's sound keys: the surface it overrides the ground with, and
+  /// what its feet sound like. A word the editor does not know reads as
+  /// none and as the default, as an unknown faction reads as hostile.
+  void readPropSounds(const json& entry, EditorPlacement& placement) {
+    placement.surface =
+        game::footstepSurfaceNamed(readString(entry, "surface"));
+    placement.footsteps = game::stepSetNamed(readString(entry, "footsteps"))
+                              .value_or(game::StepSet::DEFAULT);
+  }
+
   /// The behavior, faction and route of a prop, into @p placement. A
   /// faction the format does not know reads as hostile, the side a prop
   /// given a behavior starts on; a route below 1 reads as none.
@@ -341,6 +366,7 @@ namespace {
                             .value_or(game::Faction::HOSTILE);
     const float route = readNumber(entry, "route", 0.0f);
     placement.route = route >= 0.5f ? clampEditorRoute(route) : uint8_t{0};
+    readPropSounds(entry, placement);
   }
 
   EditorPlacement readProp(const json& entry, size_t index,

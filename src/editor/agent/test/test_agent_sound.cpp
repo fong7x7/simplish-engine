@@ -58,7 +58,8 @@ TEST_CASE("get_sound reports the volumes and every slot") {
   REQUIRE(sound["volumes"]["master"] == 1.0);
   REQUIRE(sound["volumes"]["muted"] == false);
   REQUIRE(sound["volumes"]["file"] == "/tmp/audio-volumes.json");
-  REQUIRE(sound["slots"].size() == 4);
+  // Four combat sounds, then forty-five footsteps.
+  REQUIRE(sound["slots"].size() == 49);
   REQUIRE(sound["slots"][0]["file"].is_null());
   REQUIRE(sound["slots"][3]["file"] == "sounds/gone.wav");
   REQUIRE(sound["slots"][3]["missing"] == true);

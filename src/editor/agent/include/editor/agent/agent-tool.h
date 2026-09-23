@@ -93,6 +93,8 @@ enum class AgentTool : uint8_t {
   SET_CHARACTER,
   /// Give a placed prop a behavior and a faction, making it an actor.
   SET_BEHAVIOR,
+  /// Give a placed prop the surface a step on it sounds like.
+  SET_SURFACE,
   /// Start a particle emitter from one of the built-in presets.
   SET_EFFECT,
   /// Point a sprite billboard at one of the project's sprite sheets.
@@ -174,19 +176,20 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::ADD_SPRITE,     AgentTool::PAINT_GROUND,
     AgentTool::SET_PROPERTY,   AgentTool::SET_ANIMATION,
     AgentTool::SET_CHARACTER,  AgentTool::SET_BEHAVIOR,
-    AgentTool::SET_EFFECT,     AgentTool::SET_SHEET,
-    AgentTool::PLAY_EFFECT,    AgentTool::TRANSLATE,
-    AgentTool::DELETE_ENTRY,   AgentTool::SELECT,
-    AgentTool::SET_TOOL,       AgentTool::RUN_COMMAND,
-    AgentTool::UNDO,           AgentTool::REDO,
-    AgentTool::OPEN_PROJECT,   AgentTool::RESCAN_ASSETS,
-    AgentTool::CREATE_LEVEL,   AgentTool::OPEN_LEVEL,
-    AgentTool::GET_PLAYTEST,   AgentTool::START_PLAYTEST,
-    AgentTool::STOP_PLAYTEST,  AgentTool::SEND_INPUT,
-    AgentTool::STEP_PLAYTEST,  AgentTool::GET_CONTROLS,
-    AgentTool::SET_CONTROLS,   AgentTool::GET_SOUND,
-    AgentTool::SET_VOLUME,     AgentTool::SET_SOUND,
-    AgentTool::IMPORT_SOUND,   AgentTool::PLAY_SOUND,
+    AgentTool::SET_SURFACE,    AgentTool::SET_EFFECT,
+    AgentTool::SET_SHEET,      AgentTool::PLAY_EFFECT,
+    AgentTool::TRANSLATE,      AgentTool::DELETE_ENTRY,
+    AgentTool::SELECT,         AgentTool::SET_TOOL,
+    AgentTool::RUN_COMMAND,    AgentTool::UNDO,
+    AgentTool::REDO,           AgentTool::OPEN_PROJECT,
+    AgentTool::RESCAN_ASSETS,  AgentTool::CREATE_LEVEL,
+    AgentTool::OPEN_LEVEL,     AgentTool::GET_PLAYTEST,
+    AgentTool::START_PLAYTEST, AgentTool::STOP_PLAYTEST,
+    AgentTool::SEND_INPUT,     AgentTool::STEP_PLAYTEST,
+    AgentTool::GET_CONTROLS,   AgentTool::SET_CONTROLS,
+    AgentTool::GET_SOUND,      AgentTool::SET_VOLUME,
+    AgentTool::SET_SOUND,      AgentTool::IMPORT_SOUND,
+    AgentTool::PLAY_SOUND,
 };
 
 }  // namespace eng::editor

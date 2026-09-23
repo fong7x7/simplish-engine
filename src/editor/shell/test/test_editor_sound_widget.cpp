@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/shell/editor-sound-widget.h>
 #include <optional>
+#include <string>
 #include <utility>
 
 using namespace eng;
@@ -94,4 +95,57 @@ TEST_CASE("a click on a row highlights it; one off the panel closes") {
   REQUIRE(screen.highlighted() == 4);
   (void)screen.handleMouseDown(clickAt(2.0f, 2.0f));
   REQUIRE(dismissed);
+}
+
+namespace {
+
+/// A heading and @p count slots: more than an 800 × 600 screen shows.
+std::vector<EditorSoundRow> manyRows(size_t count) {
+  std::vector<EditorSoundRow> rows{{.name = "Project sounds"}};
+  for (size_t i = 0; i < count; ++i) {
+    rows.push_back({.kind = EditorSoundRowKind::SLOT,
+                    .name = "Slot " + std::to_string(i),
+                    .key = "slot." + std::to_string(i)});
+  }
+  return rows;
+}
+
+}  // namespace
+
+TEST_CASE("a long list scrolls to keep the highlighted row in view") {
+  EditorSoundWidget screen = openOn(manyRows(50));
+  REQUIRE_FALSE(screen.rowShown(40));
+  screen.moveHighlight(40);
+
+  REQUIRE(screen.rowShown(screen.highlighted()));
+  REQUIRE(screen.firstShown() > 0);
+  // The panel never grows past the screen it covers.
+  REQUIRE(screen.panelRect().h <= 600.0f);
+}
+
+TEST_CASE("the wheel scrolls a long list, and stops at its ends") {
+  EditorSoundWidget screen = openOn(manyRows(50));
+  GuiScrollEvent down;
+  down.delta_y = -1.0f;
+  for (int notch = 0; notch < 100; ++notch) {
+    REQUIRE(screen.handleScroll(down));
+  }
+  REQUIRE(screen.rowShown(50));
+  GuiScrollEvent up;
+  up.delta_y = 1.0f;
+  for (int notch = 0; notch < 100; ++notch) {
+    (void)screen.handleScroll(up);
+  }
+  REQUIRE(screen.firstShown() == 0);
+}
+
+TEST_CASE("a row scrolled out of view cannot be clicked") {
+  EditorSoundWidget screen = openOn(manyRows(50));
+  const Rect first = screen.rowRect(1);
+  screen.moveHighlight(45);
+  // Row 1 is scrolled away; where it was drawn now holds another row.
+  REQUIRE_FALSE(screen.rowShown(1));
+  (void)screen.handleMouseDown(
+      clickAt(first.x + 20.0f, first.y + first.h * 0.5f));
+  REQUIRE(screen.highlighted() != 1);
 }

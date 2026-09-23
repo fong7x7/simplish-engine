@@ -11,17 +11,20 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 - [docs/editor/REQUIREMENTS.md](../../docs/editor/REQUIREMENTS.md) — what the
   editor must do, and its §1 *Current State* for what is actually built.
 - [docs/editor/project-format.md](../../docs/editor/project-format.md) — the
-  on-disk format. Five kinds of file exist today: `.simplish/project.json`;
+  on-disk format. Six kinds of file exist today: `.simplish/project.json`;
   `content/levels/<id>.level.json` — one per level, carrying the props
-  (with any behavior they run), lights, player starts, patrol-route
-  waypoints, particle emitters and sprite billboards the editor authors
-  (§4.1 — it differs from §4's sketch in documented ways);
+  (with any behavior they run, and the footstep surface they override the
+  ground with), lights, player starts, patrol-route waypoints, particle
+  emitters, sprite billboards and the painted ground's terrain layer the
+  editor authors (§4.1 — it differs from §4's sketch in documented ways);
   `content/data/characters.data.json`, the characters table (§8.1);
-  `content/data/behaviors.data.json`, the behaviors props run (§8.2); and
-  `content/data/enemies.data.json`, the enemy archetypes (§8.3). The
-  editor reads the three tables but never writes them.
-  Tiles, other entities, regions, encounters, scenarios, and the other data
-  tables are specified but unwritten.
+  `content/data/behaviors.data.json`, the behaviors props run (§8.2);
+  `content/data/enemies.data.json`, the enemy archetypes (§8.3); and
+  `content/data/sounds.data.json`, the project's own sounds, combat and
+  footsteps (§8.4). The editor reads the first three tables but never
+  writes them; it writes the sounds table.
+  The height layer, other entities, regions, encounters, scenarios, and the
+  other data tables are specified but unwritten.
 - [docs/editor/agent-api.md](../../docs/editor/agent-api.md) — the agent API,
   and §6's checklist. **Read it before adding a tool, a panel, or a menu
   command**, because exposing it is part of the same change.

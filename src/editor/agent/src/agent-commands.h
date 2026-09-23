@@ -48,6 +48,11 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentStepPlaytest(const EditorShellState& state,
                                                const nlohmann::json& params);
 
+/// Give a placed prop the surface a step on it sounds like, or take it
+/// away, as its Surface row does, as one undoable edit.
+[[nodiscard]] AgentResult runAgentSetSurface(EditorShellState& state,
+                                             const nlohmann::json& params);
+
 /// Give one prop a behavior and a faction, or take its behavior away.
 [[nodiscard]] AgentResult runAgentSetBehavior(EditorShellState& state,
                                               const nlohmann::json& params);

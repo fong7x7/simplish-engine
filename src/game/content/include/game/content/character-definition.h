@@ -7,6 +7,7 @@
 /// A value type.
 
 #include <cstdint>
+#include <game/content/step-set.h>
 #include <string>
 
 namespace eng::game {
@@ -41,6 +42,8 @@ struct CharacterDefinition {
   float move_speed = DEFAULT_CHARACTER_MOVE_SPEED;
   /// How many health segments it starts with.
   uint16_t health = DEFAULT_CHARACTER_HEALTH;
+  /// What its feet sound like. Presentation: the simulation never reads it.
+  StepSet footsteps = StepSet::DEFAULT;
 };
 
 }  // namespace eng::game

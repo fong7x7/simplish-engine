@@ -1,3 +1,5 @@
+#include "editor-step-set-read.h"
+
 #include <algorithm>
 #include <cmath>
 #include <editor/project/project-paths.h>
@@ -138,6 +140,15 @@ namespace {
     return true;
   }
 
+  /// How row @p entry carries itself, into @p enemy: the behavior it runs,
+  /// the side it is on, and what its feet sound like.
+  void readConduct(const json& entry, game::EnemyDefinition& enemy,
+                   const RowRead& row) {
+    enemy.behavior = readBehavior(entry, row);
+    enemy.faction = readFaction(entry, row);
+    enemy.footsteps = readEditorStepSet(entry, row.id, row.problems);
+  }
+
   /// One row, or nothing — said why in @p table — when it cannot be used.
   std::optional<game::EnemyDefinition> readRow(const json& entry,
                                                EditorEnemyTable& table) {
@@ -154,8 +165,7 @@ namespace {
     }
     readBody(entry, enemy, row);
     readDeathBlast(entry, enemy, row);
-    enemy.behavior = readBehavior(entry, row);
-    enemy.faction = readFaction(entry, row);
+    readConduct(entry, enemy, row);
     return enemy;
   }
 

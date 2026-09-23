@@ -164,6 +164,7 @@
 #include <functional>
 #include <game/content/faction.h>
 #include <game/fx/combat-sounds.h>
+#include <game/fx/footstep-sounds.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -746,6 +747,9 @@ private:
   /// Apply a choice row that names one thing about the selected entry
   /// rather than one of the three an actor's rows share.
   void applyEntryChoice(EditorChoiceKind kind, size_t index);
+  /// Pick @p index of the selected prop's Surface row or its Footsteps
+  /// row, as one undoable edit.
+  void applyFootstepChoice(EditorChoiceKind kind, size_t index);
   /// Push a document change into the chrome: the viewport's placement
   /// markers, and whether the Edit menu's undo and redo rows are live.
   void applyEditToChrome();
@@ -1203,6 +1207,8 @@ private:
   /// The clip each combat cue plays, loaded into the client's audio bank
   /// when the editor starts.
   game::CombatSoundClips combat_sounds_{};
+  /// The clip each step set plays on each surface, in the audio bank.
+  game::FootstepSoundClips footstep_sounds_{};
   /// When the last frame of play ran, for the playtest's clock.
   std::chrono::steady_clock::time_point playtest_frame_{};
   /// How far the last frame of play got between its two newest ticks,

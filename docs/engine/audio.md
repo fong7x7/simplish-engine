@@ -227,6 +227,65 @@ them through the client's `AudioEngine`. Stopping the playtest fades
 everything out. `get_playtest`'s `effects.sounds` counts the cues sent to be
 heard.
 
+### 9.1 Footsteps
+
+A walk is heard too. `game/fx`'s `footstep-*.h` work out when somebody
+walking takes a step, what they are standing on, and what that sounds like
+for their feet. Presentation, like the combat sounds: they read positions
+the tick left and write nothing back.
+
+**Feet and surfaces.** Two closed sets, in `game/content`. A **step set** is
+the kind of feet — `default`, `boots`, `bare`, `claws`, `heavy` — named by a
+character's or an enemy's `footsteps` in its table, and by an actor prop's
+Footsteps row. A **surface** is what the feet land on — `ground`, `grass`,
+`dirt`, `sand`, `water`, `stone`, `wood`, `metal`, `cloth`. Surfaces are
+materials, not terrains: a road and a paved floor are both stone.
+
+**What is underfoot** (`footstep-surfaces.h`). A `FootstepSurfaces` is the
+level's floor as sound sees it: a grid of surfaces — the editor turns each
+painted terrain into its surface ([ground.md](ground.md)) — and over it the
+**patches**, the boxes of props given a surface of their own (a rug, a deck,
+a grate). Feet inside a patch's footprint, and within a quarter tile of its
+height, are on it; where patches overlap the later wins; everywhere else is
+the grid's cell, and outside it bare ground.
+
+**When a foot lands** (`footstep-tracker.h`). The tracker follows every
+walker by a key that stays theirs — a player's input slot, an actor's place
+in the setup — and adds up the ground each covers; each completed stride is
+a step. Timed by distance, not animation, so a sprite, a static model and a
+rigged one step alike and a faster walker steps more often unasked. A
+walker just seen starts half a stride in; one that stopped starts again most
+of a stride in, so moving off is heard at once; more than a tile in one tick
+is a spawn or a jump, not a step. Strides: default 0.75 tiles, boots 0.8,
+bare 0.7, claws 0.45, heavy 1.1.
+
+**What it sounds like** (`footstep-sounds.h`). Every surface has a built-in
+step, synthesised, under `step.default.<surface>`: a scuff, a swish, a
+crunch, a splash, a click, a hollow knock, a clank. A project can record any
+pair in the sounds table, `step.<feet>.<surface>`, and a pair it has not
+recorded falls back:
+
+```
+step.boots.sand → step.boots.ground → step.default.sand → step.default.ground
+      own               own                stood in            stood in
+```
+
+A step set's own recording plays as recorded; a stood-in clip is shifted to
+the feet's pitch — heavy lower, claws higher — so boots still sound unlike
+bare feet on the built-ins. Each step set also has its loudness (heavy 0.5,
+bare 0.2). Only slots the project actually loaded a file into count as its
+own: the bank never forgets a name, and a recording taken away must stop
+playing. Steps take the lowest priority of anything (50), so a fight steals
+their voices first, and each is a shade off pitch from a hash of where it
+fell.
+
+**Hearing.** `hearFootsteps` keeps the six nearest steps each tick
+(`FOOTSTEPS_HEARD`), so a horde walking costs what a patrol does. In the
+editor a playtest builds the level's surfaces when Play is pressed, follows
+every player and actor after each tick, and hands the steps player 1 would
+hear to the speakers beside the combat cues; `get_playtest`'s
+`effects.footsteps` counts them.
+
 ## 10. Files and tests
 
 | File | Holds |
@@ -240,6 +299,11 @@ heard.
 | `engine/audio/audio-volumes.h`, `audio-volumes-json.h`, `audio-muting.h` | Volume settings, their gain curve, and their file |
 | `platform/audio/audio-device.h` | The output, one backend a build |
 | `game/fx/combat-sounds.h` | The sound each combat cue makes, and which are heard |
+| `game/content/step-set.h`, `footstep-surface.h`, `footstep-names.h` | Kinds of feet, surfaces, and their words |
+| `game/fx/footstep-surfaces.h`, `footstep-patch.h` | What is underfoot where |
+| `game/fx/footstep-tracker.h`, `footstep-gait.h`, `footstep-walker.h`, `footstep-cue.h` | When a walker steps |
+| `game/fx/footstep-sounds.h`, `footstep-clip.h`, `footstep-clip-source.h` | Built-in steps, the fallback chain, and how a step is played |
+| `editor/shell/editor-footstep-surfaces.h`, `editor-footstep-choices.h` | A level's surfaces from the document; the Surface and Footsteps rows |
 | `editor/shell/editor-audio-volumes.h` | The user's volumes file |
 | `editor/shell/editor-sound-table.h`, `editor-sound-ops.h`, `editor-sound-import.h` | The project's sounds table, loading its files over the built-in sounds, and importing a file |
 | `editor/shell/editor-sound-widget.h`, `simplish-editor-sound.cpp` | The Sound screen, and the editor applying and saving what it changes |
@@ -256,6 +320,8 @@ heard.
 | `test_audio_device` | SDL's dummy driver: opens twice, closes twice, pulls a sound to its end, stops pulling on close |
 | `test_audio_volumes`, `test_audio_volumes_json` | The square law; volumes applied are what is heard; mute keeps the levels; the file round-trips, clamps, and skips what it cannot read |
 | `test_combat_sounds` | Every cue has its clip; blast ducks and outranks; own shots louder; pitch spread; the nearest four heard, in order |
+| `test_footstep_tracker`, `test_footstep_surfaces`, `test_footstep_sounds`, `test_footstep_names` | A step a stride, claws quicker than heavy feet, none standing still or across a jump; ground, patches and the later patch winning; built-ins for every surface, the fallback chain, a removed recording no longer counting, stood-in pitch; the nearest six heard |
+| `test_editor_footstep_surfaces`, `test_editor_footstep_choices`, `test_editor_playtest_session` | Terrains become surfaces and a rug is cloth; the rows' choices; a player walking on painted sand is heard on sand, one standing still is not |
 | `test_editor_sound_table`, `test_editor_sound_ops`, `test_editor_sound_import`, `test_editor_audio_volumes`, `test_editor_sound_widget` | The table round-trips and skips bad rows; a project file replaces a built-in clip under the same id, and a broken one leaves the built-in and says so; an import copies, never overwrites, and refuses what will not decode; the volumes file; the screen skips headings and turns a bar click into a level |
 | `test_agent_sound` | Each sound tool, and each refusal changing nothing |
 | `test_editor_playtest_session` | A shot fired in a playtest is heard, once, and counted; unheard cues are capped |
@@ -276,7 +342,11 @@ heard.
 - **Music** — the bus and the duck exist; streaming a long track from disk
   rather than decoding it whole does not.
 - **Moving sources** — a sound's place is fixed when it starts.
-- **Cues for everything else** — bites, pools landing, deaths, footsteps —
+- **Cues for everything else** — bites, pools landing, deaths —
   wait on the same cues effects are waiting on ([fx.md §10](fx.md#10-not-yet)).
+- **Footsteps timed by animation.** Steps land every stride, not when a
+  rigged character's foot touches down in its clip; foot-contact events on
+  clips are the follow-up for the few rigged characters. Footsteps are also
+  editor-only until the game has a runtime that plays sound.
 - **Occlusion and reverb.** Walls do not muffle; rooms do not ring.
 - **Console backends**, in the private overlay.

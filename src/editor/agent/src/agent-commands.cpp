@@ -29,6 +29,7 @@
 #include <engine/input/input-action.h>
 #include <engine/input/player-input-builder.h>
 #include <game/content/behavior-names.h>
+#include <game/content/footstep-names.h>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -922,6 +923,23 @@ namespace {
     return std::nullopt;
   }
 
+  /// @p next with the call's `footsteps` applied, when it gives one.
+  std::optional<AgentResult> applyFootstepsParam(const json& params,
+                                                 EditorPlacement& next) {
+    if (!params.contains("footsteps")) {
+      return std::nullopt;
+    }
+    const auto steps =
+        game::stepSetNamed(agentStringParam(params, "footsteps").value_or(""));
+    if (!steps) {
+      return agentFailure(AgentStatus::BAD_PARAMS,
+                          "footsteps is \"default\", \"boots\", \"bare\", "
+                          "\"claws\" or \"heavy\"");
+    }
+    next.footsteps = *steps;
+    return std::nullopt;
+  }
+
   /// @p next with every `set_behavior` parameter applied, or the first
   /// failure among them.
   std::optional<AgentResult> applyActorParams(const EditorShellState& state,
@@ -933,14 +951,40 @@ namespace {
     if (auto problem = applyFactionParam(params, next)) {
       return problem;
     }
-    return applyRouteParam(params, next);
+    if (auto problem = applyRouteParam(params, next)) {
+      return problem;
+    }
+    return applyFootstepsParam(params, next);
   }
 
   /// Whether @p a and @p b run the same behavior, on the same side, along
   /// the same route.
   bool sameActor(const EditorPlacement& a, const EditorPlacement& b) {
     return a.behavior == b.behavior && a.faction == b.faction &&
-           a.route == b.route;
+           a.route == b.route && a.footsteps == b.footsteps;
+  }
+
+}  // namespace
+
+namespace {
+
+  /// What `set_surface` says when it is called wrongly.
+  constexpr std::string_view SET_SURFACE_USAGE =
+      "set_surface takes a placement, and a surface: ground, grass, dirt, "
+      "sand, water, stone, wood, metal, cloth, or \"none\" for the ground's";
+
+  /// The surface a `set_surface` call names — none for `"none"` — or
+  /// nothing when it names no surface at all.
+  std::optional<std::optional<game::FootstepSurface>>
+  surfaceParam(const json& params) {
+    const std::string word = agentStringParam(params, "surface").value_or("");
+    if (word == "none") {
+      return std::optional<game::FootstepSurface>{};
+    }
+    const std::optional<game::FootstepSurface> surface =
+        game::footstepSurfaceNamed(word);
+    using Named = std::optional<std::optional<game::FootstepSurface>>;
+    return surface ? Named{surface} : Named{};
   }
 
 }  // namespace
@@ -961,6 +1005,25 @@ AgentResult runAgentSetBehavior(EditorShellState& state, const json& params) {
     return *problem;
   }
   if (sameActor(prior, next)) {
+    return agentOk(placementPayload(state, entry.index));
+  }
+  return recordPlacement(state, entry.index, prior, next);
+}
+
+AgentResult runAgentSetSurface(EditorShellState& state, const json& params) {
+  EditorSelection entry{};
+  AgentResult resolved = resolveTarget(state, params, entry);
+  if (resolved.status != AgentStatus::OK) {
+    return resolved;
+  }
+  const auto surface = surfaceParam(params);
+  if (entry.kind != EditorSelectionKind::PLACEMENT || !surface) {
+    return agentFailure(AgentStatus::BAD_PARAMS, SET_SURFACE_USAGE);
+  }
+  const EditorPlacement prior = state.document.placements[entry.index];
+  EditorPlacement next = prior;
+  next.surface = *surface;
+  if (next.surface == prior.surface) {
     return agentOk(placementPayload(state, entry.index));
   }
   return recordPlacement(state, entry.index, prior, next);

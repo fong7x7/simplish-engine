@@ -9,6 +9,9 @@
 #include <editor/shell/iso-projection.h>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
+#include <game/content/footstep-surface.h>
+#include <game/content/step-set.h>
+#include <optional>
 #include <string>
 
 namespace eng::editor {
@@ -79,6 +82,13 @@ struct EditorPlacement {
   /// number, 1 to `EDITOR_ROUTE_COUNT`, or 0 for none. Like the faction,
   /// meaningless without a behavior.
   uint8_t route = 0;
+  /// What a step on the prop sounds like, in place of the ground under it
+  /// — wood for a deck, cloth for a rug — or nothing to leave the ground's.
+  /// Presentation: the simulation never reads it.
+  std::optional<game::FootstepSurface> surface{};
+  /// What the prop's feet sound like when it has a behavior and walks.
+  /// Meaningless, and not saved, when it has none.
+  game::StepSet footsteps = game::StepSet::DEFAULT;
 };
 
 }  // namespace eng::editor

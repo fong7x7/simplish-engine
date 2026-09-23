@@ -1,3 +1,5 @@
+#include "editor-step-set-read.h"
+
 #include <algorithm>
 #include <cmath>
 #include <editor/project/project-paths.h>
@@ -113,6 +115,7 @@ namespace {
       character.name = id;
     }
     readStats(entry, character, table.problems);
+    character.footsteps = readEditorStepSet(entry, id, table.problems);
     return character;
   }
 

@@ -12,6 +12,7 @@
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <game/actors/actor-spawn.h>
+#include <game/content/step-set.h>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,12 @@ editorActorPlacements(const EditorDocument& document);
 /// The id of every actor, in the order `editorActorPlacements` lists them.
 [[nodiscard]] std::vector<std::string>
 editorActorIds(const EditorDocument& document);
+
+/// What each of @p document's actors' feet sound like, in the order
+/// `editorActorPlacements` gives them — the order a playtest's setup spawns
+/// them in.
+[[nodiscard]] std::vector<game::StepSet>
+editorActorFootsteps(const EditorDocument& document);
 
 /// The way @p placement faces, in degrees counterclockwise from world +X:
 /// its Z rotation plus `EDITOR_MODEL_FRONT_DEGREES`. X and Y rotation tip a

@@ -21,7 +21,7 @@ A first slice builds and runs: `./build/debug/src/bin/editor/simplish-editor [pr
 |---|---|---|
 | `src/editor/project/` | The `.simplish/project.json` format, open and create, `last_opened_at` stamping, the recent-projects list | Built; 684 tests |
 | `src/editor/shell/` | Title bar, menu bar (File / Edit / Level / View / Help), tool toolbar (Select / Tile / Height / Prop / Entity), the viewport with left- or middle-drag pan, scroll zoom, click-to-select, and ground painting under the Tile tool, the asset strip that drags models, light sources and player starts into the world, the properties panel that edits whichever is selected — a prop's behavior and faction among it — and the level file those placements are saved to and loaded from | Built; 679 tests |
-| `src/editor/agent/` | The agent API: 60 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
+| `src/editor/agent/` | The agent API: 61 tools over the shell's own state, the JSON protocol, and the binding to a running editor | Built; 121 tests |
 | `src/platform/agent/` | The loopback HTTP transport that carries it | Built; 7 tests |
 | `src/bin/editor/` | Entry point: resolves the data directory, opens a project given on the command line, opens the agent port when asked | Built |
 
@@ -136,6 +136,11 @@ The painted ground is the sixteenth, and the first thing the toolbar's **Tile** 
 - **Nobody picks a piece.** Each quarter of a cell takes one of four shapes from the three cells that meet it at its corner, and any two shapes meet without a seam — so there is no tile set of edge and corner variants to author, and no pair of pieces that does not fit. The price is that a diagonal line of cells reads as a chain of beads rather than a smooth diagonal.
 - **A stroke is one edit.** However many cells a drag crosses, one undo takes it all back; the edit is the list of cells it changed, with what each held before and after.
 - **The ground is presentation, for now.** The simulation does not read it, so a hole stops nobody. Making one block is the navigation grid's to decide, since a playtest's collision boxes also block shots and sight lines and a hole should do neither.
+
+Footsteps are the seventeenth. In a playtest every player and actor walking is heard stepping, a stride at a time, on whatever is under them: the painted ground's terrain (road is stone to the feet), or a prop laid over it that has a surface of its own — every prop's properties now have a **Surface** row, From the ground or one of nine surfaces, so a rug laid with the Tile shape is cloth and a deck is wood. What the steps sound like also depends on the feet: a character's or enemy's `footsteps` in its table, and an actor prop's **Footsteps** row — default, boots, bare, claws, heavy. Every surface has a built-in step; the Sound screen lists a footstep for every kind of feet on every surface, grouped by feet and scrolling, and a project may record any of them, what it has not recorded falling back to the nearest it has ([audio.md §9.1](../engine/audio.md#91-footsteps)). Reachable through `set_surface`, `set_behavior`'s `footsteps` and the sounds tools. Two decisions:
+
+- **Steps are timed by distance, not animation.** A stride's worth of ground is a step, so sprites, static models and rigged ones all step, and a faster walker steps more often unasked. Foot-contact events on animation clips, for the few rigged characters, are a follow-up.
+- **Footsteps are presentation.** They read where the tick left everybody and write nothing back; a surface neither slows nor stops anybody.
 
 The menu bar is the exception that proves the point. It is built — File, Edit, Level, View, and Help, with dropdowns, separators, accelerator hints, and recent projects — but most of what a menu bar traditionally offers has nothing behind it yet. Rather than hide those commands, the bar lists them disabled, so the menu reads as the shape of the editor rather than only the parts that happen to exist.
 

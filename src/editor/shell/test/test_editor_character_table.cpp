@@ -87,3 +87,16 @@ TEST_CASE("a project with no table has no characters and no problems") {
   REQUIRE(loadEditorCharacterTable(root).characters.size() == 1);
   std::filesystem::remove_all(root);
 }
+
+TEST_CASE("a character's footsteps are read, and a word nobody knows is "
+          "the default, said so") {
+  const EditorCharacterTable read = parseEditorCharacterTable(table(R"(
+      {"id": "knight", "footsteps": "boots"},
+      {"id": "slime", "footsteps": "squelch"},
+      {"id": "plain"})"));
+
+  REQUIRE(read.characters[0].footsteps == eng::game::StepSet::BOOTS);
+  REQUIRE(read.characters[1].footsteps == eng::game::StepSet::DEFAULT);
+  REQUIRE(read.characters[2].footsteps == eng::game::StepSet::DEFAULT);
+  REQUIRE(read.problems.size() == 1);
+}

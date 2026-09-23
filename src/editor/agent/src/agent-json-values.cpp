@@ -5,6 +5,7 @@
 #include <editor/shell/editor-entity-id.h>
 #include <editor/shell/editor-sprite-ops.h>
 #include <game/content/behavior-names.h>
+#include <game/content/footstep-names.h>
 #include <nlohmann/json.hpp>
 
 namespace eng::editor {
@@ -23,7 +24,11 @@ nlohmann::json agentPlacementValue(const EditorPlacement& placement) {
           {"animation", placement.animation},
           {"behavior", placement.behavior},
           {"faction", game::factionName(placement.faction)},
-          {"route", placement.route}};
+          {"route", placement.route},
+          {"surface", placement.surface
+                          ? game::footstepSurfaceWord(*placement.surface)
+                          : "none"},
+          {"footsteps", game::stepSetWord(placement.footsteps)}};
 }
 
 nlohmann::json agentLightValue(const EditorLight& light) {

@@ -29,6 +29,7 @@
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/behavior-names.h>
+#include <game/content/footstep-names.h>
 #include <nlohmann/json.hpp>
 #include <span>
 #include <string>
@@ -431,11 +432,9 @@ namespace {
       cues[std::string(agentCombatCueName(
           static_cast<game::CombatCueKind>(kind)))] = effects.cues[kind];
     }
-    return {{"particles", effects.particles},
-            {"volumes", effects.volumes},
-            {"lights", effects.lights},
-            {"cues", cues},
-            {"sounds", effects.sounds}};
+    return {{"particles", effects.particles}, {"volumes", effects.volumes},
+            {"lights", effects.lights},       {"cues", cues},
+            {"sounds", effects.sounds},       {"footsteps", effects.footsteps}};
   }
 
   /// Ticks of scripted input still waiting to run.
@@ -639,7 +638,8 @@ namespace {
             {"name", character.name},
             {"model", character.model},
             {"move_speed", character.move_speed},
-            {"health", character.health}};
+            {"health", character.health},
+            {"footsteps", game::stepSetWord(character.footsteps)}};
   }
 
 }  // namespace
@@ -697,7 +697,8 @@ namespace {
             {"behavior_ref", ref},
             {"behavior_known",
              findEditorBehavior(state.behaviors.behaviors, ref) != nullptr},
-            {"faction", game::factionName(enemy.faction)}};
+            {"faction", game::factionName(enemy.faction)},
+            {"footsteps", game::stepSetWord(enemy.footsteps)}};
   }
 
   /// One behavior, as `list_behaviors` reports it.

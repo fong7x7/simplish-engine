@@ -657,3 +657,28 @@ TEST_CASE("runs that do not fill their bounds leave the ground bare") {
   REQUIRE(load.has_value());
   REQUIRE(load->document.ground.empty());
 }
+
+TEST_CASE("a prop's surface and an actor's footsteps survive the round trip") {
+  EditorDocument document = testDocument();
+  document.placements[0].surface = eng::game::FootstepSurface::WOOD;
+  document.placements[1].behavior = "behavior:guard";
+  document.placements[1].footsteps = eng::game::StepSet::HEAVY;
+
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(
+      serializeEditorLevel(document, testAssets(), "main"), testAssets());
+
+  REQUIRE(load.has_value());
+  REQUIRE(load->document.placements[0].surface ==
+          eng::game::FootstepSurface::WOOD);
+  REQUIRE_FALSE(load->document.placements[1].surface.has_value());
+  REQUIRE(load->document.placements[1].footsteps == eng::game::StepSet::HEAVY);
+}
+
+TEST_CASE("scenery writes no footsteps, and a prop with no surface none") {
+  EditorDocument document = testDocument();
+  document.placements[0].footsteps = eng::game::StepSet::CLAWS;
+  const nlohmann::json content = nlohmann::json::parse(
+      serializeEditorLevel(document, testAssets(), "main"))["content"];
+  REQUIRE_FALSE(content["props"][0].contains("footsteps"));
+  REQUIRE_FALSE(content["props"][0].contains("surface"));
+}

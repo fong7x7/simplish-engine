@@ -13,6 +13,7 @@
 #include <game/fx/combat-fx.h>
 #include <game/fx/combat-rumble.h>
 #include <game/fx/combat-sounds.h>
+#include <game/fx/footstep-sounds.h>
 #include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
@@ -283,16 +284,66 @@ std::vector<game::CombatCue> EditorPlaytestSession::takeHeardCues() {
   return std::exchange(heard_cues_, {});
 }
 
+Vec3 EditorPlaytestSession::listenerAt() const {
+  const std::optional<uint32_t> one = playerOneIndex();
+  return one ? world_->players().position[*one] : Vec3{};
+}
+
 void EditorPlaytestSession::hearCues() {
   // Ticks a frame runs are heard together; past a few frames' worth
   // unheard — nobody is taking them — the oldest are what is lost.
-  const std::optional<uint32_t> one = playerOneIndex();
-  const Vec3 listener = one ? world_->players().position[*one] : Vec3{};
-  game::hearCombatCues(world_->combatCues(), listener, heard_cues_);
+  game::hearCombatCues(world_->combatCues(), listenerAt(), heard_cues_);
   if (heard_cues_.size() > EDITOR_PLAYTEST_HEARD_CUES) {
     const auto excess = heard_cues_.size() - EDITOR_PLAYTEST_HEARD_CUES;
     heard_cues_.erase(heard_cues_.begin(),
                       heard_cues_.begin() + static_cast<ptrdiff_t>(excess));
+  }
+}
+
+std::vector<game::FootstepCue> EditorPlaytestSession::takeHeardSteps() {
+  steps_heard_ += heard_steps_.size();
+  return std::exchange(heard_steps_, {});
+}
+
+void EditorPlaytestSession::setFootstepSurfaces(
+    game::FootstepSurfaces surfaces) {
+  surfaces_ = std::move(surfaces);
+}
+
+void EditorPlaytestSession::setActorFootsteps(
+    std::vector<game::StepSet> footsteps) {
+  actor_footsteps_ = std::move(footsteps);
+}
+
+std::vector<game::FootstepWalker> EditorPlaytestSession::walkers() const {
+  std::vector<game::FootstepWalker> walking;
+  const game::PlayerPool& players = world_->players();
+  for (uint32_t i = 0; i < players.slots.size(); ++i) {
+    walking.push_back(
+        {players.input_slot[i], players.position[i], character(i).footsteps});
+  }
+  // Actors are keyed past every player slot, by their place in the setup,
+  // which stays theirs however the pool is compacted.
+  for (size_t actor = 0; actor < actorCount(); ++actor) {
+    if (const std::optional<uint32_t> index = actorIndex(actor)) {
+      walking.push_back({static_cast<uint32_t>(sim::MAX_PLAYERS + actor),
+                         world_->actors().position[*index],
+                         actor < actor_footsteps_.size()
+                             ? actor_footsteps_[actor]
+                             : game::StepSet::DEFAULT});
+    }
+  }
+  return walking;
+}
+
+void EditorPlaytestSession::hearSteps() {
+  std::vector<game::FootstepCue> steps;
+  footsteps_.advance(walkers(), surfaces_, steps);
+  game::hearFootsteps(steps, listenerAt(), heard_steps_);
+  if (heard_steps_.size() > EDITOR_PLAYTEST_HEARD_CUES) {
+    const auto excess = heard_steps_.size() - EDITOR_PLAYTEST_HEARD_CUES;
+    heard_steps_.erase(heard_steps_.begin(),
+                       heard_steps_.begin() + static_cast<ptrdiff_t>(excess));
   }
 }
 
@@ -303,6 +354,7 @@ void EditorPlaytestSession::playCues() {
     ++cues_played_[static_cast<size_t>(cue.kind)];
   }
   hearCues();
+  hearSteps();
 }
 
 void EditorPlaytestSession::stepEffects(float seconds) {
@@ -325,6 +377,7 @@ void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
   state.effects.lights = fx_.lights.live;
   state.effects.cues = cues_played_;
   state.effects.sounds = sounds_heard_;
+  state.effects.footsteps = steps_heard_;
 }
 
 void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {

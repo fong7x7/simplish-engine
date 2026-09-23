@@ -24,6 +24,11 @@ namespace {
   /// percentage.
   constexpr float BAR_H = 8.0f;
   constexpr float PERCENT_W = 64.0f;
+  /// How many rows one notch of the wheel scrolls.
+  constexpr long WHEEL_ROWS = 3;
+  /// The scroll thumb's width, and its gap from the panel's edge.
+  constexpr float THUMB_W = 4.0f;
+  constexpr float THUMB_GAP = 4.0f;
 
   constexpr std::string_view TITLE = "Sound";
 
@@ -62,6 +67,7 @@ std::unique_ptr<GuiWidget> EditorSoundWidget::clone() const {
 void EditorSoundWidget::open(std::vector<EditorSoundRow> rows) {
   rows_ = std::move(rows);
   highlighted_ = selectable(0, 1);
+  first_shown_ = 0;
   visible = isOpen();
 }
 
@@ -69,11 +75,14 @@ void EditorSoundWidget::refresh(std::vector<EditorSoundRow> rows) {
   rows_ = std::move(rows);
   highlighted_ = std::min(highlighted_, rows_.empty() ? 0 : rows_.size() - 1);
   highlighted_ = selectable(highlighted_, 1);
+  scrollTo(static_cast<long>(first_shown_));
+  reveal();
 }
 
 void EditorSoundWidget::close() {
   rows_.clear();
   highlighted_ = 0;
+  first_shown_ = 0;
   visible = false;
 }
 
@@ -99,11 +108,42 @@ void EditorSoundWidget::moveHighlight(int steps) {
     const long next = ((static_cast<long>(highlighted_) + step) % n + n) % n;
     highlighted_ = selectable(static_cast<size_t>(next), step);
   }
+  reveal();
+}
+
+size_t EditorSoundWidget::rowsFitting() const {
+  const float room = std::max(0.0f, rect.h - HEADER_H - FOOTER_H);
+  return std::max<size_t>(1, static_cast<size_t>(room / ROW_H));
+}
+
+void EditorSoundWidget::scrollTo(long first) {
+  const auto last =
+      static_cast<long>(rows_.size()) - static_cast<long>(rowsFitting());
+  first_shown_ = static_cast<size_t>(std::clamp(first, 0L, std::max(0L, last)));
+}
+
+void EditorSoundWidget::reveal() {
+  const size_t fitting = rowsFitting();
+  if (highlighted_ < first_shown_) {
+    scrollTo(static_cast<long>(highlighted_));
+  } else if (highlighted_ >= first_shown_ + fitting) {
+    scrollTo(static_cast<long>(highlighted_ + 1 - fitting));
+  }
+  // A heading just above the first row in view is shown with it, so the
+  // top of a group is never a row without its title.
+  if (first_shown_ > 0 && first_shown_ == highlighted_ &&
+      rows_[first_shown_ - 1].kind == EditorSoundRowKind::HEADING) {
+    scrollTo(static_cast<long>(first_shown_) - 1);
+  }
+}
+
+bool EditorSoundWidget::rowShown(size_t index) const {
+  return index >= first_shown_ && index < first_shown_ + rowsFitting();
 }
 
 Rect EditorSoundWidget::panelRect() const {
-  const float h =
-      HEADER_H + FOOTER_H + ROW_H * static_cast<float>(rows_.size());
+  const size_t shown = std::min(rows_.size(), rowsFitting());
+  const float h = HEADER_H + FOOTER_H + ROW_H * static_cast<float>(shown);
   const float w = std::min(PANEL_W, rect.w);
   return makeRect(rect.x + (rect.w - w) * 0.5f,
                   rect.y + std::max(0.0f, (rect.h - h) * 0.5f), w, h);
@@ -112,7 +152,9 @@ Rect EditorSoundWidget::panelRect() const {
 Rect EditorSoundWidget::rowRect(size_t index) const {
   const Rect panel = panelRect();
   return makeRect(panel.x,
-                  panel.y + HEADER_H + ROW_H * static_cast<float>(index),
+                  panel.y + HEADER_H +
+                      ROW_H * (static_cast<float>(index) -
+                               static_cast<float>(first_shown_)),
                   panel.w, ROW_H);
 }
 
@@ -177,12 +219,43 @@ void EditorSoundWidget::render(const GuiDrawContext& ctx) const {
                       THEME_BTN_RADIUS);
   ctx.drawCenteredText(makeRect(panel.x, panel.y, panel.w, HEADER_H),
                        GuiColor::applyOpacity(THEME_TEXT, opacity), TITLE);
-  for (size_t i = 0; i < rows_.size(); ++i) {
-    renderRow(ctx, i);
-  }
+  renderRows(ctx);
   ctx.drawCenteredText(
       makeRect(panel.x, panel.y + panel.h - FOOTER_H, panel.w, FOOTER_H),
       GuiColor::applyOpacity(THEME_DIM, opacity), hint());
+}
+
+void EditorSoundWidget::renderRows(const GuiDrawContext& ctx) const {
+  const size_t end = std::min(rows_.size(), first_shown_ + rowsFitting());
+  for (size_t i = first_shown_; i < end; ++i) {
+    renderRow(ctx, i);
+  }
+  renderScrollbar(ctx);
+}
+
+void EditorSoundWidget::renderScrollbar(const GuiDrawContext& ctx) const {
+  const size_t fitting = rowsFitting();
+  if (rows_.size() <= fitting) {
+    return;
+  }
+  const Rect panel = panelRect();
+  const float track = ROW_H * static_cast<float>(fitting);
+  const auto total = static_cast<float>(rows_.size());
+  const Rect thumb = makeRect(
+      panel.x + panel.w - THUMB_W - THUMB_GAP,
+      panel.y + HEADER_H + track * static_cast<float>(first_shown_) / total,
+      THUMB_W, track * static_cast<float>(fitting) / total);
+  ctx.drawRoundedRect(thumb, GuiColor::applyOpacity(THEME_DIM, opacity),
+                      THUMB_W * 0.5f);
+}
+
+bool EditorSoundWidget::handleScroll(const GuiScrollEvent& event) {
+  if (!isOpen()) {
+    return false;
+  }
+  const long rows = event.delta_y > 0.0f ? -WHEEL_ROWS : WHEEL_ROWS;
+  scrollTo(static_cast<long>(first_shown_) + rows);
+  return true;
 }
 
 std::string EditorSoundWidget::hint() const {
@@ -203,7 +276,7 @@ bool EditorSoundWidget::handleMouseDown(const GuiMouseEvent& event) {
     return false;
   }
   for (size_t i = 0; i < rows_.size(); ++i) {
-    if (rows_[i].kind != EditorSoundRowKind::HEADING &&
+    if (rows_[i].kind != EditorSoundRowKind::HEADING && rowShown(i) &&
         containsPoint(rowRect(i), event.x, event.y)) {
       clickRow(i, event.x);
       return false;

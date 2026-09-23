@@ -16,11 +16,17 @@ namespace eng::editor {
 /// it where they meet, so a road laid across sand runs over the sand and a
 /// hole cuts through everything. A terrain's number in the ground grid is
 /// its place here plus one, since 0 is bare ground.
+///
+/// Each also says what a step on it sounds like. A road is stone to the
+/// feet; a hole is bare ground, since nobody should be walking in it.
 inline constexpr EditorTerrain EDITOR_TERRAINS[] = {
-    {"Grass", "grass", 86, 136, 62, 14},   {"Dirt", "dirt", 118, 88, 60, 12},
-    {"Sand", "sand", 212, 188, 128, 10},   {"Water", "water", 56, 108, 160, 6},
-    {"Stone", "stone", 138, 138, 134, 12}, {"Road", "road", 60, 60, 66, 5},
-    {"Hole", "hole", 16, 14, 18, 3},
+    {"Grass", "grass", 86, 136, 62, 14, game::FootstepSurface::GRASS},
+    {"Dirt", "dirt", 118, 88, 60, 12, game::FootstepSurface::DIRT},
+    {"Sand", "sand", 212, 188, 128, 10, game::FootstepSurface::SAND},
+    {"Water", "water", 56, 108, 160, 6, game::FootstepSurface::WATER},
+    {"Stone", "stone", 138, 138, 134, 12, game::FootstepSurface::STONE},
+    {"Road", "road", 60, 60, 66, 5, game::FootstepSurface::STONE},
+    {"Hole", "hole", 16, 14, 18, 3, game::FootstepSurface::GROUND},
 };
 
 /// How many terrains there are, which is also the highest terrain number.
