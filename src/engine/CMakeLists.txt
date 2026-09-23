@@ -21,6 +21,7 @@ add_subdirectory(math)
 add_subdirectory(core)
 add_subdirectory(sim)
 add_subdirectory(input)
+add_subdirectory(audio)
 add_subdirectory(physics)
 add_subdirectory(spatial)
 add_subdirectory(animation)
@@ -39,6 +40,7 @@ simplish_add_library(simplish-engine
             simplish-engine-core
             simplish-engine-sim
             simplish-engine-input
+            simplish-engine-audio
             simplish-engine-physics
             simplish-engine-spatial
             simplish-engine-animation

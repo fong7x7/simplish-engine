@@ -13,6 +13,7 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::SET_SHADING_SMOOTH ||
          command == EditorMenuCommand::SET_SHADING_CEL ||
          command == EditorMenuCommand::PLAYTEST ||
+         command == EditorMenuCommand::IMPORT_SOUND ||
          editorStandInsOf(command) >= 0;
 }
 

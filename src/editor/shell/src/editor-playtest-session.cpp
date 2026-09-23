@@ -12,6 +12,7 @@
 #include <game/content/character-lookup.h>
 #include <game/fx/combat-fx.h>
 #include <game/fx/combat-rumble.h>
+#include <game/fx/combat-sounds.h>
 #include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
@@ -277,12 +278,31 @@ input::GamepadRumble EditorPlaytestSession::takeRumble() {
   return std::exchange(pending_rumble_, input::GamepadRumble{});
 }
 
+std::vector<game::CombatCue> EditorPlaytestSession::takeHeardCues() {
+  sounds_heard_ += heard_cues_.size();
+  return std::exchange(heard_cues_, {});
+}
+
+void EditorPlaytestSession::hearCues() {
+  // Ticks a frame runs are heard together; past a few frames' worth
+  // unheard — nobody is taking them — the oldest are what is lost.
+  const std::optional<uint32_t> one = playerOneIndex();
+  const Vec3 listener = one ? world_->players().position[*one] : Vec3{};
+  game::hearCombatCues(world_->combatCues(), listener, heard_cues_);
+  if (heard_cues_.size() > EDITOR_PLAYTEST_HEARD_CUES) {
+    const auto excess = heard_cues_.size() - EDITOR_PLAYTEST_HEARD_CUES;
+    heard_cues_.erase(heard_cues_.begin(),
+                      heard_cues_.begin() + static_cast<ptrdiff_t>(excess));
+  }
+}
+
 void EditorPlaytestSession::playCues() {
   const std::span<const game::CombatCue> cues = world_->combatCues();
   game::playCombatCues(fx_, cues);
   for (const game::CombatCue& cue : cues) {
     ++cues_played_[static_cast<size_t>(cue.kind)];
   }
+  hearCues();
 }
 
 void EditorPlaytestSession::stepEffects(float seconds) {
@@ -304,6 +324,7 @@ void EditorPlaytestSession::publishEffects(EditorPlaytestState& state) const {
   state.effects.volumes = fx_.volumes.live;
   state.effects.lights = fx_.lights.live;
   state.effects.cues = cues_played_;
+  state.effects.sounds = sounds_heard_;
 }
 
 void EditorPlaytestSession::publishPlayers(EditorPlaytestState& state) const {

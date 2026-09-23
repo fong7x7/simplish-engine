@@ -30,7 +30,9 @@ my-project/
 ├── .simplish/
 │   └── project.json          # manifest — exists today
 ├── assets/                   # source art: .obj, textures, audio
-│   └── crate.obj
+│   ├── crate.obj
+│   └── sounds/               # where File › Import Sound copies to
+│       └── boom.wav
 ├── content/
 │   ├── levels/
 │   │   ├── main.level.json   # props and lights — exists today
@@ -46,6 +48,7 @@ my-project/
 │       ├── behaviors.data.json    # read today (§8.2)
 │       ├── weapons.data.json
 │       ├── enemies.data.json      # read today (§8.3)
+│       ├── sounds.data.json       # read and written today (§8.4)
 │       └── projectiles.data.json
 └── data/                     # editor-owned scratch: layouts, bookmarks
 ```
@@ -496,6 +499,31 @@ Reading is forgiving, as the characters reader is, but never so forgiving that a
 Reading is forgiving in the way §8.1 is: a row with no usable or a repeated id is skipped, a number that is not one takes its default and one out of range is held to it, and an unknown faction is hostile. A behavior nobody defines is kept as written — the behaviors are read separately and may be fixed — and `list_enemies` says whether each archetype's behavior resolves. At run time the table becomes `game::GameContent::enemies`; `makeEnemySpawn` turns a row into the same `ActorSpawn` a prop with that model, behavior and faction would have become.
 
 ---
+
+### 8.4 The sounds table
+
+`content/data/sounds.data.json`, entry schema `simplish/sound/1.0` — which of the game's sounds play one of the project's own files instead of their built-in (synthesised) sound ([audio.md §9](../engine/audio.md#9-what-a-fight-sounds-like)). Optional: a project without it plays every built-in sound. **Unlike the other tables, the editor writes this one** — the Sound screen and the agent's `set_sound` and `import_sound` change it, and it is saved at once. A hand edit is read the next time the project is opened, rescanned, or played.
+
+```json
+{
+  "schema": "simplish/data_table/1.0",
+  "id": "sounds",
+  "name": "Sounds",
+  "content": {
+    "entry_schema": "simplish/sound/1.0",
+    "entries": [
+      { "id": "combat.blast", "file": "sounds/boom.wav" }
+    ]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | The sound, as the audio bank names it: `combat.shot_fired`, `combat.shot_hit_body`, `combat.shot_hit_wall`, `combat.blast` |
+| `file` | A `.wav` or `.ogg` under `assets/`, relative to it |
+
+A row with no `id` or no `file`, or a second row for the same sound, is skipped. An `id` that names no sound, or a file that is missing or will not decode, leaves that sound built-in. Each of those is logged and reported in `get_sound`'s `problems`.
 
 ## 9. What It Becomes
 

@@ -88,6 +88,8 @@ private:
   /// playtest. False when @p request is not one of them, which is what
   /// sends it on to the rest.
   [[nodiscard]] bool runLevelRequest(const AgentHostRequest& request);
+  /// Play an effect or a sound; false for any other request.
+  [[nodiscard]] bool runPresentationRequest(const AgentHostRequest& request);
   /// Carry out everything else: a menu command, a rescan.
   void runProjectRequest(const AgentHostRequest& request);
 

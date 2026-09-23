@@ -453,3 +453,13 @@ TEST_CASE("get_playtest reports the effects playing and the cues played") {
   REQUIRE(effects.at("cues").at("shot_hit_wall") == 0);
   REQUIRE(effects.at("cues").at("blast") == 1);
 }
+
+TEST_CASE("get_playtest reports how many cues were sent to be heard") {
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.effects.sounds = 4;
+
+  const nlohmann::json read = nlohmann::json::parse(agentPlaytestJson(state));
+
+  REQUIRE(read.at("effects").at("sounds") == 4);
+}

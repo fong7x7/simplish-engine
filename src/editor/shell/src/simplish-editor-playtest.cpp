@@ -119,6 +119,7 @@ void SimplishEditor::reloadDataTables() {
   reloadCharacters();
   reloadBehaviors();
   reloadEnemies();
+  reloadSounds();
 }
 
 EditorCharacterSelectWidget* SimplishEditor::characterSelectWidget() {
@@ -250,6 +251,7 @@ void SimplishEditor::stopPlaytest() {
     return;
   }
   saveLastPlaytestReplay();
+  audio().stopAll();
   playtest_.reset();
   resetEditEffects();
   state_.playtest = EditorPlaytestState{};
@@ -297,6 +299,7 @@ void SimplishEditor::afterPlaytestTicks() {
       pad && input::isRumbling(felt)) {
     (void)rumbleGamepad(*pad, felt);
   }
+  hearPlaytest();
   playtest_->publish(state_.playtest);
   followPlayer();
   refreshPlacementMarkers();
@@ -412,6 +415,24 @@ void SimplishEditor::followPlayer() {
   const Vec3 at = playtest_->renderPosition(0, playtest_alpha_);
   viewport->camera.focus =
       worldToIso(viewport->camera.axes, {at.x, at.y, at.z});
+}
+
+void SimplishEditor::hearPlaytest() {
+  audio().setListener(playtestListener());
+  for (const game::CombatCue& cue : playtest_->takeHeardCues()) {
+    (void)audio().play(game::combatCueSound(cue, combat_sounds_));
+  }
+}
+
+audio::AudioListener SimplishEditor::playtestListener() {
+  audio::AudioListener listener;
+  if (playtest_->players().slots.size() > 0) {
+    listener.at = playtest_->renderPosition(0, playtest_alpha_);
+  }
+  if (const EditorViewportWidget* viewport = viewportWidget()) {
+    listener.right = editorMoveBasis(viewport->camera.axes).right;
+  }
+  return listener;
 }
 
 void SimplishEditor::appendPlaytestMarkers(
@@ -634,7 +655,7 @@ void SimplishEditor::onClientKeyUp(uint32_t key) {
 }
 
 void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
-  if (handleControlsButton(button)) {
+  if (handleControlsButton(button) || handleSoundButton(button)) {
     return;
   }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {

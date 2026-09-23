@@ -21,6 +21,8 @@ constexpr std::string_view APP_NAME = "Editor";
 constexpr std::string_view RECENT_PROJECTS_FILE = "recent-projects.json";
 /// The user's control scheme, inside that directory.
 constexpr std::string_view INPUT_BINDINGS_FILE = "input-bindings.json";
+/// The user's volume settings, beside their controls.
+constexpr std::string_view AUDIO_VOLUMES_FILE = "audio-volumes.json";
 /// Where it used to live, and where it still goes when the platform offers
 /// nowhere better.
 constexpr std::string_view RECENT_PROJECTS_FALLBACK =
@@ -64,6 +66,14 @@ std::filesystem::path resolveInputBindingsPath() {
                            : user_data / INPUT_BINDINGS_FILE;
 }
 
+/// Where the user's @p name file is kept: their own data, as their controls
+/// are. Empty — nothing saved — without a place.
+std::filesystem::path resolveUserFile(std::string_view name) {
+  const std::filesystem::path user_data =
+      eng::client::desktopUserDataPath(APP_ORG, APP_NAME);
+  return user_data.empty() ? std::filesystem::path{} : user_data / name;
+}
+
 void configureClient(eng::client::GameClientConfig& config) {
   config.window_title = "Simplish Editor";
   config.data_dir = resolveDataDir();
@@ -84,6 +94,7 @@ int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
 
   editor.setRecentProjectsPath(resolveRecentProjectsPath());
   editor.setInputBindingsPath(resolveInputBindingsPath());
+  editor.setAudioVolumesPath(resolveUserFile(AUDIO_VOLUMES_FILE));
 
   auto error = editor.init(config);
   if (error.has_value()) {

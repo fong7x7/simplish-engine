@@ -58,6 +58,7 @@ namespace {
       EditorMenuCommand::NEW_PROJECT,   EditorMenuCommand::OPEN_PROJECT,
       EditorMenuCommand::SEPARATOR,     EditorMenuCommand::SAVE,
       EditorMenuCommand::SAVE_AS,       EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::IMPORT_SOUND,  EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::CLOSE_PROJECT, EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::EXIT,
   };
@@ -73,6 +74,7 @@ namespace {
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SETTINGS,
       EditorMenuCommand::CONTROLS,
+      EditorMenuCommand::SOUND,
   };
 
   constexpr EditorMenuCommand VIEW_ROWS[] = {

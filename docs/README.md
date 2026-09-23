@@ -15,6 +15,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [Animation](engine/animation.md) | Working on skeletons, animation clips, glTF rigs, or skinned drawing |
 | [Input](engine/input.md) | Working on actions, key and pad bindings, deadzones, the bindings file, or a platform's pad backend |
 | [Spatial](engine/spatial.md) | Working on the navigation grid, line of sight, or path planning |
+| [Audio](engine/audio.md) | Working on sounds: clips, the mixer, voice stealing, ducking, panning, the platform's audio output, or the sound a combat cue makes |
 | [Effects](engine/fx.md) | Working on particles, volumetric smoke, flashes of light, the effects pass, or the combat cues that trigger them |
 | [Sprites](engine/sprites.md) | Working on sprite sheets, billboards, the alpha cutout, or how 2D art takes part in the depth buffer |
 | [Actors](game/actors.md) | Working on enemies and NPCs: perception, behaviors, steering, facing, attacks, damage and death, stand-in players, or the Behavior row in the editor |

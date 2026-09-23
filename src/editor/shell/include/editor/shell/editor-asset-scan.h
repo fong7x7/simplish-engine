@@ -25,12 +25,20 @@ inline constexpr std::string_view ASSET_MESH_EXTENSIONS[] = {".obj", ".gltf",
 /// frame rectangle, background and all.
 inline constexpr std::string_view ASSET_SHEET_EXTENSIONS[] = {".png", ".tga"};
 
+/// File extensions the scan lists as sounds: the two formats `engine/audio`
+/// decodes — WAV and Ogg Vorbis. Matched without regard to case.
+inline constexpr std::string_view ASSET_SOUND_EXTENSIONS[] = {".wav", ".ogg"};
+
+/// Whether @p path is a sound file, by its extension.
+[[nodiscard]] bool isSoundFile(const std::filesystem::path& path);
+
 /// Whether @p path is a rigged model — a glTF file, read by the skinned
 /// loader and drawn posed — rather than a static OBJ. Decided by extension,
 /// as the scan decides what to list.
 [[nodiscard]] bool isRiggedModelFile(const std::filesystem::path& path);
 
-/// List the placeable assets, the sprite sheets and the directories under
+/// List the placeable assets, the sprite sheets, the sounds and the
+/// directories under
 /// @p assets_dir, walking sub-directories, sorted by relative path so the
 /// browser's order does not depend on directory iteration order.
 ///

@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <game/actors/actor-pool.h>
 #include <game/combat/combat-cue-kind.h>
+#include <game/combat/combat-cue.h>
 #include <game/content/behavior-state.h>
 #include <game/content/character-definition.h>
 #include <game/content/game-content.h>
@@ -47,6 +48,10 @@ namespace eng::editor {
 /// level on the same inputs are the same run — which is what makes one
 /// driven by the agent API's `send_input` a test rather than a demo.
 inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
+
+/// The most cues a playtest keeps waiting to be heard: a few frames' worth
+/// of the nearest few of each kind. Past it, the oldest are dropped.
+inline constexpr size_t EDITOR_PLAYTEST_HEARD_CUES = 64;
 
 /// What a playtest of @p document starts from: one player, standing on the
 /// first start for player 1 in the document, or on @p fallback — the tile
@@ -139,6 +144,12 @@ public:
   /// when nothing happened. Presentation; the simulation never sees it.
   [[nodiscard]] input::GamepadRumble takeRumble();
 
+  /// The cues worth hearing from player 1 since the last call — of each
+  /// kind a tick left, the nearest few (`game::hearCombatCues`) — in the
+  /// order they happened, and forget them. Presentation, as rumble is:
+  /// whoever owns the speakers turns them into sounds.
+  [[nodiscard]] std::vector<game::CombatCue> takeHeardCues();
+
   /// The effects playing: what the viewport draws and lights the scene by.
   [[nodiscard]] const FxWorld& effects() const { return fx_; }
 
@@ -218,8 +229,11 @@ private:
   void publishCombat(EditorPlaytestState& state) const;
   /// The effects' part of `publish`.
   void publishEffects(EditorPlaytestState& state) const;
-  /// Play the effects of every cue the last tick left, and count them.
+  /// Play the effects of every cue the last tick left, count them, and
+  /// keep the ones worth hearing.
   void playCues();
+  /// Keep the cues the last tick left that player 1 would hear.
+  void hearCues();
   /// Add what the last tick did to player 1 to the pending rumble, given
   /// their health before it, @p health_before.
   void feelTick(std::optional<uint16_t> health_before);
@@ -264,6 +278,10 @@ private:
   std::array<uint64_t, game::COMBAT_CUE_KIND_COUNT> cues_played_{};
   /// What player 1 has felt since `takeRumble` last ran.
   input::GamepadRumble pending_rumble_{};
+  /// Cues to be heard since `takeHeardCues` last ran.
+  std::vector<game::CombatCue> heard_cues_{};
+  /// Cues handed out to be heard since the playtest started.
+  uint64_t sounds_heard_ = 0;
   /// The input each slot's pad gives, for the slots a pad plays.
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
 };

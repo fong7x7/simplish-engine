@@ -253,3 +253,21 @@ TEST_CASE("a sheet's extension is matched without regard to case") {
 
   REQUIRE(scanEditorAssets(tmp.path()).sheets.size() == 1);
 }
+
+TEST_CASE("sounds are listed beside the models, not among them") {
+  TempDir tmp("sounds");
+  tmp.touch("crate.obj");
+  tmp.touch("sounds/boom.WAV");
+  tmp.touch("sounds/rain.ogg");
+  // Not a format the engine decodes, so not offered as one.
+  tmp.touch("sounds/theme.mp3");
+
+  const auto scan = scanEditorAssets(tmp.path());
+
+  REQUIRE(scan.assets.size() == 1);
+  REQUIRE(scan.sounds.size() == 2);
+  REQUIRE(scan.sounds.front() == fs::path("sounds/boom.WAV"));
+  REQUIRE(scan.sounds.back() == fs::path("sounds/rain.ogg"));
+  REQUIRE(isSoundFile("x/y.Ogg"));
+  REQUIRE_FALSE(isSoundFile("theme.mp3"));
+}

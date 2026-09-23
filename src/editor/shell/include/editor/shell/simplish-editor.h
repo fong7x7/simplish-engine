@@ -132,6 +132,9 @@
 #include <editor/shell/editor-property-edit.h>
 #include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-shell-state.h>
+#include <editor/shell/editor-sound-import-result.h>
+#include <editor/shell/editor-sound-row.h>
+#include <editor/shell/editor-sound-widget.h>
 #include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-sprite-quad-key.h>
 #include <editor/shell/editor-sprite-sheet-texture.h>
@@ -157,6 +160,7 @@
 #include <filesystem>
 #include <functional>
 #include <game/content/faction.h>
+#include <game/fx/combat-sounds.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -183,6 +187,24 @@ public:
   /// there when it has none — and play with it from now on. Without a
   /// call, a playtest plays with the defaults and nothing is saved.
   void setInputBindingsPath(const std::filesystem::path& path);
+
+  /// Read the user's volume settings from @p path — writing full volume
+  /// there when it has none — and play at them from now on. Without a
+  /// call, the editor plays at full volume and nothing is saved.
+  void setAudioVolumesPath(const std::filesystem::path& path);
+
+  /// Play what @p name names once, flat, through the effects bus: a sound
+  /// slot (`combat.blast`, or `blast`) as the game plays it now, or a sound
+  /// file under the project's `assets/`. False when it names neither, or
+  /// the file cannot be played.
+  bool previewSound(std::string_view name);
+
+  /// Bring the sound file at @p source into the open project — copied into
+  /// `assets/sounds/` unless it is already under `assets/` — and list it,
+  /// saying what happened in the status line. With @p slot, also play it
+  /// there from now on.
+  EditorSoundImport importSoundFile(const std::filesystem::path& source,
+                                    std::string_view slot);
 
   /// Read-only view of shell state, for tests and the entry point.
   [[nodiscard]] const EditorShellState& state() const { return state_; }
@@ -250,6 +272,7 @@ protected:
   bool onInit() override;
   void onSaveLocationChosen(const std::filesystem::path& path) override;
   void onFolderChosen(const std::filesystem::path& path) override;
+  void onSoundFileChosen(const std::filesystem::path& path) override;
   [[nodiscard]] GuiColor frameClearColor() const override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
@@ -339,6 +362,12 @@ private:
   [[nodiscard]] Vec2 cursorAim();
   /// Centre the viewport on player 1, where the frame draws them.
   void followPlayer();
+  /// Move the ears to player 1 and play every cue the last ticks left
+  /// worth hearing.
+  void hearPlaytest();
+  /// Where the playtest is heard from: player 1, where the frame draws
+  /// them, with the screen's right as the viewport's camera turns it.
+  [[nodiscard]] audio::AudioListener playtestListener();
   /// Add a column in its player's colour for every player, drawn where the
   /// frame puts them, after the level's own markers.
   void appendPlaytestMarkers(std::vector<EditorPlacementMarker>& markers);
@@ -445,6 +474,65 @@ private:
   /// trigger pushed while listening, and save the controls when they
   /// changed.
   void tickControls();
+  /// Open the Controls or Sound screen, or ask for a sound to import;
+  /// false for any other command.
+  bool runSettingsCommand(EditorMenuCommand command);
+  /// Build the Sound screen, hidden, over the viewport.
+  void initSound(GuiWidgetTree& tree);
+  /// The Sound screen, or null before the chrome exists.
+  EditorSoundWidget* soundWidget();
+  /// Open the Sound screen; refused while a character is being chosen.
+  void openSound();
+  /// The Sound screen's rows: the volumes, then the project's sounds.
+  [[nodiscard]] std::vector<EditorSoundRow> soundRows() const;
+  /// The volume rows and the mute, appended to @p rows.
+  void appendVolumeRows(std::vector<EditorSoundRow>& rows) const;
+  /// A row for each sound slot and the file it plays, appended to @p rows.
+  void appendSlotRows(std::vector<EditorSoundRow>& rows) const;
+  /// Every key while the Sound screen is open: it is modal. Returns whether
+  /// it was open.
+  bool handleSoundKey(uint32_t key, ClientKeyDownKind kind);
+  /// The keys that act on the highlighted row, other than moving.
+  void handleSoundRowKey(uint32_t key);
+  /// A pad button while the Sound screen is open; whether it was.
+  bool handleSoundButton(input::GamepadButton button);
+  /// A pad's menu @p command on @p screen.
+  void browseSound(EditorSoundWidget& screen, GuiNavCommand command);
+  /// Left or right on the highlighted row: turn a volume, switch the mute,
+  /// or step a slot through the project's files.
+  void stepSoundRow(int steps);
+  /// Enter on the highlighted row: switch the mute, or play a slot.
+  void confirmSoundRow();
+  /// Delete on the highlighted row: a slot goes back to its built-in sound.
+  void clearSoundRow();
+  /// Set volume row @p row to @p level, 0 to 1 — a click on its bar.
+  void setSoundLevel(size_t row, float level);
+  /// Mute, or unmute.
+  void toggleMute();
+  /// The highlighted row, or null when the screen is shut.
+  [[nodiscard]] const EditorSoundRow* highlightedSoundRow();
+  /// Ask for a sound file to import, into the highlighted slot if the
+  /// Sound screen has one.
+  void importSound();
+  /// Per frame: apply and save the volumes, and save the sounds table and
+  /// reload the clips, when either changed — here or by an agent.
+  void tickSound();
+  /// Write the sounds table after a change, then reload it.
+  void saveSoundTable();
+  /// Read the project's sounds table and load its files over the built-in
+  /// sounds; logged, as the other tables are.
+  void reloadSounds();
+  /// Load the clips the sounds table names over the built-in sounds.
+  void loadSoundClips();
+  /// Step @p slot @p steps along the project's sound files.
+  void stepSoundSlot(const std::string& slot, int steps);
+  /// Play the project file @p file, under `assets/`, once.
+  bool previewSoundFile(std::string_view file);
+  /// Play @p file in @p slot from now on, when there is a slot.
+  void assignImportedSound(std::string_view slot,
+                           const std::filesystem::path& file);
+  /// Rescan the project's sound files alone — after an import.
+  void rescanSoundFiles();
   /// Drop the document and load the newly-opened project's assets.
   void refreshAssets();
   /// Write the level to the open project, and say so in the status line.
@@ -986,6 +1074,8 @@ private:
   GuiWidgetId character_select_id_ = GUI_WIDGET_ID_INVALID;
   /// The Controls screen, over the viewport while it is open.
   GuiWidgetId controls_id_ = GUI_WIDGET_ID_INVALID;
+  /// The Sound screen, over the viewport while it is open.
+  GuiWidgetId sound_id_ = GUI_WIDGET_ID_INVALID;
   /// Mesh pipeline, uploaded meshes, and the scene depth target.
   MeshRenderer mesh_renderer_{};
   /// Outline pipeline, which reads `mesh_renderer_`'s depth target.
@@ -1065,6 +1155,9 @@ private:
   EditorEmitterPlayer emitter_player_{};
   /// The level being played, or nothing while editing.
   std::unique_ptr<EditorPlaytestSession> playtest_{};
+  /// The clip each combat cue plays, loaded into the client's audio bank
+  /// when the editor starts.
+  game::CombatSoundClips combat_sounds_{};
   /// When the last frame of play ran, for the playtest's clock.
   std::chrono::steady_clock::time_point playtest_frame_{};
   /// How far the last frame of play got between its two newest ticks,
@@ -1074,6 +1167,13 @@ private:
   input::HeldActions held_actions_{};
   /// The controls revision last written to their file.
   uint64_t saved_controls_revision_ = 0;
+  /// The volume revision last applied and written; none until the first
+  /// frame applies them.
+  std::optional<uint64_t> saved_sound_revision_{};
+  /// The sounds table revision last written and loaded.
+  uint64_t saved_sounds_revision_ = 0;
+  /// The slot an import picked from the Sound screen goes into, if any.
+  std::string import_sound_slot_{};
   /// Which pad plays as which player: seat 0 is player 1.
   input::GamepadSeats seats_{};
 };

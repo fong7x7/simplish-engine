@@ -13,6 +13,28 @@ namespace eng::editor {
 
 namespace {
 
+  /// Whether @p kind is one `runProjectRequest` carries out: a menu command
+  /// or a rescan. The rest are nothing, or done by `runLevelRequest` or
+  /// `runPresentationRequest`. Listed rather than defaulted, so a kind
+  /// added to the enum fails the build here until it is placed.
+  constexpr bool isProjectRequest(AgentHostRequestKind kind) {
+    switch (kind) {
+      case AgentHostRequestKind::RUN_COMMAND:
+      case AgentHostRequestKind::RESCAN_ASSETS:
+        return true;
+      case AgentHostRequestKind::NONE:
+      case AgentHostRequestKind::OPEN_PROJECT:
+      case AgentHostRequestKind::CREATE_LEVEL:
+      case AgentHostRequestKind::OPEN_LEVEL:
+      case AgentHostRequestKind::START_PLAYTEST:
+      case AgentHostRequestKind::STEP_PLAYTEST:
+      case AgentHostRequestKind::PLAY_EFFECT:
+      case AgentHostRequestKind::PLAY_SOUND:
+        return false;
+    }
+    return false;
+  }
+
   /// Where a call to one named tool arrives.
   constexpr std::string_view TOOL_ROUTE = "/tools/";
 
@@ -94,35 +116,34 @@ bool EditorAgentService::runLevelRequest(const AgentHostRequest& request) {
 }
 
 void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
-  switch (request.kind) {
-    case AgentHostRequestKind::RUN_COMMAND:
-      editor_->runMenuCommand(request.command);
-      break;
-    case AgentHostRequestKind::RESCAN_ASSETS:
-      editor_->rescanAssets();
-      break;
-    // Nothing to do, or already done by `runLevelRequest`. Listed rather
-    // than defaulted, so a kind added to the enum fails the build here.
-    case AgentHostRequestKind::NONE:
-    case AgentHostRequestKind::OPEN_PROJECT:
-    case AgentHostRequestKind::CREATE_LEVEL:
-    case AgentHostRequestKind::OPEN_LEVEL:
-    case AgentHostRequestKind::START_PLAYTEST:
-    case AgentHostRequestKind::STEP_PLAYTEST:
-    case AgentHostRequestKind::PLAY_EFFECT:
-      break;
+  if (!isProjectRequest(request.kind)) {
+    return;
+  }
+  if (request.kind == AgentHostRequestKind::RUN_COMMAND) {
+    editor_->runMenuCommand(request.command);
+  } else {
+    editor_->rescanAssets();
   }
 }
 
 void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
-  if (editor_ == nullptr || runLevelRequest(request)) {
-    return;
-  }
-  if (request.kind == AgentHostRequestKind::PLAY_EFFECT) {
-    editor_->playEffectShot(request.effect);
+  if (editor_ == nullptr || runLevelRequest(request) ||
+      runPresentationRequest(request)) {
     return;
   }
   runProjectRequest(request);
+}
+
+bool EditorAgentService::runPresentationRequest(
+    const AgentHostRequest& request) {
+  if (request.kind == AgentHostRequestKind::PLAY_EFFECT) {
+    editor_->playEffectShot(request.effect);
+  } else if (request.kind == AgentHostRequestKind::PLAY_SOUND) {
+    (void)editor_->previewSound(request.sound);
+  } else {
+    return false;
+  }
+  return true;
 }
 
 agent::AgentHttpResponse EditorAgentService::finish(const AgentResult& result) {

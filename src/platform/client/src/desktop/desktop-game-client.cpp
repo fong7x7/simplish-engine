@@ -392,7 +392,7 @@ DesktopGameClient::init(const eng::client::GameClientConfig& config) {
   if (auto err = initSdlWindow(config)) {
     return err;
   }
-  openGamepads();
+  openDevices();
   if (auto err = initEngineContext(config)) {
     return err;
   }
@@ -448,12 +448,22 @@ void DesktopGameClient::drainDialogPath() {
   if (!chosen.has_value()) {
     return;
   }
-  const std::filesystem::path path(chosen->second);
-  if (chosen->first == DialogPurpose::SAVE_LOCATION) {
-    onSaveLocationChosen(path);
-    return;
+  dispatchDialogPath(chosen->first, std::filesystem::path(chosen->second));
+}
+
+void DesktopGameClient::dispatchDialogPath(DialogPurpose purpose,
+                                           const std::filesystem::path& path) {
+  switch (purpose) {
+    case DialogPurpose::SAVE_LOCATION:
+      onSaveLocationChosen(path);
+      break;
+    case DialogPurpose::OPEN_FOLDER:
+      onFolderChosen(path);
+      break;
+    case DialogPurpose::OPEN_SOUND:
+      onSoundFileChosen(path);
+      break;
   }
-  onFolderChosen(path);
 }
 
 namespace {
@@ -483,6 +493,21 @@ void DesktopGameClient::showSaveLocationDialog() {
         }
       },
       this, window_, nullptr, 0, startFolderOrNull(start));
+}
+
+void DesktopGameClient::showOpenSoundDialog() {
+  static constexpr SDL_DialogFileFilter SOUND_FILES[] = {
+      {"Sound files (WAV, Ogg Vorbis)", "wav;ogg"}};
+  const std::string start = dialogStartFolder();
+  SDL_ShowOpenFileDialog(
+      [](void* userdata, const char* const* filelist, int /*filter*/) {
+        const char* path = firstChosenPath(filelist);
+        if (path != nullptr) {
+          static_cast<DesktopGameClient*>(userdata)->storeDialogPath(
+              DialogPurpose::OPEN_SOUND, path);
+        }
+      },
+      this, window_, SOUND_FILES, 1, startFolderOrNull(start), false);
 }
 
 void DesktopGameClient::showOpenFolderDialog() {
@@ -519,6 +544,7 @@ void DesktopGameClient::shutdown() {
   onShutdown();
   rhi_device_.reset();
   shutdownEngine(engine_);
+  audio_device_.close();
   gamepads_.close();
   if (window_ != nullptr) {
     SDL_DestroyWindow(window_);

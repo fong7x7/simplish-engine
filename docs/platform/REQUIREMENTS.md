@@ -19,7 +19,7 @@ This is measurable: touching `rhi-device-factory.cpp` and `desktop-game-client.c
 
 ### 1.2 Platform-Agnostic Engine
 
-`src/engine/` must compile with **no platform-specific includes** — no SDL3, no Vulkan, no Metal, no DX12, no console SDK headers. It depends only on the C++20 standard library, the project's few third-party libraries, and its own abstract interfaces (`RhiDevice`, `IAudioBackend`, `GameClient`).
+`src/engine/` must compile with **no platform-specific includes** — no SDL3, no Vulkan, no Metal, no DX12, no console SDK headers. It depends only on the C++20 standard library, the project's few third-party libraries, and its own abstract interfaces (`RhiDevice`, `AudioEngine` (whose output is the platform's `AudioDevice`), `GameClient`).
 
 > **Known exception.** `src/engine/gui/` links SDL3 for clipboard access and system cursor shapes. That is a genuine violation of this rule, inherited with the GUI framework. Closing it means routing both through a platform-utility interface the engine defines and `src/platform/` implements — the mechanism already exists as `DesktopPlatformUtility`. Until then, the engine is portable across desktop platforms but not free of SDL3.
 

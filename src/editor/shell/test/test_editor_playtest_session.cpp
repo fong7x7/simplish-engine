@@ -467,6 +467,28 @@ TEST_CASE("a shot fired in a playtest throws particles and a flash") {
   REQUIRE(session.effects().particles.live == state.effects.particles);
 }
 
+TEST_CASE("a shot fired in a playtest is heard, once, then counted") {
+  EditorPlaytestSession session = skirmisherSession();
+  (void)untilFired(session);
+
+  const std::vector<game::CombatCue> heard = session.takeHeardCues();
+  REQUIRE_FALSE(heard.empty());
+  REQUIRE(heard.front().kind == game::CombatCueKind::SHOT_FIRED);
+  REQUIRE(session.takeHeardCues().empty());
+  EditorPlaytestState state;
+  session.publish(state);
+  REQUIRE(state.effects.sounds == heard.size());
+}
+
+TEST_CASE("cues nobody takes to be heard stop piling up") {
+  EditorPlaytestSession session = skirmisherSession();
+  std::vector<EditorScriptedInput> none;
+  for (int tick = 0; tick < 2000; ++tick) {
+    session.step({}, none);
+  }
+  REQUIRE(session.takeHeardCues().size() <= EDITOR_PLAYTEST_HEARD_CUES);
+}
+
 TEST_CASE("a playtest's effects age on the frame's time, not the tick's") {
   EditorPlaytestSession session = skirmisherSession();
   (void)untilFired(session);

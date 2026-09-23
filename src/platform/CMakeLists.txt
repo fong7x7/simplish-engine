@@ -11,13 +11,15 @@
 
 add_subdirectory(render)
 add_subdirectory(input)
+add_subdirectory(audio)
 
 if(ENGINE_PLATFORM_DESKTOP)
     add_subdirectory(client)
     add_subdirectory(agent)
 endif()
 
-set(_platform_modules simplish-platform-render simplish-platform-input)
+set(_platform_modules simplish-platform-render simplish-platform-input
+    simplish-platform-audio)
 
 # Exactly one backend is compiled in, chosen by SimplishRenderer.cmake.
 if(ENGINE_PLATFORM_MACOS AND ENGINE_RENDERER_RESOLVED STREQUAL "METAL")

@@ -40,6 +40,8 @@ enum class AgentHostRequestKind : uint8_t {
   STEP_PLAYTEST,
   /// Play `AgentHostRequest::effect` once, into the viewport's effects.
   PLAY_EFFECT,
+  /// Play `AgentHostRequest::sound` once.
+  PLAY_SOUND,
 };
 
 }  // namespace eng::editor
