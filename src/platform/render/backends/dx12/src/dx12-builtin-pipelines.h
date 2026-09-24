@@ -3,7 +3,7 @@
 #ifdef ENGINE_RENDERER_DX12
 
 /// @file dx12-builtin-pipelines.h
-/// @brief The GUI, mesh, outline and effects pipeline states the backend
+/// @brief The GUI, mesh, outline, effects and water pipeline states the backend
 /// ships itself.
 /// @par Threading Main-thread-only.
 
@@ -59,6 +59,13 @@ ID3D12PipelineState*
 createDx12FxVolumePipelineState(ID3D12Device5* device,
                                 ID3D12RootSignature* root_sig,
                                 DXGI_FORMAT color_format);
+
+/// Compile the built-in water shaders and create their PSO: `MeshVertex`
+/// input in the scene pass, blended premultiplied over the opaque meshes and
+/// tested against their `D32` depth without writing it. Null on failure.
+ID3D12PipelineState* createDx12WaterPipelineState(ID3D12Device5* device,
+                                                  ID3D12RootSignature* root_sig,
+                                                  DXGI_FORMAT color_format);
 
 /// Byte stride the effects pipeline's vertex buffer is bound with.
 uint32_t dx12FxVertexStride();

@@ -11,8 +11,9 @@ namespace {
   /// area of ground it erases.
   bool canDelete(const EditorShellState& state) {
     return editorDeleteAction(state.document, state.selection).has_value() ||
-           (selectionIs(state.selection, EditorSelectionKind::GROUND) &&
-            editorSelectableCount(state, EditorSelectionKind::GROUND) > 0);
+           ((selectionIs(state.selection, EditorSelectionKind::GROUND) ||
+             selectionIs(state.selection, EditorSelectionKind::WATER)) &&
+            editorSelectableCount(state, state.selection.kind) > 0);
   }
 
 }  // namespace

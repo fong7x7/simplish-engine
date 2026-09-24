@@ -155,6 +155,14 @@ enum class AgentTool : uint8_t {
   IMPORT_SOUND,
   /// Play a slot or a project sound file once.
   PLAY_SOUND,
+  /// How finely water is drawn, and what the level's water is doing.
+  GET_WATER,
+  /// Draw water flat, low or high.
+  SET_WATER_FIDELITY,
+  /// Make the water in a rectangle, or in the selected area, one depth.
+  SET_WATER_DEPTH,
+  /// Lay water over a rectangle of the ground, or dry it.
+  PAINT_WATER,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -226,6 +234,10 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::SET_ANIMATION_EVENTS,
     AgentTool::IMPORT_SOUND,
     AgentTool::PLAY_SOUND,
+    AgentTool::GET_WATER,
+    AgentTool::SET_WATER_FIDELITY,
+    AgentTool::SET_WATER_DEPTH,
+    AgentTool::PAINT_WATER,
 };
 
 }  // namespace eng::editor

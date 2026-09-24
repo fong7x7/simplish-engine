@@ -531,6 +531,235 @@ float4 fx_volume_ps_main(FxVolumeVsOut input) : SV_Target {
 }
 )hlsl";
 
+  /// HLSL for the water surface's vertex stage. Mirrors `water_vs_main`;
+  /// the cbuffer is `water-vertex-uniforms.h`. Its own source, apart from
+  /// the pixel stage's, because the two stages each read a `b1` of their
+  /// own: this one the matrix, that one the scene's lights.
+  constexpr const char WATER_VS_HLSL_SOURCE[] = R"hlsl(
+cbuffer WaterUniforms : register(b1) {
+  float4x4 water_view_projection;
+  float4 water_field;
+};
+
+// A surface vertex: where it is, the water's colour in the normal's place,
+// and its depth and opacity in the texture coordinate's.
+struct WaterVertexIn {
+  float3 position : ATTR0;
+  float3 normal : ATTR1;
+  float2 uv : ATTR2;
+};
+
+struct WaterVsOut {
+  float4 position : SV_Position;
+  float3 world : TEXCOORD0;
+  float2 uv : TEXCOORD1;
+  float depth : TEXCOORD2;
+  float opacity : TEXCOORD3;
+  float3 color : TEXCOORD4;
+};
+
+WaterVsOut water_vs_main(WaterVertexIn v) {
+  WaterVsOut o;
+  o.position = mul(water_view_projection, float4(v.position, 1.0f));
+  o.world = v.position;
+  o.uv = (v.position.xy - water_field.xy) * water_field.zw;
+  o.depth = v.uv.x;
+  o.opacity = v.uv.y;
+  o.color = v.normal;
+  return o;
+}
+)hlsl";
+
+  /// HLSL for the water surface's pixel stage. Mirrors `water_fs_main`
+  /// line for line; the cbuffers are `water-shading.h` at `b0` and the
+  /// scene's lights at `b1`, in `MESH_HLSL_SOURCE`'s own layout.
+  constexpr const char WATER_PS_HLSL_SOURCE[] = R"hlsl(
+static const float WATER_SLOPE_RANGE = 1.0f;
+static const float WATER_LEVEL_RANGE = 0.1f;
+static const float WATER_SHORE_TILES = 2.0f;
+static const float WATER_RIPPLE_GAIN = 3.0f;
+static const float WATER_RIPPLE_SKY = 1.2f;
+static const float WATER_CAUSTIC_LIGHT = 0.25f;
+static const float WATER_BANK_MIN_TILES = 0.3f;
+static const float WATER_BANK_TILES_PER_DEPTH = 0.5f;
+static const float WATER_BANK_MAX_TILES = 2.0f;
+static const uint MESH_MAX_LIGHTS = 8;
+static const float MESH_LIGHT_AMBIENT = 0.38f;
+static const float MESH_LIGHT_DIFFUSE = 0.62f;
+static const float MESH_LIGHT_POINT = 1.0f;
+
+static const float4 WATER_WAVES[4] = {
+    float4(0.80f, 0.60f, 1.10f, 0.10f), float4(-0.45f, 0.89f, 0.63f, 0.08f),
+    float4(0.97f, -0.24f, 0.39f, 0.06f), float4(0.20f, 0.98f, 0.25f, 0.05f)};
+
+cbuffer WaterShading : register(b0) {
+  float4 water_sky;
+  float4 water_foam;
+  float4 water_clarity;
+  float4 water_light;
+  float4 water_view;
+  float4 water_detail;
+};
+
+struct MeshLight {
+  float4 position_range;
+  float4 direction_intensity;
+  float4 color_kind;
+};
+
+// The header is the light count, then the band count, then padding.
+cbuffer WaterLights : register(b1) {
+  uint4 water_light_header;
+  MeshLight water_lights[8];
+};
+
+Texture2D<float4> water_texture : register(t0);
+// s0 clamps: the field ends at the water's dry ring.
+SamplerState water_sampler : register(s0);
+
+struct WaterVsOut {
+  float4 position : SV_Position;
+  float3 world : TEXCOORD0;
+  float2 uv : TEXCOORD1;
+  float depth : TEXCOORD2;
+  float opacity : TEXCOORD3;
+  float3 color : TEXCOORD4;
+};
+
+float water_srgb_to_linear(float srgb) {
+  if (srgb <= 0.04045f) {
+    return srgb / 12.92f;
+  }
+  return pow((srgb + 0.055f) / 1.055f, 2.4f);
+}
+
+float3 water_linear(float3 c) {
+  c = saturate(c);
+  return float3(water_srgb_to_linear(c.r), water_srgb_to_linear(c.g),
+                water_srgb_to_linear(c.b));
+}
+
+float water_shelf(float depth, float shore) {
+  float run = clamp(WATER_BANK_MIN_TILES + WATER_BANK_TILES_PER_DEPTH * depth,
+                    WATER_BANK_MIN_TILES, WATER_BANK_MAX_TILES);
+  return smoothstep(0.0f, 1.0f, saturate(shore / run));
+}
+
+float2 water_wind_slope(float2 p, float t, float fine) {
+  float2 slope = float2(0.0f, 0.0f);
+  for (int i = 0; i < 4; ++i) {
+    float4 w = WATER_WAVES[i];
+    float k = 6.2831853f / w.z;
+    float phase = k * (dot(w.xy, p) - 0.55f * sqrt(w.z) * t);
+    float weight = i < 2 ? 1.0f : fine;
+    slope += w.xy * (w.w * weight * cos(phase));
+  }
+  return slope;
+}
+
+float water_caustic(float2 p, float2 slope, float t) {
+  float2 q = p * 3.0f + slope * 1.5f;
+  float a = sin(q.x + 1.2f * sin(q.y * 1.3f + t * 0.9f) + t * 0.6f);
+  float b = sin(q.y * 1.1f + 1.2f * sin(q.x * 0.9f - t * 0.7f) - t * 0.5f);
+  return pow(saturate(1.0f - abs(a + b)), 4.0f);
+}
+
+float water_froth(float2 p, float t) {
+  float a = sin(p.x * 9.0f + 1.5f * sin(p.y * 7.0f + t * 1.3f) + t * 0.9f);
+  float b = sin(p.y * 11.0f + 1.5f * sin(p.x * 6.0f - t * 1.1f) - t * 0.7f);
+  return saturate(0.5f + 0.5f * a * b);
+}
+
+float water_falloff(float dist, float range) {
+  if (range <= 0.0f) {
+    return 0.0f;
+  }
+  float reach = saturate(1.0f - dist / range);
+  return reach * reach;
+}
+
+float water_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
+float4 water_one_light(MeshLight light, float3 p, float3 n, float3 v,
+                       uint bands) {
+  float3 to_light = light.direction_intensity.xyz;
+  float attenuation = 1.0f;
+  if (light.color_kind.w == MESH_LIGHT_POINT) {
+    float3 offset = light.position_range.xyz - p;
+    attenuation = water_falloff(length(offset), light.position_range.w);
+    to_light = offset;
+  }
+  float aim = length(to_light);
+  if (aim < 1e-4f || attenuation <= 0.0f) {
+    return float4(0.0f, 0.0f, 0.0f, 0.0f);
+  }
+  float3 l = to_light / aim;
+  float strength = light.direction_intensity.w * attenuation;
+  float ndh = saturate(dot(n, normalize(l + v)));
+  float glint = pow(ndh, 60.0f) + 0.08f * pow(ndh, 12.0f);
+  return float4(light.color_kind.xyz *
+                    water_band(saturate(dot(n, l)) * attenuation, bands) *
+                    light.direction_intensity.w * MESH_LIGHT_DIFFUSE,
+                strength * glint);
+}
+
+float4 water_ps_main(WaterVsOut i) : SV_Target {
+  float4 texel = water_texture.Sample(water_sampler, i.uv);
+  float level = (texel.b * 2.0f - 1.0f) * WATER_LEVEL_RANGE;
+  float depth = i.depth * water_shelf(i.depth, texel.a * WATER_SHORE_TILES);
+  float deepness = 1.0f - exp(-depth / max(water_clarity.z, 1e-3f));
+  float absorb = water_clarity.x *
+                 pow(water_clarity.y / water_clarity.x, saturate(i.opacity));
+  float cover = 1.0f - exp(-absorb * depth);
+  float2 ripple =
+      (texel.rg * 2.0f - 1.0f) * (WATER_SLOPE_RANGE * WATER_RIPPLE_GAIN);
+  float t = water_view.w;
+  float2 slope = ripple + water_wind_slope(i.world.xy, t, water_detail.x) *
+                              (water_detail.z * (0.3f + 0.7f * deepness));
+  float3 n = normalize(float3(-slope, 1.0f));
+  float3 v = water_view.xyz;
+  float fresnel =
+      saturate(0.04f + 0.66f * pow(1.0f - saturate(dot(n, v)), 3.0f) +
+               WATER_RIPPLE_SKY * dot(-ripple, v.xy));
+  float3 diffuse = float3(MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT,
+                          MESH_LIGHT_AMBIENT);
+  float3 glint = float3(0.0f, 0.0f, 0.0f);
+  uint count = min(water_light_header.x, MESH_MAX_LIGHTS);
+  for (uint k = 0; k < count; ++k) {
+    float4 one = water_one_light(water_lights[k], i.world, n, v,
+                                 water_light_header.y);
+    diffuse += one.rgb;
+    glint += water_lights[k].color_kind.xyz * one.w;
+  }
+  glint *= water_light.w;
+  float3 water = water_linear(i.color * (1.0f - water_clarity.w * deepness)) *
+                 diffuse * (1.0f + 2.0f * level);
+  float skylight = min((diffuse.r + diffuse.g + diffuse.b) / 3.0f, 1.0f);
+  float3 color = water * cover;
+  float alpha = cover;
+  color = color * (1.0f - fresnel) +
+          water_linear(water_sky.rgb) * skylight * fresnel;
+  alpha = alpha * (1.0f - fresnel) + fresnel;
+  color += WATER_CAUSTIC_LIGHT * water_detail.y * (1.0f - alpha) * diffuse *
+           water_caustic(i.world.xy, slope, t);
+  float froth = water_froth(i.world.xy, t);
+  float edge = 1.0f - smoothstep(0.05f, 0.28f, texel.a * WATER_SHORE_TILES);
+  float crest =
+      smoothstep(0.35f, 0.8f, level / WATER_LEVEL_RANGE) * water_foam.w;
+  float foam = saturate(edge * (0.55f + 0.45f * froth) + crest * froth);
+  color = color * (1.0f - foam) + water_linear(water_foam.rgb) * diffuse * foam;
+  alpha = alpha * (1.0f - foam) + foam;
+  float shine = max(glint.r, max(glint.g, glint.b));
+  return float4(color + glint, saturate(alpha + shine));
+}
+)hlsl";
+
   /// Vertex input elements for `eng::GuiVertex`, in `buildInputLayout`'s
   /// "ATTR<location>" semantic convention.
   constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 7> GUI_INPUT_ELEMENTS{{
@@ -635,12 +864,9 @@ float4 fx_volume_ps_main(FxVolumeVsOut input) : SV_Target {
     return code;
   }
 
-  /// Compile both stages of one built-in shader; both blobs or neither.
-  ShaderPair compilePair(const char* source, const char* vs_entry,
-                         const char* ps_entry) {
-    ShaderPair pair{};
-    pair.vs = compileHlsl(source, vs_entry, DX12_VS_TARGET);
-    pair.ps = compileHlsl(source, ps_entry, DX12_PS_TARGET);
+  /// @p pair when both its stages compiled; otherwise neither, with the one
+  /// that did released.
+  ShaderPair bothOrNeither(ShaderPair pair) {
     if (pair.vs != nullptr && pair.ps != nullptr) {
       return pair;
     }
@@ -651,6 +877,13 @@ float4 fx_volume_ps_main(FxVolumeVsOut input) : SV_Target {
       pair.ps->Release();
     }
     return {};
+  }
+
+  /// Compile both stages of one built-in shader; both blobs or neither.
+  ShaderPair compilePair(const char* source, const char* vs_entry,
+                         const char* ps_entry) {
+    return bothOrNeither({compileHlsl(source, vs_entry, DX12_VS_TARGET),
+                          compileHlsl(source, ps_entry, DX12_PS_TARGET)});
   }
 
   D3D12_SHADER_BYTECODE toBytecode(ID3DBlob* blob) {
@@ -701,6 +934,22 @@ float4 fx_volume_ps_main(FxVolumeVsOut input) : SV_Target {
     desc.DepthEnable = TRUE;
     desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
     desc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+    return desc;
+  }
+
+  /// Compile the water's two stages, each from its own source; both
+  /// blobs or neither.
+  ShaderPair compileWaterPair() {
+    return bothOrNeither(
+        {compileHlsl(WATER_VS_HLSL_SOURCE, "water_vs_main", DX12_VS_TARGET),
+         compileHlsl(WATER_PS_HLSL_SOURCE, "water_ps_main", DX12_PS_TARGET)});
+  }
+
+  /// The water's depth: tested, so what stands in front of it hides it,
+  /// and not written, so what is drawn after still sees the bed.
+  D3D12_DEPTH_STENCIL_DESC buildWaterDepthDesc() {
+    D3D12_DEPTH_STENCIL_DESC desc = buildMeshDepthDesc();
+    desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     return desc;
   }
 
@@ -858,6 +1107,26 @@ createDx12FxVolumePipelineState(ID3D12Device5* device,
   // The same pass as the particles: no depth attachment, since the depth
   // is the texture being read.
   pso.DSVFormat = DXGI_FORMAT_UNKNOWN;
+  ID3D12PipelineState* state = createPso(device, pso);
+  releasePair(shaders);
+  return state;
+}
+
+ID3D12PipelineState* createDx12WaterPipelineState(ID3D12Device5* device,
+                                                  ID3D12RootSignature* root_sig,
+                                                  DXGI_FORMAT color_format) {
+  const ShaderPair shaders = compileWaterPair();
+  if (shaders.vs == nullptr) {
+    return nullptr;
+  }
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+  pso.pRootSignature = root_sig;
+  fillCommonPsoFields(pso, shaders, color_format);
+  pso.BlendState = buildPremultipliedBlendDesc();
+  pso.DepthStencilState = buildWaterDepthDesc();
+  pso.InputLayout = {MESH_INPUT_ELEMENTS.data(),
+                     static_cast<UINT>(MESH_INPUT_ELEMENTS.size())};
+  pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
   ID3D12PipelineState* state = createPso(device, pso);
   releasePair(shaders);
   return state;

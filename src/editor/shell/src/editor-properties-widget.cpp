@@ -5,8 +5,10 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-ops.h>
+#include <editor/shell/editor-property-slider.h>
 #include <editor/shell/editor-scale-slider.h>
 #include <editor/shell/editor-sprite-ops.h>
+#include <editor/shell/editor-water-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-theme-constants.h>
@@ -127,6 +129,15 @@ void EditorPropertiesWidget::beginSelection(
 void EditorPropertiesWidget::setGroundSelection(std::string name,
                                                 std::string reference) {
   beginSelection(std::move(name), std::move(reference), {});
+}
+
+void EditorPropertiesWidget::setWaterSelection(std::string name,
+                                               std::string reference,
+                                               const WaterCell& water) {
+  beginSelection(std::move(name), std::move(reference), EDITOR_WATER_FIELDS);
+  for (size_t row = 0; row < fields_.size(); ++row) {
+    values_[row] = editorWaterValue(water, fields_[row]);
+  }
 }
 
 void EditorPropertiesWidget::setSelection(std::string name,
@@ -350,7 +361,7 @@ void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
   }
   renderStep(ctx, propertyDecrementRect(row), "-");
   renderStep(ctx, propertyIncrementRect(row), "+");
-  if (editorPropertyFieldIsScale(field)) {
+  if (editorPropertyFieldIsSlider(field)) {
     renderSlider(ctx, propertyValueRect(row), index);
     return;
   }
@@ -360,17 +371,20 @@ void EditorPropertiesWidget::renderRow(const GuiDrawContext& ctx,
 void EditorPropertiesWidget::renderSlider(const GuiDrawContext& ctx,
                                           const Rect& track,
                                           size_t index) const {
-  const float knob =
-      track.x + track.w * editorScaleSliderFraction(values_[index]);
+  const float knob = track.x + track.w * editorPropertySliderFraction(
+                                             fields_[index], values_[index]);
   ctx.drawRoundedRect(track, GuiColor::applyOpacity(VALUE_BG, opacity),
                       THEME_BTN_RADIUS);
   ctx.drawRoundedRect(sliderTravelledRect(track, knob),
                       GuiColor::applyOpacity(SLIDER_FILL, opacity),
                       THEME_BTN_RADIUS);
-  // The middle of the track is 1 exactly, so a mark there says where the
-  // size a prop was dropped at is, whichever way it has been pushed.
-  ctx.drawFilledRect(sliderLineRect(track, track.x + track.w * 0.5f),
-                     GuiColor::applyOpacity(SLIDER_MARK, opacity));
+  // The middle of a scale's track is 1 exactly, so a mark there says where
+  // the size a prop was dropped at is, whichever way it has been pushed.
+  // A shade's middle is nothing in particular, and gets none.
+  if (editorPropertyFieldIsScale(fields_[index])) {
+    ctx.drawFilledRect(sliderLineRect(track, track.x + track.w * 0.5f),
+                       GuiColor::applyOpacity(SLIDER_MARK, opacity));
+  }
   ctx.drawFilledRect(sliderLineRect(track, knob),
                      GuiColor::applyOpacity(THEME_TEXT, opacity));
   ctx.drawCenteredText(
@@ -479,7 +493,7 @@ float EditorPropertiesWidget::sliderValueAt(EditorPropertyField field,
                                             float x) const {
   const Rect track = propertyValueRect(fieldRowRect(field));
   const float fraction = track.w > 0.0f ? (x - track.x) / track.w : 0.5f;
-  return editorScaleFromSliderFraction(fraction);
+  return editorPropertyFromSliderFraction(field, fraction);
 }
 
 bool EditorPropertiesWidget::pressStep(EditorPropertyField field,
@@ -502,7 +516,7 @@ void EditorPropertiesWidget::beginDrag(EditorPropertyField field,
   drag_field_ = field;
   drag_start_value_ = value(field);
   drag_start_x_ = event.x;
-  if (editorPropertyFieldIsScale(field)) {
+  if (editorPropertyFieldIsSlider(field)) {
     // Straight to where it was pressed, as a slider does, rather than
     // waiting for the pointer to move before anything happens.
     applyValue(field, sliderValueAt(field, event.x),
@@ -592,7 +606,7 @@ void EditorPropertiesWidget::handleMouseMove(const GuiMouseEvent& event) {
   // A slider's value is wherever the pointer is along it; a value box's is
   // how far the pointer has travelled since the press.
   const float next =
-      editorPropertyFieldIsScale(drag_field_)
+      editorPropertyFieldIsSlider(drag_field_)
           ? sliderValueAt(drag_field_, event.x)
           : drag_start_value_ + (event.x - drag_start_x_) *
                                     editorPropertyDragPerPixel(drag_field_);

@@ -124,6 +124,8 @@ enum class EditorPropertyField : uint8_t {
   TEXTURED,
   /// Whether the scene's lights reach the particles.
   LIT,
+  /// How much of the ground under it a body of water hides, 0 to 1.
+  OPACITY,
 };
 
 /// Every field there is, in the enum's own order.
@@ -157,6 +159,7 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::ROWS,        EditorPropertyField::FRAMES,
     EditorPropertyField::FPS,         EditorPropertyField::SPIN,
     EditorPropertyField::TEXTURED,    EditorPropertyField::LIT,
+    EditorPropertyField::OPACITY,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.

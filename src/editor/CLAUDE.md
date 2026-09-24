@@ -15,8 +15,9 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   `content/levels/<id>.level.json` — one per level, carrying the props
   (with any behavior they run, and the footstep surface they override the
   ground with), lights, player starts, patrol-route waypoints, particle
-  emitters, sprite billboards and the painted ground's terrain layer the
-  editor authors (§4.1 — it differs from §4's sketch in documented ways);
+  emitters, sprite billboards, the painted ground's terrain layer and the
+  water layer over it the editor authors (§4.1 — it differs from §4's
+  sketch in documented ways);
   `content/data/characters.data.json`, the characters table (§8.1);
   `content/data/behaviors.data.json`, the behaviors props run (§8.2);
   `content/data/enemies.data.json`, the enemy archetypes (§8.3);

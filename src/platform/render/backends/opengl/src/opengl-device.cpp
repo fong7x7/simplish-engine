@@ -896,6 +896,36 @@ namespace {
   /// The effects block's size in bytes — `FxUniforms` in `fx-renderer.cpp`,
   /// one `vec4`.
   constexpr uint32_t FX_BLOCK_BYTES = 16U;
+  /// The water's vertex block in bytes — `WaterVertexUniforms`: a matrix
+  /// and where the field lies.
+  constexpr uint32_t WATER_VERTEX_BLOCK_BYTES = 80U;
+  /// How many `vec4`s the water's fragment block is — `WaterShading`.
+  constexpr int WATER_SHADING_VECTORS = 6;
+  /// Fragment slot the water's lights arrive at, in the mesh's own block.
+  constexpr uint32_t WATER_LIGHT_SLOT = 1;
+  /// That block's size in bytes.
+  constexpr uint32_t WATER_SHADING_BYTES =
+      static_cast<uint32_t>(WATER_SHADING_VECTORS) * 16U;
+
+  /// A fragment block of nothing but `vec4`s, into whichever uniform the
+  /// pipeline has for one: the outline's three, the effects' one, or the
+  /// water's seven.
+  void setVectorBlock(const GlPipelineEntry& pe, const float* block,
+                      size_t size) {
+    if (pe.loc_u_outline >= 0 && size >= OUTLINE_BLOCK_BYTES) {
+      glUniform4fv(pe.loc_u_outline, OUTLINE_VECTORS, block);
+    } else if (pe.loc_u_fx >= 0 && size >= FX_BLOCK_BYTES) {
+      glUniform4fv(pe.loc_u_fx, 1, block);
+    } else if (pe.loc_u_water >= 0 && size >= WATER_SHADING_BYTES) {
+      glUniform4fv(pe.loc_u_water, WATER_SHADING_VECTORS, block);
+    }
+  }
+
+  /// The water's vertex block: its matrix, then where its field lies.
+  void setWaterVertexBlock(const GlPipelineEntry& pe, const float* block) {
+    glUniformMatrix4fv(pe.loc_u_view_projection, 1, GL_FALSE, block);
+    glUniform4fv(pe.loc_u_water_field, 1, block + 16);
+  }
 
 }  // namespace
 
@@ -910,7 +940,9 @@ void OpenGlDevice::executeCommand(const GlCmdSetVertexStageBytes& cmd) {
   // Which uniforms the pipeline has is what says how to read the payload:
   // the mesh program takes two matrices, the GUI program a screen scale.
   // Neither needs to be told which it is.
-  if (pe.loc_u_view_projection >= 0 && cmd.size >= sizeof(float) * 32) {
+  if (pe.loc_u_water_field >= 0 && cmd.size >= WATER_VERTEX_BLOCK_BYTES) {
+    setWaterVertexBlock(pe, f);
+  } else if (pe.loc_u_view_projection >= 0 && cmd.size >= sizeof(float) * 32) {
     setMeshMatrices(pe, f);
   } else if (pe.loc_u_screen_scale >= 0 && cmd.size >= sizeof(float) * 2) {
     glUniform2fv(pe.loc_u_screen_scale, 1, f);
@@ -940,22 +972,22 @@ void OpenGlDevice::setMeshMatrices(const GlPipelineEntry& pe,
 }
 
 void OpenGlDevice::executeCommand(const GlCmdSetFragmentStageBytes& cmd) {
-  if (cmd.size == 0 || cmd.size > sizeof(cmd.data) || cmd.slot != 0U ||
+  if (cmd.size == 0 || cmd.size > sizeof(cmd.data) || cmd.slot > 1U ||
       !pipelines_.contains(current_pipeline_)) {
     return;
   }
   const auto& pe = pipelines_[current_pipeline_];
   glUseProgram(pe.program);
   // As on the vertex stage, the uniforms the program resolved say what the
-  // payload is: the mesh's lights, the outline's three vectors, or the
-  // effects' one.
-  if (pe.loc_u_light_count >= 0 && cmd.size >= MESH_LIGHT_BLOCK_BYTES) {
+  // payload is: the mesh's lights — at slot 0 for a mesh, at slot 1 for the
+  // water — or a block of nothing but vectors.
+  const bool lights_slot =
+      pe.loc_u_water >= 0 ? cmd.slot == WATER_LIGHT_SLOT : cmd.slot == 0U;
+  if (pe.loc_u_light_count >= 0 && lights_slot &&
+      cmd.size >= MESH_LIGHT_BLOCK_BYTES) {
     setMeshLights(pe, cmd.data);
-  } else if (pe.loc_u_outline >= 0 && cmd.size >= OUTLINE_BLOCK_BYTES) {
-    glUniform4fv(pe.loc_u_outline, OUTLINE_VECTORS,
-                 reinterpret_cast<const float*>(cmd.data));
-  } else if (pe.loc_u_fx >= 0 && cmd.size >= FX_BLOCK_BYTES) {
-    glUniform4fv(pe.loc_u_fx, 1, reinterpret_cast<const float*>(cmd.data));
+  } else if (cmd.slot == 0U) {
+    setVectorBlock(pe, reinterpret_cast<const float*>(cmd.data), cmd.size);
   }
 }
 
@@ -1445,6 +1477,209 @@ void main() {
 }
 )glsl";
 
+  /// Water surface shaders, mirroring WATER_MSL_SOURCE in the Metal backend
+  /// and WATER_HLSL_SOURCE in the DX12 one line for line. The vertex stage
+  /// reads `WaterVertexUniforms` as a matrix and a `vec4`, the fragment
+  /// stage `WaterShading` as six `vec4`s in the order they are laid out,
+  /// and the scene's lights as the mesh program does. The varyings are
+  /// named as the Vulkan copy's fragment inputs are, since the two share
+  /// their fragment body word for word.
+  constexpr const char WATER_VERTEX_SHADER_GLSL[] = R"glsl(
+#version 460 core
+layout(location = 0) in vec3 a_position;
+layout(location = 1) in vec3 a_normal;
+layout(location = 2) in vec2 a_uv;
+uniform mat4 u_view_projection;
+uniform vec4 u_water_field;
+out vec3 in_world;
+out vec2 in_uv;
+out float in_depth;
+out float in_opacity;
+out vec3 in_color;
+void main() {
+  gl_Position = u_view_projection * vec4(a_position, 1.0);
+  in_world = a_position;
+  in_uv = (a_position.xy - u_water_field.xy) * u_water_field.zw;
+  in_depth = a_uv.x;
+  in_opacity = a_uv.y;
+  in_color = a_normal;
+}
+)glsl";
+
+  constexpr const char WATER_FRAGMENT_SHADER_GLSL[] = R"glsl(
+#version 460 core
+
+const float WATER_SLOPE_RANGE = 1.0;
+const float WATER_LEVEL_RANGE = 0.1;
+const float WATER_SHORE_TILES = 2.0;
+const float WATER_RIPPLE_GAIN = 3.0;
+const float WATER_RIPPLE_SKY = 1.2;
+const float WATER_CAUSTIC_LIGHT = 0.25;
+const float WATER_BANK_MIN_TILES = 0.3;
+const float WATER_BANK_TILES_PER_DEPTH = 0.5;
+const float WATER_BANK_MAX_TILES = 2.0;
+const uint MESH_MAX_LIGHTS = 8u;
+const float MESH_LIGHT_AMBIENT = 0.38;
+const float MESH_LIGHT_DIFFUSE = 0.62;
+const float MESH_LIGHT_POINT = 1.0;
+
+const vec4 WATER_WAVES[4] = vec4[4](
+    vec4(0.80, 0.60, 1.10, 0.10), vec4(-0.45, 0.89, 0.63, 0.08),
+    vec4(0.97, -0.24, 0.39, 0.06), vec4(0.20, 0.98, 0.25, 0.05));
+
+in vec3 in_world;
+in vec2 in_uv;
+in float in_depth;
+in float in_opacity;
+in vec3 in_color;
+// sky, foam, clarity, light, view, detail — `WaterShading`'s order.
+uniform vec4 u_water[6];
+// The scene's lights, as the mesh program takes them: a count, a band
+// count, and three vec4s a light.
+uniform uint u_light_count;
+uniform uint u_shade_bands;
+uniform vec4 u_lights[3 * 8];
+layout(binding = 0) uniform sampler2D u_water_tex;
+out vec4 frag_color;
+
+float water_srgb_to_linear(float srgb) {
+  if (srgb <= 0.04045) {
+    return srgb / 12.92;
+  }
+  return pow((srgb + 0.055) / 1.055, 2.4);
+}
+
+vec3 water_linear(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  return vec3(water_srgb_to_linear(c.r), water_srgb_to_linear(c.g),
+              water_srgb_to_linear(c.b));
+}
+
+float water_shelf(float depth, float shore) {
+  float run = clamp(WATER_BANK_MIN_TILES + WATER_BANK_TILES_PER_DEPTH * depth,
+                    WATER_BANK_MIN_TILES, WATER_BANK_MAX_TILES);
+  return smoothstep(0.0, 1.0, clamp(shore / run, 0.0, 1.0));
+}
+
+vec2 water_wind_slope(vec2 p, float t, float fine) {
+  vec2 slope = vec2(0.0);
+  for (int i = 0; i < 4; ++i) {
+    vec4 w = WATER_WAVES[i];
+    float k = 6.2831853 / w.z;
+    float phase = k * (dot(w.xy, p) - 0.55 * sqrt(w.z) * t);
+    float weight = i < 2 ? 1.0 : fine;
+    slope += w.xy * (w.w * weight * cos(phase));
+  }
+  return slope;
+}
+
+float water_caustic(vec2 p, vec2 slope, float t) {
+  vec2 q = p * 3.0 + slope * 1.5;
+  float a = sin(q.x + 1.2 * sin(q.y * 1.3 + t * 0.9) + t * 0.6);
+  float b = sin(q.y * 1.1 + 1.2 * sin(q.x * 0.9 - t * 0.7) - t * 0.5);
+  return pow(clamp(1.0 - abs(a + b), 0.0, 1.0), 4.0);
+}
+
+float water_froth(vec2 p, float t) {
+  float a = sin(p.x * 9.0 + 1.5 * sin(p.y * 7.0 + t * 1.3) + t * 0.9);
+  float b = sin(p.y * 11.0 + 1.5 * sin(p.x * 6.0 - t * 1.1) - t * 0.7);
+  return clamp(0.5 + 0.5 * a * b, 0.0, 1.0);
+}
+
+float water_falloff(float distance, float range) {
+  if (range <= 0.0) {
+    return 0.0;
+  }
+  float reach = clamp(1.0 - distance / range, 0.0, 1.0);
+  return reach * reach;
+}
+
+float water_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
+// One light's diffuse on the water at p, in rgb, and its glint, in w. The
+// light is its three registers: position and range, direction and
+// intensity, colour and kind.
+vec4 water_light(vec4 position_range, vec4 direction_intensity,
+                 vec4 color_kind, vec3 p, vec3 n, vec3 v, uint bands) {
+  vec3 to_light = direction_intensity.xyz;
+  float attenuation = 1.0;
+  if (color_kind.w == MESH_LIGHT_POINT) {
+    vec3 offset = position_range.xyz - p;
+    attenuation = water_falloff(length(offset), position_range.w);
+    to_light = offset;
+  }
+  float aim = length(to_light);
+  if (aim < 1e-4 || attenuation <= 0.0) {
+    return vec4(0.0);
+  }
+  vec3 l = to_light / aim;
+  float strength = direction_intensity.w * attenuation;
+  float ndh = clamp(dot(n, normalize(l + v)), 0.0, 1.0);
+  float glint = pow(ndh, 60.0) + 0.08 * pow(ndh, 12.0);
+  return vec4(color_kind.xyz *
+                  water_band(clamp(dot(n, l), 0.0, 1.0) * attenuation, bands) *
+                  direction_intensity.w * MESH_LIGHT_DIFFUSE,
+              strength * glint);
+}
+
+void main() {
+  vec4 sky = u_water[0];
+  vec4 foam_color = u_water[1];
+  vec4 clarity = u_water[2];
+  vec4 light = u_water[3];
+  vec4 view = u_water[4];
+  vec4 detail = u_water[5];
+  vec4 texel = texture(u_water_tex, in_uv);
+  float level = (texel.b * 2.0 - 1.0) * WATER_LEVEL_RANGE;
+  float depth = in_depth * water_shelf(in_depth, texel.a * WATER_SHORE_TILES);
+  float deepness = 1.0 - exp(-depth / max(clarity.z, 1e-3));
+  float absorb = clarity.x * pow(clarity.y / clarity.x, clamp(in_opacity, 0.0, 1.0));
+  float cover = 1.0 - exp(-absorb * depth);
+  vec2 ripple = (texel.rg * 2.0 - 1.0) * (WATER_SLOPE_RANGE * WATER_RIPPLE_GAIN);
+  float t = view.w;
+  vec2 slope = ripple + water_wind_slope(in_world.xy, t, detail.x) *
+                            (detail.z * (0.3 + 0.7 * deepness));
+  vec3 n = normalize(vec3(-slope, 1.0));
+  vec3 v = view.xyz;
+  float fresnel =
+      clamp(0.04 + 0.66 * pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.0) +
+                WATER_RIPPLE_SKY * dot(-ripple, v.xy),
+            0.0, 1.0);
+  vec3 diffuse = vec3(MESH_LIGHT_AMBIENT);
+  vec3 glint = vec3(0.0);
+  for (uint i = 0u; i < u_light_count && i < MESH_MAX_LIGHTS; ++i) {
+    vec4 one = water_light(u_lights[3u * i], u_lights[3u * i + 1u], u_lights[3u * i + 2u], in_world, n, v,
+                           u_shade_bands);
+    diffuse += one.rgb;
+    glint += u_lights[3u * i + 2u].xyz * one.w;
+  }
+  glint *= light.w;
+  vec3 water = water_linear(in_color * (1.0 - clarity.w * deepness)) *
+               diffuse * (1.0 + 2.0 * level);
+  float skylight = min((diffuse.r + diffuse.g + diffuse.b) / 3.0, 1.0);
+  vec3 color = water * cover;
+  float alpha = cover;
+  color = color * (1.0 - fresnel) + water_linear(sky.rgb) * skylight * fresnel;
+  alpha = alpha * (1.0 - fresnel) + fresnel;
+  color += WATER_CAUSTIC_LIGHT * detail.y * (1.0 - alpha) * diffuse *
+           water_caustic(in_world.xy, slope, t);
+  float froth = water_froth(in_world.xy, t);
+  float edge = 1.0 - smoothstep(0.05, 0.28, texel.a * WATER_SHORE_TILES);
+  float crest = smoothstep(0.35, 0.8, level / WATER_LEVEL_RANGE) * foam_color.w;
+  float foam = clamp(edge * (0.55 + 0.45 * froth) + crest * froth, 0.0, 1.0);
+  color = color * (1.0 - foam) + water_linear(foam_color.rgb) * diffuse * foam;
+  alpha = alpha * (1.0 - foam) + foam;
+  float shine = max(glint.r, max(glint.g, glint.b));
+  frag_color = vec4(color + glint, clamp(alpha + shine, 0.0, 1.0));
+}
+)glsl";
+
   /// Volumetric-smoke shaders, mirroring FX_VOLUME_MSL_SOURCE in the Metal
   /// backend and FX_VOLUME_HLSL_SOURCE in the DX12 one. The input is
   /// `FxVolumeVertex`, already in clip space; there are no uniforms.
@@ -1825,6 +2060,16 @@ namespace {
     return desc;
   }
 
+  /// Fixed function state for the water pipeline: the mesh pipeline's
+  /// vertex, blended premultiplied over what the opaque meshes left, and tested
+  /// against their depth without writing it.
+  RhiGraphicsPipelineDesc waterPipelineDesc() {
+    RhiGraphicsPipelineDesc desc = meshPipelineDesc();
+    desc.blend.enabled = true;
+    desc.depth_stencil.depth_write = false;
+    return desc;
+  }
+
   /// A vertex array for a freshly linked program, or zero — with the
   /// program deleted, since nothing will own it — when GL cannot make one.
   GLuint createVertexArrayFor(GLuint program) {
@@ -1841,6 +2086,18 @@ namespace {
     entry.loc_u_view_projection =
         glGetUniformLocation(program, "u_view_projection");
     entry.loc_u_model = glGetUniformLocation(program, "u_model");
+    entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
+    entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
+    entry.loc_u_shade_bands = glGetUniformLocation(program, "u_shade_bands");
+  }
+
+  /// Look up the water program's uniforms: its matrix and field, the block
+  /// its fragment stage shades with, and the lights it is lit by.
+  void resolveWaterUniforms(GlPipelineEntry& entry, GLuint program) {
+    entry.loc_u_view_projection =
+        glGetUniformLocation(program, "u_view_projection");
+    entry.loc_u_water_field = glGetUniformLocation(program, "u_water_field");
+    entry.loc_u_water = glGetUniformLocation(program, "u_water");
     entry.loc_u_light_count = glGetUniformLocation(program, "u_light_count");
     entry.loc_u_lights = glGetUniformLocation(program, "u_lights");
     entry.loc_u_shade_bands = glGetUniformLocation(program, "u_shade_bands");
@@ -1910,6 +2167,26 @@ bool OpenGlDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
   GlPipelineEntry entry =
       buildGraphicsEntry(program, vao, fxVolumePipelineDesc());
   entry.blend_premultiplied = true;
+  out_pipeline = allocHandle();
+  pipelines_[out_pipeline] = entry;
+  return true;
+}
+
+bool OpenGlDevice::tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline) {
+  const GLuint program =
+      linkShaderSource(WATER_VERTEX_SHADER_GLSL, WATER_FRAGMENT_SHADER_GLSL);
+  if (program == 0) {
+    return false;
+  }
+  const GLuint vao = createVertexArrayFor(program);
+  if (vao == 0) {
+    return false;
+  }
+  setupMeshVertexArray(vao);
+  GlPipelineEntry entry = buildGraphicsEntry(program, vao, waterPipelineDesc());
+  // Premultiplied over the ground under it, as the effects are.
+  entry.blend_premultiplied = true;
+  resolveWaterUniforms(entry, program);
   out_pipeline = allocHandle();
   pipelines_[out_pipeline] = entry;
   return true;

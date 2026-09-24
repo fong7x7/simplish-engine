@@ -11,6 +11,7 @@
 #include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 #include <engine/render-ground/ground-grid.h>
+#include <engine/render-water/water-layer.h>
 #include <vector>
 
 namespace eng::editor {
@@ -41,6 +42,10 @@ struct EditorDocument {
   /// The terrain painted on each cell of the floor, numbered as
   /// `EDITOR_TERRAINS` is: 0 is bare, 1 its first terrain.
   GroundGrid ground;
+  /// Water over the ground, cell by cell: how deep, what colour and how
+  /// clear, on a layer of its own, so the terrain under it stays as it is
+  /// and shows through as far as the water is clear.
+  WaterLayer water;
 };
 
 }  // namespace eng::editor

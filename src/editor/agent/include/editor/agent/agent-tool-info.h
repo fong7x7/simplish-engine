@@ -169,9 +169,9 @@ inline constexpr AgentParam AGENT_PARAMS_GET_GROUND[] = {
 /// `paint_ground` fills a rectangle of the ground with one terrain.
 inline constexpr AgentParam AGENT_PARAMS_PAINT_GROUND[] = {
     {"terrain", AgentParamType::STRING, AgentParamNeed::REQUIRED,
-     "The terrain to paint, by word — grass, dirt, sand, water, stone, "
-     "road, hole; get_ground lists them — or \"none\" to erase back to bare "
-     "ground."},
+     "The terrain to paint, by word — grass, dirt, sand, stone, road, "
+     "hole; get_ground lists them — or \"none\" to erase back to bare "
+     "ground. Water is not a terrain: paint_water lays it over these."},
     {"target", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
      "\"selection\" to repaint the selected area of ground — select it "
      "with select's target \"ground\" — in place of a rectangle, as the "
@@ -400,16 +400,16 @@ inline constexpr AgentParam AGENT_PARAMS_DELETE[] = {
 inline constexpr AgentParam AGENT_PARAMS_SELECT[] = {
     {"target", AgentParamType::STRING, AgentParamNeed::REQUIRED,
      "\"placement\", \"light\", \"player_start\", \"waypoint\", "
-     "\"emitter\", \"sprite\", \"ground\" for the area of painted ground "
-     "holding a tile, or \"none\" to clear the selection."},
+     "\"emitter\", \"sprite\", \"ground\" or \"water\" for the area of "
+     "painted ground or body of water holding a tile, or \"none\"."},
     {"index", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
-     "Position in that list. Not needed when target is \"none\" or "
-     "\"ground\"."},
+     "Position in that list. Not needed for \"none\", \"ground\", "
+     "\"water\"."},
     {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
-     "With target \"ground\": world X of a painted tile. The area selected "
-     "is every tile of its terrain joined to it, corner to corner included."},
+     "With target \"ground\" or \"water\": world X of the tile. Every tile "
+     "of its terrain, or of water, joined to it is selected."},
     {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
-     "With target \"ground\": world Y of that tile."},
+     "With target \"ground\" or \"water\": world Y of that tile."},
 };
 
 /// `set_tool` chooses the toolbar tool.
@@ -483,6 +483,53 @@ inline constexpr AgentParam AGENT_PARAMS_FIND_PATH[] = {
 inline constexpr AgentParam AGENT_PARAMS_STEP_PLAYTEST[] = {
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to run, 1 to 3600 (60 is a second). Defaults to 1."},
+};
+
+/// `set_water_depth` names a depth and where it goes.
+inline constexpr AgentParam AGENT_PARAMS_SET_WATER_DEPTH[] = {
+    {"depth", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "puddle (1/16 tile), shallows (1/4), pond (1), lake (3) or deep (8), as "
+     "get_water lists them; or tiles from 0.0625 to 15.9, to the nearest "
+     "1/16."},
+    {"target", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"selection\" for the selected area of water, in place of x and y."},
+    {"x", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World X of the rectangle's west column, in tiles. Needed unless "
+     "target is \"selection\"."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "World Y of the rectangle's south row, in tiles."},
+    {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Columns, from x east, 1 to 256. Defaults to 1."},
+    {"height", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Rows, from y north, 1 to 256. Defaults to 1."},
+};
+
+/// `paint_water` names a rectangle and what to lay over it.
+inline constexpr AgentParam AGENT_PARAMS_PAINT_WATER[] = {
+    {"x", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World X of the rectangle's west column, in tiles."},
+    {"y", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "World Y of the rectangle's south row, in tiles."},
+    {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Columns, from x east, 1 to 256. Defaults to 1."},
+    {"height", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Rows, from y north, 1 to 256. Defaults to 1."},
+    {"depth", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "puddle, shallows, pond, lake or deep, or tiles; defaults to pond."},
+    {"color", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "\"#rrggbb\" for water laid where it was dry; defaults to blue-green."},
+    {"opacity", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "0 (clear) to 1 (opaque), for water laid where it was dry."},
+    {"dry", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "true takes the water off instead, as the Dry card does."},
+};
+
+/// `set_water_fidelity` names one fidelity.
+inline constexpr AgentParam AGENT_PARAMS_SET_WATER_FIDELITY[] = {
+    {"fidelity", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "flat — a still surface, nothing simulated; low — a rippling surface "
+     "simulated at 4 samples a tile; or high — 8 samples a tile, with wind "
+     "waves, light in the shallows and foam on the crests."},
 };
 
 /// `set_volume` sets any of the volumes, and the mute.
@@ -694,7 +741,10 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "and height name another — and rows one string per row of it, "
      "southmost first, each west to east, one character per cell. Painted "
      "areas are autotiled when drawn: edges and corners round themselves "
-     "off from their neighbours, so a road is laid by painting its cells.",
+     "off from their neighbours, so a road is laid by painting its cells. "
+     "water rows the same window the same way, ~ where water lies over the "
+     "ground (paint_water) and . where it is dry; the default window takes "
+     "the water in too.",
      AgentToolEffect::READ, AGENT_PARAMS_GET_GROUND},
     {AgentTool::GET_EFFECTS,
      "get_effects",
@@ -1112,6 +1162,51 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "user's volumes; carried out by the running editor on its next frame. "
      "Refused when the name is neither.",
      AgentToolEffect::HOST, AGENT_PARAMS_PLAY_SOUND},
+    {AgentTool::GET_WATER,
+     "get_water",
+     "The level's water, as View › Water draws it: the user's fidelity — "
+     "flat, low or high — and every word it can be, and the graphics file "
+     "it is kept in, in the user's application data; then what the water "
+     "did last frame: drawn, whether a surface was drawn over the ground "
+     "(false with no water, or on a backend without a water pipeline); "
+     "samples_per_tile, how finely it is shaped — the fidelity's, fewer "
+     "when the water is too wide for the budget, 2 at flat, which moves "
+     "nothing; wet_samples and water_tiles, how much of it there "
+     "is; energy, how much it is moving, 0 when still — drizzle keeps open "
+     "water slightly above it; and pushes, how many times a step through "
+     "it, a shot landing in it or a blast over it has pushed it since the "
+     "editor opened. Everything but fidelity is the frame before the call.",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_WATER_FIDELITY, "set_water_fidelity",
+     "Draw water flat, low or high, as the View menu's Water rows do. "
+     "Drawn from the next frame and saved to the graphics file at once; the "
+     "user's setting, not the project's, so not part of the level's undo "
+     "history, and allowed while playing. Refused, changing nothing, on a "
+     "word that names no fidelity. Answers as get_water does.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_WATER_FIDELITY},
+    {AgentTool::SET_WATER_DEPTH, "set_water_depth",
+     "Make water a depth — from a puddle a boot splashes through to a lake "
+     "nobody sees the bottom of — in a rectangle of cells or in the "
+     "selected body of water, as the properties panel's Depth row does; "
+     "only cells of water change, keeping their colour and opacity. Depth "
+     "blends across the tile between two depths and shelves to nothing at "
+     "every bank: shallow water barely tints the ground under it and stills "
+     "fast, deep water hides it and carries ripples further and faster. One "
+     "undoable edit; refused while playing. Answers with how many cells "
+     "changed and the depth, in tiles and as the panel names it.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_WATER_DEPTH},
+    {AgentTool::PAINT_WATER, "paint_water",
+     "Lay water over a rectangle of the level, as the Water card does — on "
+     "top of whatever terrain is there, which stays under it and shows "
+     "through as far as the water is clear — or take it off again with dry, "
+     "as the Dry card does. Water laid over water changes only its depth, "
+     "keeping its colour and opacity; water laid on dry cells takes the "
+     "call's colour and opacity. Set a whole body's colour and opacity "
+     "afterwards by selecting it (select, target \"water\") and calling "
+     "set_property with color_r, color_g, color_b or opacity. One undoable "
+     "edit; refused while playing. Answers with how many cells changed.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_WATER},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

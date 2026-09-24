@@ -41,15 +41,17 @@ enum class EditorChoiceKind : uint8_t {
   FOOTSTEPS,
   /// The terrain a selected area of ground is painted with.
   TERRAIN,
+  /// How deep a selected area of water is.
+  WATER_DEPTH,
 };
 
 /// What each kind's row is labelled, in enumerator order.
 inline constexpr std::string_view EDITOR_CHOICE_LABELS[] = {
-    "Animation", "Character", "Behavior", "Faction",   "Route",
-    "Effect",    "Sheet",     "Surface",  "Footsteps", "Terrain"};
+    "Animation", "Character", "Behavior",  "Faction", "Route", "Effect",
+    "Sheet",     "Surface",   "Footsteps", "Terrain", "Depth"};
 
 static_assert(std::size(EDITOR_CHOICE_LABELS) ==
-                  static_cast<size_t>(EditorChoiceKind::TERRAIN) + 1,
+                  static_cast<size_t>(EditorChoiceKind::WATER_DEPTH) + 1,
               "every choice row needs a label");
 
 /// What @p kind's row is labelled.

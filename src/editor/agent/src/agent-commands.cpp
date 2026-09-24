@@ -4,6 +4,7 @@
 #include "agent-emitters.h"
 #include "agent-json-values.h"
 #include "agent-sprites.h"
+#include "agent-water.h"
 #include "agent-waypoints.h"
 
 #include <algorithm>
@@ -308,6 +309,18 @@ namespace {
       return setAgentSpriteField(state, entry.index, field, value);
     }
     return setLightField(state, entry.index, field, value);
+  }
+
+  /// Set @p field of whatever @p entry names: a body of water's colour or
+  /// opacity, an entry's field — or nothing, for an area of ground.
+  AgentResult setAnyField(EditorShellState& state, EditorSelection entry,
+                          EditorPropertyField field, float value) {
+    if (entry.kind == EditorSelectionKind::GROUND) {
+      return agentFailure(AgentStatus::BAD_PARAMS, GROUND_HAS_NO_FIELDS);
+    }
+    return entry.kind == EditorSelectionKind::WATER
+               ? agentSetWaterField(state, field, value)
+               : setEntryField(state, entry, field, value);
   }
 
   /// Whether two positions are the same to the last bit, which is the test
@@ -685,16 +698,13 @@ AgentResult runAgentSetProperty(EditorShellState& state, const json& params) {
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
-  if (entry.kind == EditorSelectionKind::GROUND) {
-    return agentFailure(AgentStatus::BAD_PARAMS, GROUND_HAS_NO_FIELDS);
-  }
   EditorPropertyField field{};
   float value = 0.0f;
   const AgentResult named = propertyOf(params, field, value);
   if (named.status != AgentStatus::OK) {
     return named;
   }
-  return setEntryField(state, entry, field, value);
+  return setAnyField(state, entry, field, value);
 }
 
 namespace {
@@ -1071,10 +1081,11 @@ AgentResult runAgentTranslate(EditorShellState& state, const json& params) {
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
-  if (entry.kind == EditorSelectionKind::GROUND) {
+  if (entry.kind == EditorSelectionKind::GROUND ||
+      entry.kind == EditorSelectionKind::WATER) {
     return agentFailure(AgentStatus::BAD_PARAMS,
-                        "an area of ground does not move; paint it where it "
-                        "should be with paint_ground");
+                        "an area of ground or water does not move; paint it "
+                        "where it should be with paint_ground or paint_water");
   }
   return translateEntry(state, entry, params);
 }
@@ -1119,8 +1130,11 @@ AgentResult runAgentDelete(EditorShellState& state, const json& params) {
   if (resolved.status != AgentStatus::OK) {
     return resolved;
   }
-  if (entry.kind == EditorSelectionKind::GROUND) {
-    return eraseSelectedGround(state);
+  if (entry.kind == EditorSelectionKind::GROUND ||
+      entry.kind == EditorSelectionKind::WATER) {
+    return entry.kind == EditorSelectionKind::GROUND
+               ? eraseSelectedGround(state)
+               : agentDrySelectedWater(state);
   }
   // Built from the document rather than from the target, so the editor's
   // Delete key and this tool remove an entry by the same description of
@@ -1140,8 +1154,9 @@ AgentResult runAgentSelect(EditorShellState& state, const json& params) {
     state.selection = EditorSelection{};
     return agentEdited(agentSelectionJson(state));
   }
-  if (target == "ground") {
-    return selectGroundAt(state, params);
+  if (target == "ground" || target == "water") {
+    return target == "ground" ? selectGroundAt(state, params)
+                              : agentSelectWaterAt(state, params);
   }
   EditorSelection entry{};
   const AgentResult resolved = resolveTarget(state, params, entry);

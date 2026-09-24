@@ -19,6 +19,8 @@
 //     the middle and halving and doubling are equal distances either side.
 //     Its buttons step between fixed stops, a quarter-doubling apart, which
 //     is how a value dragged near 1 gets back to exactly 1
+//   - A shade — a colour channel, water's opacity — is a slider too, from
+//     0 at its left end to 1 at its right, stepped a twentieth at a time
 //   - A particle emitter lists where it stands and which way it throws,
 //     how often, and every number of its burst and its flash — under an
 //     Effect choice row that leads the list, since it replaces them all
@@ -85,6 +87,7 @@
 #include <editor/shell/editor-sprite.h>
 #include <editor/shell/editor-waypoint.h>
 #include <engine/gui/gui-panel.h>
+#include <engine/render-water/water-cell.h>
 #include <functional>
 #include <memory>
 #include <span>
@@ -147,6 +150,12 @@ public:
   /// many tiles — under @p reference. It has no number rows: what it is
   /// painted with is its one choice row, offered after.
   void setGroundSelection(std::string name, std::string reference);
+
+  /// Show a body of water, called @p name, under @p reference: its colour
+  /// and opacity as sliders, from @p water. How deep it is is a choice row,
+  /// offered after.
+  void setWaterSelection(std::string name, std::string reference,
+                         const WaterCell& water);
 
   /// Offer @p choices as the @p kind row — below the property rows and any
   /// choice rows already offered, or above them all for a kind that leads

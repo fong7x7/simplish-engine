@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-ground-ops.h>
+#include <editor/shell/editor-water-ops.h>
 #include <iterator>
 #include <optional>
 #include <vector>
@@ -181,6 +182,8 @@ namespace {
     if (action.kind == EditorActionKind::PAINT_GROUND) {
       applyEditorGroundChanges(document.ground, action.ground,
                                EditorGroundSide::AFTER);
+      applyEditorWaterChanges(document.water, action.water,
+                              EditorGroundSide::AFTER);
       return;
     }
     editDocument(action, appliedEdit(action.kind), ActionValue::CURRENT,
@@ -195,6 +198,8 @@ namespace {
     if (action.kind == EditorActionKind::PAINT_GROUND) {
       applyEditorGroundChanges(document.ground, action.ground,
                                EditorGroundSide::BEFORE);
+      applyEditorWaterChanges(document.water, action.water,
+                              EditorGroundSide::BEFORE);
       return;
     }
     const ListEdit edit = invertedEdit(appliedEdit(action.kind));

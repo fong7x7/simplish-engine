@@ -197,12 +197,14 @@ _drop_tests(_has_gpu_tests "${CMAKE_CURRENT_SOURCE_DIR}/test/test_gpu*.cpp;${CMA
 
 if(ENGINE_BUILD_TESTS AND _render_tests)
     set(_render_test_deps simplish-platform-render)
-    # The GPU tests draw through the real GUI, effects and mesh renderers.
+    # The GPU tests draw through the real GUI, effects, mesh and water
+    # renderers.
     if(_has_gpu_tests)
         list(APPEND _render_test_deps simplish-engine-gui
                                       simplish-engine-render-fx
                                       simplish-engine-render-ground
-                                      simplish-engine-render-sprite)
+                                      simplish-engine-render-sprite
+                                      simplish-engine-render-water)
     endif()
     simplish_add_test(simplish-platform-render-tests
         SOURCES      ${_render_tests}

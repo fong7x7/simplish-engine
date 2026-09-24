@@ -91,6 +91,10 @@ namespace {
       EditorMenuCommand::SEPARATOR,
       EditorMenuCommand::SET_SHADING_SMOOTH,
       EditorMenuCommand::SET_SHADING_CEL,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::SET_WATER_FLAT,
+      EditorMenuCommand::SET_WATER_LOW,
+      EditorMenuCommand::SET_WATER_HIGH,
   };
 
   /// The project's levels are spliced in after New Level, so Play Level
@@ -376,6 +380,9 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_SHADING_CEL) {
     return shading_ == ProjectShading::CEL;
   }
+  if (const int water = editorWaterFidelityOf(command); water >= 0) {
+    return WATER_FIDELITIES[water] == water_;
+  }
   return playtestChecked(command);
 }
 
@@ -396,6 +403,14 @@ void EditorMenuBarWidget::setProjection(ProjectProjection projection) {
     return;
   }
   projection_ = projection;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setWaterFidelity(WaterFidelity fidelity) {
+  if (water_ == fidelity) {
+    return;
+  }
+  water_ = fidelity;
   items_dirty_ = true;
 }
 

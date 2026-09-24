@@ -38,6 +38,7 @@ inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
     "end_hide",    "gravity",     "drag",        "stretch",     "flash",
     "flash_range", "flash_time",  "height",      "columns",     "rows",
     "frames",      "fps",         "spin",        "textured",    "lit",
+    "opacity",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -86,6 +87,9 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "controls",
     "sound",
     "import_sound",
+    "set_water_flat",
+    "set_water_low",
+    "set_water_high",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==
@@ -126,12 +130,12 @@ agentLightKindName(EditorLightKind kind) {
 /// Wire name of every kind of selection, in `EditorSelectionKind` order —
 /// a table for the reason `AGENT_PROPERTY_FIELD_NAMES` is one.
 inline constexpr std::string_view AGENT_SELECTION_KIND_NAMES[] = {
-    "none",     "placement", "light",  "player_start",
-    "waypoint", "emitter",   "sprite", "ground",
+    "none",    "placement", "light",  "player_start", "waypoint",
+    "emitter", "sprite",    "ground", "water",
 };
 
 static_assert(std::size(AGENT_SELECTION_KIND_NAMES) ==
-                  static_cast<size_t>(EditorSelectionKind::GROUND) + 1,
+                  static_cast<size_t>(EditorSelectionKind::WATER) + 1,
               "every kind of selection needs a name the API reports it by");
 
 /// Wire name of what a selection names.

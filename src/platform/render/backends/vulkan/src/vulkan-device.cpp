@@ -976,6 +976,14 @@ bool VulkanDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
       out_pipeline);
 }
 
+bool VulkanDevice::tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline) {
+  return publishBuiltin(*impl_,
+                        createVulkanWaterPipeline(impl_->device,
+                                                  impl_->shared_layout.graphics,
+                                                  impl_->swapchain_format),
+                        out_pipeline);
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

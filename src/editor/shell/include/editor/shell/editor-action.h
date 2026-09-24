@@ -12,6 +12,7 @@
 #include <editor/shell/editor-placement.h>
 #include <editor/shell/editor-player-start.h>
 #include <editor/shell/editor-sprite.h>
+#include <editor/shell/editor-water-change.h>
 #include <editor/shell/editor-waypoint.h>
 #include <vector>
 
@@ -74,6 +75,11 @@ struct EditorAction {
   /// stroke repaints however many cells it crossed, and a list of them is
   /// both the smallest record of that and its own inverse.
   std::vector<EditorGroundChange> ground{};
+  /// Every cell whose water the paint changed — laid, dried, deepened or
+  /// recoloured — with its water on both sides. A stroke carries its
+  /// terrain and its water together; an edit to the water alone leaves
+  /// `ground` empty.
+  std::vector<EditorWaterChange> water{};
 };
 
 }  // namespace eng::editor

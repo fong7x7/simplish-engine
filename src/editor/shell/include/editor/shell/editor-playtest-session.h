@@ -58,6 +58,10 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 /// of the nearest few of each kind. Past it, the oldest are dropped.
 inline constexpr size_t EDITOR_PLAYTEST_HEARD_CUES = 64;
 
+/// The most cues a playtest keeps between one `takeCues` and the next:
+/// several frames of a crowded fight. Past it, later cues are not kept.
+inline constexpr size_t EDITOR_PLAYTEST_KEPT_CUES = 1024;
+
 /// What a playtest of @p document starts from: one player, standing on the
 /// first start for player 1 in the document, or on @p fallback — the tile
 /// under the camera — when it has none (Editor REQUIREMENTS §7: "starting at
@@ -148,6 +152,11 @@ public:
   /// near them, hits they took — as one rumble, and forget it. Nothing
   /// when nothing happened. Presentation; the simulation never sees it.
   [[nodiscard]] input::GamepadRumble takeRumble();
+
+  /// Every cue the ticks have left since the last call, in the order they
+  /// happened, and forget them — what the water is splashed by. At most
+  /// `EDITOR_PLAYTEST_KEPT_CUES`; a frame of more keeps the first.
+  [[nodiscard]] std::vector<game::CombatCue> takeCues();
 
   /// The cues worth hearing from player 1 since the last call — of each
   /// kind a tick left, the nearest few (`game::hearCombatCues`) — in the
@@ -329,6 +338,8 @@ private:
   input::GamepadRumble pending_rumble_{};
   /// Cues to be heard since `takeHeardCues` last ran.
   std::vector<game::CombatCue> heard_cues_{};
+  /// Every cue since `takeCues` last ran.
+  std::vector<game::CombatCue> kept_cues_{};
   /// Cues handed out to be heard since the playtest started.
   uint64_t sounds_heard_ = 0;
   /// What the level sounds like underfoot.

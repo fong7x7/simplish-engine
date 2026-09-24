@@ -58,6 +58,7 @@ void SimplishEditor::refreshClipEvents() {
 
 void SimplishEditor::tickTables() {
   tickSound();
+  tickGraphics();
   tickAnimationEvents();
 }
 

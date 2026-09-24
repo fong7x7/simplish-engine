@@ -7,6 +7,7 @@
 #include "agent-ground.h"
 #include "agent-sound.h"
 #include "agent-sprites.h"
+#include "agent-water.h"
 #include "agent-waypoints.h"
 
 #include <algorithm>
@@ -168,6 +169,8 @@ namespace {
       AgentTool::ADD_EMITTER,
       AgentTool::ADD_SPRITE,
       AgentTool::PAINT_GROUND,
+      AgentTool::SET_WATER_DEPTH,
+      AgentTool::PAINT_WATER,
       AgentTool::SET_PROPERTY,
       AgentTool::SET_ANIMATION,
       AgentTool::SET_CHARACTER,
@@ -259,6 +262,10 @@ namespace {
       runAgentSetAnimationEvents,
       runAgentImportSound,
       runAgentPlaySound,
+      runAgentGetWater,
+      runAgentSetWaterFidelity,
+      runAgentSetWaterDepth,
+      runAgentPaintWater,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

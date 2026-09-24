@@ -2,6 +2,7 @@
 
 #include "agent-call.h"
 
+#include <algorithm>
 #include <cmath>
 #include <editor/shell/editor-action-ops.h>
 #include <editor/shell/editor-ground-ops.h>
@@ -69,6 +70,37 @@ namespace {
     return rows;
   }
 
+  /// The smallest rectangle holding every painted cell and every cell of
+  /// water: water may lie on bare ground.
+  GroundRect paintedOrWet(const EditorDocument& document) {
+    const GroundRect ground = document.ground.paintedBounds();
+    const GroundRect water = waterLayerBounds(document.water);
+    if (water.width == 0 || ground.width == 0) {
+      return water.width == 0 ? ground : water;
+    }
+    const int32_t x0 = std::min(ground.x, water.x);
+    const int32_t y0 = std::min(ground.y, water.y);
+    const int32_t x1 = std::max(ground.x + ground.width, water.x + water.width);
+    const int32_t y1 =
+        std::max(ground.y + ground.height, water.y + water.height);
+    return {x0, y0, x1 - x0, y1 - y0};
+  }
+
+  /// The water over @p window, rows as `rowsJson` lays them: `~` where
+  /// there is water, `.` where it is dry.
+  json waterRowsJson(const WaterLayer& water, const GroundRect& window) {
+    json rows = json::array();
+    for (int32_t row = 0; row < window.height; ++row) {
+      std::string line;
+      for (int32_t column = 0; column < window.width; ++column) {
+        line += water.depth.at({window.x + column, window.y + row}) != 0 ? '~'
+                                                                         : '.';
+      }
+      rows.push_back(std::move(line));
+    }
+    return rows;
+  }
+
   /// A whole-tile coordinate from @p key, held inside the grid's limit.
   std::optional<int32_t> tileParam(const json& params, std::string_view key) {
     const std::optional<double> value = agentNumberParam(params, key);
@@ -98,7 +130,7 @@ namespace {
   std::optional<GroundRect> readWindow(const EditorShellState& state,
                                        const json& params) {
     if (!params.contains("x") && !params.contains("y")) {
-      return state.document.ground.paintedBounds();
+      return paintedOrWet(state.document);
     }
     const std::optional<int32_t> x = tileParam(params, "x");
     const std::optional<int32_t> y = tileParam(params, "y");
@@ -112,20 +144,22 @@ namespace {
     return GroundRect{*x, *y, *width, *height};
   }
 
-  /// The rectangle a `paint_ground` call fills, or nothing when it names
-  /// one wrongly.
-  std::optional<GroundRect> readFill(const json& params) {
-    const std::optional<int32_t> x = tileParam(params, "x");
-    const std::optional<int32_t> y = tileParam(params, "y");
-    const std::optional<int32_t> width =
-        sideParam(params, "width", 1, EDITOR_GROUND_FILL_MAX);
-    const std::optional<int32_t> height =
-        sideParam(params, "height", 1, EDITOR_GROUND_FILL_MAX);
-    if (!x || !y || !width || !height) {
-      return std::nullopt;
-    }
-    return GroundRect{*x, *y, *width, *height};
+}  // namespace
+
+std::optional<GroundRect> agentFillParam(const json& params) {
+  const std::optional<int32_t> x = tileParam(params, "x");
+  const std::optional<int32_t> y = tileParam(params, "y");
+  const std::optional<int32_t> width =
+      sideParam(params, "width", 1, EDITOR_GROUND_FILL_MAX);
+  const std::optional<int32_t> height =
+      sideParam(params, "height", 1, EDITOR_GROUND_FILL_MAX);
+  if (!x || !y || !width || !height) {
+    return std::nullopt;
   }
+  return GroundRect{*x, *y, *width, *height};
+}
+
+namespace {
 
   /// Make @p painted the document's ground as one undoable edit, and report
   /// how many cells that changed. Painting what is already there is no
@@ -179,7 +213,8 @@ AgentResult runAgentGetGround(const EditorShellState& state,
   const json out{{"terrains", terrainsJson()},
                  {"painted", rectJson(state.document.ground.paintedBounds())},
                  {"window", rectJson(*window)},
-                 {"rows", rowsJson(state.document.ground, *window)}};
+                 {"rows", rowsJson(state.document.ground, *window)},
+                 {"water", waterRowsJson(state.document.water, *window)}};
   return agentOk(out.dump(2));
 }
 
@@ -189,7 +224,7 @@ AgentResult runAgentPaintGround(EditorShellState& state, const json& params) {
   }
   const std::optional<uint8_t> terrain = editorTerrainNamed(
       agentStringParam(params, "terrain").value_or(std::string{}));
-  const std::optional<GroundRect> fill = readFill(params);
+  const std::optional<GroundRect> fill = agentFillParam(params);
   if (!terrain || !fill) {
     return agentFailure(AgentStatus::BAD_PARAMS, PAINT_GROUND_USAGE);
   }

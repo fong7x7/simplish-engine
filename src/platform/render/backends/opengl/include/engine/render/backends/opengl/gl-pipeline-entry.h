@@ -45,6 +45,12 @@ struct GlPipelineEntry {
   /// `u_fx` uniform location; -1 if unused. The effects pipeline's whole
   /// stage-bytes payload, as one `vec4`.
   GLint loc_u_fx = -1;
+  /// `u_water_field` uniform location; -1 if unused. The water pipeline's
+  /// vertex payload is `u_view_projection` and then this.
+  GLint loc_u_water_field = -1;
+  /// `u_water` uniform array location; -1 if unused. The water pipeline's
+  /// whole fragment payload, as seven `vec4`s.
+  GLint loc_u_water = -1;
   /// Blend state snapshot.
   bool blend_enabled = false;
   /// Whether the colour a blended pipeline writes is already multiplied by

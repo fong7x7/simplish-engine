@@ -2,10 +2,13 @@
 #include <editor/shell/editor-ground-atlas.h>
 #include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-terrains.h>
+#include <editor/shell/editor-water-depths.h>
+#include <editor/shell/editor-water-ops.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/core/logger.h>
 #include <engine/math/mat4.h>
 #include <engine/render-ground/ground-mesh.h>
+#include <engine/render-water/water-depth.h>
 #include <engine/render/rhi-texture-desc.h>
 #include <string>
 #include <utility>
@@ -18,6 +21,10 @@ namespace {
   constexpr uint32_t KEY_SMALLER = '[';
   /// The key that grows it.
   constexpr uint32_t KEY_LARGER = ']';
+  /// The key that makes the water the brush paints shallower.
+  constexpr uint32_t KEY_SHALLOWER = ',';
+  /// The key that makes it deeper.
+  constexpr uint32_t KEY_DEEPER = '.';
 
   /// How the atlas is described to the device: a mesh's diffuse map, Unorm
   /// for the reason every mesh texture is (see `MeshRenderer`).
@@ -35,6 +42,7 @@ namespace {
 }  // namespace
 
 void SimplishEditor::pickGroundCard(size_t card, WorldPoint tile) {
+  brush_kind_ = editorGroundCardBrush(card);
   brush_terrain_ = editorGroundCardTerrain(card);
   state_.active_tool = EditorTool::TILE_PAINT;
   // The card lands as one dab, recorded as a stroke of its own, so the drop
@@ -56,37 +64,60 @@ void SimplishEditor::paintStroke(EditorStrokePhase phase, WorldPoint point) {
   if (phase == EditorStrokePhase::BEGIN) {
     commitPendingEdit();
     stroke_before_ = state_.document.ground;
+    stroke_water_before_ = state_.document.water;
   }
   paintBrushAt(point);
 }
 
 void SimplishEditor::paintBrushAt(WorldPoint point) {
-  paintEditorGround(state_.document.ground, editorBrushRect(point, brush_size_),
-                    brush_terrain_);
+  const GroundRect rect = editorBrushRect(point, brush_size_);
+  if (brush_kind_ == EditorGroundBrush::TERRAIN) {
+    paintEditorGround(state_.document.ground, rect, brush_terrain_);
+  } else if (brush_kind_ == EditorGroundBrush::DRY) {
+    dryEditorWater(state_.document.water, rect);
+  } else {
+    // Water is laid at the brush's depth — so painting over a pond with a
+    // lake's depth deepens it where the brush passed, and the tiles between
+    // blend — and, where it was dry, in the brush's colour.
+    WaterCell water = brush_water_;
+    water.depth = waterDepthUnits(EDITOR_WATER_DEPTHS[brush_depth_].tiles);
+    layEditorWater(state_.document.water, rect, water);
+  }
 }
 
 void SimplishEditor::endStroke() {
   const std::optional<GroundGrid> before =
       std::exchange(stroke_before_, std::nullopt);
-  if (!before) {
+  const std::optional<WaterLayer> water_before =
+      std::exchange(stroke_water_before_, std::nullopt);
+  if (!before || !water_before) {
     return;
   }
-  std::vector<EditorGroundChange> changes =
-      diffEditorGround(*before, state_.document.ground);
-  // A stroke that painted only what was already there is no edit.
-  if (changes.empty()) {
-    return;
+  EditorAction action{
+      .kind = EditorActionKind::PAINT_GROUND,
+      .ground = diffEditorGround(*before, state_.document.ground),
+      .water = diffEditorWater(*water_before, state_.document.water)};
+  // A stroke that painted only what was already there is no edit. The
+  // document already holds the stroke, so the action is recorded against
+  // it rather than applied over it — applying it again writes the same
+  // cells.
+  if (!action.ground.empty() || !action.water.empty()) {
+    recordAction(action);
   }
-  // The document already holds the stroke, so the action is recorded
-  // against it rather than applied over it — applying it again writes the
-  // same cells.
-  recordAction(
-      {.kind = EditorActionKind::PAINT_GROUND, .ground = std::move(changes)});
 }
 
 bool SimplishEditor::handleBrushKey(uint32_t key) {
-  if (state_.active_tool != EditorTool::TILE_PAINT ||
-      (key != KEY_SMALLER && key != KEY_LARGER)) {
+  if (state_.active_tool != EditorTool::TILE_PAINT) {
+    return false;
+  }
+  if (key == KEY_SHALLOWER || key == KEY_DEEPER) {
+    const size_t deepest = EDITOR_WATER_DEPTH_COUNT - 1;
+    brush_depth_ = key == KEY_DEEPER  ? std::min(brush_depth_ + 1, deepest)
+                   : brush_depth_ > 0 ? brush_depth_ - 1
+                                      : 0;
+    return true;
+  }
+  if (key != KEY_SMALLER && key != KEY_LARGER) {
     return false;
   }
   brush_size_ = std::clamp(brush_size_ + (key == KEY_LARGER ? 1 : -1),
@@ -103,11 +134,14 @@ void SimplishEditor::applyBrushToViewport(
 
 std::string SimplishEditor::brushStatus() const {
   const std::string side = std::to_string(brush_size_);
-  return "   brush " +
-         std::string(editorGroundCardName(brush_terrain_ == 0
-                                              ? EDITOR_TERRAIN_COUNT
-                                              : brush_terrain_ - 1U)) +
-         " " + side + "x" + side;
+  // Water says how deep it lays down, and which keys change that.
+  const std::string depth =
+      brush_kind_ == EditorGroundBrush::WATER
+          ? ", " + std::string(EDITOR_WATER_DEPTHS[brush_depth_].name) +
+                " depth (, .)"
+          : std::string{};
+  return "   brush " + std::string(editorGroundCardName(brushCard())) + " " +
+         side + "x" + side + depth;
 }
 
 void SimplishEditor::refreshGroundMesh() {
@@ -165,11 +199,19 @@ void SimplishEditor::showGroundSelection(EditorPropertiesWidget& panel) {
           " — " + std::to_string(tiles) + (tiles == 1 ? " tile" : " tiles"),
       "ground:" + std::to_string(first.x) + "," + std::to_string(first.y));
   std::vector<std::string> terrains;
-  for (size_t card = 0; card < EDITOR_GROUND_CARD_COUNT; ++card) {
+  for (size_t card = 0; card < EDITOR_TERRAIN_CHOICE_COUNT; ++card) {
     terrains.emplace_back(editorGroundCardName(card));
   }
   panel.addChoices(EditorChoiceKind::TERRAIN, std::move(terrains),
                    terrain == 0 ? EDITOR_TERRAIN_COUNT : terrain - 1U);
+}
+
+size_t SimplishEditor::brushCard() const {
+  if (brush_kind_ != EditorGroundBrush::TERRAIN) {
+    return brush_kind_ == EditorGroundBrush::WATER ? EDITOR_WATER_CARD
+                                                   : EDITOR_DRY_CARD;
+  }
+  return brush_terrain_ == 0 ? EDITOR_TERRAIN_COUNT : brush_terrain_ - 1U;
 }
 
 void SimplishEditor::repaintSelectedGround(uint8_t terrain) {

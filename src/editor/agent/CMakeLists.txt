@@ -19,6 +19,7 @@ set(_agent_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-sprites.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-controls.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-sound.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-water.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-waypoints.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-agent-service.cpp"
 )

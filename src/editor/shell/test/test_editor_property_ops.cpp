@@ -92,7 +92,8 @@ TEST_CASE("each field's traits are the ones its own name promises") {
   REQUIRE(editorPropertyFieldKind(EditorPropertyField::DIRECTION_Y) ==
           EditorPropertyKind::AXIS);
   REQUIRE(editorPropertyFieldKind(EditorPropertyField::COLOR_B) ==
-          EditorPropertyKind::UNIT);
+          EditorPropertyKind::SHADE);
+  REQUIRE(editorPropertyFieldIsSlider(EditorPropertyField::OPACITY));
   REQUIRE(editorPropertyFieldKind(EditorPropertyField::INTENSITY) ==
           EditorPropertyKind::FACTOR);
   REQUIRE(editorPropertyFieldKind(EditorPropertyField::RANGE) ==

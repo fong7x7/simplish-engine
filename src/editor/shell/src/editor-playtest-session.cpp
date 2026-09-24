@@ -388,9 +388,16 @@ void EditorPlaytestSession::playCues() {
   game::playCombatCues(fx_, cues);
   for (const game::CombatCue& cue : cues) {
     ++cues_played_[static_cast<size_t>(cue.kind)];
+    if (kept_cues_.size() < EDITOR_PLAYTEST_KEPT_CUES) {
+      kept_cues_.push_back(cue);
+    }
   }
   hearCues();
   hearSteps();
+}
+
+std::vector<game::CombatCue> EditorPlaytestSession::takeCues() {
+  return std::exchange(kept_cues_, {});
 }
 
 void EditorPlaytestSession::stepEffects(float seconds) {

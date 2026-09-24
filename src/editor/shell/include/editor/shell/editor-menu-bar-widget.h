@@ -55,6 +55,7 @@
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/gui-widget-tree.h>
+#include <engine/render-water/water-fidelity.h>
 #include <functional>
 #include <memory>
 #include <string>
@@ -137,6 +138,10 @@ public:
 
   /// Mark whichever shading row @p shading names as the live one.
   void setShading(ProjectShading shading);
+
+  /// Check the water row naming @p fidelity. The fidelity is the user's
+  /// graphics setting, read out of `EditorGraphicsSettings`.
+  void setWaterFidelity(WaterFidelity fidelity);
 
   /// Gate the Undo and Redo rows on what @p history holds.
   ///
@@ -240,6 +245,8 @@ private:
   ProjectProjection projection_ = ProjectProjection::DIMETRIC;
   /// The open project's shading, mirrored so its row shows a mark.
   ProjectShading shading_ = ProjectShading::SMOOTH;
+  /// The water fidelity the View menu checks.
+  WaterFidelity water_ = WATER_DEFAULT_FIDELITY;
   /// Whether the history has an applied action for Undo to revert.
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.

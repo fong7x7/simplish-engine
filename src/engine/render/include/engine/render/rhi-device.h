@@ -124,6 +124,18 @@ public:
   /// and effects draw particles but no smoke.
   virtual bool tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline);
 
+  /// Optional water surface pipeline: `MeshVertex` triangles in world
+  /// space, drawn in the scene pass after its opaque meshes — depth-tested
+  /// against the `D32_FLOAT` target and not writing it, blended with
+  /// straight alpha over what is there. The vertex stage reads a
+  /// `WaterVertexUniforms` block at vertex stage bytes slot 1, the fragment
+  /// stage a `WaterShading` block at fragment stage bytes slot 0 and the
+  /// ripple field (`water-texels.h`) at fragment texture slot 0, sampled
+  /// linearly and clamped. A builtin for the same reason the mesh pipeline
+  /// is. Backends without one return `false` and water stays the ground's
+  /// flat swatch.
+  virtual bool tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline);
+
   // --- Swap chain ---
   virtual RhiTextureHandle
   backbufferTexture() const = 0;  // Current frame's backbuffer
@@ -197,6 +209,11 @@ RhiDevice::tryCreateFxParticlePipeline(RhiPipelineHandle& /*out_pipeline*/) {
 
 inline bool
 RhiDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& /*out_pipeline*/) {
+  return false;
+}
+
+inline bool
+RhiDevice::tryCreateWaterPipeline(RhiPipelineHandle& /*out_pipeline*/) {
   return false;
 }
 

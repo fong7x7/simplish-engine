@@ -101,6 +101,7 @@ public:
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateFxParticlePipeline(RhiPipelineHandle& out_pipeline) override;
   bool tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) override;
+  bool tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline) override;
 
   // --- Swap chain ---
   RhiTextureHandle backbufferTexture() const override;

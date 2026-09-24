@@ -23,6 +23,8 @@ constexpr std::string_view RECENT_PROJECTS_FILE = "recent-projects.json";
 constexpr std::string_view INPUT_BINDINGS_FILE = "input-bindings.json";
 /// The user's volume settings, beside their controls.
 constexpr std::string_view AUDIO_VOLUMES_FILE = "audio-volumes.json";
+/// The user's graphics settings: how finely water is drawn.
+constexpr std::string_view GRAPHICS_SETTINGS_FILE = "graphics.json";
 /// Where it used to live, and where it still goes when the platform offers
 /// nowhere better.
 constexpr std::string_view RECENT_PROJECTS_FALLBACK =
@@ -95,6 +97,7 @@ int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
   editor.setRecentProjectsPath(resolveRecentProjectsPath());
   editor.setInputBindingsPath(resolveInputBindingsPath());
   editor.setAudioVolumesPath(resolveUserFile(AUDIO_VOLUMES_FILE));
+  editor.setGraphicsSettingsPath(resolveUserFile(GRAPHICS_SETTINGS_FILE));
 
   auto error = editor.init(config);
   if (error.has_value()) {

@@ -73,10 +73,11 @@ namespace {
       {EDITOR_ACCELERATION_STEP,
        EDITOR_ACCELERATION_DRAG_PER_PIXEL},            // ACCELERATION
       {EDITOR_SPIN_STEP, EDITOR_SPIN_DRAG_PER_PIXEL},  // SPIN
+      {EDITOR_UNIT_STEP, EDITOR_UNIT_DRAG_PER_PIXEL},  // SHADE
   };
 
   static_assert(std::size(KIND_TUNING) ==
-                    static_cast<size_t>(EditorPropertyKind::SPIN) + 1,
+                    static_cast<size_t>(EditorPropertyKind::SHADE) + 1,
                 "every property kind needs a step and a drag rate");
 
   const KindTuning& kindTuning(EditorPropertyKind kind) {
@@ -122,6 +123,7 @@ float normalizeEditorPropertyValue(EditorPropertyField field, float value) {
     case EditorPropertyKind::HALF_ANGLE:
       return std::clamp(value, 0.0f, HALF_TURN);
     case EditorPropertyKind::UNIT:
+    case EditorPropertyKind::SHADE:
       return std::clamp(value, 0.0f, 1.0f);
     case EditorPropertyKind::COUNT:
       return std::isnan(value)

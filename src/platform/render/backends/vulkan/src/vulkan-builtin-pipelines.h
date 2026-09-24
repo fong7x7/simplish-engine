@@ -3,7 +3,7 @@
 #ifdef ENGINE_RENDERER_VULKAN
 
 /// @file vulkan-builtin-pipelines.h
-/// @brief The GUI, mesh, skinned mesh, outline and effects pipelines the
+/// @brief The GUI, mesh, skinned mesh, outline, effects and water pipelines the
 /// backend ships itself.
 /// @par Threading Main-thread-only.
 
@@ -57,6 +57,12 @@ VkPipeline createVulkanFxPipeline(VkDevice device, VkPipelineLayout layout,
 VkPipeline createVulkanFxVolumePipeline(VkDevice device,
                                         VkPipelineLayout layout,
                                         VkFormat color_format);
+
+/// The water surface: `MeshVertex` triangles in the scene pass, blended
+/// premultiplied over what the opaque meshes left and tested against their
+/// depth without writing it.
+VkPipeline createVulkanWaterPipeline(VkDevice device, VkPipelineLayout layout,
+                                     VkFormat color_format);
 
 }  // namespace eng::render
 

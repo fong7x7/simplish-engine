@@ -24,12 +24,27 @@ namespace {
         .value_or(GroundGrid{});
   }
 
+  /// @p surfaces with every cell under @p water sounding like water,
+  /// whatever terrain it lies over.
+  GroundGrid wadeThrough(GroundGrid surfaces, const WaterLayer& water) {
+    const GroundRect bounds = waterLayerBounds(water);
+    for (int32_t i = 0; i < bounds.width * bounds.height; ++i) {
+      const GroundCell cell{bounds.x + i % bounds.width,
+                            bounds.y + i / bounds.width};
+      if (water.depth.at(cell) != 0) {
+        surfaces.set(cell, static_cast<uint8_t>(game::FootstepSurface::WATER));
+      }
+    }
+    return surfaces;
+  }
+
 }  // namespace
 
 game::FootstepSurfaces
 makeEditorFootstepSurfaces(const EditorDocument& document,
                            const std::vector<EditorAsset>& assets) {
-  game::FootstepSurfaces level{.ground = groundSurfaces(document.ground)};
+  game::FootstepSurfaces level{
+      .ground = wadeThrough(groundSurfaces(document.ground), document.water)};
   for (const EditorPlacement& placement : document.placements) {
     if (placement.surface && placement.asset < assets.size()) {
       const PlacementBounds box =

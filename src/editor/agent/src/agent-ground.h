@@ -6,7 +6,9 @@
 
 #include <editor/agent/agent-result.h>
 #include <editor/shell/editor-shell-state.h>
+#include <engine/render-ground/ground-rect.h>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace eng::editor {
 
@@ -22,5 +24,11 @@ inline constexpr int64_t AGENT_GROUND_READ_MAX_CELLS = 65536;
 /// Paint a rectangle of cells with one terrain, as one undoable edit.
 [[nodiscard]] AgentResult runAgentPaintGround(EditorShellState& state,
                                               const nlohmann::json& params);
+
+/// The rectangle a call names by its `x` and `y`, and its `width` and
+/// `height` from 1 to `EDITOR_GROUND_FILL_MAX`, each 1 when left out;
+/// nothing when it names one wrongly.
+[[nodiscard]] std::optional<GroundRect>
+agentFillParam(const nlohmann::json& params);
 
 }  // namespace eng::editor

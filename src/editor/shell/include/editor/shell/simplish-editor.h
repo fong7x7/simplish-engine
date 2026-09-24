@@ -123,6 +123,7 @@
 #include <editor/shell/editor-emitter-player.h>
 #include <editor/shell/editor-event-hit.h>
 #include <editor/shell/editor-general-item.h>
+#include <editor/shell/editor-ground-brush.h>
 #include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-level-result.h>
 #include <editor/shell/editor-level-unsaved.h>
@@ -144,6 +145,8 @@
 #include <editor/shell/editor-stroke-phase.h>
 #include <editor/shell/editor-toolbar-widget.h>
 #include <editor/shell/editor-viewport-widget.h>
+#include <editor/shell/editor-water-depths.h>
+#include <editor/shell/editor-water.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gltf/skinned-model.h>
 #include <engine/gui/gui-widget-id.h>
@@ -161,6 +164,7 @@
 #include <engine/render-mesh/mesh-style.h>
 #include <engine/render-mesh/skinned-mesh-instance.h>
 #include <engine/render-mesh/skinned-mesh-renderer.h>
+#include <engine/render-water/water-renderer.h>
 #include <engine/sim/player-input.h>
 #include <filesystem>
 #include <functional>
@@ -198,6 +202,11 @@ public:
   /// there when it has none — and play at them from now on. Without a
   /// call, the editor plays at full volume and nothing is saved.
   void setAudioVolumesPath(const std::filesystem::path& path);
+
+  /// Read the user's graphics settings from @p path — writing the defaults
+  /// there when it has none — and draw with them from now on. Without a
+  /// call, the editor draws at the defaults and nothing is saved.
+  void setGraphicsSettingsPath(const std::filesystem::path& path);
 
   /// Play what @p name names once, flat, through the effects bus: a sound
   /// slot (`combat.blast`, or `blast`) as the game plays it now, or a sound
@@ -1020,6 +1029,51 @@ private:
   void appendGroundInstance();
   /// Destroy the ground's mesh and its atlas texture.
   void releaseGround();
+  /// Set the selected body of water to depth @p index of
+  /// `EDITOR_WATER_DEPTHS`, as one undoable edit, as the panel's Depth row
+  /// does.
+  void deepenSelectedWater(size_t index);
+  /// The ground folder's card for what the brush lays down now.
+  [[nodiscard]] size_t brushCard() const;
+  /// Show the selected body of water in @p panel: its colour and opacity
+  /// sliders and its Depth row.
+  void showWaterSelection(EditorPropertiesWidget& panel);
+  /// Set @p field of every cell of the selected body of water, live while
+  /// a slider moves and as one undoable edit when @p edit commits.
+  void applyWaterEdit(EditorPropertyField field, float value,
+                      EditorPropertyEdit edit);
+  /// Record the slider gesture in flight on the water as one edit.
+  void commitWaterEdit();
+  /// Take the selected body of water off the ground, as one undoable edit,
+  /// as the Delete key does.
+  void drySelectedWater();
+  /// Select the body of water under @p tile, or else the painted area;
+  /// false when there is neither.
+  bool selectAreaAt(WorldPoint tile);
+  /// The cells of the selected area of ground or body of water; none when
+  /// neither is selected.
+  [[nodiscard]] std::vector<GroundCell> selectedArea() const;
+  /// Show the selected area of ground or body of water in @p panel.
+  void showAreaSelection(EditorPropertiesWidget& panel);
+  /// Erase the selected area of ground or dry the selected body of water,
+  /// as the Delete key does; false when neither is selected.
+  bool deleteSelectedArea();
+  /// Reshape, push and age the water for one frame of @p seconds, and
+  /// mirror what it is doing into shell state.
+  void tickWater(float seconds);
+  /// Where everyone who can wade is standing: the playtest's players and
+  /// actors, in the order the playtest lists them; nobody while editing.
+  [[nodiscard]] std::vector<Vec2> waderPositions() const;
+  /// Rebuild the water's surface if the water has been reshaped since it
+  /// was last built, and hand the renderer this frame's ripples.
+  void refreshWater();
+  /// Draw the water over the scene pass's opaque meshes.
+  void drawWater(RhiCommandList& cmd, const EditorViewportWidget& viewport);
+  /// Draw water at @p fidelity from now on, and save it as the user's.
+  void setWaterFidelity(WaterFidelity fidelity);
+  /// Check the View menu's water row, and save the graphics settings, when
+  /// they have changed since last time.
+  void tickGraphics();
   /// The effects the viewport draws and lights by: the playtest's while
   /// playing, and the editor's own emitters' otherwise.
   [[nodiscard]] const FxWorld& activeEffects() const;
@@ -1247,6 +1301,19 @@ private:
   /// The ground as it was when the stroke in flight began, or nothing
   /// between strokes. What the stroke's edit is measured against.
   std::optional<GroundGrid> stroke_before_{};
+  /// The water as it was when that stroke began.
+  std::optional<WaterLayer> stroke_water_before_{};
+  /// What the brush lays down: a terrain, water or dry.
+  EditorGroundBrush brush_kind_ = EditorGroundBrush::TERRAIN;
+  /// The colour and opacity the brush lays water in where it was dry: the
+  /// defaults, or the last body of water selected, so painting more of a
+  /// lake paints lake.
+  WaterCell brush_water_{};
+  /// The water as it was before the slider gesture in flight, or nothing
+  /// between gestures. What the gesture's edit is measured against.
+  std::optional<WaterLayer> water_prior_{};
+  /// Which of `EDITOR_WATER_DEPTHS` the brush lays water at.
+  size_t brush_depth_ = EDITOR_DEFAULT_WATER_DEPTH;
   /// The ground the uploaded mesh was built from. Compared with the
   /// document's every frame, so any route that changes the ground — a
   /// stroke, an undo, an agent's fill, a level opened — is drawn without
@@ -1256,6 +1323,12 @@ private:
   MeshGpuId ground_mesh_ = MESH_GPU_INVALID;
   /// The terrain swatches the ground is drawn with, made on first use.
   RhiTextureHandle ground_atlas_ = RHI_TEXTURE_INVALID;
+  /// The backend's water pipeline, the surface and the ripples' textures.
+  WaterRenderer water_renderer_{};
+  /// The ripples on the level's water, and what pushes them.
+  EditorWater water_{};
+  /// The water shape the uploaded surface was built for; 0 before any.
+  uint64_t drawn_water_shape_ = 0;
   /// Sheet images uploaded so far, by the path a billboard names them by.
   /// Sorted rather than hashed: nothing here needs a hash, and a sorted
   /// container is one fewer iteration order to have an opinion about.
@@ -1286,6 +1359,9 @@ private:
   /// The volume revision last applied and written; none until the first
   /// frame applies them.
   std::optional<uint64_t> saved_sound_revision_{};
+  /// The graphics revision last applied and written; none until the first
+  /// frame applies it.
+  std::optional<uint64_t> saved_graphics_revision_{};
   /// The sounds table revision last written and loaded.
   uint64_t saved_sounds_revision_ = 0;
   /// The slot an import picked from the Sound screen goes into, if any.

@@ -582,6 +582,235 @@ void main() {
   // backend's vertex descriptors restate them.
   // -------------------------------------------------------------------------
 
+  /// GLSL for the water surface's vertex stage. Mirrors `water_vs_main`;
+  /// `WaterUniforms` is `water-vertex-uniforms.h`'s `WaterVertexUniforms`.
+  constexpr const char WATER_VERT_GLSL[] = R"glsl(
+#version 450
+
+layout(set = 0, binding = 1, std140) uniform WaterUniforms {
+  mat4 view_projection;
+  vec4 field;
+} u;
+
+// A surface vertex: where it is, the water's colour in the normal's place,
+// and its depth and opacity in the texture coordinate's.
+layout(location = 0) in vec3 in_position;
+layout(location = 1) in vec3 in_normal;
+layout(location = 2) in vec2 in_uv;
+
+layout(location = 0) out vec3 out_world;
+layout(location = 1) out vec2 out_uv;
+layout(location = 2) out float out_depth;
+layout(location = 3) out float out_opacity;
+layout(location = 4) out vec3 out_color;
+
+void main() {
+  gl_Position = u.view_projection * vec4(in_position, 1.0);
+  out_world = in_position;
+  out_uv = (in_position.xy - u.field.xy) * u.field.zw;
+  out_depth = in_uv.x;
+  out_opacity = in_uv.y;
+  out_color = in_normal;
+}
+)glsl";
+
+  /// GLSL for the water surface's fragment stage. Mirrors `water_fs_main`
+  /// line for line; `WaterShading` is `water-shading.h`'s.
+  constexpr const char WATER_FRAG_GLSL[] = R"glsl(
+#version 450
+
+const float WATER_SLOPE_RANGE = 1.0;
+const float WATER_LEVEL_RANGE = 0.1;
+const float WATER_SHORE_TILES = 2.0;
+const float WATER_RIPPLE_GAIN = 3.0;
+const float WATER_RIPPLE_SKY = 1.2;
+const float WATER_CAUSTIC_LIGHT = 0.25;
+const float WATER_BANK_MIN_TILES = 0.3;
+const float WATER_BANK_TILES_PER_DEPTH = 0.5;
+const float WATER_BANK_MAX_TILES = 2.0;
+const uint MESH_MAX_LIGHTS = 8u;
+const float MESH_LIGHT_AMBIENT = 0.38;
+const float MESH_LIGHT_DIFFUSE = 0.62;
+const float MESH_LIGHT_POINT = 1.0;
+
+const vec4 WATER_WAVES[4] = vec4[4](
+    vec4(0.80, 0.60, 1.10, 0.10), vec4(-0.45, 0.89, 0.63, 0.08),
+    vec4(0.97, -0.24, 0.39, 0.06), vec4(0.20, 0.98, 0.25, 0.05));
+
+layout(set = 0, binding = 3, std140) uniform WaterShading {
+  vec4 sky;
+  vec4 foam;
+  vec4 clarity;
+  vec4 light;
+  vec4 view;
+  vec4 detail;
+} s;
+
+struct MeshLight {
+  vec4 position_range;
+  vec4 direction_intensity;
+  vec4 color_kind;
+};
+
+// The scene's lights, in the mesh shader's own block.
+layout(set = 0, binding = 4, std140) uniform MeshLights {
+  uint count;
+  uint shade_bands;
+  uint pad1;
+  uint pad2;
+  MeshLight lights[MESH_MAX_LIGHTS];
+} lights;
+
+layout(set = 0, binding = 5) uniform texture2D water_field;
+// Binding 6 clamps: the field ends at the water's dry ring.
+layout(set = 0, binding = 6) uniform sampler water_sampler;
+
+layout(location = 0) in vec3 in_world;
+layout(location = 1) in vec2 in_uv;
+layout(location = 2) in float in_depth;
+layout(location = 3) in float in_opacity;
+layout(location = 4) in vec3 in_color;
+
+layout(location = 0) out vec4 out_color;
+
+float water_srgb_to_linear(float srgb) {
+  if (srgb <= 0.04045) {
+    return srgb / 12.92;
+  }
+  return pow((srgb + 0.055) / 1.055, 2.4);
+}
+
+vec3 water_linear(vec3 c) {
+  c = clamp(c, 0.0, 1.0);
+  return vec3(water_srgb_to_linear(c.r), water_srgb_to_linear(c.g),
+              water_srgb_to_linear(c.b));
+}
+
+float water_shelf(float depth, float shore) {
+  float run = clamp(WATER_BANK_MIN_TILES + WATER_BANK_TILES_PER_DEPTH * depth,
+                    WATER_BANK_MIN_TILES, WATER_BANK_MAX_TILES);
+  return smoothstep(0.0, 1.0, clamp(shore / run, 0.0, 1.0));
+}
+
+vec2 water_wind_slope(vec2 p, float t, float fine) {
+  vec2 slope = vec2(0.0);
+  for (int i = 0; i < 4; ++i) {
+    vec4 w = WATER_WAVES[i];
+    float k = 6.2831853 / w.z;
+    float phase = k * (dot(w.xy, p) - 0.55 * sqrt(w.z) * t);
+    float weight = i < 2 ? 1.0 : fine;
+    slope += w.xy * (w.w * weight * cos(phase));
+  }
+  return slope;
+}
+
+float water_caustic(vec2 p, vec2 slope, float t) {
+  vec2 q = p * 3.0 + slope * 1.5;
+  float a = sin(q.x + 1.2 * sin(q.y * 1.3 + t * 0.9) + t * 0.6);
+  float b = sin(q.y * 1.1 + 1.2 * sin(q.x * 0.9 - t * 0.7) - t * 0.5);
+  return pow(clamp(1.0 - abs(a + b), 0.0, 1.0), 4.0);
+}
+
+float water_froth(vec2 p, float t) {
+  float a = sin(p.x * 9.0 + 1.5 * sin(p.y * 7.0 + t * 1.3) + t * 0.9);
+  float b = sin(p.y * 11.0 + 1.5 * sin(p.x * 6.0 - t * 1.1) - t * 0.7);
+  return clamp(0.5 + 0.5 * a * b, 0.0, 1.0);
+}
+
+float water_falloff(float distance, float range) {
+  if (range <= 0.0) {
+    return 0.0;
+  }
+  float reach = clamp(1.0 - distance / range, 0.0, 1.0);
+  return reach * reach;
+}
+
+float water_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
+// One light's diffuse on the water at p, in rgb, and its glint, in w. The
+// light is its three registers: position and range, direction and
+// intensity, colour and kind.
+vec4 water_light(vec4 position_range, vec4 direction_intensity,
+                 vec4 color_kind, vec3 p, vec3 n, vec3 v, uint bands) {
+  vec3 to_light = direction_intensity.xyz;
+  float attenuation = 1.0;
+  if (color_kind.w == MESH_LIGHT_POINT) {
+    vec3 offset = position_range.xyz - p;
+    attenuation = water_falloff(length(offset), position_range.w);
+    to_light = offset;
+  }
+  float aim = length(to_light);
+  if (aim < 1e-4 || attenuation <= 0.0) {
+    return vec4(0.0);
+  }
+  vec3 l = to_light / aim;
+  float strength = direction_intensity.w * attenuation;
+  float ndh = clamp(dot(n, normalize(l + v)), 0.0, 1.0);
+  float glint = pow(ndh, 60.0) + 0.08 * pow(ndh, 12.0);
+  return vec4(color_kind.xyz *
+                  water_band(clamp(dot(n, l), 0.0, 1.0) * attenuation, bands) *
+                  direction_intensity.w * MESH_LIGHT_DIFFUSE,
+              strength * glint);
+}
+
+void main() {
+  vec4 sky = s.sky;
+  vec4 foam_color = s.foam;
+  vec4 clarity = s.clarity;
+  vec4 light = s.light;
+  vec4 view = s.view;
+  vec4 detail = s.detail;
+  vec4 texel = texture(sampler2D(water_field, water_sampler), in_uv);
+  float level = (texel.b * 2.0 - 1.0) * WATER_LEVEL_RANGE;
+  float depth = in_depth * water_shelf(in_depth, texel.a * WATER_SHORE_TILES);
+  float deepness = 1.0 - exp(-depth / max(clarity.z, 1e-3));
+  float absorb = clarity.x * pow(clarity.y / clarity.x, clamp(in_opacity, 0.0, 1.0));
+  float cover = 1.0 - exp(-absorb * depth);
+  vec2 ripple = (texel.rg * 2.0 - 1.0) * (WATER_SLOPE_RANGE * WATER_RIPPLE_GAIN);
+  float t = view.w;
+  vec2 slope = ripple + water_wind_slope(in_world.xy, t, detail.x) *
+                            (detail.z * (0.3 + 0.7 * deepness));
+  vec3 n = normalize(vec3(-slope, 1.0));
+  vec3 v = view.xyz;
+  float fresnel =
+      clamp(0.04 + 0.66 * pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.0) +
+                WATER_RIPPLE_SKY * dot(-ripple, v.xy),
+            0.0, 1.0);
+  vec3 diffuse = vec3(MESH_LIGHT_AMBIENT);
+  vec3 glint = vec3(0.0);
+  for (uint i = 0u; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
+    vec4 one = water_light(lights.lights[i].position_range, lights.lights[i].direction_intensity, lights.lights[i].color_kind, in_world, n, v,
+                           lights.shade_bands);
+    diffuse += one.rgb;
+    glint += lights.lights[i].color_kind.xyz * one.w;
+  }
+  glint *= light.w;
+  vec3 water = water_linear(in_color * (1.0 - clarity.w * deepness)) *
+               diffuse * (1.0 + 2.0 * level);
+  float skylight = min((diffuse.r + diffuse.g + diffuse.b) / 3.0, 1.0);
+  vec3 color = water * cover;
+  float alpha = cover;
+  color = color * (1.0 - fresnel) + water_linear(sky.rgb) * skylight * fresnel;
+  alpha = alpha * (1.0 - fresnel) + fresnel;
+  color += WATER_CAUSTIC_LIGHT * detail.y * (1.0 - alpha) * diffuse *
+           water_caustic(in_world.xy, slope, t);
+  float froth = water_froth(in_world.xy, t);
+  float edge = 1.0 - smoothstep(0.05, 0.28, texel.a * WATER_SHORE_TILES);
+  float crest = smoothstep(0.35, 0.8, level / WATER_LEVEL_RANGE) * foam_color.w;
+  float foam = clamp(edge * (0.55 + 0.45 * froth) + crest * froth, 0.0, 1.0);
+  color = color * (1.0 - foam) + water_linear(foam_color.rgb) * diffuse * foam;
+  alpha = alpha * (1.0 - foam) + foam;
+  float shine = max(glint.r, max(glint.g, glint.b));
+  out_color = vec4(color + glint, clamp(alpha + shine, 0.0, 1.0));
+}
+)glsl";
+
   /// Byte stride of `eng::GuiVertex`, restated from `gui-vertex-layout.h`.
   constexpr uint32_t GUI_VERTEX_STRIDE = 40;
 
@@ -652,8 +881,9 @@ void main() {
   /// alpha, or blended with colour already multiplied by it.
   enum class BlendMode { OPAQUE, OVER, PREMULTIPLIED };
 
-  /// Whether a pipeline draws into a depth attachment.
-  enum class DepthMode { NONE, TEST_AND_WRITE };
+  /// Whether a pipeline draws into a depth attachment, and whether it
+  /// writes it or only tests against it.
+  enum class DepthMode { NONE, TEST_AND_WRITE, TEST_ONLY };
 
   /// Everything that differs between the built-in pipelines.
   struct BuiltinSpec {
@@ -826,10 +1056,11 @@ void main() {
   /// pass the pipeline is bound in.
   void fillAttachments(PipelineParts& p, const BuiltinSpec& spec,
                        VkFormat color_format) {
-    const bool has_depth = spec.depth == DepthMode::TEST_AND_WRITE;
+    const bool has_depth = spec.depth != DepthMode::NONE;
     p.depth.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     p.depth.depthTestEnable = has_depth ? VK_TRUE : VK_FALSE;
-    p.depth.depthWriteEnable = has_depth ? VK_TRUE : VK_FALSE;
+    p.depth.depthWriteEnable =
+        spec.depth == DepthMode::TEST_AND_WRITE ? VK_TRUE : VK_FALSE;
     p.depth.depthCompareOp = VK_COMPARE_OP_LESS;
     p.color_format = color_format;
     p.rendering.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -963,6 +1194,19 @@ VkPipeline createVulkanFxVolumePipeline(VkDevice device,
                          FX_VOLUME_STRIDE,
                          BlendMode::PREMULTIPLIED,
                          DepthMode::NONE};
+  return createBuiltin({device, layout, color_format}, spec);
+}
+
+VkPipeline createVulkanWaterPipeline(VkDevice device, VkPipelineLayout layout,
+                                     VkFormat color_format) {
+  // In the scene pass, after the opaque meshes: tested against their depth
+  // so a crate in a pond hides it, and not written, so the outline and the
+  // effects still see the ground under it. Premultiplied, since it both
+  // hides some of that ground and adds light to the rest.
+  const BuiltinSpec spec{WATER_VERT_GLSL,           WATER_FRAG_GLSL,
+                         SKINNED_ATTRIBUTES.data(), MESH_ATTRIBUTE_COUNT,
+                         MESH_VERTEX_STRIDE,        BlendMode::PREMULTIPLIED,
+                         DepthMode::TEST_ONLY};
   return createBuiltin({device, layout, color_format}, spec);
 }
 

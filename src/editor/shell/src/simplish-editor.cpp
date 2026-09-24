@@ -309,6 +309,10 @@ void SimplishEditor::initSceneRenderers() {
     return;
   }
   initOptionalSceneRenderers(*device);
+  if (!water_renderer_.init(*device)) {
+    LOG_WARN("editor", "Backend has no water pipeline; water will be drawn "
+                       "flat at every fidelity");
+  }
 }
 
 void SimplishEditor::initOptionalSceneRenderers(RhiDevice& device) {
@@ -1172,8 +1176,7 @@ void SimplishEditor::selectGroundUnderCursor() {
   }
   const WorldPoint tile = viewport->hoveredTile();
   commitPendingEdit();
-  if (selectEditorGround(state_, {static_cast<int32_t>(tile.x),
-                                  static_cast<int32_t>(tile.y)})) {
+  if (selectAreaAt(tile)) {
     applySelectionToChrome();
   } else {
     select({});
@@ -1266,8 +1269,8 @@ void SimplishEditor::showSelection(EditorPropertiesWidget& panel) {
     showEmitterSelection(panel);
   } else if (selectionIs(selection, EditorSelectionKind::SPRITE)) {
     showSpriteSelection(panel);
-  } else if (selectionIs(selection, EditorSelectionKind::GROUND)) {
-    showGroundSelection(panel);
+  } else if (!selectedArea().empty()) {
+    showAreaSelection(panel);
   } else {
     showPlayerStartSelection(panel);
   }
@@ -1295,6 +1298,8 @@ void SimplishEditor::applySelectedEdit(EditorPropertyField field, float value,
     applyEmitterEdit(field, value, edit);
   } else if (selectionIs(selection, EditorSelectionKind::SPRITE)) {
     applySpriteEdit(field, value, edit);
+  } else if (selectionIs(selection, EditorSelectionKind::WATER)) {
+    applyWaterEdit(field, value, edit);
   } else {
     applyPlayerStartEdit(field, value, edit);
   }
@@ -1358,6 +1363,8 @@ void SimplishEditor::applyEntryChoice(EditorChoiceKind kind, size_t index) {
     applyEffectChoice(index);
   } else if (kind == EditorChoiceKind::TERRAIN) {
     repaintSelectedGround(editorGroundCardTerrain(index));
+  } else if (kind == EditorChoiceKind::WATER_DEPTH) {
+    deepenSelectedWater(index);
   } else {
     applySheetChoice(index);
   }
@@ -1515,6 +1522,7 @@ void SimplishEditor::commitPendingEdit() {
   commitWaypointEdit();
   commitEmitterEdit();
   commitSpriteEdit();
+  commitWaterEdit();
 }
 
 void SimplishEditor::applyWaypointEdit(EditorPropertyField field, float value,
@@ -1718,10 +1726,7 @@ void SimplishEditor::refreshPlacementMarkers() {
   appendEntityMarkers(markers);
   appendPlaytestMarkers(markers);
   viewport->route_lines = routeLines();
-  viewport->ground_highlight =
-      selectionIs(state_.selection, EditorSelectionKind::GROUND)
-          ? state_.ground_selection
-          : std::vector<GroundCell>{};
+  viewport->ground_highlight = selectedArea();
   refreshOverlays();
 }
 
@@ -1919,6 +1924,7 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
     return;
   }
   refreshGroundMesh();
+  refreshWater();
   buildSceneInstances();
   hearAnimationEvents();
   buildSceneLights();
@@ -1926,6 +1932,9 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   // Same pass and depth as the static meshes, so a character walking
   // behind a crate is hidden by it, and the outline pass lines them both.
   skinned_renderer_.draw(cmd, skinnedDrawParams(*viewport));
+  // After every opaque mesh, since it is blended over what they left and
+  // tested against their depth.
+  drawWater(cmd, *viewport);
 }
 
 FxRenderer::DrawParams
@@ -2113,6 +2122,7 @@ void SimplishEditor::tickPresentation(float dt) {
   animation_clock_ += dt;
   tickEditEffects(dt);
   publishEffects();
+  tickWater(dt);
 }
 
 void SimplishEditor::tickMenuBar() {
@@ -2199,9 +2209,7 @@ void SimplishEditor::runDelete() {
     return;
   }
   commitPendingEdit();
-  // An area of ground is erased: painted over with bare ground.
-  if (selectionIs(state_.selection, EditorSelectionKind::GROUND)) {
-    repaintSelectedGround(0);
+  if (deleteSelectedArea()) {
     return;
   }
   const std::optional<EditorAction> action =
@@ -2250,6 +2258,8 @@ bool SimplishEditor::runSettingsCommand(EditorMenuCommand command) {
     openSound();
   } else if (command == EditorMenuCommand::IMPORT_SOUND) {
     importSound();
+  } else if (const int water = editorWaterFidelityOf(command); water >= 0) {
+    setWaterFidelity(WATER_FIDELITIES[water]);
   } else {
     return false;
   }
@@ -2589,6 +2599,7 @@ void SimplishEditor::onShutdown() {
     outline_renderer_.shutdown(*rhiDevice());
     fx_renderer_.shutdown(*rhiDevice());
     fx_volume_renderer_.shutdown(*rhiDevice());
+    water_renderer_.shutdown(*rhiDevice());
     skinned_renderer_.shutdown(*rhiDevice());
     mesh_renderer_.shutdown(*rhiDevice());
   }

@@ -27,6 +27,8 @@
 #include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-sprite-ops.h>
 #include <editor/shell/editor-terrains.h>
+#include <editor/shell/editor-water-depth-choices.h>
+#include <editor/shell/editor-water-ops.h>
 #include <editor/shell/editor-waypoint-ops.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/behavior-names.h>
@@ -116,6 +118,22 @@ namespace {
             {"placement_count", placementsOfAsset(state, index)}};
   }
 
+  /// Entry @p entry, card @p card of the ground folder: a terrain, or the
+  /// water or drying card.
+  json groundCardValue(size_t entry, size_t card) {
+    if (editorGroundCardBrush(card) != EditorGroundBrush::TERRAIN) {
+      return {{"entry", entry},
+              {"kind", editorGroundCardBrush(card) == EditorGroundBrush::WATER
+                           ? "water"
+                           : "dry"},
+              {"name", editorGroundCardName(card)}};
+    }
+    return {{"entry", entry},
+            {"kind", "terrain"},
+            {"name", editorGroundCardName(card)},
+            {"terrain", editorTerrainWord(editorGroundCardTerrain(card))}};
+  }
+
   /// Built-in entry @p entry, @p item past the last asset: a general item,
   /// then a card of the ground folder.
   json builtinValue(size_t entry, size_t item) {
@@ -128,10 +146,7 @@ namespace {
     if (card >= EDITOR_GROUND_CARD_COUNT) {
       return {{"entry", entry}, {"kind", "unknown"}, {"name", ""}};
     }
-    return {{"entry", entry},
-            {"kind", "terrain"},
-            {"name", editorGroundCardName(card)},
-            {"terrain", editorTerrainWord(editorGroundCardTerrain(card))}};
+    return groundCardValue(entry, card);
   }
 
   /// One entry a folder holds: a scanned asset, or a built-in item
@@ -341,10 +356,9 @@ namespace {
     return {{"target", agentSelectionKindName(EditorSelectionKind::NONE)}};
   }
 
-  /// The selected area of ground: what it is painted with, how many tiles,
-  /// and the rectangle round them.
-  json groundSelectionJson(const EditorShellState& state) {
-    const std::vector<GroundCell>& cells = state.ground_selection;
+  /// The rectangle round @p cells, which are listed row by row from the
+  /// south, so the last row closes it.
+  GroundRect selectionBox(const std::vector<GroundCell>& cells) {
     GroundRect box{cells.front().x, cells.front().y, 1, 1};
     for (const GroundCell cell : cells) {
       const int32_t x1 = std::max(box.x + box.width, cell.x + 1);
@@ -352,14 +366,46 @@ namespace {
       box.width = x1 - box.x;
       box.height = cell.y + 1 - box.y;
     }
+    return box;
+  }
+
+  /// The rectangle round @p cells, as this API reports one.
+  json boxJson(const std::vector<GroundCell>& cells) {
+    const GroundRect box = selectionBox(cells);
+    return {{"x", box.x},
+            {"y", box.y},
+            {"width", box.width},
+            {"height", box.height}};
+  }
+
+  /// The selected body of water: how many tiles, the rectangle round them,
+  /// how deep as the Depth row names it, and — from its first cell — its
+  /// colour and opacity, each 0 to 1 as `set_property` takes them.
+  json waterSelectionJson(const EditorShellState& state) {
+    const std::vector<GroundCell>& cells = state.ground_selection;
+    const WaterCell water = editorSelectedWater(state).value_or(WaterCell{});
+    const EditorWaterDepthChoices depths =
+        editorWaterDepthChoices(state.document.water.depth, cells);
+    json fields = json::object();
+    for (const EditorPropertyField field : EDITOR_WATER_FIELDS) {
+      fields[std::string(agentPropertyFieldName(field))] =
+          editorWaterValue(water, field);
+    }
+    return {{"target", agentSelectionKindName(EditorSelectionKind::WATER)},
+            {"tiles", cells.size()},
+            {"bounds", boxJson(cells)},
+            {"depth", depths.names[depths.current]},
+            {"fields", std::move(fields)}};
+  }
+
+  /// The selected area of ground: what it is painted with, how many tiles,
+  /// and the rectangle round them.
+  json groundSelectionJson(const EditorShellState& state) {
+    const std::vector<GroundCell>& cells = state.ground_selection;
     return {{"target", agentSelectionKindName(EditorSelectionKind::GROUND)},
             {"terrain", editorTerrainWord(*editorSelectedTerrain(state))},
             {"tiles", cells.size()},
-            {"bounds",
-             {{"x", box.x},
-              {"y", box.y},
-              {"width", box.width},
-              {"height", box.height}}}};
+            {"bounds", boxJson(cells)}};
   }
 
   /// What is selected, as the panel shows it. Only asked of a selection
@@ -374,6 +420,9 @@ namespace {
     }
     if (state.selection.kind == EditorSelectionKind::GROUND) {
       return groundSelectionJson(state);
+    }
+    if (state.selection.kind == EditorSelectionKind::WATER) {
+      return waterSelectionJson(state);
     }
     return selectedMarkerJson(state, index);
   }

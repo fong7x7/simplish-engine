@@ -58,6 +58,10 @@ enum class EditorPropertyKind : uint8_t {
   /// `ANGLE`, which wraps: a particle may spin faster than half a turn a
   /// second.
   SPIN,
+  /// A fraction, clamped to [0, 1], that the panel draws as a slider: a
+  /// colour channel, how opaque water is — numbers set by eye along their
+  /// whole range rather than typed.
+  SHADE,
 };
 
 /// One property's fixed description.
@@ -88,9 +92,9 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Direction X", EditorPropertyKind::AXIS},
     {"Direction Y", EditorPropertyKind::AXIS},
     {"Direction Z", EditorPropertyKind::AXIS},
-    {"Colour R", EditorPropertyKind::UNIT},
-    {"Colour G", EditorPropertyKind::UNIT},
-    {"Colour B", EditorPropertyKind::UNIT},
+    {"Colour R", EditorPropertyKind::SHADE},
+    {"Colour G", EditorPropertyKind::SHADE},
+    {"Colour B", EditorPropertyKind::SHADE},
     {"Intensity", EditorPropertyKind::FACTOR},
     {"Range", EditorPropertyKind::EXTENT},
     {"Player", EditorPropertyKind::COUNT, 4.0f},
@@ -129,6 +133,7 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Spin", EditorPropertyKind::SPIN},
     {"Textured", EditorPropertyKind::TOGGLE},
     {"Lit", EditorPropertyKind::TOGGLE},
+    {"Opacity", EditorPropertyKind::SHADE},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==
@@ -159,10 +164,18 @@ editorPropertyFieldIsToggle(EditorPropertyField field) {
   return editorPropertyFieldKind(field) == EditorPropertyKind::TOGGLE;
 }
 
-/// Whether a field is a size multiplier, which the panel draws as a slider.
+/// Whether a field is a size multiplier, which the panel draws as a slider
+/// laid out logarithmically about 1.
 [[nodiscard]] constexpr bool
 editorPropertyFieldIsScale(EditorPropertyField field) {
   return editorPropertyFieldKind(field) == EditorPropertyKind::SCALE;
+}
+
+/// Whether the panel draws a field as a slider: a scale, or a shade.
+[[nodiscard]] constexpr bool
+editorPropertyFieldIsSlider(EditorPropertyField field) {
+  return editorPropertyFieldIsScale(field) ||
+         editorPropertyFieldKind(field) == EditorPropertyKind::SHADE;
 }
 
 /// Whether a field is an angle, which decides how it is written out and

@@ -208,9 +208,11 @@ TEST_CASE("the ground subsection holds every terrain and the eraser, after "
   REQUIRE(tree.folders[ground].assets.size() == EDITOR_GROUND_CARD_COUNT);
   REQUIRE(tree.folders[ground].assets.front() ==
           first_item + EDITOR_GENERAL_ITEM_COUNT);
-  // The eraser is the last card, and paints bare ground.
-  REQUIRE(editorGroundCardTerrain(EDITOR_GROUND_CARD_COUNT - 1) == 0);
+  // The eraser follows the terrains, and paints bare ground; the water
+  // cards come last.
+  REQUIRE(editorGroundCardTerrain(EDITOR_TERRAIN_COUNT) == 0);
+  REQUIRE(editorGroundCardName(EDITOR_TERRAIN_COUNT) == EDITOR_ERASER_NAME);
   REQUIRE(editorGroundCardName(EDITOR_GROUND_CARD_COUNT - 1) ==
-          EDITOR_ERASER_NAME);
+          EDITOR_DRY_CARD_NAME);
   REQUIRE(editorGroundCardTerrain(0) == 1);
 }

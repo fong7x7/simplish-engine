@@ -18,6 +18,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [Audio](engine/audio.md) | Working on sounds: clips, the mixer, voice stealing, ducking, panning, the platform's audio output, or the sound a combat cue makes |
 | [Effects](engine/fx.md) | Working on particles, volumetric smoke, flashes of light, the effects pass, or the combat cues that trigger them |
 | [Ground](engine/ground.md) | Working on painted terrain: the ground grid, autotiling, the ground's mesh and atlas, or the level file's tile layer |
+| [Water](engine/water.md) | Working on painted water: the ripple simulation, water depth, the water surface, its shader and how it is lit, wakes and splashes, or the water fidelity setting |
 | [Sprites](engine/sprites.md) | Working on sprite sheets, billboards, the alpha cutout, or how 2D art takes part in the depth buffer |
 | [Actors](game/actors.md) | Working on enemies and NPCs: perception, behaviors, steering, facing, attacks, damage and death, stand-in players, or the Behavior row in the editor |
 | [Development](development/REQUIREMENTS.md) | Setting up a build, adding tests, touching CI, or hitting a lint gate |

@@ -967,6 +967,18 @@ bool Dx12Device::tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline) {
   return true;
 }
 
+bool Dx12Device::tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline) {
+  auto* state = createDx12WaterPipelineState(impl_->device,
+                                             impl_->graphics_root_signature,
+                                             impl_->swapchain_rtv_format);
+  if (state == nullptr) {
+    return false;
+  }
+  // The surface is `MeshVertex` records, bound as a mesh's are.
+  out_pipeline = insertBuiltinPipeline(*impl_, state, dx12MeshVertexStride());
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Swap chain accessors
 // ---------------------------------------------------------------------------

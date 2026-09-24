@@ -34,6 +34,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-footstep-choices.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-footstep-surfaces.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-general-section.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-graphics-file.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-atlas.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-ops.cpp"
@@ -60,6 +61,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-layout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-properties-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-property-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-scale-slider.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shape.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-shell-selection.cpp"
@@ -72,6 +74,11 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-viewport-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-waypoint-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-water.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-water-depth-choices.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-water-ops.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-water-depths.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-water-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
@@ -89,6 +96,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-sound-widget.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sound.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-sprites.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-water.cpp"
 )
 
 simplish_add_module(simplish-editor-shell
@@ -105,6 +113,7 @@ simplish_add_module(simplish-editor-shell
         simplish-engine-render-ground
         simplish-engine-render-mesh
         simplish-engine-render-sprite
+        simplish-engine-render-water
         simplish-engine-sim
         simplish-engine-spatial
         simplish-engine-input

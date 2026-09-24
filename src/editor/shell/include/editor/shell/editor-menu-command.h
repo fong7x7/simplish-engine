@@ -94,7 +94,19 @@ enum class EditorMenuCommand : uint8_t {
   SOUND,
   /// Pick a WAV or Ogg Vorbis file and copy it into the project's assets.
   IMPORT_SOUND,
+  /// Draw water as the ground's flat swatch, simulating nothing.
+  SET_WATER_FLAT,
+  /// Draw water as a simulated, rippling surface, coarsely.
+  SET_WATER_LOW,
+  /// Draw water as a simulated, rippling surface, finely, with wind waves,
+  /// light in the shallows and foam on the crests.
+  SET_WATER_HIGH,
 };
+
+/// The water rows, indexed by the fidelity each sets.
+inline constexpr EditorMenuCommand EDITOR_WATER_COMMANDS[] = {
+    EditorMenuCommand::SET_WATER_FLAT, EditorMenuCommand::SET_WATER_LOW,
+    EditorMenuCommand::SET_WATER_HIGH};
 
 /// The stand-in rows, indexed by how many stand-ins each plays with.
 inline constexpr EditorMenuCommand EDITOR_STAND_IN_COMMANDS[] = {
@@ -166,6 +178,9 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::CONTROLS, "Controls...", ""},
     {EditorMenuCommand::SOUND, "Sound...", ""},
     {EditorMenuCommand::IMPORT_SOUND, "Import Sound...", ""},
+    {EditorMenuCommand::SET_WATER_FLAT, "Water: Flat", ""},
+    {EditorMenuCommand::SET_WATER_LOW, "Water: Low", ""},
+    {EditorMenuCommand::SET_WATER_HIGH, "Water: High", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is
@@ -174,6 +189,17 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
   for (int count = 0; count < 4; ++count) {
     if (EDITOR_STAND_IN_COMMANDS[count] == command) {
       return count;
+    }
+  }
+  return -1;
+}
+
+/// The water fidelity @p command sets — its index in `WATER_FIDELITIES` —
+/// or -1 for a command that is not a water row.
+[[nodiscard]] constexpr int editorWaterFidelityOf(EditorMenuCommand command) {
+  for (int index = 0; index < 3; ++index) {
+    if (EDITOR_WATER_COMMANDS[index] == command) {
+      return index;
     }
   }
   return -1;

@@ -47,6 +47,9 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::CONTROLS,
     EditorMenuCommand::SOUND,
     EditorMenuCommand::IMPORT_SOUND,
+    EditorMenuCommand::SET_WATER_FLAT,
+    EditorMenuCommand::SET_WATER_LOW,
+    EditorMenuCommand::SET_WATER_HIGH,
 };
 
 /// Whether @p command names work that exists at all.

@@ -24,6 +24,7 @@ these rules.
 | Navigation grid, line of sight, path planning | [docs/engine/spatial.md](docs/engine/spatial.md) |
 | Particles, volumetric smoke, flashes of light, combat cues, the effects pass | [docs/engine/fx.md](docs/engine/fx.md) — effects read the simulation's cues and never write it |
 | Painted ground: terrains, the Tile tool's brush, autotiling, the tile layer in a level file | [docs/engine/ground.md](docs/engine/ground.md) — every shape comes from a per-quarter-cell rule, not an authored tile set |
+| Painted water: the ripple simulation, the water surface and its shader, water depth, how water is lit, wakes and splashes, the water fidelity setting | [docs/engine/water.md](docs/engine/water.md) — presentation only: stepped on the frame's clock, never read by a tick |
 | Sprite sheets, billboards, the alpha cutout, 2D art in the depth buffer | [docs/engine/sprites.md](docs/engine/sprites.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-22-a-billboard-is-an-upright-quad-not-a-depth-ramp) that makes a billboard an upright quad rather than a depth ramp |
 | GUI: widgets, layout, text, docking, theming, markdown | [docs/engine/gui/README.md](docs/engine/gui/README.md) — one technical doc per subsystem, each naming its source files |
 | Editor: authoring, viewport, assets, project format | [docs/editor/REQUIREMENTS.md](docs/editor/REQUIREMENTS.md), [project-format.md](docs/editor/project-format.md) |
@@ -140,7 +141,10 @@ Built and tested: engine `math`, `core`, `image`, `render`, `gui`, `client`,
 upright quad one frame is drawn on, cut out by the mesh pass's alpha test —
 [docs/engine/sprites.md](docs/engine/sprites.md)), `render-ground` (a painted
 grid of terrains, autotiled into flat stacked layers —
-[docs/engine/ground.md](docs/engine/ground.md)), `animation` and `gltf` (rigged models
+[docs/engine/ground.md](docs/engine/ground.md)), `render-water` (water as
+a layer of its own over the ground — depth, colour and opacity per cell —
+its ripples simulated on the frame's clock and drawn as a lit, translucent
+surface through which the terrain shows, Flat, Low or High — [docs/engine/water.md](docs/engine/water.md)), `animation` and `gltf` (rigged models
 posed by clips, for the few characters that are not sprites —
 [docs/engine/animation.md](docs/engine/animation.md)), `sim` (tick, pools, hashing, replay —
 [docs/engine/simulation.md](docs/engine/simulation.md)), `input` (actions

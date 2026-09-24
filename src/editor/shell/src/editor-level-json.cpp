@@ -602,6 +602,7 @@ std::string serializeEditorLevel(const EditorDocument& document,
   content["lights"] = lightsJson(document);
   content["entities"] = entitiesJson(document);
   writeEditorGround(document.ground, content);
+  writeEditorWater(document.water, content);
   json out;
   out["schema"] = EDITOR_LEVEL_SCHEMA;
   out["id"] = std::string(id);
@@ -626,6 +627,7 @@ parseEditorLevel(std::string_view text,
   readLights(content, load.document);
   readEntities(content, load);
   load.document.ground = readEditorGround(content);
+  load.document.water = readEditorWater(content, load.document.ground);
   return load;
 }
 

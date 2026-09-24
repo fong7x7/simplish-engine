@@ -16,6 +16,7 @@
 #include <editor/shell/editor-document.h>
 #include <editor/shell/editor-effects-state.h>
 #include <editor/shell/editor-enemy-table.h>
+#include <editor/shell/editor-graphics-settings.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-playtest-state.h>
@@ -24,6 +25,7 @@
 #include <editor/shell/editor-sound-table.h>
 #include <editor/shell/editor-tool.h>
 #include <editor/shell/editor-view-state.h>
+#include <editor/shell/editor-water-state.h>
 #include <engine/render-ground/ground-cell.h>
 #include <filesystem>
 #include <string>
@@ -71,7 +73,8 @@ struct EditorShellState {
   /// The one entry of that document the properties panel edits, or nothing.
   EditorSelection selection;
   /// The cells of the painted area selected, when `selection` is `GROUND`,
-  /// row by row from the south-west. Kept as cells rather than found again
+  /// or of the body of water, when it is `WATER`, row by row from the
+  /// south-west. Kept as cells rather than found again
   /// from one of them, so repainting the area in a terrain that touches
   /// another area of it does not grow the selection to swallow that one.
   std::vector<GroundCell> ground_selection;
@@ -126,6 +129,11 @@ struct EditorShellState {
   /// The user's volume settings, and where they are kept — theirs, as
   /// their controls are.
   EditorSoundSettings sound;
+  /// The user's graphics settings — the water's fidelity — and where they
+  /// are kept: theirs, as their volumes are.
+  EditorGraphicsSettings graphics;
+  /// What the level's water is doing, refreshed by the editor every frame.
+  EditorWaterState water;
 };
 
 }  // namespace eng::editor

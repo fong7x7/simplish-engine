@@ -1129,6 +1129,298 @@ fragment float4 fx_volume_fs_main(FxVolumeVsOut in [[stage_in]],
     return *out_pso != nil;
   }
 
+  /// MSL for the water surface: `MeshVertex` triangles in world space, each
+  /// carrying its depth in `uv.x`, a `WaterVertexUniforms` block at vertex
+  /// buffer 1, a `WaterShading` block at fragment buffer 0, the scene's
+  /// lights at fragment buffer 1 in `MESH_MSL_SOURCE`'s own layout, and the
+  /// ripple field at texture 0. The structures mirror
+  /// `water-vertex-uniforms.h`, `water-shading.h` and `mesh-light.h`, which
+  /// this cannot include; WATER_HLSL_SOURCE and the GLSL copies mirror it,
+  /// line for line, so the four agree.
+  constexpr const char WATER_MSL_SOURCE[] = R"msl(
+#include <metal_stdlib>
+using namespace metal;
+
+// `water-texels.h`'s and `water-field.h`'s ranges, restated.
+constant float WATER_SLOPE_RANGE = 1.0f;
+constant float WATER_LEVEL_RANGE = 0.1f;
+constant float WATER_SHORE_TILES = 2.0f;
+// How much steeper the simulated ripples are drawn than they are: a ring a
+// few hundredths of a tile high is what a wake is, and it has to read.
+constant float WATER_RIPPLE_GAIN = 3.0f;
+// How much sky a ripple's slope towards the eye adds.
+constant float WATER_RIPPLE_SKY = 1.2f;
+// How much the light the waves focus brightens the ground under them.
+constant float WATER_CAUSTIC_LIGHT = 0.25f;
+// `water-depth.h`'s bank shelf, restated.
+constant float WATER_BANK_MIN_TILES = 0.3f;
+constant float WATER_BANK_TILES_PER_DEPTH = 0.5f;
+constant float WATER_BANK_MAX_TILES = 2.0f;
+// `mesh-light.h`'s, restated, as the mesh shader restates them.
+constant uint MESH_MAX_LIGHTS = 8;
+constant float MESH_LIGHT_AMBIENT = 0.38f;
+constant float MESH_LIGHT_DIFFUSE = 0.62f;
+constant float MESH_LIGHT_POINT = 1.0f;
+
+// Wind waves finer than the simulation: a direction, a wavelength in
+// tiles, and a steepness — the slope at a crest. The first two are broad
+// swell LOW and HIGH draw; the last two only HIGH does.
+constant float4 WATER_WAVES[4] = {
+    float4(0.80f, 0.60f, 1.10f, 0.10f), float4(-0.45f, 0.89f, 0.63f, 0.08f),
+    float4(0.97f, -0.24f, 0.39f, 0.06f), float4(0.20f, 0.98f, 0.25f, 0.05f)};
+
+struct WaterUniforms {
+  float4x4 view_projection;
+  float4 field;
+};
+
+struct WaterShading {
+  float4 sky;
+  float4 foam;
+  float4 clarity;
+  float4 light;
+  float4 view;
+  float4 detail;
+};
+
+struct MeshLight {
+  float4 position_range;
+  float4 direction_intensity;
+  float4 color_kind;
+};
+
+struct MeshLights {
+  uint count;
+  uint shade_bands;
+  uint pad1;
+  uint pad2;
+  MeshLight lights[MESH_MAX_LIGHTS];
+};
+
+// A surface vertex: where it is, the water's colour in the normal's place,
+// and its depth and opacity in the texture coordinate's.
+struct WaterVertexIn {
+  float3 position [[attribute(0)]];
+  float3 normal [[attribute(1)]];
+  float2 uv [[attribute(2)]];
+};
+
+struct WaterVsOut {
+  float4 position [[position]];
+  float3 world;
+  float2 uv;
+  float depth;
+  float opacity;
+  float3 color;
+};
+
+vertex WaterVsOut water_vs_main(WaterVertexIn in [[stage_in]],
+                                constant WaterUniforms& u [[buffer(1)]]) {
+  WaterVsOut out;
+  out.position = u.view_projection * float4(in.position, 1.0f);
+  out.world = in.position;
+  out.uv = (in.position.xy - u.field.xy) * u.field.zw;
+  out.depth = in.uv.x;
+  out.opacity = in.uv.y;
+  out.color = in.normal;
+  return out;
+}
+
+float water_srgb_to_linear(float srgb) {
+  if (srgb <= 0.04045f) {
+    return srgb / 12.92f;
+  }
+  return pow((srgb + 0.055f) / 1.055f, 2.4f);
+}
+
+float3 water_linear(float3 c) {
+  c = saturate(c);
+  return float3(water_srgb_to_linear(c.r), water_srgb_to_linear(c.g),
+                water_srgb_to_linear(c.b));
+}
+
+// How much of water `depth` tiles deep there is `shore` tiles from a bank.
+float water_shelf(float depth, float shore) {
+  float run = clamp(WATER_BANK_MIN_TILES + WATER_BANK_TILES_PER_DEPTH * depth,
+                    WATER_BANK_MIN_TILES, WATER_BANK_MAX_TILES);
+  return smoothstep(0.0f, 1.0f, saturate(shore / run));
+}
+
+// The slope the wind waves add at p, t seconds in. Each travels at the
+// speed deep water carries its wavelength, which grows as its root.
+float2 water_wind_slope(float2 p, float t, float fine) {
+  float2 slope = float2(0.0f);
+  for (int i = 0; i < 4; ++i) {
+    float4 w = WATER_WAVES[i];
+    float k = 6.2831853f / w.z;
+    float phase = k * (dot(w.xy, p) - 0.55f * sqrt(w.z) * t);
+    float weight = i < 2 ? 1.0f : fine;
+    slope += w.xy * (w.w * weight * cos(phase));
+  }
+  return slope;
+}
+
+// Bright threads of light the waves focus on the ground under them.
+float water_caustic(float2 p, float2 slope, float t) {
+  float2 q = p * 3.0f + slope * 1.5f;
+  float a = sin(q.x + 1.2f * sin(q.y * 1.3f + t * 0.9f) + t * 0.6f);
+  float b = sin(q.y * 1.1f + 1.2f * sin(q.x * 0.9f - t * 0.7f) - t * 0.5f);
+  return pow(saturate(1.0f - abs(a + b)), 4.0f);
+}
+
+// A slow churn that breaks foam up into lace.
+float water_froth(float2 p, float t) {
+  float a = sin(p.x * 9.0f + 1.5f * sin(p.y * 7.0f + t * 1.3f) + t * 0.9f);
+  float b = sin(p.y * 11.0f + 1.5f * sin(p.x * 6.0f - t * 1.1f) - t * 0.7f);
+  return saturate(0.5f + 0.5f * a * b);
+}
+
+// `mesh_falloff` and `mesh_band`, restated: a point light's reach, and
+// one light flattened into `bands` tones.
+float water_falloff(float distance, float range) {
+  if (range <= 0.0f) {
+    return 0.0f;
+  }
+  float reach = saturate(1.0f - distance / range);
+  return reach * reach;
+}
+
+float water_band(float light, uint bands) {
+  if (bands < 2u) {
+    return light;
+  }
+  float top = float(bands - 1u);
+  return min(floor(light * float(bands)), top) / top;
+}
+
+// What one light does to the water at p: the diffuse light its colour and
+// foam take, in rgb, and the glint off the wave face, in w.
+float4 water_light(MeshLight light, float3 p, float3 n, float3 v, uint bands) {
+  float3 to_light = light.direction_intensity.xyz;
+  float attenuation = 1.0f;
+  if (light.color_kind.w == MESH_LIGHT_POINT) {
+    float3 offset = light.position_range.xyz - p;
+    attenuation = water_falloff(length(offset), light.position_range.w);
+    to_light = offset;
+  }
+  float aim = length(to_light);
+  if (aim < 1e-4f || attenuation <= 0.0f) {
+    return float4(0.0f);
+  }
+  float3 l = to_light / aim;
+  float strength = light.direction_intensity.w * attenuation;
+  float ndh = saturate(dot(n, normalize(l + v)));
+  float glint = pow(ndh, 60.0f) + 0.08f * pow(ndh, 12.0f);
+  return float4(light.color_kind.xyz *
+                    water_band(saturate(dot(n, l)) * attenuation, bands) *
+                    light.direction_intensity.w * MESH_LIGHT_DIFFUSE,
+                strength * glint);
+}
+
+// Premultiplied, over the terrain the ground drew under the water: the
+// water's colour covers as much of it as its depth and opacity say, the
+// sky covers more at a glance, and the light the waves focus on the
+// ground, the foam and the glints are laid on top.
+fragment float4 water_fs_main(WaterVsOut in [[stage_in]],
+                              constant WaterShading& s [[buffer(0)]],
+                              constant MeshLights& lights [[buffer(1)]],
+                              texture2d<float> field [[texture(0)]]) {
+  constexpr sampler smp(filter::linear, address::clamp_to_edge);
+  float4 texel = field.sample(smp, in.uv);
+  float level = (texel.b * 2.0f - 1.0f) * WATER_LEVEL_RANGE;
+  // How deep the water is here: the tiles' depths blended between them,
+  // shelving to nothing at the bank.
+  float depth = in.depth * water_shelf(in.depth, texel.a * WATER_SHORE_TILES);
+  float deepness = 1.0f - exp(-depth / max(s.clarity.z, 1e-3f));
+  // Opacity sets how much a tile of water hides, evenly on a log scale
+  // from the clearest to the murkiest; depth sets how many tiles there are.
+  float absorb =
+      s.clarity.x * pow(s.clarity.y / s.clarity.x, saturate(in.opacity));
+  float cover = 1.0f - exp(-absorb * depth);
+  float2 ripple =
+      (texel.rg * 2.0f - 1.0f) * (WATER_SLOPE_RANGE * WATER_RIPPLE_GAIN);
+  float t = s.view.w;
+  // The shallows are sheltered: the wind raises less there, and a still
+  // surface raises none.
+  float2 slope = ripple + water_wind_slope(in.world.xy, t, s.detail.x) *
+                              (s.detail.z * (0.3f + 0.7f * deepness));
+  float3 n = normalize(float3(-slope, 1.0f));
+  float3 v = s.view.xyz;
+  // A ripple's face turned to the eye shows it more sky, and one turned
+  // away less: linear in the slope, so a small ring reads as well as a
+  // big one, where the Fresnel term alone would lose it.
+  float fresnel =
+      saturate(0.04f + 0.66f * pow(1.0f - saturate(dot(n, v)), 3.0f) +
+               WATER_RIPPLE_SKY * dot(-ripple, v.xy));
+  // Every light the meshes are lit by: its diffuse on the water, and its
+  // glint off the wave faces in its own colour.
+  float3 diffuse = float3(MESH_LIGHT_AMBIENT);
+  float3 glint = float3(0.0f);
+  for (uint i = 0; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
+    float4 one = water_light(lights.lights[i], in.world, n, v,
+                             lights.shade_bands);
+    diffuse += one.rgb;
+    glint += lights.lights[i].color_kind.xyz * one.w;
+  }
+  glint *= s.light.w;
+  float3 water = water_linear(in.color * (1.0f - s.clarity.w * deepness)) *
+                 diffuse * (1.0f + 2.0f * level);
+  float skylight = min((diffuse.r + diffuse.g + diffuse.b) / 3.0f, 1.0f);
+  float3 color = water * cover;
+  float alpha = cover;
+  color = color * (1.0f - fresnel) + water_linear(s.sky.rgb) * skylight * fresnel;
+  alpha = alpha * (1.0f - fresnel) + fresnel;
+  color += WATER_CAUSTIC_LIGHT * s.detail.y * (1.0f - alpha) * diffuse *
+           water_caustic(in.world.xy, slope, t);
+  float froth = water_froth(in.world.xy, t);
+  float edge = 1.0f - smoothstep(0.05f, 0.28f, texel.a * WATER_SHORE_TILES);
+  float crest =
+      smoothstep(0.35f, 0.8f, level / WATER_LEVEL_RANGE) * s.foam.w;
+  float foam = saturate(edge * (0.55f + 0.45f * froth) + crest * froth);
+  color = color * (1.0f - foam) + water_linear(s.foam.rgb) * diffuse * foam;
+  alpha = alpha * (1.0f - foam) + foam;
+  float shine = max(glint.r, max(glint.g, glint.b));
+  return float4(color + glint, saturate(alpha + shine));
+}
+)msl";
+
+  bool buildWaterPipelinePso(id<MTLDevice> mtl_device,
+                             id<MTLRenderPipelineState>* out_pso) {
+    NSError* err = nil;
+    NSString* src = [NSString stringWithUTF8String:WATER_MSL_SOURCE];
+    id<MTLLibrary> lib = [mtl_device newLibraryWithSource:src
+                                                  options:nil
+                                                    error:&err];
+    id<MTLFunction> vs = [lib newFunctionWithName:@"water_vs_main"];
+    id<MTLFunction> fs = [lib newFunctionWithName:@"water_fs_main"];
+    if (vs == nil || fs == nil) {
+      return false;
+    }
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    configureMeshRenderPipelineDesc(pd, vs, fs);
+    // Premultiplied over the ground under it, in the pass that holds the
+    // scene's depth: the water hides some of the ground and adds light to
+    // the rest.
+    applyPremultipliedBlend(pd.colorAttachments[0]);
+    *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
+    (void)err;
+    return *out_pso != nil;
+  }
+
+  /// The water's fixed state: tested against the scene's depth so a crate
+  /// in a pond hides it, and not written, so the outline and the effects
+  /// still see the bed.
+  PipelineEntry waterPipelineEntry(id<MTLDevice> mtl_device,
+                                   id<MTLRenderPipelineState> pso) {
+    RhiDepthStencilState ds{};
+    ds.depth_test = true;
+    ds.depth_write = false;
+    RhiRasterState raster{};
+    raster.cull_back = false;
+    return PipelineEntry{pso, nil, makeMtlDepthStencilState(mtl_device, ds),
+                         RhiPrimitiveTopology::TRIANGLE_LIST, raster};
+  }
+
   bool compileGuiShaderLibrary(id<MTLDevice> mtl_device,
                                id<MTLLibrary>* out_lib) {
     NSError* err = nil;
@@ -1230,6 +1522,7 @@ public:
   bool tryCreateMeshOutlinePipeline(RhiPipelineHandle& out) override;
   bool tryCreateFxParticlePipeline(RhiPipelineHandle& out) override;
   bool tryCreateFxVolumePipeline(RhiPipelineHandle& out) override;
+  bool tryCreateWaterPipeline(RhiPipelineHandle& out) override;
 
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
@@ -1963,6 +2256,19 @@ bool MetalRealDevice::tryCreateFxVolumePipeline(RhiPipelineHandle& out) {
     }
     // Drawn in the same pass, under the same fixed state, as the particles.
     return insertOutlinePipelineFromPso(pso, out);
+  }
+}
+
+bool MetalRealDevice::tryCreateWaterPipeline(RhiPipelineHandle& out) {
+  @autoreleasepool {
+    id<MTLRenderPipelineState> pso = nil;
+    if (!buildWaterPipelinePso(device_, &pso)) {
+      return false;
+    }
+    const auto h = next_handle_++;
+    pipelines_.insert(h, waterPipelineEntry(device_, pso));
+    out = h;
+    return true;
   }
 }
 

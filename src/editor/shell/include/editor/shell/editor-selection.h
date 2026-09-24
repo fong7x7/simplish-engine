@@ -38,6 +38,10 @@ enum class EditorSelectionKind : uint8_t {
   /// the document's lists, so `editorListSize` counts nothing for it —
   /// `editorSelectableCount` is what knows it is there.
   GROUND,
+  /// A body of water: every cell of water joined to the one picked, in
+  /// `EditorShellState::ground_selection`, with an index of 0 — counted
+  /// as a ground area is.
+  WATER,
 };
 
 /// The one thing the properties panel is editing.

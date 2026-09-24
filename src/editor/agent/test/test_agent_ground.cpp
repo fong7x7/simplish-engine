@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/agent/agent-dispatch.h>
 #include <editor/shell/editor-action-ops.h>
+#include <editor/shell/editor-terrains.h>
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -36,7 +37,7 @@ TEST_CASE("painting a rectangle lays that terrain on every cell of it") {
 
   REQUIRE(painted.at("changed") == 4);
   REQUIRE(painted.at("painted").at("width") == 4);
-  REQUIRE(state.document.ground.at({5, 3}) == 6);
+  REQUIRE(state.document.ground.at({5, 3}) == *editorTerrainNamed("road"));
   REQUIRE(state.history.actions.size() == 1);
 }
 
@@ -94,14 +95,14 @@ TEST_CASE("get_ground reports the painted cells a row at a time") {
 
   REQUIRE(ground.at("window").at("height") == 2);
   // Southmost row first, each west to east.
-  REQUIRE(ground.at("rows") == json::parse(R"(["111", ".6."])"));
+  REQUIRE(ground.at("rows") == json::parse(R"(["111", ".5."])"));
   REQUIRE(ground.at("terrains").at(0).at("terrain") == "none");
-  REQUIRE(ground.at("terrains").at(6).at("terrain") == "road");
+  REQUIRE(ground.at("terrains").at(5).at("terrain") == "road");
 }
 
 TEST_CASE("get_ground reads any window, and refuses one too large") {
   EditorShellState state = openProject();
-  (void)call(state, "paint_ground", R"({"terrain": "water", "x": 5, "y": 5})");
+  (void)call(state, "paint_ground", R"({"terrain": "stone", "x": 5, "y": 5})");
 
   const json window =
       call(state, "get_ground", R"({"x": 4, "y": 5, "width": 3, "height": 1})");
@@ -137,7 +138,7 @@ TEST_CASE("the selected patch is repainted in one edit, and erased by delete") {
   const json repainted = call(state, "paint_ground",
                               R"({"target": "selection", "terrain": "road"})");
   REQUIRE(repainted.at("changed") == 3);
-  REQUIRE(state.document.ground.at({2, 0}) == 6);
+  REQUIRE(state.document.ground.at({2, 0}) == *editorTerrainNamed("road"));
   REQUIRE(state.history.actions.size() == 2);
 
   (void)call(state, "delete", R"({"target": "selection"})");
