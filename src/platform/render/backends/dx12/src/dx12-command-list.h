@@ -88,6 +88,7 @@ public:
   // --- Copy commands ---
   void copyBuffer(const RhiCopyBufferParams& params) override;
   void copyTextureToBuffer(RhiTextureHandle src, RhiBufferHandle dst) override;
+  void copyTexture(RhiTextureHandle src, RhiTextureHandle dst) override;
 
   // --- Compute texture binding ---
   void bindComputeStorageImage(RhiTextureHandle texture, uint32_t mip_level,

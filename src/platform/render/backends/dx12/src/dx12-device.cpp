@@ -995,6 +995,12 @@ uint32_t Dx12Device::backbufferHeight() const {
   return impl_->swapchain_height;
 }
 
+RhiFormat Dx12Device::backbufferFormat() const {
+  // The buffers are UNORM and drawn through an sRGB view; a copy of one
+  // is read the way the view writes it.
+  return RhiFormat::RGB_A8_SRGB;
+}
+
 void Dx12Device::resizeSwapchain(uint32_t width, uint32_t height) {
   if (width == 0U || height == 0U) {
     return;

@@ -31,17 +31,20 @@ namespace eng::editor {
 /// without a name here fails the build rather than being silently
 /// unreachable from the API.
 inline constexpr std::string_view AGENT_PROPERTY_FIELD_NAMES[] = {
-    "position_x",  "position_y",  "position_z",  "rotation_x",  "rotation_y",
-    "rotation_z",  "direction_x", "direction_y", "direction_z", "color_r",
-    "color_g",     "color_b",     "intensity",   "range",       "player",
-    "collides",    "scale",       "route",       "order",       "interval",
-    "particles",   "spread",      "speed_min",   "speed_max",   "life_min",
-    "life_max",    "size_start",  "size_end",    "start_r",     "start_g",
-    "start_b",     "start_hide",  "end_r",       "end_g",       "end_b",
-    "end_hide",    "gravity",     "drag",        "stretch",     "flash",
-    "flash_range", "flash_time",  "height",      "columns",     "rows",
-    "frames",      "fps",         "spin",        "textured",    "lit",
-    "opacity",
+    "position_x",  "position_y", "position_z",  "rotation_x",
+    "rotation_y",  "rotation_z", "direction_x", "direction_y",
+    "direction_z", "color_r",    "color_g",     "color_b",
+    "intensity",   "range",      "player",      "collides",
+    "scale",       "route",      "order",       "interval",
+    "particles",   "spread",     "speed_min",   "speed_max",
+    "life_min",    "life_max",   "size_start",  "size_end",
+    "start_r",     "start_g",    "start_b",     "start_hide",
+    "end_r",       "end_g",      "end_b",       "end_hide",
+    "gravity",     "drag",       "stretch",     "flash",
+    "flash_range", "flash_time", "height",      "columns",
+    "rows",        "frames",     "fps",         "spin",
+    "textured",    "lit",        "opacity",     "flow_direction",
+    "flow_speed",  "viscosity",
 };
 
 static_assert(std::size(AGENT_PROPERTY_FIELD_NAMES) ==
@@ -93,6 +96,10 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "set_water_flat",
     "set_water_low",
     "set_water_high",
+    "toggle_water_reflections",
+    "toggle_water_refraction",
+    "toggle_water_contact",
+    "toggle_water_caustics",
     "new_game_logic",
     "build_game_logic",
     "deploy_game",

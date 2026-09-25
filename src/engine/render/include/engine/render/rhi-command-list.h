@@ -16,6 +16,11 @@
 
 namespace eng {
 
+/// How many fragment texture slots a draw may bind, on every backend: the
+/// most any builtin reads (the water's field, the scene's colour and depth,
+/// and its still texels).
+inline constexpr uint32_t RHI_MAX_FRAGMENT_TEXTURES = 4;
+
 // ============================================================================
 // DESIGN SUMMARY
 // ============================================================================
@@ -72,7 +77,8 @@ public:
   virtual void setFragmentStageBytes(const void* data, size_t size,
                                      uint32_t slot);
 
-  /// Bind a sampled texture for the fragment stage at `slot`. Default no-op.
+  /// Bind a sampled texture for the fragment stage at `slot`, below
+  /// `RHI_MAX_FRAGMENT_TEXTURES`. Default no-op.
   virtual void bindFragmentTexture(RhiTextureHandle texture, uint32_t slot);
 
   /// Bind a storage buffer at `slot` for shader read. Default no-op.
@@ -107,6 +113,12 @@ public:
   virtual void copyBuffer(const RhiCopyBufferParams& params) = 0;
   virtual void copyTextureToBuffer(RhiTextureHandle src,
                                    RhiBufferHandle dst) = 0;
+
+  /// Copy mip 0 of @p src into mip 0 of @p dst, over the size they share,
+  /// outside a render pass. @p src may be the backbuffer; the two formats
+  /// must match (`RhiDevice::backbufferFormat` names the backbuffer's).
+  /// Default: no-op.
+  virtual void copyTexture(RhiTextureHandle src, RhiTextureHandle dst);
 
   // --- Barriers ---
   virtual void textureBarrier(RhiTextureHandle texture,
@@ -148,6 +160,9 @@ inline void RhiCommandList::setFragmentStageBytes(const void* /*data*/,
 
 inline void RhiCommandList::bindFragmentTexture(RhiTextureHandle /*texture*/,
                                                 uint32_t /*slot*/) {}
+
+inline void RhiCommandList::copyTexture(RhiTextureHandle /*src*/,
+                                        RhiTextureHandle /*dst*/) {}
 
 inline void RhiCommandList::bindStorageBuffer(RhiBufferHandle /*buffer*/,
                                               uint32_t /*slot*/) {}

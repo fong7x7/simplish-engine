@@ -142,6 +142,11 @@ protected:
   /// Record scene draws. Called inside the scene pass, never outside one.
   virtual void recordScene(RhiCommandList& /*cmd*/) {}
 
+  /// Record copies of what the scene pass wrote, outside any pass: after
+  /// it ends and before the pass `recordSceneOverlay` draws in begins —
+  /// the backbuffer's colour, for a draw there to see through.
+  virtual void recordSceneCapture(RhiCommandList& /*cmd*/) {}
+
   /// Record draws that read what the scene pass wrote — its depth, for the
   /// outline. Called once that pass has ended, at the start of the pass the
   /// GUI then draws over the scene in, which has the same colour target and

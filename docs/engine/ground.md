@@ -91,7 +91,7 @@ The eight layers together stay well under the 1/32-tile thickness of the editor'
 - **Drawing.** The editor rebuilds and re-uploads the ground mesh whenever the document's ground differs from the one it last built, so a stroke, an undo, an agent's fill and a level being opened are all drawn without any of them saying so.
 - **Saving.** `bounds`, `tile_palette` and `layers.terrain` in the level file ([project-format.md §4.1](../editor/project-format.md#41-what-the-editor-writes-today)).
 - **Agents.** `get_ground` and `paint_ground` ([capabilities.md](../editor/capabilities.md)).
-- **Water.** Water lies over the ground rather than being painted into it: its own layer of cells, each with a depth, a colour and an opacity, drawn as a translucent, rippling surface through which the terrain under it shows ([water.md](water.md)).
+- **Water.** Water lies over the ground rather than being painted into it: its own layer of cells, each with a depth, a colour, an opacity and a flow, drawn as a translucent, rippling surface through which the terrain under it shows, bent by the ripples, and which darkens the ground it wets beside it ([water.md](water.md)).
 - **Footsteps.** Each terrain also names the surface a step on it sounds like — road and stone are both stone, a hole is bare ground — and a playtest hears steps on the painted cell under each walker ([audio.md §9.1](audio.md#91-footsteps)).
 
 ---

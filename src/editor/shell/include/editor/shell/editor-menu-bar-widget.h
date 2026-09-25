@@ -55,6 +55,7 @@
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/gui-widget-tree.h>
+#include <engine/render-water/water-effects.h>
 #include <engine/render-water/water-fidelity.h>
 #include <functional>
 #include <memory>
@@ -143,6 +144,9 @@ public:
   /// graphics setting, read out of `EditorGraphicsSettings`.
   void setWaterFidelity(WaterFidelity fidelity);
 
+  /// Check each water effect row whose effect @p effects draws.
+  void setWaterEffects(const WaterEffects& effects);
+
   /// Gate the Undo and Redo rows on what @p history holds.
   ///
   /// Takes the history rather than two flags so the bar cannot be told a
@@ -223,6 +227,10 @@ private:
   /// Whether a playtest row — Play Level, Pause Playtest — is ticked.
   [[nodiscard]] bool playtestChecked(EditorMenuCommand command) const;
 
+  /// Whether @p command is a water row showing the fidelity or an effect
+  /// the user has chosen; otherwise what `playtestChecked` says.
+  [[nodiscard]] bool waterChecked(EditorMenuCommand command) const;
+
   /// Menus in left-to-right order.
   std::vector<Menu> menus_{};
   /// Full-window panel that closes the menu when clicked.
@@ -247,6 +255,8 @@ private:
   ProjectShading shading_ = ProjectShading::SMOOTH;
   /// The water fidelity the View menu checks.
   WaterFidelity water_ = WATER_DEFAULT_FIDELITY;
+  /// Which water effect rows are checked.
+  WaterEffects water_effects_{};
   /// Whether the history has an applied action for Undo to revert.
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.

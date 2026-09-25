@@ -103,6 +103,7 @@ public:
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
   uint32_t backbufferHeight() const override;
+  RhiFormat backbufferFormat() const override;
   void resizeSwapchain(uint32_t width, uint32_t height) override;
 
   // --- Frame management ---
@@ -233,6 +234,7 @@ private:
   void executeCommand(const GlCmdDispatch& cmd);
   void executeCommand(const GlCmdCopyBuffer& cmd);
   void executeCommand(const GlCmdCopyTextureToBuffer& cmd);
+  void executeCommand(const GlCmdCopyTexture& cmd);
   void executeCommand(const GlCmdTextureBarrier& cmd);
 
   /// Read texture pixels via a temporary FBO into a PBO.

@@ -18,11 +18,15 @@ namespace eng {
 inline constexpr float WATER_SURFACE_HEIGHT = 10.0f * GROUND_LAYER_STEP;
 
 /// The surface over every cell of @p layer's water, shaped by the same
-/// quarter-cell rule as the ground and flat at `WATER_SURFACE_HEIGHT`.
+/// quarter-cell rule as the ground and flat at `WATER_SURFACE_HEIGHT` —
+/// after a wet band over every cell within one of it, drawn first so the
+/// water goes over it. The band's vertices carry nothing, depth 0 among
+/// it, which is how the shader tells the two apart; it darkens only the
+/// ground the water has wet (`WATER_WET_TILES`).
 ///
-/// Each vertex carries the water there, blended between its cells'
-/// corners (`waterSampleAt`) so the rasterizer carries it smoothly from one
-/// tile to the next: `uv.x` the depth in tiles — not yet shelved towards
+/// Each vertex of the water itself carries the water there, blended between its
+/// cells' corners (`waterSampleAt`) so the rasterizer carries it smoothly from
+/// one tile to the next: `uv.x` the depth in tiles — not yet shelved towards
 /// the bank, which the shader does from the field — `uv.y` the opacity,
 /// and `normal` the colour, sRGB from 0 to 1, since the surface's normal is
 /// +Z everywhere and the shader works its own out from the ripples. Empty

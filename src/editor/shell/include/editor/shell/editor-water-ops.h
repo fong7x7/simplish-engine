@@ -21,10 +21,14 @@
 namespace eng::editor {
 
 /// The rows the properties panel lists for a body of water, below its
-/// Depth row: its colour and how opaque it is, each a slider.
+/// Depth row: its colour and how opaque it is, each a slider, then which
+/// way it flows, in degrees, and how fast, a slider, and how thick it is,
+/// a slider.
 inline constexpr EditorPropertyField EDITOR_WATER_FIELDS[] = {
-    EditorPropertyField::COLOR_R, EditorPropertyField::COLOR_G,
-    EditorPropertyField::COLOR_B, EditorPropertyField::OPACITY};
+    EditorPropertyField::COLOR_R,        EditorPropertyField::COLOR_G,
+    EditorPropertyField::COLOR_B,        EditorPropertyField::OPACITY,
+    EditorPropertyField::FLOW_DIRECTION, EditorPropertyField::FLOW_SPEED,
+    EditorPropertyField::VISCOSITY};
 
 /// Lay water over every cell of @p rect: @p water's depth everywhere, and
 /// on cells that were dry its colour and opacity too. Water already there
@@ -43,12 +47,18 @@ bool setEditorWaterDepth(WaterLayer& layer, std::span<const GroundCell> cells,
 /// The same over every cell of @p rect.
 bool setEditorWaterDepthIn(WaterLayer& layer, GroundRect rect, uint8_t units);
 
-/// Set @p field — a colour channel or the opacity, 0 to 1 — of every cell
-/// of @p cells that holds water. Returns whether any changed.
+/// Set @p field — a colour channel, the opacity, the flow's speed or the
+/// viscosity, 0 to 1, or the flow's direction in degrees — of every cell of @p
+/// cells that holds water. Returns whether any changed.
 bool setEditorWaterValue(WaterLayer& layer, std::span<const GroundCell> cells,
                          EditorPropertyField field, float value);
 
-/// @p field of @p water, 0 to 1, as the panel shows it.
+/// @p value of @p field — as `setEditorWaterValue` takes it — as the byte
+/// a `WaterCell` stores.
+[[nodiscard]] uint8_t editorWaterByte(EditorPropertyField field, float value);
+
+/// @p field of @p water as the panel shows it: 0 to 1, or degrees from
+/// −180 to 180 for the flow's direction.
 [[nodiscard]] float editorWaterValue(const WaterCell& water,
                                      EditorPropertyField field);
 

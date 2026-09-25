@@ -142,10 +142,11 @@ namespace {
     return write;
   }
 
-  VkWriteDescriptorSet imageWrite(const VkDescriptorImageInfo* image) {
+  VkWriteDescriptorSet imageWrite(uint32_t slot,
+                                  const VkDescriptorImageInfo* image) {
     VkWriteDescriptorSet write{};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstBinding = VULKAN_BINDING_FRAGMENT_TEXTURE;
+    write.dstBinding = vulkanFragmentTextureBinding(slot);
     write.descriptorCount = 1;
     write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     write.pImageInfo = image;
@@ -157,8 +158,8 @@ namespace {
   struct PushedSet {
     /// Range written at each uniform binding.
     std::array<VkDescriptorBufferInfo, VULKAN_UNIFORM_BINDING_COUNT> ranges{};
-    /// Image written at the texture binding.
-    VkDescriptorImageInfo image{};
+    /// Image written at each texture binding.
+    std::array<VkDescriptorImageInfo, VULKAN_FRAGMENT_TEXTURE_COUNT> images{};
     /// One write per pushed binding, pointing into the two above.
     std::array<VkWriteDescriptorSet, VULKAN_PUSHED_BINDING_COUNT> writes{};
   };
@@ -174,10 +175,25 @@ namespace {
       out.ranges[i] = set.buffer != VK_NULL_HANDLE ? set : empty;
       out.writes[i] = uniformWrite(i, &out.ranges[i]);
     }
-    out.image = {VK_NULL_HANDLE,
-                 b.texture != VK_NULL_HANDLE ? b.texture : fallback,
-                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    out.writes[VULKAN_BINDING_FRAGMENT_TEXTURE] = imageWrite(&out.image);
+    for (uint32_t slot = 0; slot < VULKAN_FRAGMENT_TEXTURE_COUNT; ++slot) {
+      const VkImageView view = b.textures[slot];
+      out.images[slot] = {VK_NULL_HANDLE,
+                          view != VK_NULL_HANDLE ? view : fallback,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      out.writes[VULKAN_UNIFORM_BINDING_COUNT + slot] =
+          imageWrite(slot, &out.images[slot]);
+    }
+  }
+
+  /// The region two images share, from their corner, mip 0.
+  VkImageCopy sharedRegion(const VulkanImageRef& from,
+                           const VulkanImageRef& to) {
+    VkImageCopy region{};
+    region.srcSubresource = {from.aspect, 0, 0, 1};
+    region.dstSubresource = {to.aspect, 0, 0, 1};
+    region.extent = {std::min(from.extent.width, to.extent.width),
+                     std::min(from.extent.height, to.extent.height), 1};
+    return region;
   }
 
   /// `stride` as given, or a tightly packed one when the caller left it 0.
@@ -393,10 +409,10 @@ VkImageView VulkanCommandList::sampleableView(const VulkanImageRef& ref) {
 
 void VulkanCommandList::bindFragmentTexture(RhiTextureHandle texture,
                                             uint32_t slot) {
-  if (slot != 0) {
+  if (slot >= VULKAN_FRAGMENT_TEXTURE_COUNT) {
     return;
   }
-  bindings_.texture = sampleableView(impl_.imageRef(texture));
+  bindings_.textures[slot] = sampleableView(impl_.imageRef(texture));
   bindings_.dirty = true;
 }
 
@@ -550,6 +566,28 @@ void VulkanCommandList::copyTextureToBuffer(RhiTextureHandle src,
                          &region);
   if (before != VK_IMAGE_LAYOUT_UNDEFINED) {
     transitionVulkanImage(cmd_buffer_, ref, before);
+  }
+}
+
+void VulkanCommandList::copyTexture(RhiTextureHandle src,
+                                    RhiTextureHandle dst) {
+  const VulkanImageRef from = impl_.imageRef(src);
+  const VulkanImageRef to = impl_.imageRef(dst);
+  if (from.image == VK_NULL_HANDLE || to.image == VK_NULL_HANDLE || in_pass_ ||
+      (from.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == 0) {
+    return;
+  }
+  transitionVulkanImage(cmd_buffer_, from,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  transitionVulkanImage(cmd_buffer_, to, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+  const VkImageCopy region = sharedRegion(from, to);
+  vkCmdCopyImage(cmd_buffer_, from.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                 to.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+  // A copy is made to be read, and most likely inside the next pass, where
+  // no barrier can move it: leave it readable now.
+  if ((to.usage & VK_IMAGE_USAGE_SAMPLED_BIT) != 0) {
+    transitionVulkanImage(cmd_buffer_, to,
+                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
   }
 }
 

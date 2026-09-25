@@ -95,6 +95,10 @@ namespace {
       EditorMenuCommand::SET_WATER_FLAT,
       EditorMenuCommand::SET_WATER_LOW,
       EditorMenuCommand::SET_WATER_HIGH,
+      EditorMenuCommand::TOGGLE_WATER_REFLECTIONS,
+      EditorMenuCommand::TOGGLE_WATER_REFRACTION,
+      EditorMenuCommand::TOGGLE_WATER_CONTACT,
+      EditorMenuCommand::TOGGLE_WATER_CAUSTICS,
   };
 
   /// The project's levels are spliced in after New Level, so Play Level
@@ -389,8 +393,15 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
   if (command == EditorMenuCommand::SET_SHADING_CEL) {
     return shading_ == ProjectShading::CEL;
   }
+  return waterChecked(command);
+}
+
+bool EditorMenuBarWidget::waterChecked(EditorMenuCommand command) const {
   if (const int water = editorWaterFidelityOf(command); water >= 0) {
     return WATER_FIDELITIES[water] == water_;
+  }
+  if (const int effect = editorWaterEffectOf(command); effect >= 0) {
+    return water_effects_.on[static_cast<size_t>(effect)];
   }
   return playtestChecked(command);
 }
@@ -420,6 +431,14 @@ void EditorMenuBarWidget::setWaterFidelity(WaterFidelity fidelity) {
     return;
   }
   water_ = fidelity;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setWaterEffects(const WaterEffects& effects) {
+  if (water_effects_ == effects) {
+    return;
+  }
+  water_effects_ = effects;
   items_dirty_ = true;
 }
 

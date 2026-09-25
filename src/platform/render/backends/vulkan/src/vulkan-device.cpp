@@ -1000,6 +1000,10 @@ uint32_t VulkanDevice::backbufferHeight() const {
   return impl_->swapchain_extent.height;
 }
 
+RhiFormat VulkanDevice::backbufferFormat() const {
+  return fromVkColorFormat(impl_->swapchain_format);
+}
+
 void VulkanDevice::resizeSwapchain(uint32_t width, uint32_t height) {
   if (width == 0U || height == 0U) {
     return;

@@ -26,13 +26,18 @@ WaterLayer twoWaters() {
   return layer;
 }
 
+/// Whether @p vertex is the water's own rather than the wet band's.
+bool isWater(const MeshVertex& vertex) {
+  return vertex.uv.x > 0.0f;
+}
+
 }  // namespace
 
 TEST_CASE("no water, no surface", "[render-water][surface]") {
   CHECK(makeWaterSurfaceMesh(WaterLayer{}).vertices.empty());
 }
 
-TEST_CASE("the surface covers the water alone, over every ground layer",
+TEST_CASE("the water covers its cells alone, over every ground layer",
           "[render-water][surface]") {
   WaterLayer layer;
   setWaterCell(layer, {1, 0}, {.depth = 16});
@@ -40,9 +45,11 @@ TEST_CASE("the surface covers the water alone, over every ground layer",
   const MeshData mesh = makeWaterSurfaceMesh(layer);
   REQUIRE_FALSE(mesh.indices.empty());
   for (const MeshVertex& vertex : mesh.vertices) {
-    CHECK(vertex.position.x >= 1.0f);
-    CHECK(vertex.position.x <= 3.0f);
     CHECK(vertex.position.z == WATER_SURFACE_HEIGHT);
+    if (isWater(vertex)) {
+      CHECK(vertex.position.x >= 1.0f);
+      CHECK(vertex.position.x <= 3.0f);
+    }
   }
   // Over the eight layers the ground may stack, under a tile's thickness.
   CHECK(WATER_SURFACE_HEIGHT > 8.0f * GROUND_LAYER_STEP);
@@ -56,6 +63,9 @@ TEST_CASE("a lone cell of water is a round pool", "[render-water][surface]") {
   REQUIRE_FALSE(mesh.vertices.empty());
   // Rounded quarters reach the middle of each edge and no corner.
   for (const MeshVertex& vertex : mesh.vertices) {
+    if (!isWater(vertex)) {
+      continue;
+    }
     const float dx = vertex.position.x - 5.5f;
     const float dy = vertex.position.y - 5.5f;
     CHECK(dx * dx + dy * dy <= 0.25f + 1e-4f);
@@ -70,12 +80,37 @@ TEST_CASE("the surface carries depth in u, opacity in v, colour as normal",
   float deepest = 0.0f;
   bool between = false;
   for (const MeshVertex& vertex : mesh.vertices) {
-    shallowest = std::min(shallowest, vertex.uv.x);
-    deepest = std::max(deepest, vertex.uv.x);
-    between |= vertex.uv.x > 0.3f && vertex.uv.x < 1.9f;
-    CHECK(vertex.normal.x + vertex.normal.z == Approx(1.0f));
+    if (isWater(vertex)) {
+      shallowest = std::min(shallowest, vertex.uv.x);
+      deepest = std::max(deepest, vertex.uv.x);
+      between |= vertex.uv.x > 0.3f && vertex.uv.x < 1.9f;
+      CHECK(vertex.normal.x + vertex.normal.z == Approx(1.0f));
+    }
   }
   CHECK(shallowest == Approx(0.25f));
   CHECK(deepest == Approx(2.0f));
   CHECK(between);
+}
+
+// Req: docs/engine/water.md §4 — the ground the water wets: a band a cell
+// out all round, drawn before the water so the water goes over it, and
+// carrying no water, which is how the shader knows it.
+TEST_CASE("a wet band a cell wide is drawn first, under the water",
+          "[render-water][surface]") {
+  WaterLayer layer;
+  setWaterCell(layer, {5, 5}, {.depth = 16});
+  const MeshData mesh = makeWaterSurfaceMesh(layer);
+  REQUIRE_FALSE(mesh.indices.empty());
+  const MeshVertex& first = mesh.vertices[mesh.indices.front()];
+  const MeshVertex& last = mesh.vertices[mesh.indices.back()];
+  CHECK_FALSE(isWater(first));
+  CHECK(isWater(last));
+  float west = 99.0f;
+  for (const MeshVertex& vertex : mesh.vertices) {
+    west = std::min(west, vertex.position.x);
+    CHECK((isWater(vertex) ||
+           vertex.normal.x + vertex.normal.y + vertex.normal.z == 0.0f));
+  }
+  CHECK(west < 5.0f);
+  CHECK(west >= 4.0f);
 }

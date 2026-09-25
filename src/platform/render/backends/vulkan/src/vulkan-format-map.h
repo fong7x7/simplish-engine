@@ -23,6 +23,23 @@ namespace eng::render {
 // - Thread safety: stateless (inherently thread-safe)
 // ============================================================================
 
+/// The RhiFormat of an 8-bit colour VkFormat a swapchain may pick, or
+/// `UNDEFINED` for any other.
+inline RhiFormat fromVkColorFormat(VkFormat fmt) {
+  switch (fmt) {
+    case VK_FORMAT_R8G8B8A8_UNORM:
+      return RhiFormat::RGB_A8_UNORM;
+    case VK_FORMAT_R8G8B8A8_SRGB:
+      return RhiFormat::RGB_A8_SRGB;
+    case VK_FORMAT_B8G8R8A8_UNORM:
+      return RhiFormat::BGR_A8_UNORM;
+    case VK_FORMAT_B8G8R8A8_SRGB:
+      return RhiFormat::BGR_A8_SRGB;
+    default:
+      return RhiFormat::UNDEFINED;
+  }
+}
+
 // Named algorithm: toVkFormat
 // Stateless 1:1 mapping from RhiFormat enum values to VkFormat constants.
 // No side effects; pure lookup table.

@@ -304,6 +304,7 @@ protected:
   [[nodiscard]] GuiColor frameClearColor() const override;
   [[nodiscard]] RhiTextureHandle sceneDepthTarget() override;
   void recordScene(RhiCommandList& cmd) override;
+  void recordSceneCapture(RhiCommandList& cmd) override;
   void recordSceneOverlay(RhiCommandList& cmd) override;
   bool onTick(float dt) override;
   void onShutdown() override;
@@ -1145,6 +1146,13 @@ private:
   /// Where everyone who can wade is standing: the playtest's players and
   /// actors, in the order the playtest lists them; nobody while editing.
   [[nodiscard]] std::vector<Vec2> waderPositions() const;
+  /// What stands in the water for its ripples to go round: the footprint
+  /// of every placement that is not an actor and rises through the water's
+  /// surface, in document order.
+  [[nodiscard]] std::vector<WaterObstacle> waterObstacles() const;
+  /// Throw the splashes the water owes into the effects the viewport is
+  /// drawing.
+  void throwSplashes();
   /// Rebuild the water's surface if the water has been reshaped since it
   /// was last built, and hand the renderer this frame's ripples.
   void refreshWater();
@@ -1152,6 +1160,9 @@ private:
   void drawWater(RhiCommandList& cmd, const EditorViewportWidget& viewport);
   /// Draw water at @p fidelity from now on, and save it as the user's.
   void setWaterFidelity(WaterFidelity fidelity);
+  /// Switch @p effect of the water on if it is off and off if it is on,
+  /// saved with the user's graphics settings.
+  void toggleWaterEffect(WaterEffect effect);
   /// Check the View menu's water row, and save the graphics settings, when
   /// they have changed since last time.
   void tickGraphics();

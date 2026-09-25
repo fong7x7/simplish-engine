@@ -17,6 +17,7 @@
 #include "metal-stub-device.h"
 #include "metal-type-converters.h"
 
+#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -1130,44 +1131,30 @@ fragment float4 fx_volume_fs_main(FxVolumeVsOut in [[stage_in]],
   }
 
   /// MSL for the water surface: `MeshVertex` triangles in world space, each
-  /// carrying its depth in `uv.x`, a `WaterVertexUniforms` block at vertex
-  /// buffer 1, a `WaterShading` block at fragment buffer 0, the scene's
-  /// lights at fragment buffer 1 in `MESH_MSL_SOURCE`'s own layout, and the
-  /// ripple field at texture 0. The structures mirror
-  /// `water-vertex-uniforms.h`, `water-shading.h` and `mesh-light.h`, which
-  /// this cannot include; WATER_HLSL_SOURCE and the GLSL copies mirror it,
-  /// line for line, so the four agree.
+  /// carrying its depth and opacity in `uv` and its colour in `normal`, a
+  /// `WaterVertexUniforms` block at vertex buffer 1, a `WaterShading` block
+  /// at fragment buffer 0, the scene's lights at fragment buffer 1 in
+  /// `MESH_MSL_SOURCE`'s own layout, and four textures: the ripple field,
+  /// the copy of the scene, its depth, and the field's still texels. The
+  /// structures mirror `water-vertex-uniforms.h`, `water-shading.h` and
+  /// `mesh-light.h`, which this cannot include; WATER_HLSL_SOURCE and the GLSL
+  /// copies mirror it, line for line, so the four agree.
   constexpr const char WATER_MSL_SOURCE[] = R"msl(
 #include <metal_stdlib>
 using namespace metal;
 
-// `water-texels.h`'s and `water-field.h`'s ranges, restated.
-constant float WATER_SLOPE_RANGE = 1.0f;
-constant float WATER_LEVEL_RANGE = 0.1f;
-constant float WATER_SHORE_TILES = 2.0f;
-// How much steeper the simulated ripples are drawn than they are: a ring a
-// few hundredths of a tile high is what a wake is, and it has to read.
-constant float WATER_RIPPLE_GAIN = 3.0f;
-// How much sky a ripple's slope towards the eye adds.
-constant float WATER_RIPPLE_SKY = 1.2f;
-// How much the light the waves focus brightens the ground under them.
-constant float WATER_CAUSTIC_LIGHT = 0.25f;
-// `water-depth.h`'s bank shelf, restated.
-constant float WATER_BANK_MIN_TILES = 0.3f;
-constant float WATER_BANK_TILES_PER_DEPTH = 0.5f;
-constant float WATER_BANK_MAX_TILES = 2.0f;
-// `mesh-light.h`'s, restated, as the mesh shader restates them.
-constant uint MESH_MAX_LIGHTS = 8;
-constant float MESH_LIGHT_AMBIENT = 0.38f;
-constant float MESH_LIGHT_DIFFUSE = 0.62f;
-constant float MESH_LIGHT_POINT = 1.0f;
-
-// Wind waves finer than the simulation: a direction, a wavelength in
-// tiles, and a steepness — the slope at a crest. The first two are broad
-// swell LOW and HIGH draw; the last two only HIGH does.
-constant float4 WATER_WAVES[4] = {
-    float4(0.80f, 0.60f, 1.10f, 0.10f), float4(-0.45f, 0.89f, 0.63f, 0.08f),
-    float4(0.97f, -0.24f, 0.39f, 0.06f), float4(0.20f, 0.98f, 0.25f, 0.05f)};
+// The shared body below is written once, in types every backend reads,
+// and spliced into each: these say what its words mean in MSL.
+#define WATER_CONST constant
+#define discard discard_fragment()
+#define WATER_P                                                            \
+  constant WaterShading &s, constant MeshLights &lights,                   \
+      texture2d<float> field_tex, texture2d<float> scene_tex,              \
+      depth2d<float> depth_tex, texture2d<float> still_tex
+#define WATER_PC WATER_P,
+#define WATER_A s, lights, field_tex, scene_tex, depth_tex, still_tex
+#define WATER_AC WATER_A,
+#define water_mul(m, v) ((m) * (v))
 
 struct WaterUniforms {
   float4x4 view_projection;
@@ -1175,12 +1162,18 @@ struct WaterUniforms {
 };
 
 struct WaterShading {
+  float4x4 view_projection;
   float4 sky;
   float4 foam;
   float4 clarity;
+  float4 absorb;
   float4 light;
   float4 view;
   float4 detail;
+  float4 screen;
+  float4 surface;
+  float4 texel;
+  float4 toggles;
 };
 
 struct MeshLight {
@@ -1194,7 +1187,7 @@ struct MeshLights {
   uint shade_bands;
   uint pad1;
   uint pad2;
-  MeshLight lights[MESH_MAX_LIGHTS];
+  MeshLight lights[8];
 };
 
 // A surface vertex: where it is, the water's colour in the normal's place,
@@ -1226,6 +1219,99 @@ vertex WaterVsOut water_vs_main(WaterVertexIn in [[stage_in]],
   return out;
 }
 
+constexpr sampler water_smp(filter::linear, address::clamp_to_edge);
+
+float4 water_field_at(WATER_PC float2 uv) {
+  return field_tex.sample(water_smp, uv);
+}
+
+float4 water_still_at(WATER_PC float2 uv) {
+  return still_tex.sample(water_smp, uv);
+}
+
+float3 water_scene_at(WATER_PC float2 uv) {
+  return scene_tex.sample(water_smp, uv).rgb;
+}
+
+float water_scene_depth(WATER_PC int2 p) {
+  int2 top = int2(depth_tex.get_width(), depth_tex.get_height()) - 1;
+  return depth_tex.read(uint2(clamp(p, int2(0), top)));
+}
+
+uint water_light_count(WATER_P) { return lights.count; }
+
+uint water_shade_bands(WATER_P) { return lights.shade_bands; }
+
+float4 water_light_register(WATER_PC uint i, int k) {
+  MeshLight light = lights.lights[i];
+  return k == 0 ? light.position_range
+                : k == 1 ? light.direction_intensity : light.color_kind;
+}
+
+// Where a point in clip space lands on the copy of the scene: rows run
+// down from the top.
+float2 water_screen_uv(WATER_PC float4 clip) {
+  float2 ndc = clip.xy / clip.w;
+  float2 pixel = s.screen.xy + float2(0.5f + 0.5f * ndc.x, 0.5f - 0.5f * ndc.y) *
+                                   s.surface.xy;
+  return pixel * s.screen.zw;
+}
+
+// How deep a point in clip space lies, as the depth buffer holds it.
+float water_clip_depth(float4 clip) { return clip.z / clip.w; }
+
+// ---- The shared body: every backend's copy is this, word for word. ----
+// `water-texels.h`'s and `water-field.h`'s ranges, restated.
+WATER_CONST float WATER_SLOPE_RANGE = 1.0f;
+WATER_CONST float WATER_LEVEL_RANGE = 0.1f;
+WATER_CONST float WATER_SHORE_TILES = 2.0f;
+WATER_CONST float WATER_WET_TILES = 0.35f;
+// How much steeper the simulated ripples are drawn than they are: a ring a
+// few hundredths of a tile high is what a wake is, and it has to read.
+WATER_CONST float WATER_RIPPLE_GAIN = 3.0f;
+// How much sky a ripple's slope towards the eye adds.
+WATER_CONST float WATER_RIPPLE_SKY = 0.35f;
+// How much the light the waves focus brightens the ground under them.
+WATER_CONST float WATER_CAUSTIC_LIGHT = 0.6f;
+// `water-depth.h`'s bank shelf, restated.
+WATER_CONST float WATER_BANK_MIN_TILES = 0.3f;
+WATER_CONST float WATER_BANK_TILES_PER_DEPTH = 0.5f;
+WATER_CONST float WATER_BANK_MAX_TILES = 2.0f;
+// How tight the glint off a smooth wave face is.
+WATER_CONST float WATER_GLINT_SHARP = 600.0f;
+// How rough even the smoothest water is, as a variance of its slope: the
+// field's bytes cannot hold a slope finer than this.
+WATER_CONST float WATER_BASE_ROUGHNESS = 0.002f;
+// `mesh-light.h`'s, restated, as the mesh shader restates them.
+WATER_CONST uint MESH_MAX_LIGHTS = 8u;
+WATER_CONST float MESH_LIGHT_AMBIENT = 0.38f;
+WATER_CONST float MESH_LIGHT_DIFFUSE = 0.62f;
+WATER_CONST float MESH_LIGHT_POINT = 1.0f;
+
+// Wind waves finer than the simulation: a direction, a wavelength in
+// tiles, and a steepness — the slope at a crest. The first two are broad
+// swell LOW and HIGH draw; the rest only HIGH does.
+WATER_CONST int WATER_WAVE_COUNT = 6;
+
+float4 water_wave(int i) {
+  if (i == 0) {
+    return float4(0.80f, 0.60f, 1.10f, 0.10f);
+  }
+  if (i == 1) {
+    return float4(-0.45f, 0.89f, 0.63f, 0.08f);
+  }
+  if (i == 2) {
+    return float4(0.97f, -0.24f, 0.39f, 0.06f);
+  }
+  if (i == 3) {
+    return float4(0.20f, 0.98f, 0.25f, 0.05f);
+  }
+  if (i == 4) {
+    return float4(-0.87f, 0.49f, 0.17f, 0.04f);
+  }
+  return float4(0.55f, -0.83f, 0.12f, 0.035f);
+}
+
 float water_srgb_to_linear(float srgb) {
   if (srgb <= 0.04045f) {
     return srgb / 12.92f;
@@ -1246,33 +1332,86 @@ float water_shelf(float depth, float shore) {
   return smoothstep(0.0f, 1.0f, saturate(shore / run));
 }
 
-// The slope the wind waves add at p, t seconds in. Each travels at the
-// speed deep water carries its wavelength, which grows as its root.
-float2 water_wind_slope(float2 p, float t, float fine) {
-  float2 slope = float2(0.0f);
-  for (int i = 0; i < 4; ++i) {
-    float4 w = WATER_WAVES[i];
+// How much of a pattern `size` tiles across a pixel `pixel` tiles wide
+// can hold: all of it over four pixels, none under one and a half. What
+// it cannot hold is left out rather than left to shimmer.
+float water_resolved(float size, float pixel) {
+  return smoothstep(1.5f, 4.0f, size / max(pixel, 1e-5f));
+}
+
+// The slope the wind waves add at p, t seconds in, in xy, and in z the
+// slope left out of it as too fine for a pixel of `pixel` tiles, as a
+// variance. Each travels at the speed deep water carries its wavelength,
+// which grows as its root; each is peaked by `chop` — a crest sharper
+// and a trough broader than a sine's, as a real wave's are — and all of
+// them wander, their lines bent by a slow warp and their height by gusts,
+// so a wide lake does not show the pattern repeating.
+float3 water_wind_slope(float2 p, float t, float fine, float2 feel) {
+  float pixel = feel.x;
+  float chop = feel.y;
+  float2 bent = p + 0.6f * float2(sin(p.y * 0.23f + t * 0.05f),
+                                  sin(p.x * 0.19f - t * 0.04f));
+  float gust = 0.7f + 0.3f * sin(dot(p, float2(0.13f, 0.21f)) + t * 0.3f) *
+                          sin(dot(p, float2(-0.17f, 0.11f)) - t * 0.23f);
+  float peak = 1.0f + 1.5f * chop;
+  float2 slope = float2(0.0f, 0.0f);
+  float lost = 0.0f;
+  for (int i = 0; i < WATER_WAVE_COUNT; ++i) {
+    float4 w = water_wave(i);
     float k = 6.2831853f / w.z;
-    float phase = k * (dot(w.xy, p) - 0.55f * sqrt(w.z) * t);
-    float weight = i < 2 ? 1.0f : fine;
-    slope += w.xy * (w.w * weight * cos(phase));
+    float phase = k * (dot(w.xy, bent) - 0.55f * sqrt(w.z) * t);
+    float steep = (i < 2 ? 1.0f : fine) * w.w * gust;
+    float held = water_resolved(w.z, pixel);
+    float crest = peak * pow(0.5f + 0.5f * sin(phase), peak - 1.0f);
+    slope += w.xy * (steep * held * crest * cos(phase));
+    lost += 0.5f * steep * steep * (1.0f - held * held);
   }
-  return slope;
+  return float3(slope.x, slope.y, lost);
 }
 
 // Bright threads of light the waves focus on the ground under them.
-float water_caustic(float2 p, float2 slope, float t) {
+// Their threads are a few tenths of a tile wide, and too far out to see
+// they are their mean brightness instead.
+float water_caustic(float2 p, float2 slope, float t, float pixel) {
   float2 q = p * 3.0f + slope * 1.5f;
   float a = sin(q.x + 1.2f * sin(q.y * 1.3f + t * 0.9f) + t * 0.6f);
   float b = sin(q.y * 1.1f + 1.2f * sin(q.x * 0.9f - t * 0.7f) - t * 0.5f);
-  return pow(saturate(1.0f - abs(a + b)), 4.0f);
+  return mix(0.12f, pow(saturate(1.0f - abs(a + b)), 4.0f),
+             water_resolved(0.3f, pixel));
 }
 
 // A slow churn that breaks foam up into lace.
-float water_froth(float2 p, float t) {
+float water_froth(float2 p, float t, float pixel) {
   float a = sin(p.x * 9.0f + 1.5f * sin(p.y * 7.0f + t * 1.3f) + t * 0.9f);
   float b = sin(p.y * 11.0f + 1.5f * sin(p.x * 6.0f - t * 1.1f) - t * 0.7f);
-  return saturate(0.5f + 0.5f * a * b);
+  return saturate(0.5f + 0.5f * a * b * water_resolved(0.35f, pixel));
+}
+
+// A value between 0 and 1 for the lattice point `cell`, the same every
+// time it is asked.
+float water_hash(float2 cell) {
+  return fract(sin(dot(cell, float2(127.1f, 311.7f))) * 43758.5453f);
+}
+
+// Smooth noise between 0 and 1: the lattice's values eased between.
+float water_noise(float2 p) {
+  float2 cell = floor(p);
+  float2 f = p - cell;
+  float2 e = f * f * (3.0f - 2.0f * f);
+  float a = water_hash(cell);
+  float b = water_hash(cell + float2(1.0f, 0.0f));
+  float c = water_hash(cell + float2(0.0f, 1.0f));
+  float d = water_hash(cell + float2(1.0f, 1.0f));
+  return mix(mix(a, b, e.x), mix(c, d, e.x), e.y);
+}
+
+// Bubbles in foam, drifting: two scales of noise, the finer one left out
+// where a pixel cannot hold it.
+float water_bubbles(float2 p, float t, float pixel) {
+  float coarse = water_noise(p * 7.0f + float2(t * 0.31f, -t * 0.23f));
+  float fine = water_noise(p * 19.0f - float2(t * 0.17f, t * 0.41f));
+  return mix(coarse, 0.55f * coarse + 0.45f * fine,
+             water_resolved(0.1f, pixel));
 }
 
 // `mesh_falloff` and `mesh_band`, restated: a point light's reach, and
@@ -1293,96 +1432,457 @@ float water_band(float light, uint bands) {
   return min(floor(light * float(bands)), top) / top;
 }
 
-// What one light does to the water at p: the diffuse light its colour and
-// foam take, in rgb, and the glint off the wave face, in w.
-float4 water_light(MeshLight light, float3 p, float3 n, float3 v, uint bands) {
-  float3 to_light = light.direction_intensity.xyz;
+// One light's diffuse on the water at p, in rgb, and its glint off the
+// wave face, in w. The light is its three registers: position and range,
+// direction and intensity, colour and kind.
+float4 water_light(float4 position_range, float4 direction_intensity,
+                   float4 color_kind, float3 p, float3 n, float3 v,
+                   uint bands, float sharp) {
+  float3 to_light = direction_intensity.xyz;
   float attenuation = 1.0f;
-  if (light.color_kind.w == MESH_LIGHT_POINT) {
-    float3 offset = light.position_range.xyz - p;
-    attenuation = water_falloff(length(offset), light.position_range.w);
+  if (color_kind.w == MESH_LIGHT_POINT) {
+    float3 offset = position_range.xyz - p;
+    attenuation = water_falloff(length(offset), position_range.w);
     to_light = offset;
   }
   float aim = length(to_light);
   if (aim < 1e-4f || attenuation <= 0.0f) {
-    return float4(0.0f);
+    return float4(0.0f, 0.0f, 0.0f, 0.0f);
   }
   float3 l = to_light / aim;
-  float strength = light.direction_intensity.w * attenuation;
+  float strength = direction_intensity.w * attenuation;
   float ndh = saturate(dot(n, normalize(l + v)));
-  float glint = pow(ndh, 60.0f) + 0.08f * pow(ndh, 12.0f);
-  return float4(light.color_kind.xyz *
+  // A narrow cone, as a light's reflection off water is — scattered
+  // sparkles where a wave face catches it, not a sheet — widened and
+  // dimmed as the surface a pixel covers roughens.
+  float glint = pow(ndh, sharp) * (sharp + 8.0f) / (WATER_GLINT_SHARP + 8.0f);
+  return float4(color_kind.xyz *
                     water_band(saturate(dot(n, l)) * attenuation, bands) *
-                    light.direction_intensity.w * MESH_LIGHT_DIFFUSE,
+                    direction_intensity.w * MESH_LIGHT_DIFFUSE,
                 strength * glint);
 }
 
-// Premultiplied, over the terrain the ground drew under the water: the
-// water's colour covers as much of it as its depth and opacity say, the
-// sky covers more at a glance, and the light the waves focus on the
-// ground, the foam and the glints are laid on top.
-fragment float4 water_fs_main(WaterVsOut in [[stage_in]],
-                              constant WaterShading& s [[buffer(0)]],
-                              constant MeshLights& lights [[buffer(1)]],
-                              texture2d<float> field [[texture(0)]]) {
-  constexpr sampler smp(filter::linear, address::clamp_to_edge);
-  float4 texel = field.sample(smp, in.uv);
+// The waves lapping at the shore: how far apart they are and how often
+// they come, how far out from the bank they rise, how high they are, and
+// how far up the wet ground each runs, in tiles and seconds.
+WATER_CONST float WATER_LAP_WAVELENGTH = 0.55f;
+WATER_CONST float WATER_LAP_PERIOD = 2.6f;
+WATER_CONST float WATER_LAP_REACH = 1.1f;
+WATER_CONST float WATER_LAP_HEIGHT = 0.018f;
+WATER_CONST float WATER_LAP_RUN = 0.16f;
+
+// Where a lapping wave is at `p`, `shore` tiles out from the bank: the
+// phase of the wave, rolling in towards the bank as time goes on, and
+// arriving at different times along it so the shore is never in step.
+float water_lap_phase(float2 p, float shore, float t) {
+  float along = 1.8f * sin(p.x * 0.9f + 1.7f * sin(p.y * 0.7f)) +
+                1.1f * sin(p.y * 1.3f - 0.8f * p.x);
+  return 6.2831853f * (shore / WATER_LAP_WAVELENGTH + t / WATER_LAP_PERIOD) +
+         along;
+}
+
+// How far up the wet ground the water has run at `p`, in tiles: out to
+// `WATER_LAP_RUN` as a wave arrives, and back as it drains.
+float water_lap_run(float2 p, float t) {
+  float swell = 0.5f + 0.5f * sin(water_lap_phase(p, 0.0f, t));
+  return WATER_LAP_RUN * swell * swell;
+}
+
+// How far from something standing in the water its foot is felt, how
+// high up it the water looks for it, and how far above the water a
+// surface has to be to count, in tiles.
+WATER_CONST float WATER_CONTACT_TILES = 0.2f;
+WATER_CONST float WATER_CONTACT_HEIGHT = 0.4f;
+WATER_CONST float WATER_CONTACT_BIAS = 0.002f;
+// How deep, in tiles, the water can be and still bend the ground under
+// it further: deeper water hides the ground anyway.
+WATER_CONST float WATER_BEND_DEPTH = 1.5f;
+
+// How many steps a reflected ray is followed in, and how far behind a
+// surface, in tiles, it may be and still be taken to have met it.
+WATER_CONST int WATER_TRACE_STEPS = 24;
+WATER_CONST float WATER_TRACE_THICKNESS = 0.6f;
+// How much of the scene the water mirrors beyond what the Fresnel term
+// says, so what stands over it shows in it from the camera's height.
+WATER_CONST float WATER_MIRROR = 0.55f;
+
+// `WATER_MAX_FLOW_SPEED`, restated: the flow the still texels hold is out
+// of it.
+WATER_CONST float WATER_FLOW_RANGE = 1.5f;
+// How long, in seconds, the flowing surface drifts before each of its two
+// layers jumps back: long enough not to be seen, short enough that nothing
+// stretches.
+WATER_CONST float WATER_DRIFT_CYCLE = 1.6f;
+
+// How much of the wind's waves the thickest fluid still raises: most are
+// gone, leaving a slow glossy swell.
+WATER_CONST float WATER_VISCOUS_CALM = 0.85f;
+
+// How much of the sky wet ground mirrors.
+WATER_CONST float WATER_WET_SKY = 0.015f;
+// How bright the lights' sheen on wet ground is, against a wave's glint.
+WATER_CONST float WATER_WET_SHEEN = 0.35f;
+
+// Where a point in the world lands: its place on the copy of the scene in
+// xy, and its depth in z.
+float3 water_project(WATER_PC float3 p) {
+  float4 clip = water_mul(s.view_projection, float4(p.x, p.y, p.z, 1.0f));
+  float2 at = water_screen_uv(WATER_AC clip);
+  return float3(at.x, at.y, water_clip_depth(clip));
+}
+
+// The scene's depth at `at` on the copy of it.
+float water_depth_at(WATER_PC float2 at) {
+  return water_scene_depth(WATER_AC int2(at / s.screen.zw));
+}
+
+// How close the water at `world` is to the foot of something standing in
+// it, from 1 against it to 0 `WATER_CONTACT_TILES` away. Looked for in
+// eight directions on the water's own plane: a point there hidden by a
+// surface only a little nearer the eye than it is hidden by the lower
+// part of something that stands there, where the water meets it. `per_tile`
+// is how much nearer the eye a tile of height brings a point, in depth.
+float water_contact(WATER_PC float3 world, float per_tile) {
+  float near = 0.0f;
+  for (int i = 0; i < 8; ++i) {
+    float a = 0.7853982f * float(i);
+    float2 way = float2(cos(a), sin(a));
+    for (int j = 1; j <= 2; ++j) {
+      float reach = WATER_CONTACT_TILES * 0.5f * float(j);
+      float3 at = water_project(WATER_AC float3(world.xy + way * reach,
+                                                world.z));
+      float above = (at.z - water_depth_at(WATER_AC at.xy)) / per_tile;
+      if (above > WATER_CONTACT_BIAS && above < WATER_CONTACT_HEIGHT) {
+        near = max(near, 1.0f - 0.5f * float(j - 1));
+      }
+    }
+  }
+  return near;
+}
+
+// How far along `ray` from `world` the ray has passed behind a surface of
+// the scene, in tiles — positive once behind, measured along the eye's
+// line.
+float water_behind(WATER_PC float3 at, float per_tile) {
+  float3 p = water_project(WATER_AC at);
+  return (p.z - water_depth_at(WATER_AC p.xy)) / per_tile;
+}
+
+// What the water mirrors of the scene along `ray` from `world`: the scene
+// where a surface stands in the ray's way within `s.surface.w` tiles, in
+// rgb, and in w how much of it to take — none where nothing is met, and
+// less towards the edge of the screen and the end of the ray's reach.
+float4 water_reflect(WATER_PC float3 world, float3 ray, float per_tile) {
+  float reach = s.surface.w;
+  if (reach <= 0.0f || ray.z <= 0.0f) {
+    return float4(0.0f, 0.0f, 0.0f, 0.0f);
+  }
+  float pace = reach / float(WATER_TRACE_STEPS);
+  float before = 0.0f;
+  for (int i = 1; i <= WATER_TRACE_STEPS; ++i) {
+    float along = pace * float(i);
+    float behind = water_behind(WATER_AC world + ray * along, per_tile);
+    if (behind > 0.0f && behind < WATER_TRACE_THICKNESS) {
+      float lo = before;
+      float hi = along;
+      for (int j = 0; j < 4; ++j) {
+        float mid = 0.5f * (lo + hi);
+        if (water_behind(WATER_AC world + ray * mid, per_tile) > 0.0f) {
+          hi = mid;
+        } else {
+          lo = mid;
+        }
+      }
+      float3 hit = water_project(WATER_AC world + ray * hi);
+      float2 edge = min(hit.xy, float2(1.0f, 1.0f) - hit.xy);
+      float fade = smoothstep(0.0f, 0.06f, min(edge.x, edge.y)) *
+                   (1.0f - smoothstep(0.6f * reach, reach, hi));
+      return float4(water_scene_at(WATER_AC hit.xy), fade);
+    }
+    before = along;
+  }
+  return float4(0.0f, 0.0f, 0.0f, 0.0f);
+}
+
+// The two places flowing water at `p` was carried from, in xy and zw:
+// layers of the surface half a cycle apart, each drifting downstream with
+// the flow and jumping back when its weight is nothing
+// (`water_drift_weight`), so the surface runs without ever stretching.
+float4 water_drift(float2 p, float2 flow, float t) {
+  float a = fract(t / WATER_DRIFT_CYCLE) * WATER_DRIFT_CYCLE;
+  float b = fract(t / WATER_DRIFT_CYCLE + 0.5f) * WATER_DRIFT_CYCLE;
+  float2 first = p - flow * a;
+  float2 second = p - flow * b;
+  return float4(first.x, first.y, second.x, second.y);
+}
+
+// How much of the first layer `water_drift` gives to take: nothing as it
+// jumps back, all of it half a cycle later.
+float water_drift_weight(float t) {
+  return 1.0f - abs(2.0f * fract(t / WATER_DRIFT_CYCLE) - 1.0f);
+}
+
+// Lines of foam drawn out along a current, drifting with it: long along
+// the flow and thin across it, more of them the faster it runs.
+float water_streaks(float2 p, float2 flow, float t, float pixel) {
+  float speed = length(flow);
+  if (speed < 0.05f) {
+    return 0.0f;
+  }
+  float2 along = flow / speed;
+  float2 q = float2(dot(p, along) * 1.3f - t * speed * 1.3f,
+                    dot(p, float2(-along.y, along.x)) * 9.0f);
+  float lane = smoothstep(0.78f, 0.97f, water_noise(q));
+  return 0.6f * lane * saturate(speed / WATER_FLOW_RANGE * 1.5f) *
+         water_resolved(0.12f, pixel);
+}
+
+// How far the water at a sample is from its shore, in tiles, from the still
+// texels' R: above the middle, a wet sample's distance.
+float water_shore_of(float4 still) {
+  return max(still.r * 2.0f - 1.0f, 0.0f) * WATER_SHORE_TILES;
+}
+
+// How far dry land is from the water, in tiles, from the same channel:
+// below the middle, a dry sample's distance.
+float water_land_of(float4 still) {
+  return max(1.0f - still.r * 2.0f, 0.0f) * WATER_WET_TILES;
+}
+
+// Which way the shore lies from `uv`, as the slope of its distance: a
+// unit step away from the bank, or nothing out in the open.
+float2 water_shore_way(WATER_PC float2 uv) {
+  float2 du = float2(s.texel.x, 0.0f);
+  float2 dv = float2(0.0f, s.texel.y);
+  float2 rise = float2(water_still_at(WATER_AC uv + du).r -
+                           water_still_at(WATER_AC uv - du).r,
+                       water_still_at(WATER_AC uv + dv).r -
+                           water_still_at(WATER_AC uv - dv).r);
+  float size = length(rise);
+  return size > 1e-4f ? rise / size : float2(0.0f, 0.0f);
+}
+
+// The ground the water has wet, at a fragment of the band around it:
+// darker and richer — raised to a power, which darkens its dim channels
+// more than its bright ones — and a little glossy, fading out
+// `WATER_WET_TILES` from the water. Well inside the water, which is drawn over the band, nothing.
+float4 water_wet_ground(WATER_PC float3 world, float4 still, float4 frag) {
+  float wet = 1.0f - smoothstep(0.0f, 1.0f, water_land_of(still) /
+                                                 WATER_WET_TILES);
+  if (wet <= 0.0f || water_shore_of(still) > 0.25f) {
+    discard;
+  }
+  float3 up = float3(0.0f, 0.0f, 1.0f);
+  float3 sheen = float3(0.0f, 0.0f, 0.0f);
+  uint count = water_light_count(WATER_A);
+  for (uint i = 0u; i < count && i < MESH_MAX_LIGHTS; ++i) {
+    float4 color_kind = water_light_register(WATER_AC i, 2);
+    float4 one = water_light(water_light_register(WATER_AC i, 0),
+                             water_light_register(WATER_AC i, 1), color_kind,
+                             world, up, s.view.xyz, water_shade_bands(WATER_A),
+                             WATER_GLINT_SHARP);
+    sheen += color_kind.xyz * one.w;
+  }
+  float3 ground = water_scene_at(WATER_AC frag.xy * s.screen.zw);
+  float soak = s.light.x * wet;
+  float3 color = pow(ground, float3(1.0f + soak, 1.0f + soak, 1.0f + soak)) *
+                     (1.0f - 0.5f * soak) +
+                 (sheen * (WATER_WET_SHEEN * s.light.w) +
+                  water_linear(s.sky.rgb) * WATER_WET_SKY) * wet;
+  // The sheet of water a lapping wave runs up the ground: a glassy film,
+  // with a line of foam at its edge.
+  float land = water_land_of(still);
+  float run = water_lap_run(world.xy, s.view.w) * s.light.y * (1.0f - still.a);
+  float film = 1.0f - smoothstep(run - 0.03f, run, land);
+  float lip = film * smoothstep(run - 0.05f, run - 0.01f, land) *
+              (0.6f + 0.4f * water_froth(world.xy, s.view.w, s.texel.w));
+  color = mix(color, color * 0.85f + (sheen * s.light.w +
+                                      water_linear(s.sky.rgb) * 0.04f),
+              0.6f * film);
+  color = mix(color, water_linear(s.foam.rgb) * (0.4f + 0.6f * wet), lip);
+  return float4(color, 1.0f);
+}
+
+// The water at one fragment: `frag` is where it lies on the target, in
+// pixels, and its depth. Where something stands in front of the water,
+// nothing; everywhere else the ground the copy of the scene holds, seen
+// through the water — red lost first and blue last, so it fades through
+// teal into the water's own colour — with the light the waves focus laid
+// on it, the sky reflected over it at a glance, and the foam and the
+// glints on top. Opaque, since the water has already been composed over
+// the ground here.
+float4 water_shade(WATER_PC float3 world, float2 uv, float depth_in,
+                   float opacity, float3 tint, float4 frag) {
+  if (water_scene_depth(WATER_AC int2(frag.xy)) < frag.z) {
+    discard;
+  }
+  float4 still = water_still_at(WATER_AC uv);
+  if (depth_in <= 0.0f) {
+    return water_wet_ground(WATER_AC world, still, frag);
+  }
+  float4 texel = water_field_at(WATER_AC uv);
+  // Which way the water runs here, and where the running surface was
+  // carried from: still water was carried from nowhere but here.
+  float2 flow = (float2(still.g, still.b) * 2.0f - 1.0f) *
+                (WATER_FLOW_RANGE * s.detail.w);
+  float4 from = water_drift(world.xy, flow, s.view.w);
+  float drift = water_drift_weight(s.view.w);
   float level = (texel.b * 2.0f - 1.0f) * WATER_LEVEL_RANGE;
+  float shore = water_shore_of(still);
+  // How thick the water is: a thick fluid barely raises a wave or laps.
+  float thick = still.a;
   // How deep the water is here: the tiles' depths blended between them,
   // shelving to nothing at the bank.
-  float depth = in.depth * water_shelf(in.depth, texel.a * WATER_SHORE_TILES);
+  float depth = depth_in * water_shelf(depth_in, shore);
   float deepness = 1.0f - exp(-depth / max(s.clarity.z, 1e-3f));
-  // Opacity sets how much a tile of water hides, evenly on a log scale
-  // from the clearest to the murkiest; depth sets how many tiles there are.
-  float absorb =
-      s.clarity.x * pow(s.clarity.y / s.clarity.x, saturate(in.opacity));
-  float cover = 1.0f - exp(-absorb * depth);
+  // Opacity sets how much a tile of water absorbs, evenly on a log scale
+  // from the clearest to the murkiest; depth sets how many tiles there
+  // are; and each of red, green and blue goes at its own rate.
+  float absorb = s.clarity.x * pow(s.clarity.y / s.clarity.x, saturate(opacity));
+  float3 through = exp(-absorb * s.absorb.xyz * depth);
+  // A pixel's width, in tiles: the finest detail worth drawing. Ripples
+  // finer than the field's samples are left out.
+  float pixel = s.texel.w;
   float2 ripple =
       (texel.rg * 2.0f - 1.0f) * (WATER_SLOPE_RANGE * WATER_RIPPLE_GAIN);
+  float ripple_held = water_resolved(2.0f * s.texel.z, pixel);
+  float rough = WATER_BASE_ROUGHNESS +
+                dot(ripple, ripple) * (1.0f - ripple_held * ripple_held);
+  ripple *= ripple_held;
   float t = s.view.w;
+  // The waves lapping at the shore: rising out of the shallows, rolling
+  // in across the way the shore lies, and breaking into foam at the bank.
+  float lap = water_lap_phase(world.xy, shore, t);
+  float near_bank = (1.0f - smoothstep(0.0f, WATER_LAP_REACH, shore)) *
+                    s.light.y * (1.0f - thick);
+  ripple += water_shore_way(WATER_AC uv) *
+            (WATER_LAP_HEIGHT * 6.2831853f / WATER_LAP_WAVELENGTH *
+             cos(lap) * near_bank *
+             water_resolved(WATER_LAP_WAVELENGTH, pixel));
   // The shallows are sheltered: the wind raises less there, and a still
   // surface raises none.
-  float2 slope = ripple + water_wind_slope(in.world.xy, t, s.detail.x) *
-                              (s.detail.z * (0.3f + 0.7f * deepness));
-  float3 n = normalize(float3(-slope, 1.0f));
+  float calm = s.detail.z * (0.3f + 0.7f * deepness) *
+               (1.0f - WATER_VISCOUS_CALM * thick);
+  float3 wind = mix(water_wind_slope(from.zw, t, s.detail.x,
+                                     float2(pixel, s.light.z)),
+                    water_wind_slope(from.xy, t, s.detail.x,
+                                     float2(pixel, s.light.z)),
+                    drift);
+  float2 slope = ripple + wind.xy * calm;
+  rough += wind.z * calm * calm;
+  // The rougher the surface a pixel covers, the wider and dimmer the
+  // glint off it: detail too fine to draw still scatters the light.
+  float sharp = WATER_GLINT_SHARP / (1.0f + 2.0f * WATER_GLINT_SHARP * rough);
+  float3 n = normalize(float3(-slope.x, -slope.y, 1.0f));
   float3 v = s.view.xyz;
   // A ripple's face turned to the eye shows it more sky, and one turned
   // away less: linear in the slope, so a small ring reads as well as a
   // big one, where the Fresnel term alone would lose it.
   float fresnel =
-      saturate(0.04f + 0.66f * pow(1.0f - saturate(dot(n, v)), 3.0f) +
+      saturate(0.02f + 0.98f * pow(1.0f - saturate(dot(n, v)), 5.0f) +
                WATER_RIPPLE_SKY * dot(-ripple, v.xy));
   // Every light the meshes are lit by: its diffuse on the water, and its
   // glint off the wave faces in its own colour.
-  float3 diffuse = float3(MESH_LIGHT_AMBIENT);
-  float3 glint = float3(0.0f);
-  for (uint i = 0; i < lights.count && i < MESH_MAX_LIGHTS; ++i) {
-    float4 one = water_light(lights.lights[i], in.world, n, v,
-                             lights.shade_bands);
+  float3 diffuse = float3(MESH_LIGHT_AMBIENT, MESH_LIGHT_AMBIENT,
+                          MESH_LIGHT_AMBIENT);
+  float3 glint = float3(0.0f, 0.0f, 0.0f);
+  uint count = water_light_count(WATER_A);
+  for (uint i = 0u; i < count && i < MESH_MAX_LIGHTS; ++i) {
+    float4 color_kind = water_light_register(WATER_AC i, 2);
+    float4 one = water_light(water_light_register(WATER_AC i, 0),
+                             water_light_register(WATER_AC i, 1), color_kind,
+                             world, n, v, water_shade_bands(WATER_A), sharp);
     diffuse += one.rgb;
-    glint += lights.lights[i].color_kind.xyz * one.w;
+    glint += color_kind.xyz * one.w;
   }
   glint *= s.light.w;
-  float3 water = water_linear(in.color * (1.0f - s.clarity.w * deepness)) *
+  float3 water = water_linear(tint * (1.0f - s.clarity.w * deepness)) *
                  diffuse * (1.0f + 2.0f * level);
   float skylight = min((diffuse.r + diffuse.g + diffuse.b) / 3.0f, 1.0f);
-  float3 color = water * cover;
-  float alpha = cover;
-  color = color * (1.0f - fresnel) + water_linear(s.sky.rgb) * skylight * fresnel;
-  alpha = alpha * (1.0f - fresnel) + fresnel;
-  color += WATER_CAUSTIC_LIGHT * s.detail.y * (1.0f - alpha) * diffuse *
-           water_caustic(in.world.xy, slope, t);
-  float froth = water_froth(in.world.xy, t);
-  float edge = 1.0f - smoothstep(0.05f, 0.28f, texel.a * WATER_SHORE_TILES);
-  float crest =
-      smoothstep(0.35f, 0.8f, level / WATER_LEVEL_RANGE) * s.foam.w;
-  float foam = saturate(edge * (0.55f + 0.45f * froth) + crest * froth);
-  color = color * (1.0f - foam) + water_linear(s.foam.rgb) * diffuse * foam;
-  alpha = alpha * (1.0f - foam) + foam;
-  float shine = max(glint.r, max(glint.g, glint.b));
-  return float4(color + glint, saturate(alpha + shine));
+  // What is seen through the water, bent by its ripples: the ground a
+  // little way along the slope, further under deeper water — unless what
+  // lies there stands in front of the water, which it cannot show, and
+  // the ground straight under it is seen instead.
+  float2 here = frag.xy * s.screen.zw;
+  float2 seen = here;
+  if (s.absorb.w > 0.0f) {
+    float3 bent = water_project(
+        WATER_AC float3(world.xy - slope * (s.absorb.w *
+                                            min(depth, WATER_BEND_DEPTH)),
+                        world.z));
+    seen = water_depth_at(WATER_AC bent.xy) >= bent.z ? bent.xy : here;
+  }
+  float3 ground = water_scene_at(WATER_AC seen);
+  // A calm surface focuses little: thick fluid all but loses its caustics.
+  ground *= 1.0f + WATER_CAUSTIC_LIGHT * s.detail.y *
+                       (1.0f - WATER_VISCOUS_CALM * thick) *
+                       mix(water_caustic(from.zw, slope, t, pixel),
+                           water_caustic(from.xy, slope, t, pixel), drift);
+  float3 color = ground * through + water * (1.0f - through);
+  // Where something stands in the water: a shadow of it in the water
+  // round its foot, and a ring of foam where the water meets it.
+  float per_tile = water_project(WATER_AC world).z -
+                   water_project(WATER_AC world + v).z;
+  float contact = per_tile > 0.0f && s.toggles.x > 0.0f
+                      ? water_contact(WATER_AC world, per_tile)
+                      : 0.0f;
+  color *= 1.0f - 0.25f * contact;
+  color = mix(color, water_linear(s.sky.rgb) * skylight, fresnel);
+  // And whatever stands over the water, mirrored in it, bent by its
+  // waves as the sky is.
+  float3 ray = reflect(-v, n);
+  float4 mirrored = per_tile > 0.0f
+                        ? water_reflect(WATER_AC world, ray, per_tile)
+                        : float4(0.0f, 0.0f, 0.0f, 0.0f);
+  color = mix(color, mirrored.rgb,
+              mirrored.w * s.sky.w * saturate(fresnel + WATER_MIRROR));
+  float froth = mix(water_froth(from.zw, t, pixel),
+                    water_froth(from.xy, t, pixel), drift);
+  float breaking = max(sin(lap), 0.0f) * s.light.y;
+  float edge = 1.0f - smoothstep(0.03f, 0.12f + 0.2f * breaking, shore);
+  float crest = smoothstep(0.35f, 0.8f, level / WATER_LEVEL_RANGE) * s.foam.w;
+  float ring = contact * contact * (0.45f + 0.55f * froth);
+  // Foam left by whatever churned the water, thinning into lace as it goes
+  // rather than fading evenly: the less there is, the more of the churn
+  // shows through it.
+  float churned = texel.a;
+  float gap = 1.0f - 0.75f * churned;
+  float lace = 0.9f * min(1.0f, 1.2f * churned) *
+               smoothstep(gap, gap + 0.15f,
+                          mix(water_bubbles(from.zw, t, pixel),
+                              water_bubbles(from.xy, t, pixel), drift));
+  float foam = saturate(edge * (0.55f + 0.45f * froth) + crest * froth + ring +
+                        lace + water_streaks(world.xy, flow, t, pixel));
+  color = mix(color, water_linear(s.foam.rgb) * diffuse, foam);
+  return float4(color + glint, 1.0f);
+}
+// ---- End of the shared body. ----
+
+fragment float4 water_fs_main(WaterVsOut in [[stage_in]],
+                              constant WaterShading& s [[buffer(0)]],
+                              constant MeshLights& lights [[buffer(1)]],
+                              texture2d<float> field_tex [[texture(0)]],
+                              texture2d<float> scene_tex [[texture(1)]],
+                              depth2d<float> depth_tex [[texture(2)]],
+                              texture2d<float> still_tex [[texture(3)]]) {
+  return water_shade(WATER_AC in.world, in.uv, in.depth, in.opacity,
+                     in.color, in.position);
 }
 )msl";
+
+  /// The water's pipeline: the mesh's vertex, drawn in the pass over the
+  /// scene, which has no depth attachment — the scene's depth is one of the
+  /// textures it reads — and blended premultiplied.
+  MTLRenderPipelineDescriptor* waterPipelineDesc(id<MTLFunction> vs,
+                                                 id<MTLFunction> fs) {
+    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
+    pd.vertexFunction = vs;
+    pd.fragmentFunction = fs;
+    pd.vertexDescriptor = makeMeshVertexDescriptor();
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    applyPremultipliedBlend(pd.colorAttachments[0]);
+    return pd;
+  }
 
   bool buildWaterPipelinePso(id<MTLDevice> mtl_device,
                              id<MTLRenderPipelineState>* out_pso) {
@@ -1396,29 +1896,10 @@ fragment float4 water_fs_main(WaterVsOut in [[stage_in]],
     if (vs == nil || fs == nil) {
       return false;
     }
-    auto* pd = [[MTLRenderPipelineDescriptor alloc] init];
-    configureMeshRenderPipelineDesc(pd, vs, fs);
-    // Premultiplied over the ground under it, in the pass that holds the
-    // scene's depth: the water hides some of the ground and adds light to
-    // the rest.
-    applyPremultipliedBlend(pd.colorAttachments[0]);
+    MTLRenderPipelineDescriptor* pd = waterPipelineDesc(vs, fs);
     *out_pso = [mtl_device newRenderPipelineStateWithDescriptor:pd error:&err];
     (void)err;
     return *out_pso != nil;
-  }
-
-  /// The water's fixed state: tested against the scene's depth so a crate
-  /// in a pond hides it, and not written, so the outline and the effects
-  /// still see the bed.
-  PipelineEntry waterPipelineEntry(id<MTLDevice> mtl_device,
-                                   id<MTLRenderPipelineState> pso) {
-    RhiDepthStencilState ds{};
-    ds.depth_test = true;
-    ds.depth_write = false;
-    RhiRasterState raster{};
-    raster.cull_back = false;
-    return PipelineEntry{pso, nil, makeMtlDepthStencilState(mtl_device, ds),
-                         RhiPrimitiveTopology::TRIANGLE_LIST, raster};
   }
 
   bool compileGuiShaderLibrary(id<MTLDevice> mtl_device,
@@ -1527,6 +2008,7 @@ public:
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
   uint32_t backbufferHeight() const override;
+  RhiFormat backbufferFormat() const override { return RhiFormat::BGR_A8_SRGB; }
   void resizeSwapchain(uint32_t width, uint32_t height) override;
 
   bool beginFrame() override;
@@ -1764,6 +2246,35 @@ namespace {
       }
     }
 
+    void copyTexture(RhiTextureHandle src_h, RhiTextureHandle dst_h) override {
+      @autoreleasepool {
+        id<MTLTexture> src = device_->lookupTexture(src_h);
+        id<MTLTexture> dst = device_->lookupTexture(dst_h);
+        if (src == nil || dst == nil || render_enc_ != nil) {
+          return;
+        }
+        id<MTLBlitCommandEncoder> blit = [cmd_buffer_ blitCommandEncoder];
+        encodeTextureCopy(blit, src, dst);
+        [blit endEncoding];
+      }
+    }
+
+    /// Copy mip 0 of @p src into mip 0 of @p dst over the size they share.
+    static void encodeTextureCopy(id<MTLBlitCommandEncoder> blit,
+                                  id<MTLTexture> src, id<MTLTexture> dst) {
+      const NSUInteger w = std::min([src width], [dst width]);
+      const NSUInteger h = std::min([src height], [dst height]);
+      [blit copyFromTexture:src
+                sourceSlice:0
+                sourceLevel:0
+               sourceOrigin:MTLOriginMake(0, 0, 0)
+                 sourceSize:MTLSizeMake(w, h, 1)
+                  toTexture:dst
+           destinationSlice:0
+           destinationLevel:0
+          destinationOrigin:MTLOriginMake(0, 0, 0)];
+    }
+
     void textureBarrier(RhiTextureHandle, RhiTextureLayout,
                         RhiTextureLayout) override {
       // Metal handles most resource hazards automatically.
@@ -1912,6 +2423,9 @@ void MetalRealDevice::configureLayer(id<MTLDevice> device) {
 #pragma clang diagnostic pop
   layer.device = device;
   layer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+  // The water copies the scene out of the drawable to see through it, which
+  // a framebuffer-only drawable forbids.
+  layer.framebufferOnly = NO;
   layer.drawableSize =
       CGSizeMake(config_.backbuffer_width, config_.backbuffer_height);
   layer.displaySyncEnabled = config_.vsync;
@@ -2265,10 +2779,9 @@ bool MetalRealDevice::tryCreateWaterPipeline(RhiPipelineHandle& out) {
     if (!buildWaterPipelinePso(device_, &pso)) {
       return false;
     }
-    const auto h = next_handle_++;
-    pipelines_.insert(h, waterPipelineEntry(device_, pso));
-    out = h;
-    return true;
+    // The outline's fixed state: the pass it draws in has no depth
+    // attachment, and the water tests the scene's depth itself.
+    return insertOutlinePipelineFromPso(pso, out);
   }
 }
 

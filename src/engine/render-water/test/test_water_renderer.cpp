@@ -17,6 +17,12 @@ namespace {
 /// The handle the fake backend gives its water pipeline.
 constexpr RhiPipelineHandle FAKE_WATER_PIPELINE = 77;
 
+/// The colour target the scene is drawn into, as far as these tests go.
+constexpr RhiTextureHandle FAKE_SCENE_TARGET = 900;
+
+/// The scene's depth, as far as these tests go.
+constexpr RhiTextureHandle FAKE_SCENE_DEPTH = 901;
+
 /// Which backend the fake stands in for: one with a water pipeline, or the
 /// stub, which has none.
 enum class FakeWater : uint8_t { PRESENT, ABSENT };
@@ -51,6 +57,7 @@ public:
   RhiTextureHandle createTexture(const RhiTextureDesc& desc) override {
     const RhiTextureHandle handle = next_texture_++;
     textures[handle] = {desc.width, desc.height};
+    formats[handle] = desc.format;
     return handle;
   }
   void destroyTexture(RhiTextureHandle handle) override {
@@ -67,6 +74,8 @@ public:
   std::map<RhiBufferHandle, std::vector<uint8_t>> memory{};
   /// Every live texture's width and height, by handle.
   std::map<RhiTextureHandle, std::pair<uint32_t, uint32_t>> textures{};
+  /// Every texture's format, by handle, live or not.
+  std::map<RhiTextureHandle, RhiFormat> formats{};
   /// Every texture written, in order.
   std::vector<RhiTextureHandle> written{};
   /// Every pipeline handed back.
@@ -145,8 +154,10 @@ public:
     std::memcpy(bytes.data(), data, size);
   }
   void bindFragmentTexture(RhiTextureHandle texture, uint32_t slot) override {
-    texture_bound = texture;
-    texture_slot = slot;
+    textures_bound[slot] = texture;
+  }
+  void copyTexture(RhiTextureHandle src, RhiTextureHandle dst) override {
+    copies.emplace_back(src, dst);
   }
   void drawIndexed(const RhiDrawIndexedParams& params) override {
     draws.push_back(params);
@@ -166,10 +177,10 @@ public:
   uint32_t vertex_slot = 99;
   /// The last fragment stage payload at each slot.
   std::map<uint32_t, std::vector<uint8_t>> fragment_blocks{};
-  /// Last texture bound to the fragment stage.
-  RhiTextureHandle texture_bound = RHI_TEXTURE_INVALID;
-  /// Slot it went to.
-  uint32_t texture_slot = 99;
+  /// The last texture bound at each fragment slot.
+  std::map<uint32_t, RhiTextureHandle> textures_bound{};
+  /// Every texture copy, source then destination.
+  std::vector<std::pair<RhiTextureHandle, RhiTextureHandle>> copies{};
   /// Every indexed draw recorded.
   std::vector<RhiDrawIndexedParams> draws{};
 
@@ -216,16 +227,24 @@ WaterRenderer::DrawParams testParams(WaterFidelity fidelity) {
   params.scissor = {0, 0, 200, 200};
   params.fidelity = fidelity;
   params.seconds = 3.5f;
+  params.depth = FAKE_SCENE_DEPTH;
   return params;
 }
 
+/// The scene target these tests copy, 400 × 300 pixels.
+WaterSceneCopy sceneCopy() {
+  return {FAKE_SCENE_TARGET, 400, 300, RhiFormat::BGR_A8_SRGB};
+}
+
 /// A renderer on @p device with @p grid's surface and field already handed
-/// over.
+/// over, and the scene copied.
 WaterRenderer readyRenderer(FakeDevice& device, const WaterLayer& grid) {
   WaterRenderer renderer;
   REQUIRE(renderer.init(device));
   REQUIRE(renderer.setSurface(device, makeWaterSurfaceMesh(grid)));
   REQUIRE(renderer.setField(device, fieldOver(grid, 4)));
+  RecordingCommandList cmd;
+  REQUIRE(renderer.captureScene(device, cmd, sceneCopy()));
   return renderer;
 }
 
@@ -274,8 +293,10 @@ TEST_CASE("handing over a surface and a field makes their buffers",
   WaterRenderer renderer = readyRenderer(device, grid);
   CHECK(renderer.indexCount() == makeWaterSurfaceMesh(grid).indices.size());
   CHECK(device.memory.size() == 2);
-  CHECK(device.textures.size() == WATER_FIELD_TEXTURE_COUNT);
+  // The field's textures, the still one, and the copy of the scene.
+  CHECK(device.textures.size() == WATER_FIELD_TEXTURE_COUNT + 2);
   CHECK(renderer.fieldTexture() == device.written.back());
+  CHECK(renderer.stillTexture() != RHI_TEXTURE_INVALID);
 }
 
 TEST_CASE("the surface is drawn once, indexed, over the field it was handed",
@@ -288,8 +309,10 @@ TEST_CASE("the surface is drawn once, indexed, over the field it was handed",
   CHECK(cmd.draws[0].index_count == renderer.indexCount());
   CHECK(cmd.bound_pipeline == FAKE_WATER_PIPELINE);
   CHECK(cmd.index_type == RhiIndexType::UINT32);
-  CHECK(cmd.texture_bound == renderer.fieldTexture());
-  CHECK(cmd.texture_slot == 0);
+  CHECK(cmd.textures_bound[0] == renderer.fieldTexture());
+  CHECK(cmd.textures_bound[1] == renderer.sceneTexture());
+  CHECK(cmd.textures_bound[2] == FAKE_SCENE_DEPTH);
+  CHECK(cmd.textures_bound[3] == renderer.stillTexture());
   CHECK(cmd.vertex_slot == 1);
   CHECK(cmd.vertex_bytes.size() == sizeof(WaterVertexUniforms));
   CHECK(cmd.fragment_blocks[0].size() == sizeof(WaterShading));
@@ -383,7 +406,9 @@ TEST_CASE("no surface or no field draws nothing", "[render-water][renderer]") {
   WaterRenderer renderer = readyRenderer(device, pond(3));
   CHECK(renderer.drawable());
   REQUIRE(renderer.setField(device, WaterField{}));
-  CHECK(device.textures.empty());
+  CHECK(device.textures.size() == 1);
+  CHECK(renderer.fieldTexture() == RHI_TEXTURE_INVALID);
+  CHECK(renderer.stillTexture() == RHI_TEXTURE_INVALID);
   CHECK_FALSE(renderer.drawable());
 
   REQUIRE(renderer.setField(device, fieldOver(pond(3), 4)));
@@ -411,7 +436,90 @@ TEST_CASE("each frame's field goes into the next texture in turn",
   // A field of another size makes the textures anew.
   REQUIRE(renderer.setField(device, fieldOver(pond(5), 4)));
   CHECK_FALSE(seen.contains(device.written.back()));
-  CHECK(device.textures.size() == WATER_FIELD_TEXTURE_COUNT);
+  CHECK(device.textures.size() == WATER_FIELD_TEXTURE_COUNT + 2);
+}
+
+// Req: docs/engine/water.md §4 — the water is seen through a copy of the
+// scene, taken once its pass has ended, as big as the target and in its
+// format; it is made anew only when either changes.
+TEST_CASE("the scene is copied into a texture of its own size and format",
+          "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer = readyRenderer(device, pond(3));
+  const RhiTextureHandle copy = renderer.sceneTexture();
+  REQUIRE(copy != RHI_TEXTURE_INVALID);
+  CHECK(device.textures[copy] == std::pair<uint32_t, uint32_t>{400, 300});
+  CHECK(device.formats[copy] == RhiFormat::BGR_A8_SRGB);
+  RecordingCommandList cmd;
+  REQUIRE(renderer.captureScene(device, cmd, sceneCopy()));
+  CHECK(renderer.sceneTexture() == copy);
+  CHECK(cmd.copies ==
+        std::vector<std::pair<RhiTextureHandle, RhiTextureHandle>>{
+            {FAKE_SCENE_TARGET, copy}});
+}
+
+TEST_CASE("a scene of another size is copied into a texture made anew",
+          "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer = readyRenderer(device, pond(3));
+  const RhiTextureHandle copy = renderer.sceneTexture();
+  WaterSceneCopy bigger = sceneCopy();
+  bigger.width = 800;
+  RecordingCommandList cmd;
+  REQUIRE(renderer.captureScene(device, cmd, bigger));
+  CHECK(renderer.sceneTexture() != copy);
+  CHECK_FALSE(device.textures.contains(copy));
+}
+
+// Req: docs/engine/water.md §4 — without the scene's depth, or a copy of the
+// scene to see through, the water is not drawn.
+TEST_CASE("no copy of the scene or no depth draws nothing",
+          "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer;
+  REQUIRE(renderer.init(device));
+  REQUIRE(renderer.setSurface(device, makeWaterSurfaceMesh(pond(3))));
+  REQUIRE(renderer.setField(device, fieldOver(pond(3), 4)));
+  RecordingCommandList uncopied;
+  renderer.draw(uncopied, testParams(WaterFidelity::HIGH));
+  CHECK(uncopied.draws.empty());
+  RecordingCommandList cmd;
+  REQUIRE(renderer.captureScene(device, cmd, sceneCopy()));
+  WaterRenderer::DrawParams params = testParams(WaterFidelity::HIGH);
+  params.depth = RHI_TEXTURE_INVALID;
+  renderer.draw(cmd, params);
+  CHECK(cmd.draws.empty());
+  renderer.draw(cmd, testParams(WaterFidelity::HIGH));
+  CHECK(cmd.draws.size() == 1);
+}
+
+// Req: docs/engine/water.md §4 — the fragment stage knows where the copy of
+// the scene lies against the viewport, and the size of a field sample.
+TEST_CASE("the fragment block places the viewport over the copy",
+          "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer = readyRenderer(device, pond(3));
+  const WaterShading shading = shadingAt(renderer, WaterFidelity::HIGH);
+  CHECK(shading.screen[2] == Approx(1.0f / 400.0f));
+  CHECK(shading.screen[3] == Approx(1.0f / 300.0f));
+  CHECK(shading.surface[0] == 200.0f);
+  CHECK(shading.surface[2] == Approx(WATER_SURFACE_HEIGHT));
+  // Three tiles and a dry one either side, four samples a tile.
+  CHECK(shading.texel[0] == Approx(1.0f / 20.0f));
+  CHECK(shading.texel[2] == Approx(0.25f));
+  // The identity spreads one tile over half the 200-pixel viewport.
+  CHECK(shading.texel[3] == Approx(0.01f));
+  CHECK(shading.view_projection(3, 3) == 1.0f);
+}
+
+// Req: docs/engine/water.md §3 — what does not move is written only when the
+// water is shaped anew.
+TEST_CASE("reshaping writes the still texels", "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer = readyRenderer(device, pond(3));
+  REQUIRE(renderer.setShape(device, fieldOver(pond(3), 4)));
+  CHECK(device.written.back() == renderer.stillTexture());
+  CHECK_FALSE(renderer.setShape(device, WaterField{}));
 }
 
 TEST_CASE("shutting down hands everything back", "[render-water][renderer]") {
@@ -423,4 +531,25 @@ TEST_CASE("shutting down hands everything back", "[render-water][renderer]") {
   CHECK(device.textures.empty());
   CHECK(device.destroyed_pipelines ==
         std::vector<RhiPipelineHandle>{FAKE_WATER_PIPELINE});
+}
+
+// Req: docs/engine/water.md §5 — an effect switched off reaches the shader
+// as nothing, which is what makes it skip the work.
+TEST_CASE("an effect switched off reaches the fragment stage as nothing",
+          "[render-water][renderer]") {
+  FakeDevice device(FakeWater::PRESENT);
+  WaterRenderer renderer = readyRenderer(device, pond(3));
+  const WaterShading all = shadingAt(renderer, WaterFidelity::HIGH);
+  CHECK(all.sky[3] * all.surface[3] * all.absorb[3] * all.detail[1] > 0.0f);
+  CHECK(all.toggles[0] == 1.0f);
+  WaterRenderer::DrawParams params = testParams(WaterFidelity::HIGH);
+  params.effects.on.fill(false);
+  RecordingCommandList cmd;
+  renderer.draw(cmd, params);
+  WaterShading none{};
+  REQUIRE(cmd.fragment_blocks[0].size() == sizeof(none));
+  std::memcpy(&none, cmd.fragment_blocks[0].data(), sizeof(none));
+  CHECK(none.sky[3] + none.surface[3] + none.absorb[3] + none.detail[1] +
+            none.toggles[0] ==
+        0.0f);
 }

@@ -54,3 +54,36 @@ TEST_CASE("a saved graphics file is what the next load reads") {
   fs::remove(file);
   CHECK_FALSE(saveEditorGraphics({}));
 }
+
+// Req: docs/engine/water.md §5 — the water's costlier effects are the
+// user's to switch off, kept with their graphics settings.
+TEST_CASE("the water's effects survive being written and read back") {
+  EditorGraphicsSettings settings{};
+  settings.water_effects.on[waterEffectIndex(WaterEffect::REFLECTIONS)] = false;
+  settings.water_effects.on[waterEffectIndex(WaterEffect::CAUSTICS)] = false;
+  std::vector<std::string> problems;
+  const EditorGraphicsSettings read =
+      parseEditorGraphics(writeEditorGraphics(settings), problems);
+  CHECK(problems.empty());
+  CHECK(read.water_effects == settings.water_effects);
+  CHECK(parseEditorGraphics(R"({"water": "low"})", problems).water_effects ==
+        WaterEffects{});
+}
+
+TEST_CASE("a graphics file that gets an effect wrong keeps the rest") {
+  std::vector<std::string> problems;
+  const WaterEffects read =
+      parseEditorGraphics(
+          R"({"water_effects": {"reflections": "no", "contact": false,
+                                "sparkle": true}})",
+          problems)
+          .water_effects;
+  CHECK(problems.size() == 2);
+  CHECK(waterEffectOn(read, WaterEffect::REFLECTIONS));
+  CHECK_FALSE(waterEffectOn(read, WaterEffect::CONTACT));
+  problems.clear();
+  CHECK(
+      parseEditorGraphics(R"({"water_effects": 3})", problems).water_effects ==
+      WaterEffects{});
+  CHECK(problems.size() == 1);
+}

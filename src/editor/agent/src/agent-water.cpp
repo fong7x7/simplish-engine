@@ -49,6 +49,34 @@ namespace {
     return per_tile > 0.0 ? water.wet_samples / per_tile : 0.0;
   }
 
+  /// Which of the water's effects are drawn, by word.
+  json effectsJson(const WaterEffects& effects) {
+    json out = json::object();
+    for (const WaterEffect effect : WATER_EFFECT_LIST) {
+      out[std::string(waterEffectWord(effect))] =
+          waterEffectOn(effects, effect);
+    }
+    return out;
+  }
+
+  /// @p params' switches over @p effects, or nothing when one given is not
+  /// a boolean.
+  std::optional<WaterEffects> effectsParam(const json& params,
+                                           WaterEffects effects) {
+    for (const WaterEffect effect : WATER_EFFECT_LIST) {
+      const std::string word(waterEffectWord(effect));
+      if (!params.contains(word)) {
+        continue;
+      }
+      const std::optional<bool> on = agentBoolParam(params, word);
+      if (!on) {
+        return std::nullopt;
+      }
+      effects.on[waterEffectIndex(effect)] = *on;
+    }
+    return effects;
+  }
+
   /// Everything `get_water` reports.
   std::string waterPayload(const EditorShellState& state) {
     const EditorWaterState& water = state.water;
@@ -61,7 +89,10 @@ namespace {
                     {"wet_samples", water.wet_samples},
                     {"water_tiles", waterTiles(water)},
                     {"energy", water.energy},
-                    {"pushes", water.pushes}};
+                    {"pushes", water.pushes},
+                    {"splashes", water.splashes},
+                    {"obstacles", water.obstacles},
+                    {"effects", effectsJson(state.graphics.water_effects)}};
     return root.dump();
   }
 
@@ -75,7 +106,8 @@ namespace {
   constexpr std::string_view PAINT_WATER_USAGE =
       "x and y are required, with width and height from 1 to 256; depth, "
       "when given, is puddle, shallows, pond, lake or deep or a number of "
-      "tiles; color is \"#rrggbb\"; opacity is a number from 0 to 1";
+      "tiles; color is \"#rrggbb\"; opacity, flow_speed and viscosity are "
+      "numbers from 0 to 1; flow_direction is degrees anticlockwise from east";
 
   /// The depth a call names at @p key, in tiles: a named depth's word or a
   /// number, as a string or as a number.
@@ -158,6 +190,40 @@ namespace {
     return true;
   }
 
+  /// The call's `flow_direction`, in degrees, and `flow_speed`, 0 to 1,
+  /// into @p water when it gives them; false when either is wrong.
+  bool readFlow(const json& params, WaterCell& water) {
+    const std::optional<double> heading =
+        agentNumberParam(params, "flow_direction");
+    const std::optional<double> speed = agentNumberParam(params, "flow_speed");
+    if ((params.contains("flow_direction") && !heading) ||
+        (params.contains("flow_speed") &&
+         (!speed || *speed < 0.0 || *speed > 1.0))) {
+      return false;
+    }
+    water.flow_heading =
+        editorWaterByte(EditorPropertyField::FLOW_DIRECTION,
+                        static_cast<float>(heading.value_or(0.0)));
+    water.flow_speed = editorWaterByte(EditorPropertyField::FLOW_SPEED,
+                                       static_cast<float>(speed.value_or(0.0)));
+    return true;
+  }
+
+  /// The call's `viscosity`, 0 to 1, into @p water when it gives one; false
+  /// when it gives one out of range.
+  bool readViscosity(const json& params, WaterCell& water) {
+    if (!params.contains("viscosity")) {
+      return true;
+    }
+    const std::optional<double> thick = agentNumberParam(params, "viscosity");
+    if (!thick || *thick < 0.0 || *thick > 1.0) {
+      return false;
+    }
+    water.viscosity = editorWaterByte(EditorPropertyField::VISCOSITY,
+                                      static_cast<float>(*thick));
+    return true;
+  }
+
   /// The water a `paint_water` call lays: its depth, and its colour and
   /// opacity for cells that were dry; nothing when any is wrong.
   std::optional<WaterCell> waterParam(const json& params) {
@@ -171,8 +237,10 @@ namespace {
       return std::nullopt;
     }
     water.depth = waterDepthUnits(*tiles);
-    return readOpacity(params, water) ? std::optional<WaterCell>(water)
-                                      : std::nullopt;
+    return readOpacity(params, water) && readFlow(params, water) &&
+                   readViscosity(params, water)
+               ? std::optional<WaterCell>(water)
+               : std::nullopt;
   }
 
 }  // namespace
@@ -251,9 +319,11 @@ AgentResult agentSetWaterField(EditorShellState& state,
                                EditorPropertyField field, float value) {
   if (std::ranges::find(EDITOR_WATER_FIELDS, field) ==
       std::end(EDITOR_WATER_FIELDS)) {
-    return agentFailure(AgentStatus::BAD_PARAMS,
-                        "a body of water has color_r, color_g, color_b and "
-                        "opacity, each from 0 to 1");
+    return agentFailure(
+        AgentStatus::BAD_PARAMS,
+        "a body of water has color_r, color_g, color_b, "
+        "opacity, flow_speed and viscosity, each from 0 to 1, and "
+        "flow_direction, in degrees anticlockwise from east");
   }
   WaterLayer painted = state.document.water;
   setEditorWaterValue(painted, state.ground_selection, field, value);
@@ -279,6 +349,20 @@ AgentResult runAgentSetWaterFidelity(EditorShellState& state,
                         "fidelity must be flat, low or high");
   }
   state.graphics.water = *fidelity;
+  ++state.graphics.revision;
+  return agentOk(waterPayload(state));
+}
+
+AgentResult runAgentSetWaterEffects(EditorShellState& state,
+                                    const json& params) {
+  const std::optional<WaterEffects> effects =
+      effectsParam(params, state.graphics.water_effects);
+  if (!effects) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "reflections, refraction, contact and caustics are "
+                        "each true or false");
+  }
+  state.graphics.water_effects = *effects;
   ++state.graphics.revision;
   return agentOk(waterPayload(state));
 }

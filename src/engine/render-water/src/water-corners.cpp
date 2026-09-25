@@ -9,12 +9,14 @@ namespace {
   /// A sample weighted by @p weight, to be summed with others.
   WaterSample weighted(const WaterSample& sample, float weight) {
     return {sample.depth * weight, sample.color * weight,
-            sample.opacity * weight};
+            sample.opacity * weight, sample.flow * weight,
+            sample.viscosity * weight};
   }
 
   /// @p a and @p b added field by field.
   WaterSample plus(const WaterSample& a, const WaterSample& b) {
-    return {a.depth + b.depth, a.color + b.color, a.opacity + b.opacity};
+    return {a.depth + b.depth, a.color + b.color, a.opacity + b.opacity,
+            a.flow + b.flow, a.viscosity + b.viscosity};
   }
 
   /// The water on @p cell as numbers, or nothing — depth 0 — when dry.
@@ -27,7 +29,8 @@ namespace {
             Vec3{static_cast<float>(water.red), static_cast<float>(water.green),
                  static_cast<float>(water.blue)} *
                 (1.0f / 255.0f),
-            static_cast<float>(water.opacity) / 255.0f};
+            static_cast<float>(water.opacity) / 255.0f, waterCellFlow(water),
+            static_cast<float>(water.viscosity) / 255.0f};
   }
 
   /// The mean of the water cells meeting at corner @p corner — the cell's
@@ -60,7 +63,9 @@ namespace {
   /// sums them.
   WaterSample byDepth(const WaterSample& sample, float weight) {
     return {sample.depth * weight, sample.color * (sample.depth * weight),
-            sample.opacity * sample.depth * weight};
+            sample.opacity * sample.depth * weight,
+            sample.flow * (sample.depth * weight),
+            sample.viscosity * sample.depth * weight};
   }
 
 }  // namespace
@@ -93,7 +98,8 @@ WaterSample waterSampleAt(const WaterCorners& corners, Vec2 at) {
   if (sum.depth <= 0.0f) {
     return {};
   }
-  return {sum.depth, sum.color * (1.0f / sum.depth), sum.opacity / sum.depth};
+  return {sum.depth, sum.color * (1.0f / sum.depth), sum.opacity / sum.depth,
+          sum.flow * (1.0f / sum.depth), sum.viscosity / sum.depth};
 }
 
 }  // namespace eng

@@ -125,15 +125,16 @@ public:
   virtual bool tryCreateFxVolumePipeline(RhiPipelineHandle& out_pipeline);
 
   /// Optional water surface pipeline: `MeshVertex` triangles in world
-  /// space, drawn in the scene pass after its opaque meshes — depth-tested
-  /// against the `D32_FLOAT` target and not writing it, blended with
-  /// straight alpha over what is there. The vertex stage reads a
-  /// `WaterVertexUniforms` block at vertex stage bytes slot 1, the fragment
-  /// stage a `WaterShading` block at fragment stage bytes slot 0 and the
-  /// ripple field (`water-texels.h`) at fragment texture slot 0, sampled
-  /// linearly and clamped. A builtin for the same reason the mesh pipeline
-  /// is. Backends without one return `false` and water stays the ground's
-  /// flat swatch.
+  /// space, drawn in the pass after the scene's, which has no depth
+  /// attachment — the scene's depth is read instead, as the effects read
+  /// it — blended premultiplied over the backbuffer. The vertex stage reads
+  /// a `WaterVertexUniforms` block at vertex stage bytes slot 1; the
+  /// fragment stage a `WaterShading` block at fragment stage bytes slot 0,
+  /// the scene's lights at slot 1, and four textures
+  /// (`water-renderer.h`): the ripple field at slot 0, a copy of the
+  /// scene's colour at 1, its depth at 2, and the water's still texels at
+  /// 3. A builtin for the same reason the mesh pipeline is. Backends
+  /// without one return `false` and no water is drawn.
   virtual bool tryCreateWaterPipeline(RhiPipelineHandle& out_pipeline);
 
   // --- Swap chain ---
@@ -141,6 +142,9 @@ public:
   backbufferTexture() const = 0;  // Current frame's backbuffer
   virtual uint32_t backbufferWidth() const = 0;
   virtual uint32_t backbufferHeight() const = 0;
+  /// Pixel format of the backbuffer, which a texture `copyTexture` copies
+  /// it into must share. `UNDEFINED` when the backend does not say.
+  virtual RhiFormat backbufferFormat() const;
 
   /// Update drawable / swapchain pixel size after the platform window resizes.
   virtual void resizeSwapchain(uint32_t width, uint32_t height);
@@ -177,6 +181,10 @@ protected:
 inline bool RhiDevice::updateTexture2D(RhiTextureHandle /*handle*/,
                                        const RhiTextureUpdate2D& /*update*/) {
   return false;
+}
+
+inline RhiFormat RhiDevice::backbufferFormat() const {
+  return RhiFormat::UNDEFINED;
 }
 
 inline void RhiDevice::resizeSwapchain(uint32_t /*width*/,

@@ -58,11 +58,20 @@ inline constexpr uint32_t VULKAN_BINDING_CLAMP_SAMPLER = 6;
 /// so that a tiling map tiles.
 inline constexpr uint32_t VULKAN_BINDING_REPEAT_SAMPLER = 7;
 
-/// Number of bindings in the shared set.
-inline constexpr uint32_t VULKAN_SHARED_BINDING_COUNT = 8;
+/// Binding of the fragment stage's slot-1 sampled image. Slots past 0 come
+/// after the samplers, so the bindings every older shader names stand.
+inline constexpr uint32_t VULKAN_BINDING_FRAGMENT_TEXTURE1 = 8;
 
-/// Number of bindings a draw writes: the uniforms and the texture.
-inline constexpr uint32_t VULKAN_PUSHED_BINDING_COUNT = 6;
+/// Number of fragment texture slots — `RHI_MAX_FRAGMENT_TEXTURES`.
+inline constexpr uint32_t VULKAN_FRAGMENT_TEXTURE_COUNT = 4;
+
+/// Number of bindings in the shared set.
+inline constexpr uint32_t VULKAN_SHARED_BINDING_COUNT =
+    VULKAN_BINDING_FRAGMENT_TEXTURE1 + VULKAN_FRAGMENT_TEXTURE_COUNT - 1;
+
+/// Number of bindings a draw writes: the uniforms and the textures.
+inline constexpr uint32_t VULKAN_PUSHED_BINDING_COUNT =
+    VULKAN_UNIFORM_BINDING_COUNT + VULKAN_FRAGMENT_TEXTURE_COUNT;
 
 /// Returned for a stage-bytes slot the layout has no binding for.
 inline constexpr uint32_t VULKAN_BINDING_NONE = UINT32_MAX;
@@ -75,6 +84,13 @@ inline uint32_t vulkanVertexUniformBinding(uint32_t slot) {
 /// Binding for a fragment-stage slot, or `VULKAN_BINDING_NONE`.
 inline uint32_t vulkanFragmentUniformBinding(uint32_t slot) {
   return slot <= 1 ? VULKAN_BINDING_FRAGMENT_UBO0 + slot : VULKAN_BINDING_NONE;
+}
+
+/// Binding for a fragment texture slot below
+/// `VULKAN_FRAGMENT_TEXTURE_COUNT`.
+inline uint32_t vulkanFragmentTextureBinding(uint32_t slot) {
+  return slot == 0 ? VULKAN_BINDING_FRAGMENT_TEXTURE
+                   : VULKAN_BINDING_FRAGMENT_TEXTURE1 + slot - 1;
 }
 
 /// The shared descriptor set layout, the samplers it holds, and the two
