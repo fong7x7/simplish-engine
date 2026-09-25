@@ -94,7 +94,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
-This is `GameLogicWorld`, API version 3 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+This is `GameLogicWorld`, API version 4 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
 
 | Read | |
 |---|---|
@@ -117,6 +117,9 @@ This is `GameLogicWorld`, API version 3 — what the engine lets logic read and 
 | `removeActor(target)` | Queued; out of the run without a death or its blast, reported `ACTOR_REMOVED` |
 | `setActorState(target, state)` | Queued; into a state of its behavior by id, from its start. False for a state its behavior lacks |
 | `setActorFaction(target, faction)` | Queued; onto another side |
+| `fireShot(shot)` | Queued; a projectile flying from the next tick, striking props and the other side |
+| `blast(blast)` | Queued; hurts everyone within its radius this tick |
+| `spawnHazard(hazard)` | Queued; a pool biting the other side from the next tick |
 | `spawnEnemy(archetype, at, id)` | Queued; one of the project's enemy archetypes — health, body, behavior, side, model and death blast from `enemies.data.json` — named `id`. False, and nothing queued, for an archetype the project lacks or with no room left |
 | `spawnActor(spawn)` | Queued; an actor made to measure from a `LogicSpawn`: where, facing, behavior, side, health, id, model. False with no room left |
 | `actorRoom()` | How many more can be spawned this tick |

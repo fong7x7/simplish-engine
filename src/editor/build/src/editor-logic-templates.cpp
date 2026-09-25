@@ -54,10 +54,12 @@ constexpr uint64_t SURVIVE_TICKS = sdk::seconds(90);
 constexpr sdk::Every WAVES{sdk::seconds(20)};
 /// Players get a segment of health back this often.
 constexpr sdk::Every REGENERATE{sdk::seconds(10), sdk::seconds(10) - 1};
+/// What every player fires: hold the trigger or the left mouse button.
+constexpr sdk::Weapon RIFLE{.damage = 1, .refire_ticks = 8};
 
 /// Survive 90 seconds against a wave of chasers every 20, one more each
 /// wave, closing in on the arena — where the players started — from all
-/// round. Players slowly heal.
+/// round. Players fire a rifle, and slowly heal.
 /// With an enemies table, a wave can be the project's own archetype:
 /// set `.enemy = "grunt"` on the ring.
 class SurviveTheWaves final : public sdk::Game {
@@ -77,6 +79,9 @@ protected:
     }
     if (WAVES.due(world.tick())) {
       sendWave(world);
+    }
+    for (const auto& player : sdk::playersUp(world)) {
+      (void)sdk::fireWeapon(world, player, RIFLE, triggers_[player.target]);
     }
     if (REGENERATE.due(world.tick())) {
       for (const auto& player : sdk::playersUp(world)) {
@@ -99,6 +104,7 @@ protected:
     hash.add(arena_);
     hash.add(waves_);
     hash.add(kills_);
+    triggers_.hashInto(hash);
   }
 
 private:
@@ -120,6 +126,8 @@ private:
   uint32_t waves_ = 0;
   /// Actors killed so far.
   uint32_t kills_ = 0;
+  /// When each player's rifle can fire again.
+  sdk::EntityData<sdk::Cooldown> triggers_;
 };
 
 }  // namespace

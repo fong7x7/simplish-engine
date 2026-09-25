@@ -459,7 +459,8 @@ inline constexpr AgentParam AGENT_PARAMS_SEND_INPUT[] = {
     {"aim_y", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
      "Aim along world Y, -1 to 1. Defaults to 0."},
     {"fire", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
-     "Whether fire is held. Defaults to false; nothing fires yet."},
+     "Whether fire is held. Defaults to false. What firing does is the "
+     "project's game logic's: the scaffold's rifle shoots along the aim."},
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to hold this for, 1 to 3600 (60 is a second). Defaults to 1."},
 };

@@ -20,7 +20,9 @@
 #include <game/sdk/every.h>               // IWYU pragma: export
 #include <game/sdk/game.h>                // IWYU pragma: export
 #include <game/sdk/phase.h>               // IWYU pragma: export
+#include <game/sdk/player-input.h>        // IWYU pragma: export
 #include <game/sdk/player-queries.h>      // IWYU pragma: export
 #include <game/sdk/random.h>              // IWYU pragma: export
 #include <game/sdk/ring-spawn.h>          // IWYU pragma: export
 #include <game/sdk/ticks.h>               // IWYU pragma: export
+#include <game/sdk/weapon.h>              // IWYU pragma: export

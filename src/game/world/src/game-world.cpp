@@ -174,8 +174,14 @@ void GameWorld::applyLogicWrites(uint64_t tick) {
     applyLogicCommand(command, tick);
   }
   logic_commands_.clear();
+  // After any the logic's damage set off: blasts go off in order.
+  effects_.blasts.insert(effects_.blasts.end(), logic_effects_.blasts.begin(),
+                         logic_effects_.blasts.end());
   resolveDamage(tick);
   clearCombatEffects(effects_);
+  // What the logic fired flies, and what it spilled bites, from next tick.
+  game::spawnCombatEffects(projectiles_, hazards_, logic_effects_, cues_);
+  clearCombatEffects(logic_effects_);
   for (const ActorSpawn& spawn : logic_spawns_) {
     addActor(spawn);
   }
@@ -218,6 +224,7 @@ void GameWorld::runLogic(const sim::TickContext& context) {
                        .actor_ids = actor_ids_,
                        .commands = logic_commands_,
                        .spawns = logic_spawns_,
+                       .combat = logic_effects_,
                        .content = content_,
                        .grid = grid_,
                        .obstacles = obstacles_,

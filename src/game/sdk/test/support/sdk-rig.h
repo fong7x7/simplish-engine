@@ -5,6 +5,7 @@
 /// @par Threading
 /// Main-thread-only.
 
+#include <cstdint>
 #include <functional>
 #include <game/content/game-content.h>
 #include <game/logic/game-logic.h>
@@ -28,6 +29,10 @@ private:
 /// `grunt_b` at (8.5, 1.5), and neutral `villager` at (1.5, 5.5), all
 /// idle; a wall from x 12 to 13; room for 32 actors.
 [[nodiscard]] GameSetup sdkArena();
+
+/// Run @p logic in `sdkArena()` for @p ticks with player 1 holding fire,
+/// aimed at +X, and say how many projectiles are then in flight.
+[[nodiscard]] uint32_t runLogicFiring(GameLogic& logic, int ticks);
 
 /// Run @p logic in a world of @p setup and @p content for @p ticks.
 void runLogic(GameLogic& logic, int ticks, const GameSetup& setup,

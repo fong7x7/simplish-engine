@@ -12,6 +12,7 @@
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-spawn.h>
+#include <game/combat/combat-effects.h>
 #include <game/content/game-content.h>
 #include <game/logic/logic-event.h>
 #include <game/logic/run-outcome.h>
@@ -40,6 +41,8 @@ struct WorldLogicScene {
   std::vector<LogicCommand>& commands;
   /// Where the logic's spawns are queued.
   std::vector<ActorSpawn>& spawns;
+  /// Where the logic's shots, blasts and hazard pools are queued.
+  CombatEffects& combat;
   /// The run's content: the enemy archetypes `spawnEnemy` names.
   const GameContent& content;
   /// Where actors can go: what line of sight and walkability are asked of.

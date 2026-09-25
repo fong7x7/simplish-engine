@@ -233,3 +233,70 @@ TEST_CASE("game logic sees the level's walls: line of sight, walkable "
   CHECK_FALSE(answers.in_wall);
   CHECK(answers.walls == 1);
 }
+
+namespace {
+
+/// A logic that does @p act on tick 0 only.
+std::function<void(GameLogicWorld&)>
+onFirstTick(std::function<void(GameLogicWorld&)> act) {
+  return [act = std::move(act)](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      act(world);
+    }
+  };
+}
+
+}  // namespace
+
+TEST_CASE("a shot the logic fires flies, and strikes the other side") {
+  Scripted logic(onFirstTick([](GameLogicWorld& world) {
+    world.fireShot({.from = {5.0F, 1.5F, 0.0F}, .direction = {1.0F, 0.0F}});
+  }));
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 1);
+  REQUIRE(world.projectilePool().slots.size() == 1);
+  run(simulation, 20);
+
+  CHECK(world.actors().health[0] == 4);
+  CHECK(world.projectilePool().slots.size() == 0);
+}
+
+TEST_CASE("a shot the logic fires is stopped by the level's walls") {
+  Scripted logic(onFirstTick([](GameLogicWorld& world) {
+    world.fireShot({.from = {1.5F, 1.5F, 0.0F}, .direction = {1.0F, 0.0F}});
+  }));
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 40);
+
+  CHECK(world.actors().health[0] == 5);
+}
+
+TEST_CASE("a blast the logic sets off hurts everyone near, at once") {
+  Scripted logic(onFirstTick([](GameLogicWorld& world) {
+    world.blast({.at = {6.5F, 1.5F, 0.0F}, .radius = 2.0F, .damage = 2});
+  }));
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 1);
+
+  CHECK(world.actors().health[0] == 3);
+  CHECK(world.players().health[0] == world.players().max_health[0]);
+  CHECK(world.combatCues().back().kind == eng::game::CombatCueKind::BLAST);
+}
+
+TEST_CASE("a hazard pool the logic leaves bites the other side in it") {
+  Scripted logic(onFirstTick([](GameLogicWorld& world) {
+    world.spawnHazard({.at = {6.5F, 1.5F, 0.0F}, .radius = 1.5F});
+  }));
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 120);
+
+  CHECK(world.actors().health[0] < 5);
+}

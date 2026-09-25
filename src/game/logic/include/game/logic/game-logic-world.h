@@ -11,8 +11,11 @@
 #include <engine/sim/tick-input.h>
 #include <game/content/faction.h>
 #include <game/logic/logic-actor.h>
+#include <game/logic/logic-blast.h>
 #include <game/logic/logic-event.h>
+#include <game/logic/logic-hazard.h>
 #include <game/logic/logic-player.h>
+#include <game/logic/logic-shot.h>
 #include <game/logic/logic-spawn.h>
 #include <game/logic/logic-target.h>
 #include <game/logic/run-outcome.h>
@@ -33,10 +36,10 @@ namespace eng::game {
 /// damage, healing, moves, removals, states and factions first, in the
 /// order they were made — damage through the same path an actor's bite
 /// takes, a player's grace after a hit, an actor's death and any blast it
-/// goes off in; healing capped at a full bar — then spawns, in the order
-/// they were made. An actor killed this way is
-/// gone at the end of the tick, as one killed by a shot is; one spawned is
-/// read from the next tick on.
+/// goes off in; healing capped at a full bar — then blasts, then shots and
+/// hazard pools, then spawns, each in the order they were made. An actor killed
+/// this way is gone at the end of the tick, as one killed by a shot is; one
+/// spawned is read from the next tick on.
 ///
 /// Randomness comes from `random` and nowhere else: it draws on the run's
 /// own logic stream, derived from the session seed, so two peers draw the
@@ -124,6 +127,16 @@ public:
   virtual bool setActorState(LogicTarget target, std::string_view state) = 0;
   /// Put the actor @p target on @p faction's side. Queued.
   virtual void setActorFaction(LogicTarget target, Faction faction) = 0;
+
+  /// Fire @p shot: a projectile in flight from the next tick on, cued as
+  /// fired for the sound and the flash. Queued; dropped when the world
+  /// already has as many in flight as it holds.
+  virtual void fireShot(const LogicShot& shot) = 0;
+  /// Set off @p blast: its hits land this tick, with the logic's damage,
+  /// and it is cued for the fireball. Queued.
+  virtual void blast(const LogicBlast& blast) = 0;
+  /// Leave @p hazard on the floor, biting from the next tick on. Queued.
+  virtual void spawnHazard(const LogicHazard& hazard) = 0;
 
   /// How many more actors can be spawned this tick: the run's room, less
   /// the actors in it — the dying among them, until the tick ends — and

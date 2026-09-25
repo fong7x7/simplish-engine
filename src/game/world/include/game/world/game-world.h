@@ -248,6 +248,9 @@ private:
   std::vector<LogicCommand> logic_commands_;
   /// The actors the logic asked for this tick; empty between ticks.
   std::vector<ActorSpawn> logic_spawns_;
+  /// The shots, blasts and hazard pools the logic asked for this tick;
+  /// empty between ticks.
+  CombatEffects logic_effects_;
   /// The level's — or the logic's — name for each actor, by its handle's
   /// slot.
   std::vector<std::string> actor_ids_;

@@ -17,10 +17,13 @@ simplish_add_module(simplish-game-sdk
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-filter.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/player-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/random.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ring-spawn.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/weapon.cpp
     DEPENDENCIES simplish-game-logic
+                 simplish-engine-input
                  simplish-engine-math
 )
 
@@ -32,6 +35,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ring_spawn.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_timing.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_weapon.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/sdk-rig.cpp
         DEPENDENCIES simplish-game-sdk
                      simplish-game-world

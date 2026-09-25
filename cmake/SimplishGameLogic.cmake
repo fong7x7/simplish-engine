@@ -39,6 +39,7 @@ set(SIMPLISH_GAME_LOGIC_INCLUDE_DIRS
     "${SIMPLISH_ROOT}/src/game/logic/include"
     "${SIMPLISH_ROOT}/src/game/content/include"
     "${SIMPLISH_ROOT}/src/engine/sim/include"
+    "${SIMPLISH_ROOT}/src/engine/input/include"
     "${SIMPLISH_ROOT}/src/engine/physics/include"
     "${SIMPLISH_ROOT}/src/engine/math/include"
 )

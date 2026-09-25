@@ -1,9 +1,11 @@
 #include "world-logic-view.h"
 
 #include <algorithm>
+#include <engine/core/fixed-step-clock.h>
 #include <engine/spatial/line-of-sight.h>
 #include <game/actors/actor-spawn.h>
 #include <game/actors/enemy-spawn.h>
+#include <game/combat/combatant-ref.h>
 #include <game/content/enemy-lookup.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
@@ -12,6 +14,11 @@
 namespace eng::game {
 
 namespace {
+
+  /// The source of a blast nobody set off: a handle no entity ever has, so
+  /// the blast spares nobody.
+  constexpr CombatantRef NO_SOURCE{CombatantKind::ACTOR,
+                                   {UINT32_MAX, UINT32_MAX}};
 
   /// @p handle as game logic names an entity of pool @p kind.
   LogicTarget targetOf(LogicTargetKind kind, sim::EntityHandle handle) {
@@ -228,6 +235,30 @@ void WorldLogicView::setActorFaction(LogicTarget target, Faction faction) {
   scene_.commands.push_back({.kind = LogicCommandKind::SET_FACTION,
                              .target = target,
                              .faction = faction});
+}
+
+void WorldLogicView::fireShot(const LogicShot& shot) {
+  if (Vec2::lengthSquared(shot.direction) == 0.0F) {
+    return;
+  }
+  const float step = shot.speed / static_cast<float>(TICK_RATE_HZ);
+  scene_.combat.shots.push_back({{shot.from.x, shot.from.y},
+                                 Vec2::normalize(shot.direction) * step,
+                                 shot.damage,
+                                 shot.side});
+}
+
+void WorldLogicView::blast(const LogicBlast& blast) {
+  scene_.combat.blasts.push_back(
+      {{blast.at.x, blast.at.y}, blast.radius, blast.damage, NO_SOURCE});
+}
+
+void WorldLogicView::spawnHazard(const LogicHazard& hazard) {
+  scene_.combat.hazards.push_back({{hazard.at.x, hazard.at.y},
+                                   hazard.radius,
+                                   hazard.damage,
+                                   hazard.ticks,
+                                   hazard.side});
 }
 
 uint32_t WorldLogicView::random(uint32_t bound) {

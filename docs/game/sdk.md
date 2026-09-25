@@ -169,18 +169,47 @@ A run with logic has room for `GAME_LOGIC_ACTOR_CAPACITY` actors (2,048), the le
 
 ---
 
-## 7. Dice
+## 7. Combat
+
+Players can only hurt things through the logic: the engine has projectiles, blasts and hazard pools, and the logic decides who fires what.
+
+| Call | Does |
+|---|---|
+| `sdk::firing(world, player)` | Whether a player who is up holds fire this tick — trigger, left mouse, or `send_input`'s `fire`. Aim is `player.aim` |
+| `sdk::fireWeapon(world, player, weapon, cooldown)` | Fires a `sdk::Weapon` — damage, speed, refire ticks, pellets, spread — when fire is held and the cooldown is ready. Keep a `Cooldown` per player in an `EntityData` and hash it |
+| `world.fireShot({.from, .direction, .speed, .damage, .side})` | One projectile, flying from the next tick; it strikes props and bodies of the other side |
+| `world.blast({.at, .radius, .damage})` | Hurts everyone within the radius, this tick; an actor it kills can go off in turn |
+| `world.spawnHazard({.at, .radius, .damage, .ticks, .side})` | A pool on the floor biting the other side standing in it |
+
+```cpp
+constexpr sdk::Weapon SHOTGUN{.damage = 1, .refire_ticks = 40, .pellets = 5,
+                              .spread_degrees = 30};
+sdk::EntityData<sdk::Cooldown> triggers_;
+
+void onTick(GameLogicWorld& world) override {
+  for (const auto& player : sdk::playersUp(world)) {
+    sdk::fireWeapon(world, player, SHOTGUN, triggers_[player.target]);
+  }
+}
+void onHash(GameLogicHash& hash) const override { triggers_.hashInto(hash); }
+```
+
+Every shot fired, landed, and blast set off is cued like an actor's, so it flashes and is heard.
+
+---
+
+## 8. Dice
 
 `sdk::chance(world, permille)`, `sdk::between(world, low, high)` and `sdk::pick(world, span)` draw on the run's own logic stream — `world.random(bound)` underneath — so two machines draw the same numbers, and a draw added to the logic never shifts what actors roll.
 
 ---
 
-## 8. Keeping it deterministic
+## 9. Keeping it deterministic
 
 Everything in [logic.md §4](logic.md#4-rules-the-logic-has-to-keep) holds. The SDK is built to make it easy: every container it offers is ordered, every timer is a tick number, every die is the world's, and `Game` gives `onHash` one obvious place to fold state in. What it cannot do is stop a member being left out of `onHash` — a divergence then shows only when two runs are compared.
 
 ---
 
-## 9. Growing it
+## 10. Growing it
 
 The SDK is engine code: a tool a second project would want belongs here, with a test in `src/game/sdk/test/` against the real `GameWorld`. What the world lets logic do is `GameLogicWorld`'s: a new read or write there is a new virtual function, implemented in `src/game/world/src/world-logic-view.cpp`, tested in `test_world_logic_api.cpp`, and a bump of `GAME_LOGIC_API_VERSION` so libraries built against the old table are refused rather than misread.

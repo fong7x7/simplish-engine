@@ -52,6 +52,9 @@ public:
   void removeActor(LogicTarget target) override;
   bool setActorState(LogicTarget target, std::string_view state) override;
   void setActorFaction(LogicTarget target, Faction faction) override;
+  void fireShot(const LogicShot& shot) override;
+  void blast(const LogicBlast& blast) override;
+  void spawnHazard(const LogicHazard& hazard) override;
   [[nodiscard]] uint32_t random(uint32_t bound) override;
   void log(std::string_view message) override;
 

@@ -1,5 +1,7 @@
 #include "sdk-rig.h"
 
+#include <engine/input/input-action.h>
+#include <engine/input/player-input-builder.h>
 #include <engine/sim/simulation.h>
 #include <game/world/game-world.h>
 #include <utility>
@@ -36,6 +38,18 @@ GameSetup sdkArena() {
   setup.obstacles.push_back({{12.0F, -4.0F, 0.0F}, {13.0F, 8.0F, 2.0F}});
   setup.actor_capacity = 32;
   return setup;
+}
+
+uint32_t runLogicFiring(GameLogic& logic, int ticks) {
+  GameWorld world(sdkArena(), {}, &logic);
+  sim::Simulation simulation(world, sim::TickHashing::ON);
+  sim::TickInput input;
+  input.players[0].buttons = input::INPUT_BUTTON_FIRE;
+  input.players[0].aim_x = input::INPUT_AXIS_MAX;
+  for (int i = 0; i < ticks; ++i) {
+    (void)simulation.step(input);
+  }
+  return world.projectilePool().slots.size();
 }
 
 void runLogic(GameLogic& logic, int ticks, const GameSetup& setup,
