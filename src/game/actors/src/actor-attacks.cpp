@@ -76,7 +76,8 @@ namespace {
     const float reach = a.pool.radius[a.i] + body->radius + attack.reach_tiles;
     if (Vec2::distanceSquared(flat(a.pool.position[a.i]), body->at) <=
         reach * reach) {
-      context.effects.damage.push_back({body->who, attack.damage, self(a)});
+      context.effects.damage.push_back(
+          {body->who, attack.damage, self(a), DamageCause::ATTACK});
       coolDown(a, context, attack);
     }
   }
@@ -141,8 +142,9 @@ namespace {
                 const BehaviorAttack& attack) {
     a.pool.death_blast_radius[a.i] = attack.radius;
     a.pool.death_blast_damage[a.i] = attack.damage;
-    context.effects.damage.push_back(
-        {self(a), std::numeric_limits<uint16_t>::max(), self(a)});
+    context.effects.damage.push_back({self(a),
+                                      std::numeric_limits<uint16_t>::max(),
+                                      self(a), DamageCause::ATTACK});
   }
 
   /// Each action's attack, in enumerator order; null for those that do

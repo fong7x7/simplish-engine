@@ -5,7 +5,9 @@
 /// @par Threading
 /// A value type; its id is a view valid until the logic's `tick` returns.
 
+#include <cstdint>
 #include <engine/math/vec3.h>
+#include <game/logic/logic-damage-cause.h>
 #include <game/logic/logic-event-kind.h>
 #include <game/logic/logic-target.h>
 #include <optional>
@@ -32,6 +34,11 @@ struct LogicEvent {
   /// Empty when nobody is to be credited. They may be gone by now; ask
   /// `playerOf` or `actorOf`.
   std::optional<LogicTarget> by{};
+  /// For a hurt, a death or a downing: the health it took — no more than
+  /// was left. Zero otherwise.
+  uint16_t amount = 0;
+  /// For a hurt, a death or a downing: what kind of thing did it.
+  LogicDamageCause cause = LogicDamageCause::NONE;
 };
 
 }  // namespace eng::game

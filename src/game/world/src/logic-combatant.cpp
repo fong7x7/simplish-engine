@@ -20,4 +20,13 @@ CombatantRef combatantOf(const std::optional<LogicTarget>& target) {
           {target->index, target->generation}};
 }
 
+LogicDamageCause logicCauseOf(DamageCause cause) {
+  // The logic's list is combat's, after NONE, in the same order.
+  static_assert(static_cast<uint8_t>(LogicDamageCause::LOGIC) ==
+                DAMAGE_CAUSE_COUNT);
+  static_assert(static_cast<uint8_t>(DamageCause::LOGIC) + 1 ==
+                DAMAGE_CAUSE_COUNT);
+  return static_cast<LogicDamageCause>(static_cast<uint8_t>(cause) + 1);
+}
+
 }  // namespace eng::game

@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <game/combat/combatant-ref.h>
+#include <game/combat/damage-cause.h>
 
 namespace eng::game {
 
@@ -23,6 +24,8 @@ struct DamageEvent {
   /// Who is to be credited with it: the attacker, the shooter, whoever
   /// set off the blast or spilled the pool; `NO_COMBATANT` for nobody.
   CombatantRef source = NO_COMBATANT;
+  /// What kind of thing it is.
+  DamageCause cause = DamageCause::ATTACK;
 };
 
 }  // namespace eng::game

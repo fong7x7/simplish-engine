@@ -80,7 +80,15 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onTick(world)` | Every tick, after the hooks above |
 | `onHash(hash)` | Fold every member a later tick decides anything by into the tick hash |
 
-Events are the last tick's, in the order they happened; the world's `events()` gives the same list to a logic that is not a `Game`.
+Events are the last tick's, in the order they happened; the world's `events()` gives the same list to a logic that is not a `Game`. Every hit that takes health is an event of its own, carrying the `amount` it took, its `cause` — `ATTACK`, `SHOT`, `BLAST`, `HAZARD` or `LOGIC` — and `by`, who is credited (§7):
+
+```cpp
+void onActorHurt(GameLogicWorld& world, const LogicEvent& hit) override {
+  if (hit.cause == LogicDamageCause::BLAST) {
+    blast_damage_ += hit.amount;
+  }
+}
+```
 
 ---
 

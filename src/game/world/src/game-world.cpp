@@ -17,6 +17,18 @@ namespace eng::game {
 
 namespace {
 
+  /// What game logic hears of @p hit, which took @p lost from whoever it
+  /// struck, standing at @p at: a @p kind.
+  LogicEvent hitEvent(const DamageEvent& hit, LogicEventKind kind, Vec3 at,
+                      uint16_t lost) {
+    return {.kind = kind,
+            .target = *logicTargetOf(hit.target),
+            .at = at,
+            .by = logicTargetOf(hit.source),
+            .amount = lost,
+            .cause = logicCauseOf(hit.cause)};
+  }
+
   /// How many players @p setup holds, held to 1 through `sim::MAX_PLAYERS`.
   uint8_t playerCount(const GameSetup& setup) {
     return static_cast<uint8_t>(
@@ -258,7 +270,8 @@ void GameWorld::applyLogicCommand(const LogicCommand& command, uint64_t tick) {
   } else if (command.kind == LogicCommandKind::DAMAGE) {
     applyHit({{combatantKindOf(target), handle},
               command.amount,
-              combatantOf(command.by)},
+              combatantOf(command.by),
+              DamageCause::LOGIC},
              tick);
   } else if (command.kind == LogicCommandKind::MOVE) {
     moveTo(target, command.at);
@@ -271,7 +284,6 @@ void GameWorld::applyLogicCommand(const LogicCommand& command, uint64_t tick) {
 void GameWorld::applyActorCommand(const LogicCommand& command, uint32_t index,
                                   uint64_t tick) {
   if (command.kind == LogicCommandKind::REMOVE && actors_.health[index] != 0) {
-    logic_events_.noteRemoved(actors_.slots.handleAt(index));
     logic_events_.note({LogicEventKind::ACTOR_REMOVED, command.target,
                         actors_.position[index],
                         actor_ids_[command.target.index]});
@@ -331,11 +343,8 @@ std::vector<std::string> GameWorld::takeLogicLog() {
   return lines;
 }
 
-void GameWorld::compaction(const sim::TickContext& context) {
+void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {
   if (logic_ != nullptr) {
-    const LogicSlotNotes notes{actor_ids_, actor_hurt_by_, player_hurt_by_};
-    logic_events_.noteActors(actors_, notes, context.tick);
-    logic_events_.notePlayers(players_, notes, context.tick);
     logic_events_.publish();
   }
   compactPlayers(players_);
@@ -374,21 +383,42 @@ void GameWorld::listBodies() {
 }
 
 void GameWorld::applyHit(const DamageEvent& hit, uint64_t tick) {
-  const uint32_t slot = hit.target.handle.index;
   if (hit.target.kind == CombatantKind::PLAYER) {
     if (const auto p = players_.slots.denseIndex(hit.target.handle)) {
-      const uint16_t before = players_.health[*p];
-      hurtPlayer(players_, *p, hit.amount, tick);
-      if (players_.health[*p] < before) {
-        player_hurt_by_[slot] = hit.source;
-      }
+      hitPlayer(hit, *p, tick);
     }
   } else if (const auto i = actors_.slots.denseIndex(hit.target.handle)) {
-    const uint16_t before = actors_.health[*i];
-    hurtActor(actors_, *i, {hit.amount, tick, hit.source}, effects_);
-    if (actors_.health[*i] < before) {
-      actor_hurt_by_[slot] = hit.source;
-    }
+    hitActor(hit, *i, tick);
+  }
+}
+
+void GameWorld::hitPlayer(const DamageEvent& hit, uint32_t index,
+                          uint64_t tick) {
+  const uint16_t before = players_.health[index];
+  hurtPlayer(players_, index, hit.amount, tick);
+  const auto lost = static_cast<uint16_t>(before - players_.health[index]);
+  if (logic_ != nullptr && lost != 0) {
+    logic_events_.note(hitEvent(hit,
+                                playerIsUp(players_, index)
+                                    ? LogicEventKind::PLAYER_HURT
+                                    : LogicEventKind::PLAYER_DOWNED,
+                                players_.position[index], lost));
+  }
+}
+
+void GameWorld::hitActor(const DamageEvent& hit, uint32_t index,
+                         uint64_t tick) {
+  const uint16_t before = actors_.health[index];
+  hurtActor(actors_, index, {hit.amount, tick, hit.source}, effects_);
+  const auto lost = static_cast<uint16_t>(before - actors_.health[index]);
+  if (logic_ != nullptr && lost != 0) {
+    LogicEvent event =
+        hitEvent(hit,
+                 actors_.health[index] == 0 ? LogicEventKind::ACTOR_DIED
+                                            : LogicEventKind::ACTOR_HURT,
+                 actors_.position[index], lost);
+    event.id = actor_ids_[hit.target.handle.index];
+    logic_events_.note(event);
   }
 }
 
@@ -396,7 +426,6 @@ void GameWorld::sizeActorSlots(uint32_t capacity) {
   actor_ids_.resize(capacity);
   actor_models_.resize(capacity);
   actor_spawned_.resize(capacity);
-  actor_hurt_by_.resize(capacity, NO_COMBATANT);
 }
 
 void GameWorld::spawnActors(const GameSetup& setup,

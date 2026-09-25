@@ -94,7 +94,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
-This is `GameLogicWorld`, API version 5 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+This is `GameLogicWorld`, API version 6 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
 
 | Read | |
 |---|---|
@@ -104,7 +104,7 @@ This is `GameLogicWorld`, API version 5 — what the engine lets logic read and 
 | `actorCount()`, `actor(i)` | The level's id for it (the prop it was placed as), position, facing, faction, health, the state of its behavior it is in, and a `target` |
 | `outcome()` | Playing, won or lost |
 | `actorOf(target)`, `playerOf(target)` | The entity a kept target names now, or nothing when it is gone |
-| `events()` | What happened in the last tick, in order: actors spawned, hurt, killed and removed; players hurt and downed. A dead actor's event carries where it fell and its name; a hurt, death or downing carries `by`, who is credited — the striker, shooter or spiller, or for a blast whoever killed the one that went off |
+| `events()` | What happened in the last tick, in the order it happened: actors spawned, hurt, killed and removed; players hurt and downed. Each is noted where it happens — every hit that takes health is its own event, however many land in a tick — so a dead actor's event carries where it fell and its name. A hurt, death or downing carries `amount`, the health it took (no more than was left); `cause`, what kind of thing did it (`ATTACK`, `SHOT`, `BLAST`, `HAZARD`, `LOGIC`); and `by`, who is credited — the striker, shooter or spiller, or for a blast whoever killed the one that went off. A hit that takes nothing — on the dead, or on a player still in the grace after a hurt — is not an event |
 | `lineOfSight(from, to)`, `walkable(at)` | Asked of the navigation grid, for an actor of the default size; false outside it |
 | `obstacleCount()`, `obstacle(i)` | The level's solid props, as boxes |
 

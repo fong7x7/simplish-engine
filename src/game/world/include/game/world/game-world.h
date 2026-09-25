@@ -183,6 +183,10 @@ private:
   void listBodies();
   /// Apply one hit.
   void applyHit(const DamageEvent& hit, uint64_t tick);
+  /// Apply @p hit to the player at dense index @p index, telling the logic.
+  void hitPlayer(const DamageEvent& hit, uint32_t index, uint64_t tick);
+  /// Apply @p hit to the actor at dense index @p index, telling the logic.
+  void hitActor(const DamageEvent& hit, uint32_t index, uint64_t tick);
   /// Give the actor at dense index @p index the route @p points, when
   /// there is one.
   void assignRoute(uint32_t index, const std::vector<Vec2>& points);
@@ -269,12 +273,6 @@ private:
   std::vector<uint8_t> actor_spawned_;
   /// What happened last tick, for the game logic; kept only with one.
   LogicEventLog logic_events_;
-  /// Who last hurt each actor, by its handle's slot: what the logic's
-  /// events credit. Only the live are state.
-  std::vector<CombatantRef> actor_hurt_by_;
-  /// Who last hurt each player, by their handle's slot.
-  std::vector<CombatantRef> player_hurt_by_ =
-      std::vector<CombatantRef>(PLAYER_POOL_CAPACITY, NO_COMBATANT);
   /// The run's content, kept only when actors can be spawned mid-run: the
   /// behaviors and archetypes they name. Empty otherwise.
   GameContent content_;
