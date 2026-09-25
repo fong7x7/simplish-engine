@@ -178,7 +178,12 @@
 #include <game/content/faction.h>
 #include <game/fx/combat-sounds.h>
 #include <game/fx/footstep-sounds.h>
+#include <game/ui/ui-render-size.h>
+#include <game/ui/ui-screen-render.h>
+#include <game/ui/ui-screen-view.h>
+#include <game/ui/ui-values.h>
 #include <game/world/world-cue.h>
+#include <game/world/world-ui.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -259,6 +264,17 @@ public:
   /// a caller outside the window has no other way to reach them. It does
   /// not check whether the command is enabled — `editorMenuCommandEnabled`
   /// is that question, and the menu bar asks it before it draws the row.
+  /// Write the game screen @p id of the open project as @p text, and read
+  /// the screens again; false when there is no project or it will not
+  /// write.
+  bool writeUiScreen(std::string_view id, std::string_view text);
+
+  /// Render the game screen @p id at @p size, showing @p values, to
+  /// `build/ui/<id>.png` in the open project, keeping what came of it in
+  /// `state().ui_render`.
+  void renderUiScreen(std::string_view id, game::UiRenderSize size,
+                      const game::UiValues& values);
+
   void runMenuCommand(EditorMenuCommand command);
 
   /// Create the level @p id in the open project and edit it.
@@ -595,6 +611,37 @@ private:
   bool runSettingsCommand(EditorMenuCommand command);
   /// Build the Sound screen, hidden, over the viewport.
   void initSound(GuiWidgetTree& tree);
+  /// Build the layer the game's own screens are drawn in, over the
+  /// viewport, letting the pointer through to it.
+  void initGameUi(GuiWidgetTree& tree);
+  /// Show the screens the game logic shows, as it shows them: rebuilt when
+  /// which are shown changes, their values filled in, laid out, and
+  /// mirrored into `state_.playtest.ui`.
+  void syncGameUi();
+  /// Build every screen of @p ui's that the project has, in order.
+  void rebuildGameUi(const game::WorldUi& ui);
+  /// Take every game screen away.
+  void clearGameUi();
+  /// Put the pad's and the arrows' focus on the menu on top, if there is
+  /// one.
+  void focusGameMenu();
+  /// The game menu on top of those shown; null when none is.
+  [[nodiscard]] const game::UiScreenView* gameMenu() const;
+  /// Move within, or press on, the game menu on top: an arrow, Return,
+  /// Space or Tab while one is shown. Whether @p key was taken.
+  bool handleGameUiKey(uint32_t key);
+  /// As `handleGameUiKey`, for a pad's @p button.
+  bool handleGameUiButton(input::GamepadButton button);
+  /// Have player 1 choose @p action on the next tick; false when no screen
+  /// of the project names it, or nothing is playing.
+  bool chooseUiAction(std::string_view action);
+  /// Make the choice `press_ui` left, if any.
+  void takeAgentUiPress();
+  /// Mirror the game screens shown, and their buttons, into the state.
+  void publishGameUi();
+  /// Write @p render's picture to the open project's `build/ui/`, and keep
+  /// what came of it in `state_.ui_render`, whose id names it.
+  void keepUiRender(const game::UiScreenRender& render);
   /// The Sound screen, or null before the chrome exists.
   EditorSoundWidget* soundWidget();
   /// Open the Sound screen; refused while a character is being chosen.
@@ -1335,6 +1382,13 @@ private:
   GuiWidgetId properties_panel_id_ = GUI_WIDGET_ID_INVALID;
   /// Character selector widget id in the tree (owned by the tree).
   GuiWidgetId character_select_id_ = GUI_WIDGET_ID_INVALID;
+  /// The layer the game's own screens are built in, over the viewport.
+  GuiWidgetId game_ui_id_ = GUI_WIDGET_ID_INVALID;
+  /// The game screens built, in the order shown.
+  std::vector<std::unique_ptr<game::UiScreenView>> game_ui_views_{};
+  /// The ids of the game screens built, to rebuild when the logic changes
+  /// which it shows.
+  std::vector<std::string> game_ui_shown_{};
   /// The Controls screen, over the viewport while it is open.
   GuiWidgetId controls_id_ = GUI_WIDGET_ID_INVALID;
   /// The Sound screen, over the viewport while it is open.

@@ -22,6 +22,8 @@ inline constexpr GuiColor UI_BUTTON_HOVER{82, 94, 122, 255};
 inline constexpr GuiColor UI_BAR_FILL{96, 200, 112, 255};
 /// A bar's empty part, unless the node gives one.
 inline constexpr GuiColor UI_BAR_EMPTY{36, 38, 46, 230};
+/// A button's padding round its text, unless the node gives some.
+inline constexpr Edges UI_BUTTON_PADDING{8.0F, 18.0F, 8.0F, 18.0F};
 /// A bar's height, unless the node gives one.
 inline constexpr float UI_BAR_HEIGHT = 10.0F;
 /// What a menu dims the game behind it with.

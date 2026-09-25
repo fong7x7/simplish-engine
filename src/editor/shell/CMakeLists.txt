@@ -84,6 +84,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/iso-view-matrix.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-game-ui.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-animation-events.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-build.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"

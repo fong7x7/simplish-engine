@@ -21,6 +21,30 @@ namespace {
       {Align::START, Align::END},     {Align::END, Align::START},
       {Align::END, Align::END},       {Align::STRETCH, Align::STRETCH}};
 
+  /// Whether @p edges are all zero: none were given.
+  bool noEdges(const Edges& edges) {
+    return edges.top == 0.0F && edges.right == 0.0F && edges.bottom == 0.0F &&
+           edges.left == 0.0F;
+  }
+
+  /// What a button and a bar take unless the node says otherwise: a
+  /// button's padding round its text; a bar's row of two parts, its
+  /// height, and — with no width — the whole width of its line.
+  void applyKindDefaults(LayoutStyle& layout, const UiNode& node) {
+    const UiNodeStyle& s = node.style;
+    if (node.kind == UiNodeKind::BUTTON && noEdges(s.padding)) {
+      layout.padding = UI_BUTTON_PADDING;
+    }
+    if (node.kind != UiNodeKind::BAR) {
+      return;
+    }
+    layout.direction = FlexDirection::ROW;
+    layout.height = s.height < 0.0F ? UI_BAR_HEIGHT : s.height;
+    if (s.width < 0.0F && s.align_self == Align::AUTO) {
+      layout.align_self = Align::STRETCH;
+    }
+  }
+
 }  // namespace
 
 void styleUiWidget(GuiWidget& widget, const UiNode& node) {
@@ -39,11 +63,7 @@ void styleUiWidget(GuiWidget& widget, const UiNode& node) {
   layout.align_items = s.align_items;
   layout.justify_content = s.justify;
   layout.align_self = s.align_self;
-  if (node.kind == UiNodeKind::BAR) {
-    // A bar's two parts share its width: filled, then empty.
-    layout.direction = FlexDirection::ROW;
-    layout.height = s.height < 0.0F ? UI_BAR_HEIGHT : s.height;
-  }
+  applyKindDefaults(layout, node);
   widget.override_style = true;
 }
 

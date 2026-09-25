@@ -38,6 +38,7 @@ SCHEMA_TYPES = {
     "string": {"type": "string"},
     "boolean": {"type": "boolean"},
     "array": {"type": "array", "items": {"type": "object"}},
+    "object": {"type": "object"},
     # An asset is named either by its index or by its name, and the editor
     # accepts both, so the schema says both.
     "asset_ref": {"type": ["integer", "string"]},

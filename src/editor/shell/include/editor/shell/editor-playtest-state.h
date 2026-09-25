@@ -11,6 +11,7 @@
 #include <editor/shell/editor-playtest-effects.h>
 #include <editor/shell/editor-playtest-hazard.h>
 #include <editor/shell/editor-playtest-player.h>
+#include <editor/shell/editor-playtest-ui.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <game/logic/run-outcome.h>
 #include <game/world/world-cue.h>
@@ -62,6 +63,8 @@ struct EditorPlaytestState {
   /// The last cues the game logic raised, oldest first; at most
   /// `EDITOR_LOGIC_CUES`.
   std::vector<game::WorldCue> logic_cues;
+  /// The game's own screens shown, and a choice waiting to be made.
+  EditorPlaytestUi ui;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

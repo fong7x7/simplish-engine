@@ -1,6 +1,7 @@
 #include "agent-emitters.h"
 #include "agent-json-values.h"
 #include "agent-sprites.h"
+#include "agent-ui.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -713,7 +714,8 @@ namespace {
     return {{"outcome", agentRunOutcomeName(playtest.outcome)},
             {"logic", playtest.logic},
             {"logic_log", playtest.logic_log},
-            {"logic_cues", logicCuesJson(playtest)}};
+            {"logic_cues", logicCuesJson(playtest)},
+            {"ui", agentPlaytestUiJson(playtest.ui)}};
   }
 
 }  // namespace

@@ -188,6 +188,10 @@ public:
   bool pressed = false;
   /// Whether this component is rendered and hit-testable.
   bool visible = true;
+  /// Whether the pointer passes through this widget to whatever is under
+  /// it: it is never the widget hit itself, though its children may be.
+  /// A see-through overlay — a game's HUD over its view — sets it.
+  bool pointer_through = false;
   /// Opacity multiplier [0, 1] applied to all colors during rendering.
   float opacity = 1.0f;
   /// Pointer to the active shared style (not owned).

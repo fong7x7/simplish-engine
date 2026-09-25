@@ -172,6 +172,14 @@ enum class AgentTool : uint8_t {
   CREATE_PROJECT,
   /// The editor's recent log: what it warned of and showed nowhere else.
   GET_LOG,
+  /// Every game screen of the project, its buttons and its actions.
+  GET_UI_SCREENS,
+  /// Write one game screen, checked first.
+  SET_UI_SCREEN,
+  /// Draw one game screen to a PNG, with where its buttons are.
+  RENDER_UI_SCREEN,
+  /// Choose an action on a game screen, as player 1, in the playtest.
+  PRESS_UI,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -251,6 +259,10 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::GET_BUILD,
     AgentTool::CREATE_PROJECT,
     AgentTool::GET_LOG,
+    AgentTool::GET_UI_SCREENS,
+    AgentTool::SET_UI_SCREEN,
+    AgentTool::RENDER_UI_SCREEN,
+    AgentTool::PRESS_UI,
 };
 
 }  // namespace eng::editor

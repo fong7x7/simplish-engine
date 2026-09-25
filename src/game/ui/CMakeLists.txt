@@ -15,6 +15,7 @@ simplish_add_module(simplish-game-ui
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-actions.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-json-read.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-json.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-render.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-view.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-style-json.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-text.cpp
@@ -26,6 +27,7 @@ simplish_add_module(simplish-game-ui
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-game-ui-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ui_screen_json.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ui_screen_render.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ui_screen_view.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ui_text.cpp
         DEPENDENCIES simplish-game-ui

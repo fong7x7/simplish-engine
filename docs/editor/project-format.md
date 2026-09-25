@@ -43,6 +43,8 @@ my-project/
 │   │   └── act-one.scenario.json
 │   ├── logic/
 │   │   └── transit-station.logic.json
+│   ├── ui/                    # the game's own screens, read today (docs/game/ui.md)
+│   │   └── pause.ui.json
 │   └── data/
 │       ├── characters.data.json   # read today (§8.1)
 │       ├── behaviors.data.json    # read today (§8.2)

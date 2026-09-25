@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <game/content/game-content.h>
 #include <game/ui/ui-screen.h>
+#include <game/ui/ui-values.h>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,6 +50,11 @@ loadEditorUiTable(const std::filesystem::path& root);
 /// The screen @p id of @p table, or null when it has none.
 [[nodiscard]] const game::UiScreen*
 findEditorUiScreen(const EditorUiTable& table, std::string_view id);
+
+/// The values a JSON object holds, for a screen to show: strings as they
+/// are, numbers written out; anything else, or text that is no object,
+/// gives none.
+[[nodiscard]] game::UiValues editorUiValuesFromJson(std::string_view text);
 
 /// Tell @p content of @p table's screens: their ids, and the actions
 /// their buttons name, sorted — what a choice is numbered by.

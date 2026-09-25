@@ -52,8 +52,11 @@ namespace {
       return;
     }
     // Children are always on top of their parent in the tree.
-    // Always update best — last matching node in pre-order wins.
-    p.best.widget_id = w.widget_id;
+    // Always update best — last matching node in pre-order wins — unless
+    // the pointer passes through this one to what is under it.
+    if (!w.pointer_through) {
+      p.best.widget_id = w.widget_id;
+    }
     // Visit children in ascending z-order so topmost sibling wins last.
     for (auto child : sortedChildrenByZ(p.ctx, w)) {
       hitTestRecursive(p, child);

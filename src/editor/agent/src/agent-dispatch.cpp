@@ -9,6 +9,7 @@
 #include "agent-log.h"
 #include "agent-sound.h"
 #include "agent-sprites.h"
+#include "agent-ui.h"
 #include "agent-water.h"
 #include "agent-waypoints.h"
 
@@ -284,6 +285,10 @@ namespace {
       runAgentGetBuild,
       toolCreateProject,
       runAgentGetLog,
+      runAgentGetUiScreens,
+      runAgentSetUiScreen,
+      runAgentRenderUiScreen,
+      runAgentPressUi,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

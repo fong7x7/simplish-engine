@@ -107,3 +107,15 @@ TEST_CASE("a child is hit in preference to its parent") {
   REQUIRE(fx.tree.hitTest(20.0f, 20.0f).widget_id == button);
   REQUIRE(fx.tree.hitTest(300.0f, 300.0f).widget_id == panel);
 }
+
+TEST_CASE("the pointer passes through a widget that lets it, to its "
+          "children and what is under it") {
+  TreeFixture fx;
+  const GuiWidgetId under = fx.add(fx.root, {0.0f, 0.0f, 1000.0f, 800.0f});
+  const GuiWidgetId overlay = fx.add(fx.root, {0.0f, 0.0f, 1000.0f, 800.0f});
+  const GuiWidgetId badge = fx.add(overlay, {10.0f, 10.0f, 40.0f, 40.0f});
+  fx.tree.findWidget(overlay)->pointer_through = true;
+
+  CHECK(fx.tree.hitTest(500.0f, 400.0f).widget_id == under);
+  CHECK(fx.tree.hitTest(20.0f, 20.0f).widget_id == badge);
+}

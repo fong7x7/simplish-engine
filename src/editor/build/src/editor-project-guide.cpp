@@ -70,6 +70,15 @@ background: `@ENGINE@/docs/game/logic.md`. Headers:
   to keep them.
 - Players can walk off the level's floor; spawn round fixed places —
   where they started, a named prop — not round them.
+
+## Menus and a HUD
+
+A screen is `content/ui/<id>.ui.json`: panels, labels, buttons, bars and
+spacers laid out by flexbox (`@ENGINE@/docs/game/ui.md`). Write one with
+`set_ui_screen`, look at it with `render_ui_screen` (open the PNG it
+writes), and show it from the logic with `world.showScreen("<id>")`.
+`world.setUiValue(key, text)` fills a label's `{key}`. A button pressed
+is heard in `onUiAction`; in a playtest, `press_ui` presses one.
 )";
 
   /// The pointer to the guide.

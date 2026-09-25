@@ -710,6 +710,47 @@ struct AgentToolInfo {
 /// This table is the API. `agent-dispatch.cpp` answers exactly these names,
 /// the manifest is generated from these rows, and the MCP bridge builds its
 /// tool list by reading that manifest — so a tool is described once, here.
+inline constexpr AgentParam AGENT_PARAMS_SET_UI_SCREEN[] = {
+    {"id", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "The screen's id — lowercase letters, digits, _ and - — which is its "
+     "file, content/ui/<id>.ui.json, and what the game logic shows it by "
+     "(world.showScreen(\"<id>\"))."},
+    {"screen", AgentParamType::OBJECT, AgentParamNeed::REQUIRED,
+     "The screen: {\"layer\": \"menu\" (modal, dims the game, takes the pad) "
+     "or \"hud\" (over play, takes no input), \"anchor\": center, top, "
+     "bottom, left, right, top_left, top_right, bottom_left, bottom_right or "
+     "fill (default center), \"inset\": pixels from the edges (24), "
+     "\"root\": a node}. A node is {\"type\": panel, label, button, bar or "
+     "spacer, \"id\", and for a label or button \"text\" — {key} shows the "
+     "value key the logic set — for a button \"action\", for a bar "
+     "\"value\" and \"max\" (keys, or a number for max), and for a panel "
+     "\"children\": [nodes]}, styled by flexbox: \"direction\" row or "
+     "column, \"gap\", \"padding\" and \"margin\" (a number or [top, right, "
+     "bottom, left]), \"width\", \"height\", \"min_width\", "
+     "\"min_height\", \"grow\", \"align\" and \"align_self\" (start, "
+     "center, end, stretch), \"justify\" (start, center, end, "
+     "space_between, space_around, space_evenly), \"fill\" and \"color\" "
+     "(#rrggbb or #rrggbbaa) and \"radius\". docs/game/ui.md under "
+     "toolchain.engine_root has examples."},
+};
+
+inline constexpr AgentParam AGENT_PARAMS_RENDER_UI_SCREEN[] = {
+    {"id", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "A screen get_ui_screens lists."},
+    {"width", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "The view's width in pixels, 16 to 4096; default 1280."},
+    {"height", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "The view's height in pixels, 16 to 4096; default 720."},
+    {"values", AgentParamType::OBJECT, AgentParamNeed::OPTIONAL,
+     "The values to show, as the logic would set them: {\"score\": 12, "
+     "\"health\": 3}. Unset values show as nothing."},
+};
+
+inline constexpr AgentParam AGENT_PARAMS_PRESS_UI[] = {
+    {"action", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "An action a button names, as get_ui_screens lists them."},
+};
+
 inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::DESCRIBE,
      "describe",
@@ -1342,6 +1383,40 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "left out past limit. Call with since set to the last next to hear "
      "only what is new.",
      AgentToolEffect::READ, AGENT_PARAMS_GET_LOG},
+    {AgentTool::GET_UI_SCREENS,
+     "get_ui_screens",
+     "The game's own screens — its menus and HUD, content/ui/<id>.ui.json "
+     "(docs/game/ui.md) — built from the engine's GUI widgets: each "
+     "screen's id, layer (menu or hud) and buttons (id, action, text); "
+     "actions, every action any button names, sorted — what a choice is "
+     "numbered by; and problems, each screen file's mistakes by where they "
+     "are. The game logic shows a screen with world.showScreen(id), sets "
+     "the values its text shows with world.setUiValue(key, text), and "
+     "hears a button pressed as a UI_ACTION event (onUiAction).",
+     AgentToolEffect::READ,
+     {}},
+    {AgentTool::SET_UI_SCREEN, "set_ui_screen",
+     "Write a game screen to content/ui/<id>.ui.json, replacing any there. "
+     "It is checked first: one that is not a screen at all is refused with "
+     "its problems; one that reads is written, and any smaller problems "
+     "come back in the answer, which is get_ui_screens' after the write. "
+     "render_ui_screen shows what it looks like.",
+     AgentToolEffect::HOST, AGENT_PARAMS_SET_UI_SCREEN},
+    {AgentTool::RENDER_UI_SCREEN, "render_ui_screen",
+     "Draw a game screen as the game would show it, over a plain stand-in "
+     "for the game, to build/ui/<id>.png in the project — open the image to "
+     "see it. Answers with image (its path), width, height, text_drawn "
+     "(false when no font was found: laid out, but no letters), buttons "
+     "(id, action, text and rect [x, y, w, h] in the image's pixels) and "
+     "error.",
+     AgentToolEffect::HOST, AGENT_PARAMS_RENDER_UI_SCREEN},
+    {AgentTool::PRESS_UI, "press_ui",
+     "Choose an action on a game screen as player 1, as a click on its "
+     "button would: it is made on the next tick of the playtest, as input, "
+     "and the logic hears it the tick after as a UI_ACTION event. Follow "
+     "with step_playtest. get_playtest's ui lists the screens shown and "
+     "their buttons.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_PRESS_UI},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

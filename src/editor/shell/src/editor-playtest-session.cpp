@@ -248,6 +248,7 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
   const std::optional<uint16_t> health_before =
       one ? std::optional{world_->players().health[*one]} : std::nullopt;
   sim::TickInput input = nextTickInput(live, scripted);
+  input.players[0].ui_action = std::exchange(pending_ui_action_, 0U);
   addStandInInput(input);
   const sim::TickResult result = simulation_.step(input);
   recorder_.record(input, result);

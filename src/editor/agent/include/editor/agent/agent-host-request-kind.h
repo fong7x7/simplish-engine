@@ -45,6 +45,13 @@ enum class AgentHostRequestKind : uint8_t {
   PLAY_EFFECT,
   /// Play `AgentHostRequest::sound` once.
   PLAY_SOUND,
+  /// Write the game screen `AgentHostRequest::name` as
+  /// `AgentHostRequest::text`, and read the screens again.
+  WRITE_UI_SCREEN,
+  /// Render the game screen `AgentHostRequest::name` at
+  /// `AgentHostRequest::width` by `height`, showing the values
+  /// `AgentHostRequest::text` holds as a JSON object, to a PNG.
+  RENDER_UI_SCREEN,
 };
 
 }  // namespace eng::editor

@@ -48,6 +48,12 @@ struct AgentHostRequest {
   /// The new project's name, meaningful only for `CREATE_PROJECT`; empty
   /// for the directory's own name.
   std::string name{};
+  /// A file's contents to write, or a JSON object of values.
+  std::string text{};
+  /// A view's width, in pixels.
+  uint32_t width = 0;
+  /// A view's height, in pixels.
+  uint32_t height = 0;
 };
 
 }  // namespace eng::editor

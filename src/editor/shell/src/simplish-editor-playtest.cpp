@@ -122,6 +122,8 @@ void SimplishEditor::reloadUi() {
   for (const std::string& problem : state_.ui.problems) {
     LOG_WARN("editor", "content/ui/" + problem);
   }
+  // A screen shown may have changed: build them again on the next sync.
+  game_ui_shown_.clear();
 }
 
 void SimplishEditor::reloadDataTables() {
@@ -282,6 +284,7 @@ void SimplishEditor::stopPlaytest() {
   }
   saveLastPlaytestReplay();
   audio().stopAll();
+  clearGameUi();
   playtest_.reset();
   resetEditEffects();
   state_.playtest = EditorPlaytestState{};
@@ -313,6 +316,7 @@ void SimplishEditor::tickPlaytest() {
     return;
   }
   feedPadPlayers();
+  takeAgentUiPress();
   const FixedStepAdvance due =
       playtest_->advance(elapsed, livePlayerInput(), state_.playtest.scripted);
   playtest_alpha_ = due.interpolation;
@@ -331,6 +335,7 @@ void SimplishEditor::afterPlaytestTicks() {
   }
   hearPlaytest();
   playtest_->publish(state_.playtest);
+  syncGameUi();
   followPlayer();
   refreshPlacementMarkers();
 }
@@ -353,6 +358,7 @@ void SimplishEditor::stepPlaytest(uint32_t ticks) {
   }
   state_.playtest.clock = EditorPlaytestClock::PAUSED;
   feedPadPlayers();
+  takeAgentUiPress();
   for (uint32_t i = 0; i < ticks; ++i) {
     playtest_->step(livePlayerInput(), state_.playtest.scripted);
     // A step is a tick's worth of time for the effects too.
@@ -661,7 +667,8 @@ bool SimplishEditor::handlePlaytestKey(uint32_t key, ClientKeyDownKind kind) {
     }
     return true;
   }
-  if (handleClockKey(key, kind)) {
+  if (handleClockKey(key, kind) ||
+      (kind == ClientKeyDownKind::FIRST_PRESS && handleGameUiKey(key))) {
     return true;
   }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {
@@ -708,7 +715,8 @@ void SimplishEditor::onClientKeyUp(uint32_t key) {
 }
 
 void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
-  if (handleControlsButton(button) || handleSoundButton(button)) {
+  if (handleControlsButton(button) || handleSoundButton(button) ||
+      handleGameUiButton(button)) {
     return;
   }
   if (state_.playtest.mode == EditorPlayMode::CHOOSING) {

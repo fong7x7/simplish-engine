@@ -505,6 +505,7 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   initCharacterSelect(tree);
   initControls(tree);
   initSound(tree);
+  initGameUi(tree);
 }
 
 void SimplishEditor::initViewport(GuiWidgetTree& tree) {

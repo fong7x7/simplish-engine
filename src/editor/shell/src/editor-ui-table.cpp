@@ -4,6 +4,7 @@
 #include <editor/shell/editor-ui-table.h>
 #include <game/ui/ui-actions.h>
 #include <game/ui/ui-screen-json.h>
+#include <nlohmann/json.hpp>
 
 namespace eng::editor {
 
@@ -86,6 +87,22 @@ const game::UiScreen* findEditorUiScreen(const EditorUiTable& table,
                                          std::string_view id) {
   const auto found = std::ranges::find(table.screens, id, &game::UiScreen::id);
   return found != table.screens.end() ? &*found : nullptr;
+}
+
+game::UiValues editorUiValuesFromJson(std::string_view text) {
+  game::UiValues values;
+  const nlohmann::json object = nlohmann::json::parse(text, nullptr, false);
+  if (object.is_discarded() || !object.is_object()) {
+    return values;
+  }
+  for (const auto& [key, value] : object.items()) {
+    if (value.is_string()) {
+      values.emplace(key, value.get<std::string>());
+    } else if (value.is_number()) {
+      values.emplace(key, value.dump());
+    }
+  }
+  return values;
 }
 
 void addEditorUiContent(const EditorUiTable& table,

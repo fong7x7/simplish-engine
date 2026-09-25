@@ -184,6 +184,13 @@ public:
   /// them. Their effects are already playing.
   [[nodiscard]] std::vector<game::WorldCue> takeLogicCues();
 
+  /// Have player 1 choose the action numbered @p code — one plus its index
+  /// in the project's action list — on the next tick (ADR-012).
+  void queueUiAction(uint32_t code) { pending_ui_action_ = code; }
+
+  /// The screens the game logic shows, and the values they show.
+  [[nodiscard]] const game::WorldUi& ui() const { return world_->ui(); }
+
   /// Hear steps land on @p surfaces from the next tick on: the level's
   /// floor, as `makeEditorFootstepSurfaces` builds it. Bare ground until
   /// then.
@@ -399,6 +406,8 @@ private:
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
   /// The last `EDITOR_LOGIC_LOG_LINES` lines the game logic said.
   std::vector<std::string> logic_log_{};
+  /// A choice player 1 makes on the next tick; 0 for none.
+  uint32_t pending_ui_action_ = 0;
   /// The last `EDITOR_LOGIC_CUES` cues the game logic raised.
   std::vector<game::WorldCue> logic_cues_{};
   /// Cues with a sound to be heard since `takeLogicCues` last ran.

@@ -4,7 +4,9 @@
 /// @brief The sort of value one tool parameter takes.
 /// @par Threading Thread-safe (immutable value type).
 
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <string_view>
 
 namespace eng::editor {
@@ -33,27 +35,22 @@ enum class AgentParamType : uint8_t {
   /// A list of objects, each described by the parameter's own text: the
   /// events a clip plays.
   ARRAY,
+  /// One JSON object, as the parameter's own text describes it: a screen.
+  OBJECT,
 };
+
+/// Each type's published word, in `AgentParamType` order.
+inline constexpr std::string_view AGENT_PARAM_TYPE_NAMES[] = {
+    "number", "integer", "string", "asset_ref", "boolean", "array", "object"};
+static_assert(std::size(AGENT_PARAM_TYPE_NAMES) ==
+                  static_cast<size_t>(AgentParamType::OBJECT) + 1,
+              "every parameter type needs the word it is published as");
 
 /// The word this type is published as, which the MCP bridge maps to a JSON
 /// Schema type.
 [[nodiscard]] constexpr std::string_view
 agentParamTypeName(AgentParamType type) {
-  switch (type) {
-    case AgentParamType::NUMBER:
-      return "number";
-    case AgentParamType::INTEGER:
-      return "integer";
-    case AgentParamType::STRING:
-      return "string";
-    case AgentParamType::ASSET_REF:
-      return "asset_ref";
-    case AgentParamType::BOOLEAN:
-      return "boolean";
-    case AgentParamType::ARRAY:
-      return "array";
-  }
-  return "string";
+  return AGENT_PARAM_TYPE_NAMES[static_cast<size_t>(type)];
 }
 
 }  // namespace eng::editor

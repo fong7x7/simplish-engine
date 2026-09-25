@@ -41,6 +41,7 @@ GuiWidgetId UiScreenView::build(GuiWidgetTree& tree, GuiWidgetId parent) {
   anchorUiRoot(cover.tree_layout, screen_.anchor, screen_.inset);
   cover.z_index = menu ? 200 : 100;
   cover.debug_name = "ui:" + screen_.id;
+  cover.pointer_through = !menu;
   overlay_ = cover.widget_id;
   buildNode(tree, overlay_, screen_.root);
   if (screen_.anchor == UiAnchor::FILL &&
@@ -75,6 +76,8 @@ void UiScreenView::buildNode(GuiWidgetTree& tree, GuiWidgetId parent,
   GuiWidget& widget = *tree.findWidget(made);
   styleUiWidget(widget, node);
   widget.id = node.id;
+  // A HUD takes no input: the pointer goes through it to the game.
+  widget.pointer_through = screen_.layer == UiScreenLayer::HUD;
   for (const UiNode& child : node.children) {
     buildNode(tree, made, child);
   }

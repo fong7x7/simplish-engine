@@ -1,6 +1,7 @@
 #include "agent-host-outcome.h"
 
 #include "agent-build.h"
+#include "agent-ui.h"
 
 #include <editor/agent/agent-state-json.h>
 #include <editor/shell/editor-menu-availability.h>
@@ -24,6 +25,18 @@ namespace {
                                                   : agentStateJson(state);
   }
 
+  /// The part of @p state a request of @p kind about the project changes:
+  /// its screens, a screen drawn, or the rest of the state.
+  std::string projectPart(const EditorShellState& state,
+                          AgentHostRequestKind kind) {
+    if (kind == AgentHostRequestKind::WRITE_UI_SCREEN) {
+      return agentUiScreensJson(state);
+    }
+    return kind == AgentHostRequestKind::RENDER_UI_SCREEN
+               ? agentUiRenderJson(state)
+               : agentStateJson(state);
+  }
+
   /// The part of @p state @p request changes, as its read tool reports it;
   /// empty for a request that changes nothing a caller reads back.
   std::string changedPart(const EditorShellState& state,
@@ -39,7 +52,7 @@ namespace {
       case AgentHostRequestKind::RUN_COMMAND:
         return commandPart(state, request.command);
       default:
-        return agentStateJson(state);
+        return projectPart(state, request.kind);
     }
   }
 

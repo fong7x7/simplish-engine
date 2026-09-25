@@ -26,6 +26,7 @@
 #include <editor/shell/editor-sound-settings.h>
 #include <editor/shell/editor-sound-table.h>
 #include <editor/shell/editor-tool.h>
+#include <editor/shell/editor-ui-render.h>
 #include <editor/shell/editor-ui-table.h>
 #include <editor/shell/editor-view-state.h>
 #include <editor/shell/editor-water-state.h>
@@ -111,6 +112,8 @@ struct EditorShellState {
   /// `content/ui/*.ui.json` (docs/game/ui.md); read with the tables, and
   /// written by `set_ui_screen`.
   EditorUiTable ui;
+  /// The last screen `render_ui_screen` drew. Not saved.
+  EditorUiRender ui_render;
   /// The project's own sounds, from `content/data/sounds.data.json`: which
   /// of the game's sound slots play one of `sound_files` instead of their
   /// built-in sound. Read with the other tables; written by the editor.

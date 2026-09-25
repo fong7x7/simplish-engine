@@ -8,7 +8,7 @@ A project's game logic is C++ in the project's `src/` folder. It is written agai
 | Layer | Package | What it is |
 |---|---|---|
 | **The world** | `game/logic` — `eng::game` | `GameLogicWorld`: everything the engine lets logic read and change, as an interface the host implements. Versioned: `GAME_LOGIC_API_VERSION` |
-| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, event and entity queries, the logic's own events and schedule, per-entity data, timers and phases, spawn patterns, dice |
+| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, event and entity queries, the logic's own events and schedule, per-entity data, timers and phases, spawn patterns, dice, and helpers for the game's own screens ([ui.md](ui.md)) |
 
 Include one header — `<game/sdk/sdk.h>` — and both are there. The SDK calls the world through `GameLogicWorld` and nothing else, so its sources are compiled into the project's own library for a playtest (`cmake/SimplishGameLogic.cmake` does it) and linked with the engine for a deploy; a project links nothing itself.
 
@@ -83,6 +83,7 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onActorNoticed(world, event)` | An actor took someone new as its target; `event.other` is whom |
 | `onActorAttacked(world, event)` | An actor struck, fired, spat or blew itself up; `event.other` is whom it had in mind |
 | `onActorWindingUp(world, event)` | An actor began an attack that winds up; it lands its state's `windup_ticks` later, if it still can |
+| `onUiAction(world, event)` | A player chose an action — a button — on one of the game's screens; `event.id` is the action. `sdk::chose(event, "retry")` asks which ([ui.md](ui.md)) |
 | `onPlayerStepped(world, event)`, `onActorStepped(world, event)` | A foot came down — heard once `world.listenForSteps(LogicSteps::PLAYERS)` or `EVERYONE` asks |
 | `onTick(world)` | Every tick, after the hooks above |
 | `onRunEnded(world)` | Once, at the end of the tick the run ended on; `world.outcome()` says how. The tick after is never played, so writes do nothing — log the tally here |

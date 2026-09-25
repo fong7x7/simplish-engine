@@ -30,6 +30,7 @@ Hit testing determines which widget is under a screen coordinate (mouse cursor):
 3. If the widget is inside a scroll container, offset the test point by the scroll offset.
 4. If the widget's rect is clipped by a scissor rect, the point must also be inside the scissor rect.
 5. First match wins (topmost visible widget at the coordinate).
+6. A widget with `pointer_through` is never the match itself: the point goes through it to whatever is under it, though its children are still tested. A see-through overlay over something clickable sets it — a game's HUD over the playtest's view ([ui.md](../../../game/ui.md)).
 
 ### 2.2 Data Structures
 
