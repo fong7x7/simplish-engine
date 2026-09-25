@@ -17,6 +17,9 @@
 #include <game/sdk/actor-queries.h>       // IWYU pragma: export
 #include <game/sdk/cooldown.h>            // IWYU pragma: export
 #include <game/sdk/entity-data.h>         // IWYU pragma: export
+#include <game/sdk/event-filter.h>        // IWYU pragma: export
+#include <game/sdk/event-queries.h>       // IWYU pragma: export
+#include <game/sdk/events.h>              // IWYU pragma: export
 #include <game/sdk/every.h>               // IWYU pragma: export
 #include <game/sdk/game.h>                // IWYU pragma: export
 #include <game/sdk/logic-tests.h>         // IWYU pragma: export
@@ -25,5 +28,6 @@
 #include <game/sdk/player-queries.h>      // IWYU pragma: export
 #include <game/sdk/random.h>              // IWYU pragma: export
 #include <game/sdk/ring-spawn.h>          // IWYU pragma: export
+#include <game/sdk/schedule.h>            // IWYU pragma: export
 #include <game/sdk/ticks.h>               // IWYU pragma: export
 #include <game/sdk/weapon.h>              // IWYU pragma: export

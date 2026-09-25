@@ -1,3 +1,4 @@
+#include "support/list-hash.h"
 #include "support/sdk-rig.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -8,19 +9,7 @@
 using namespace eng::game;
 using namespace eng::game::sdk;
 
-namespace {
-
-/// Hashes into a list, so a test can see what was folded in.
-class ListHash final : public GameLogicHash {
-public:
-  void addBytes(std::span<const std::byte> bytes) override {
-    added.insert(added.end(), bytes.begin(), bytes.end());
-  }
-  /// Every byte folded in.
-  std::vector<std::byte> added;
-};
-
-}  // namespace
+using eng::game::sdk::test::ListHash;
 
 TEST_CASE("entity data keeps a value per target, in target order") {
   EntityData<uint32_t> data;

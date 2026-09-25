@@ -8,7 +8,7 @@ A project's game logic is C++ in the project's `src/` folder. It is written agai
 | Layer | Package | What it is |
 |---|---|---|
 | **The world** | `game/logic` — `eng::game` | `GameLogicWorld`: everything the engine lets logic read and change, as an interface the host implements. Versioned: `GAME_LOGIC_API_VERSION` |
-| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, entity queries, per-entity data, timers and phases, spawn patterns, dice |
+| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, event and entity queries, the logic's own events and schedule, per-entity data, timers and phases, spawn patterns, dice |
 
 Include one header — `<game/sdk/sdk.h>` — and both are there. The SDK calls the world through `GameLogicWorld` and nothing else, so its sources are compiled into the project's own library for a playtest (`cmake/SimplishGameLogic.cmake` does it) and linked with the engine for a deploy; a project links nothing itself.
 
@@ -94,6 +94,72 @@ void onActorHurt(GameLogicWorld& world, const LogicEvent& hit) override {
     blast_damage_ += hit.amount;
   }
 }
+```
+
+### Asking the tick's events
+
+Hooks hear events one at a time; queries ask of them all at once (`event-queries.h`), through an `EventFilter` — by `kind`, `target`, actor `id` or `id_prefix`, `by`, `cause` or `state`, each empty field letting every event through:
+
+| Call | Gives |
+|---|---|
+| `findEvents(world, filter)` | The last tick's events passing it, in order |
+| `countEvents(world, filter)`, `heard(world, filter)` | How many, and whether any |
+| `totalAmount(world, filter)` | The health they took, summed |
+
+```cpp
+// Damage player 1 dealt last tick, and whether the boss took a blast.
+const uint32_t dealt = sdk::totalAmount(world, {.by = player.target});
+const bool rocked = sdk::heard(world, {.kind = LogicEventKind::ACTOR_HURT,
+                                       .id = "boss",
+                                       .cause = LogicDamageCause::BLAST});
+```
+
+### Events of your own
+
+`sdk::Events<T>` is a queue of the logic's own events of type `T`, so one part of a logic can say what happened and every part that cares hears it, without the parts calling each other. `subscribe` a handler once — in the constructor or `onStart` — `emit` anywhere, and `dispatch(world)` where the logic's events are to be heard: each event in the order emitted, to each handler in the order subscribed, and one a handler emits in the same dispatch.
+
+```cpp
+struct WaveStarted { uint32_t wave; };
+sdk::Events<WaveStarted> waves_;
+
+void onStart(GameLogicWorld&) override {
+  waves_.subscribe([this](GameLogicWorld& world, const WaveStarted& e) {
+    spawnWave(world, e.wave);
+  });
+  waves_.subscribe([](GameLogicWorld& world, const WaveStarted&) {
+    world.log("Here they come");
+  });
+}
+void onTick(GameLogicWorld& world) override {
+  if (WAVES.due(world.tick())) {
+    waves_.emit({++wave_});
+  }
+  waves_.dispatch(world);
+}
+void onHash(GameLogicHash& hash) const override { waves_.hashInto(hash); }
+```
+
+Events not yet heard are state: `hashInto` folds them in, so `T` must be something `GameLogicHash::add` takes. Handlers are not.
+
+### Later
+
+`sdk::Schedule<T>` holds values for a tick to come — `at(tick, value)`, `after(world, ticks, value)` — and `runDue(world, run)` hands each whose tick has come to `run(world, value)`, by tick and then in the order added; a value added for now while running comes out in the same call. `cancel(drop)` drops those `drop(value)` says to, `nextTick()` says when the next is due, `hashInto` folds it all in. Where `Every` and `Cooldown` are checked each tick, a schedule is told once:
+
+```cpp
+struct Collapse { LogicTarget bridge; };
+sdk::Schedule<Collapse> later_;
+
+void onActorDied(GameLogicWorld& world, const LogicEvent& death) override {
+  if (death.id == "lever") {
+    later_.after(world, sdk::seconds(3), {findActor(world, "bridge")->target});
+  }
+}
+void onTick(GameLogicWorld& world) override {
+  later_.runDue(world, [](GameLogicWorld& w, const Collapse& c) {
+    w.damage(c.bridge, 999);
+  });
+}
+void onHash(GameLogicHash& hash) const override { later_.hashInto(hash); }
 ```
 
 ---
