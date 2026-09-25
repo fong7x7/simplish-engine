@@ -168,3 +168,34 @@ TEST_CASE("game logic is told once that the run is over, and how") {
   CHECK(logic.outcome_ == RunOutcome::WON);
   CHECK(world.takeLogicLog() == std::vector<std::string>{"the run is over"});
 }
+
+namespace {
+
+/// The combined hash of tick 2 in a world whose logic raises @p per_tick
+/// cues a tick, keeping into @p kept the cues of ticks 0 and 1.
+uint64_t hashWithCues(uint32_t per_tick,
+                      std::vector<eng::game::WorldCue>& kept) {
+  Listening logic([per_tick](GameLogicWorld& world) {
+    for (uint32_t i = 0; i < per_tick; ++i) {
+      world.cue({.at = {1.0F, 2.0F, 0.0F}, .sound = "combat.blast"});
+    }
+  });
+  GameWorld world(chaserBeside(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+  run(simulation, 2);
+  kept = world.takeLogicCues();
+  return simulation.step(TickInput{}).hash.value().combined;
+}
+
+}  // namespace
+
+TEST_CASE("a cue the logic raises is kept for presentation, and changes "
+          "nothing a tick hashes") {
+  std::vector<eng::game::WorldCue> quiet;
+  std::vector<eng::game::WorldCue> loud;
+
+  CHECK(hashWithCues(0, quiet) == hashWithCues(1, loud));
+  CHECK(quiet.empty());
+  REQUIRE(loud.size() == 2);
+  CHECK((loud[1].tick == 1 && loud[1].sound == "combat.blast"));
+}

@@ -1099,7 +1099,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "(sounds: the nearest few of each kind a tick); whether the run is "
      "over (no player up, or the game logic ended it) and its outcome "
      "(playing, won or lost); whether the project's game logic runs (logic) "
-     "and the last lines it said (logic_log) — actors the logic spawned "
+     "and the last lines it said (logic_log) and sounds and effects it "
+     "cued (logic_cues) — actors the logic spawned "
      "are listed after the level's, marked spawned; the "
      "latest tick hash, how many ticks the frame clock has dropped, and "
      "how many ticks of queued input are left. Poll it after "
@@ -1317,7 +1318,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "level, passed, ticks, failures as diagnostics). While playing, "
      "get_playtest "
      "reports logic, outcome and "
-     "logic_log: what the logic said with world.log().",
+     "logic_log: what the logic said with world.log(), and logic_cues: the "
+     "sounds and effects it cued with world.cue() (tick, at, sound, effect, "
+     "everywhere); a name with no sound or effect is warned of in get_log.",
      AgentToolEffect::READ, AGENT_PARAMS_GET_BUILD},
     {AgentTool::CREATE_PROJECT, "create_project",
      "Create a project in a directory and open it, as File > New Project "

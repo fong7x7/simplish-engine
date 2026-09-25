@@ -11,6 +11,7 @@
 #include <game/combat/combat-effects.h>
 #include <game/logic/run-outcome.h>
 #include <game/world/logic-command.h>
+#include <game/world/world-cue.h>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,8 @@ struct WorldReadScratch {
   RunOutcome outcome = RunOutcome::PLAYING;
   /// Lines logged, never shown.
   std::vector<std::string> log{};
+  /// Cues raised, never played.
+  std::vector<WorldCue> cues{};
 };
 
 }  // namespace eng::game

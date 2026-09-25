@@ -1,6 +1,12 @@
+#include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <editor/shell/editor-animation-event-ops.h>
 #include <engine/audio/audio-synth.h>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <utility>
 
 using namespace eng;
 using namespace eng::editor;
@@ -72,4 +78,50 @@ TEST_CASE("a slot's clip is found by its name, a file's once loaded") {
       {"mesh:knight", "walk", {{0.0F, "sounds/gone.wav", 1.0F}}});
   const auto problems = loadEditorEventSounds(bank, table, "/no/such/assets");
   REQUIRE(problems.size() == 1);
+}
+
+namespace {
+
+/// Write @p value to @p out, little-endian, in @p bytes bytes.
+void putLittle(std::ofstream& out, uint32_t value, int bytes) {
+  for (int b = 0; b < bytes; ++b) {
+    out.put(static_cast<char>((value >> (8 * b)) & 0xFFU));
+  }
+}
+
+/// Write a WAV of 64 silent 16-bit mono samples at 48 kHz to @p path.
+void writeSilentWav(const std::filesystem::path& path) {
+  std::filesystem::create_directories(path.parent_path());
+  std::ofstream out(path, std::ios::binary);
+  constexpr uint32_t DATA = 128;
+  // The fmt chunk: its size, PCM, mono, the rate, bytes a second, bytes a
+  // frame, bits a sample.
+  constexpr std::array<std::pair<uint32_t, int>, 7> FORMAT{
+      {{16, 4}, {1, 2}, {1, 2}, {48000, 4}, {96000, 4}, {2, 2}, {16, 2}}};
+  out << "RIFF";
+  putLittle(out, 36 + DATA, 4);
+  out << "WAVEfmt ";
+  for (const auto& [value, bytes] : FORMAT) {
+    putLittle(out, value, bytes);
+  }
+  out << "data";
+  putLittle(out, DATA, 4);
+  out << std::string(DATA, '\0');
+}
+
+}  // namespace
+
+TEST_CASE("a sound a cue names is loaded when first asked for, and never "
+          "from outside the assets") {
+  const auto assets = std::filesystem::temp_directory_path() /
+                      "simplish-cue-sound-test" / "assets";
+  writeSilentWav(assets / "sounds" / "horn.wav");
+  audio::AudioClipBank bank;
+
+  CHECK(loadEditorEventSound(bank, assets, "sounds/horn.wav"));
+  CHECK(findEditorEventClip(bank, "sounds/horn.wav").has_value());
+  CHECK(loadEditorEventSound(bank, assets, "combat.blast"));
+  CHECK_FALSE(loadEditorEventSound(bank, assets, "sounds/gone.wav"));
+  CHECK_FALSE(loadEditorEventSound(bank, assets, "../assets/sounds/horn.wav"));
+  std::filesystem::remove_all(assets.parent_path());
 }

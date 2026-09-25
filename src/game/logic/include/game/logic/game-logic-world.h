@@ -12,6 +12,7 @@
 #include <game/content/faction.h>
 #include <game/logic/logic-actor.h>
 #include <game/logic/logic-blast.h>
+#include <game/logic/logic-cue.h>
 #include <game/logic/logic-event.h>
 #include <game/logic/logic-hazard.h>
 #include <game/logic/logic-player.h>
@@ -154,6 +155,11 @@ public:
   /// Say @p message where whoever is running the game reads its log — the
   /// editor's, or the deployed game's output. Presentation: never state.
   virtual void log(std::string_view message) = 0;
+  /// Have a sound played or an effect shown — a horn as a wave comes, smoke
+  /// where a door blew — where whoever presents the game can: the editor's
+  /// playtest does; the headless deployed game drops it. Presentation:
+  /// never state, and nothing a tick reads.
+  virtual void cue(const LogicCue& cue) = 0;
 
   GameLogicWorld(const GameLogicWorld&) = delete;
   GameLogicWorld& operator=(const GameLogicWorld&) = delete;

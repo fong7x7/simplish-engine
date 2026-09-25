@@ -40,6 +40,25 @@ game::GameLogic* makeSpawner() {
   return std::make_unique<SpawnsImp>().release();
 }
 
+/// Cues a blast's sound with smoke on tick 0, and an effect there is none
+/// of on tick 1.
+class Cues final : public game::GameLogic {
+public:
+  void tick(game::GameLogicWorld& world) override {
+    if (world.tick() == 0) {
+      world.cue({.at = {2.0F, 2.0F, 0.0F},
+                 .sound = "combat.blast",
+                 .effect = "smoke"});
+    } else if (world.tick() == 1) {
+      world.cue({.effect = "confetti"});
+    }
+  }
+};
+
+game::GameLogic* makeCues() {
+  return std::make_unique<Cues>().release();
+}
+
 void unmakeLogic(game::GameLogic* logic) {
   const std::unique_ptr<game::GameLogic> owned(logic);
 }
@@ -118,4 +137,26 @@ TEST_CASE("a playtest reports the actors its logic spawns, and how to draw "
   CHECK(state.actors[0].spawned);
   REQUIRE(session.spawnedActors() == std::vector<uint32_t>{0});
   CHECK(session.actorModel(0) == "mesh:imp");
+}
+
+TEST_CASE("a playtest shows the effects its logic cues, and keeps their "
+          "sounds for the speakers") {
+  EditorPlaytestSession session(
+      game::GameSetup{}, {},
+      {"main", std::make_shared<EditorLogicLibrary>(
+                   nullptr, game::GameLogicFactory{makeCues, unmakeLogic},
+                   std::filesystem::path{})});
+  EditorPlaytestState state;
+
+  run(session, 2);
+  session.publish(state);
+
+  REQUIRE(state.logic_cues.size() == 2);
+  CHECK(state.logic_cues[0].sound == "combat.blast");
+  CHECK(state.logic_cues[1].tick == 1);
+  CHECK(session.effects().particles.live > 0);
+  const std::vector<game::WorldCue> heard = session.takeLogicCues();
+  REQUIRE(heard.size() == 1);
+  CHECK(heard[0].at.x == 2.0F);
+  CHECK(session.takeLogicCues().empty());
 }

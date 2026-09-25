@@ -105,6 +105,27 @@ loadEditorEventSounds(audio::AudioClipBank& bank,
   return problems;
 }
 
+bool loadEditorEventSound(audio::AudioClipBank& bank,
+                          const std::filesystem::path& assets_dir,
+                          std::string_view sound) {
+  if (!editorEventNamesFile(sound) ||
+      findEditorEventClip(bank, sound).has_value()) {
+    return true;
+  }
+  const std::filesystem::path file(sound);
+  if (sound.empty() || !file.is_relative() ||
+      std::ranges::find(file, "..") != file.end()) {
+    return false;
+  }
+  std::optional<audio::AudioClip> clip =
+      audio::loadAudioFile(assets_dir / file);
+  if (clip) {
+    (void)bank.add(std::string(FILE_PREFIX) + std::string(sound),
+                   std::move(*clip));
+  }
+  return clip.has_value();
+}
+
 std::optional<audio::AudioClipId>
 findEditorEventClip(const audio::AudioClipBank& bank, std::string_view sound) {
   if (const std::optional<std::string> slot = findEditorSoundSlot(sound)) {

@@ -94,7 +94,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
-This is `GameLogicWorld`, API version 7 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+This is `GameLogicWorld`, API version 8 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
 
 | Read | |
 |---|---|
@@ -125,6 +125,7 @@ This is `GameLogicWorld`, API version 7 — what the engine lets logic read and 
 | `actorRoom()` | How many more can be spawned this tick |
 | `random(bound)` | `0 … bound-1` from the logic's own stream, `LOGIC_RNG_STREAM`, so a draw added to the logic never shifts what actors roll |
 | `log(message)` | Presentation: the editor's log and `get_playtest`'s `logic_log`, or the deployed game's output |
+| `cue({.at, .sound, .effect, .gain, .scale, .reach})` | Presentation: a sound played and an effect shown where the playtest can — never state, never hashed, nothing a tick reads, dropped by the headless deployed game. `sound` is a sound slot (`combat.blast`, `step.boots.wood`) or a WAV or Ogg file under `assets/`, loaded the first time it is cued; `effect` is a particle preset (`smoke`, `fireball`, …) or a whole combat effect by its cue's name (`combat.blast`); `reach` `AT` is heard from where it is, `EVERYWHERE` alike anywhere. `get_playtest`'s `logic_cues` lists the last few; a name with no sound or effect is warned of once in the log |
 
 **Events** are gathered as a tick runs — spawns and removals as the logic's writes are applied, hurts, deaths and downs read off the pools at its end — and handed over on the next, so they are state, carried and hashed in the `logic` section.
 

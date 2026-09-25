@@ -193,4 +193,31 @@ game::FootstepWalker SimplishEditor::eventWalker(
                                                    : game::StepSet::DEFAULT};
 }
 
+void SimplishEditor::playLogicCue(const game::WorldCue& cue) {
+  const std::filesystem::path assets =
+      state_.project.loaded ? projectAssetsPath(state_.project.root)
+                            : std::filesystem::path{};
+  if (!loadEditorEventSound(audio().clips(), assets, cue.sound)) {
+    warnUnheardCue(cue.sound);
+    return;
+  }
+  if (cue.reach == game::LogicCueReach::AT) {
+    (void)playEventSound({"logic", cue.at, cue.sound, cue.gain});
+  } else if (const auto clip =
+                 findEditorEventClip(audio().clips(), cue.sound)) {
+    (void)audio().play({.clip = *clip,
+                        .gain = cue.gain,
+                        .placement = audio::SoundPlacement::FLAT,
+                        .priority = EVENT_PRIORITY});
+  }
+}
+
+void SimplishEditor::warnUnheardCue(const std::string& sound) {
+  if (unheard_cue_sounds_.insert(sound).second) {
+    LOG_WARN("logic", "cue: no sound called '" + sound +
+                          "': name a sound slot, or a WAV or Ogg file under "
+                          "assets/");
+  }
+}
+
 }  // namespace eng::editor

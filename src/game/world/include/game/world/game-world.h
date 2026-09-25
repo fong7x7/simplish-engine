@@ -37,6 +37,7 @@
 #include <game/world/logic-call.h>
 #include <game/world/logic-command.h>
 #include <game/world/logic-event-log.h>
+#include <game/world/world-cue.h>
 #include <memory>
 #include <span>
 #include <string>
@@ -58,6 +59,10 @@ inline constexpr uint64_t LOGIC_RNG_STREAM = 2;
 /// Most lines a world keeps of what its game logic said before whoever
 /// runs it takes them; past it, a line is dropped rather than grown into.
 inline constexpr size_t WORLD_LOGIC_LOG_LINES = 256;
+
+/// The most cues the game logic's raised are kept for until someone takes
+/// them; any past it are dropped.
+inline constexpr size_t WORLD_LOGIC_CUES = 256;
 
 /// Everything the game simulates, and the phases that simulate it — the
 /// `SimulationSystems` a `sim::Simulation` steps.
@@ -134,6 +139,11 @@ public:
   /// and forget them — at most `WORLD_LOGIC_LOG_LINES` between calls.
   /// Presentation: never state, never hashed.
   [[nodiscard]] std::vector<std::string> takeLogicLog();
+
+  /// Every cue the game logic has raised since the last call, in order,
+  /// handed over — at most `WORLD_LOGIC_CUES` between calls: the sounds
+  /// and effects presentation plays. Never state, never hashed.
+  [[nodiscard]] std::vector<WorldCue> takeLogicCues();
 
   /// The players, for whatever draws them. Read-only: nothing outside the
   /// tick may change simulation state.
@@ -301,6 +311,9 @@ private:
   /// What the game logic has said since `takeLogicLog` last ran; not
   /// state.
   std::vector<std::string> logic_log_;
+  /// The cues the game logic has raised since `takeLogicCues` last ran;
+  /// not state.
+  std::vector<WorldCue> logic_cues_;
 };
 
 }  // namespace eng::game

@@ -21,7 +21,7 @@ namespace {
             .events = sources.events,
             .rng = scratch.rng,
             .outcome = scratch.outcome,
-            .log = scratch.log};
+            .output = {scratch.log, scratch.cues}};
   }
 
   /// The scratch a view of @p sources starts with.

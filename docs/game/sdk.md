@@ -276,6 +276,15 @@ void onHash(GameLogicHash& hash) const override { triggers_.hashInto(hash); }
 
 Every shot fired, landed, and blast set off is cued like an actor's, so it flashes and is heard.
 
+**Cues of the logic's own.** `world.cue(...)` plays a sound and shows an effect — a horn as a wave comes, smoke where a wall came down — with nothing fired and nothing hurt. It is presentation: the tick never reads it back, and it is never hashed.
+
+```cpp
+world.cue({.at = gate->position,
+           .sound = "sounds/horn.wav",          // a file under assets/, or a slot
+           .effect = "smoke",                   // a preset, or combat.blast
+           .reach = LogicCueReach::EVERYWHERE}); // heard alike anywhere
+```
+
 **Who did it.** Every hurt, death and downing names who is behind it in `event.by`: the player or actor that struck, fired or spilled the pool; for a blast's hits, whoever killed the one that went off — so a player who shoots an exploding actor is credited with what the explosion kills. `fireWeapon` credits the player firing; `fireShot`, `blast` and `spawnHazard` credit their `shooter` or `by`; `damage(target, n, by)` credits `by`. `sdk::playerBehind(world, event)` gives the credited player, when it was one:
 
 ```cpp

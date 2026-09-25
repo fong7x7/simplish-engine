@@ -12,6 +12,7 @@
 #include <game/world/game-world.h>
 #include <game/world/logic-combatant.h>
 #include <game/world/world-nav-grid.h>
+#include <utility>
 
 namespace eng::game {
 
@@ -299,7 +300,7 @@ void GameWorld::runLogic(const sim::TickContext& context, LogicCall call) {
                        .events = logic_events_.events(),
                        .rng = logic_rng_,
                        .outcome = logic_outcome_,
-                       .log = logic_log_});
+                       .output = {logic_log_, logic_cues_}});
   callLogic(view, context.tick, call);
 }
 
@@ -395,6 +396,10 @@ RunOutcome GameWorld::outcome() const {
     }
   }
   return RunOutcome::LOST;
+}
+
+std::vector<WorldCue> GameWorld::takeLogicCues() {
+  return std::exchange(logic_cues_, {});
 }
 
 std::vector<std::string> GameWorld::takeLogicLog() {

@@ -5,6 +5,8 @@
 /// @par Threading
 /// A view over the world's state for one tick.
 
+#include "world-logic-output.h"
+
 #include <engine/core/pcg32.h>
 #include <engine/physics/collision-box.h>
 #include <engine/sim/tick-context.h>
@@ -55,8 +57,8 @@ struct WorldLogicScene {
   Pcg32& rng;
   /// How the run stands; the logic may end it.
   RunOutcome& outcome;
-  /// Where what the logic says is kept for whoever runs the game.
-  std::vector<std::string>& log;
+  /// Where what the logic says and cues is kept for presentation.
+  WorldLogicOutput output;
 };
 
 }  // namespace eng::game

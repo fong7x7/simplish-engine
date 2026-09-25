@@ -43,8 +43,10 @@
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/game-world.h>
+#include <game/world/world-cue.h>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -59,6 +61,9 @@ inline constexpr uint64_t EDITOR_PLAYTEST_SEED = 0;
 /// The most cues a playtest keeps waiting to be heard: a few frames' worth
 /// of the nearest few of each kind. Past it, the oldest are dropped.
 inline constexpr size_t EDITOR_PLAYTEST_HEARD_CUES = 64;
+
+/// How many of the game logic's last cues a playtest publishes.
+inline constexpr size_t EDITOR_LOGIC_CUES = 32;
 
 /// The most cues a playtest keeps between one `takeCues` and the next:
 /// several frames of a crowded fight. Past it, later cues are not kept.
@@ -173,6 +178,11 @@ public:
   /// — in the order they fell, and forget them. Presentation, as the cues
   /// are.
   [[nodiscard]] std::vector<game::FootstepCue> takeHeardSteps();
+
+  /// The cues the game logic raised that make a sound, since the last
+  /// call, in order — at most `EDITOR_PLAYTEST_HEARD_CUES` — and forget
+  /// them. Their effects are already playing.
+  [[nodiscard]] std::vector<game::WorldCue> takeLogicCues();
 
   /// Hear steps land on @p surfaces from the next tick on: the level's
   /// floor, as `makeEditorFootstepSurfaces` builds it. Bare ground until
@@ -294,6 +304,11 @@ private:
   /// Take what the game logic said on the last tick into the log, and the
   /// editor's log.
   void keepLogicLog();
+  /// Show the effect of every cue the game logic raised on the last tick,
+  /// keep the ones with a sound to be heard, and the last few for `publish`.
+  void keepLogicCues();
+  /// Show the effect @p cue names, warning once of a name no effect has.
+  void showLogicCue(const game::WorldCue& cue);
   /// Play the effects of every cue the last tick left, count them, and
   /// keep the ones worth hearing.
   void playCues();
@@ -384,6 +399,13 @@ private:
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
   /// The last `EDITOR_LOGIC_LOG_LINES` lines the game logic said.
   std::vector<std::string> logic_log_{};
+  /// The last `EDITOR_LOGIC_CUES` cues the game logic raised.
+  std::vector<game::WorldCue> logic_cues_{};
+  /// Cues with a sound to be heard since `takeLogicCues` last ran.
+  std::vector<game::WorldCue> heard_logic_cues_{};
+  /// The effects game logic has cued that there were none of, each warned
+  /// of once.
+  std::set<std::string> unshown_cue_effects_{};
 };
 
 }  // namespace eng::editor

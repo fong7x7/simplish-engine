@@ -271,8 +271,16 @@ uint32_t WorldLogicView::random(uint32_t bound) {
 }
 
 void WorldLogicView::log(std::string_view message) {
-  if (scene_.log.size() < WORLD_LOGIC_LOG_LINES) {
-    scene_.log.emplace_back(message);
+  if (scene_.output.log.size() < WORLD_LOGIC_LOG_LINES) {
+    scene_.output.log.emplace_back(message);
+  }
+}
+
+void WorldLogicView::cue(const LogicCue& cue) {
+  if (scene_.output.cues.size() < WORLD_LOGIC_CUES) {
+    scene_.output.cues.push_back(
+        {scene_.context.tick, cue.at, std::string(cue.sound),
+         std::string(cue.effect), cue.gain, cue.scale, cue.reach});
   }
 }
 
