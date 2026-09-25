@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <engine/gui/glyph-info.h>
@@ -10,13 +11,12 @@
 #include <engine/render/rhi-device.h>
 #include <engine/render/rhi-graphics-pipeline-desc.h>
 #include <engine/render/rhi-types.h>
+#include <iterator>
 
 namespace eng {
 
-/// Vertex flag for textured quad.
-constexpr uint32_t FLAG_TEXTURED = 0x2;
-/// Vertex flag for rounded rectangle.
-constexpr uint32_t FLAG_ROUNDED_RECT = 0x4;
+/// The whole of a texture, or of a shape's own coordinates.
+constexpr Rect FULL_UV{0.0f, 0.0f, 1.0f, 1.0f};
 /// Minimum line length below which emitLine is a no-op.
 constexpr float MIN_LINE_LENGTH = 0.001f;
 
@@ -81,114 +81,83 @@ namespace {
             static_cast<float>(glyph.atlas_h) * al * scale};
   }
 
-  /// Screen quad with style fields for solid / rounded-rect vertices.
-  struct StyledQuadVerts {
-    /// Left X coordinate.
-    float x0;
-    /// Top Y coordinate.
-    float y0;
-    /// Right X coordinate.
-    float x1;
-    /// Bottom Y coordinate.
-    float y1;
-    /// Packed RGBA color.
-    uint32_t color;
-    /// Corner radius for rounded rects (0 for sharp).
-    float corner_radius;
-    /// Border width in pixels (0 for filled).
-    float border_width;
-    /// Vertex shader flags (textured, rounded, etc.).
-    uint32_t flags;
+  /// A quad's four corners, clockwise from the top left, and the texture
+  /// or shape coordinate at each.
+  struct QuadCorners {
+    /// Layout-space positions.
+    std::array<std::array<float, 2>, 4> pos{};
+    /// Texture coordinates, or 0..1 across a shape.
+    std::array<std::array<float, 2>, 4> uv{};
   };
 
-  /// Clip-space corners and UVs for one textured quad.
-  struct TexturedQuadVerts {
-    /// Left X coordinate.
-    float x0;
-    /// Top Y coordinate.
-    float y0;
-    /// Right X coordinate.
-    float x1;
-    /// Bottom Y coordinate.
-    float y1;
-    /// Left U texture coordinate.
-    float u0;
-    /// Top V texture coordinate.
-    float v0;
-    /// Right U texture coordinate.
-    float u1;
-    /// Bottom V texture coordinate.
-    float v1;
-    /// Packed RGBA color.
-    uint32_t color;
-  };
-
-  /// Endpoints and normal half-width for a thick line quad.
-  struct ThickLineVerts {
-    /// Start X coordinate.
-    float x0;
-    /// Start Y coordinate.
-    float y0;
-    /// End X coordinate.
-    float x1;
-    /// End Y coordinate.
-    float y1;
-    /// Normal X (perpendicular half-width offset).
-    float nx;
-    /// Normal Y (perpendicular half-width offset).
-    float ny;
-    /// Packed RGBA color.
-    uint32_t color;
-  };
-
-  /// Position and UV for one corner of a styled quad.
-  struct CornerPosUV {
-    /// Screen-space X.
-    float x;
-    /// Screen-space Y.
-    float y;
-    /// Texture U coordinate.
-    float u;
-    /// Texture V coordinate.
-    float v;
-  };
-
-  /// Build one styled quad vertex at a given corner position and UV.
-  GuiVertex makeStyledVertex(const StyledQuadVerts& q, const CornerPosUV& c) {
-    return GuiVertex{{c.x, c.y},     {c.u, c.v}, q.color,     q.corner_radius,
-                     q.border_width, q.flags,    q.x1 - q.x0, q.y1 - q.y0};
+  /// @p rect's corners, with @p uv's across them.
+  QuadCorners rectCorners(const Rect& rect, const Rect& uv) {
+    const float x1 = rect.x + rect.w;
+    const float y1 = rect.y + rect.h;
+    const float u1 = uv.x + uv.w;
+    const float v1 = uv.y + uv.h;
+    return {{{{rect.x, rect.y}, {x1, rect.y}, {x1, y1}, {rect.x, y1}}},
+            {{{uv.x, uv.y}, {u1, uv.y}, {u1, v1}, {uv.x, v1}}}};
   }
 
-  // Algorithm: Four GuiVertex corners for one styled rounded quad.
-  void appendStyledQuadVertices(GuiRendererContext& ctx,
-                                const StyledQuadVerts& q) {
-    ctx.vertices.push_back(makeStyledVertex(q, {q.x0, q.y0, 0, 0}));
-    ctx.vertices.push_back(makeStyledVertex(q, {q.x1, q.y0, 1, 0}));
-    ctx.vertices.push_back(makeStyledVertex(q, {q.x1, q.y1, 1, 1}));
-    ctx.vertices.push_back(makeStyledVertex(q, {q.x0, q.y1, 0, 1}));
+  /// The corners of @p line's quad, (@p nx, @p ny) either side of it.
+  QuadCorners lineCorners(const GuiRendererContext::EmitLineParams& line,
+                          float nx, float ny) {
+    return {{{{line.x0 + nx, line.y0 + ny},
+              {line.x0 - nx, line.y0 - ny},
+              {line.x1 - nx, line.y1 - ny},
+              {line.x1 + nx, line.y1 + ny}}},
+            {{{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}}}};
   }
 
-  void appendTexturedQuadCorners(GuiRendererContext& ctx,
-                                 const TexturedQuadVerts& t) {
-    ctx.vertices.push_back(GuiVertex{
-        {t.x0, t.y0}, {t.u0, t.v0}, t.color, 0, 0, FLAG_TEXTURED, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {t.x1, t.y0}, {t.u1, t.v0}, t.color, 0, 0, FLAG_TEXTURED, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {t.x1, t.y1}, {t.u1, t.v1}, t.color, 0, 0, FLAG_TEXTURED, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {t.x0, t.y1}, {t.u0, t.v1}, t.color, 0, 0, FLAG_TEXTURED, 0, 0});
+  /// @p packed with its alpha scaled by @p factor.
+  uint32_t scaleAlpha(uint32_t packed, float factor) {
+    if (factor >= 1.0f) {
+      return packed;
+    }
+    const auto alpha = static_cast<float>(packed >> 24U) * factor;
+    return (packed & 0x00FFFFFFU) |
+           (static_cast<uint32_t>(std::clamp(alpha, 0.0f, 255.0f)) << 24U);
   }
 
-  void appendThickLineQuad(GuiRendererContext& ctx, const ThickLineVerts& ln) {
-    ctx.vertices.push_back(GuiVertex{
-        {ln.x0 + ln.nx, ln.y0 + ln.ny}, {0, 0}, ln.color, 0, 0, 0, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {ln.x0 - ln.nx, ln.y0 - ln.ny}, {1, 0}, ln.color, 0, 0, 0, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {ln.x1 - ln.nx, ln.y1 - ln.ny}, {1, 1}, ln.color, 0, 0, 0, 0, 0});
-    ctx.vertices.push_back(GuiVertex{
-        {ln.x1 + ln.nx, ln.y1 + ln.ny}, {0, 1}, ln.color, 0, 0, 0, 0, 0});
+  /// @p v's lengths — quad size, radii, borders, blur — scaled by @p s,
+  /// so a shape drawn scaled keeps its proportions.
+  void scaleLengths(GuiVertex& v, float s) {
+    v.rect_w *= s;
+    v.rect_h *= s;
+    for (size_t i = 0; i < 4; ++i) {
+      v.radii[i] *= s;
+      v.border[i] *= s;
+    }
+    if ((v.flags & GUI_VERTEX_LINEAR_GRADIENT) == 0) {
+      v.param *= s;
+    }
+  }
+
+  /// @p v as the context's transform and alpha scale draw it.
+  GuiVertex transformed(const GuiRendererContext& ctx, GuiVertex v) {
+    const GuiRenderTransform& t = ctx.transform;
+    v.pos[0] = t.mapX(v.pos[0]);
+    v.pos[1] = t.mapY(v.pos[1]);
+    if (t.scale != 1.0f) {
+      scaleLengths(v, t.scale);
+    }
+    v.color = scaleAlpha(v.color, ctx.alpha_scale);
+    v.color2 = scaleAlpha(v.color2, ctx.alpha_scale);
+    return v;
+  }
+
+  /// Append the four corners of a quad sharing @p shared's fields.
+  void appendCorners(GuiRendererContext& ctx, const GuiVertex& shared,
+                     const QuadCorners& corners) {
+    for (size_t i = 0; i < 4; ++i) {
+      GuiVertex v = shared;
+      v.pos[0] = corners.pos[i][0];
+      v.pos[1] = corners.pos[i][1];
+      v.uv[0] = corners.uv[i][0];
+      v.uv[1] = corners.uv[i][1];
+      ctx.vertices.push_back(transformed(ctx, v));
+    }
   }
 
   /// Append 6 indices for a quad from the last 4 vertices.
@@ -537,35 +506,37 @@ void GuiRendererContext::beginFrame() {
   // returns between pushScissor and popScissor would otherwise leave a clip
   // on the stack that narrows every later frame.
   scissor_stack.depth = 0;
+  transform = {};
+  alpha_scale = 1.0f;
 }
 
 void GuiRendererContext::emitQuad(const EmitQuadParams& params) {
-  uint32_t flags = (params.corner_radius > 0.0f) ? FLAG_ROUNDED_RECT : 0;
-  StyledQuadVerts q{params.rect.x,
-                    params.rect.y,
-                    params.rect.x + params.rect.w,
-                    params.rect.y + params.rect.h,
-                    params.color,
-                    params.corner_radius,
-                    params.border_width,
-                    flags};
-  appendStyledQuadVertices(*this, q);
+  GuiVertex style{.color = params.color, .color2 = params.color};
+  if (params.corner_radius > 0.0f) {
+    style.flags = GUI_VERTEX_SHAPE;
+    std::ranges::fill(style.radii, params.corner_radius);
+  }
+  if (params.border_width > 0.0f) {
+    std::ranges::fill(style.border, params.border_width);
+  }
+  emitShape(params.rect, style);
+}
+
+void GuiRendererContext::emitShape(const Rect& rect, const GuiVertex& style) {
+  GuiVertex shared = style;
+  shared.rect_w = rect.w;
+  shared.rect_h = rect.h;
+  appendCorners(*this, shared, rectCorners(rect, FULL_UV));
   appendQuadIndices(*this);
   recordQuadBatch(*this, 0);
 }
 
 void GuiRendererContext::emitTexturedQuad(
     const EmitTexturedQuadParams& params) {
-  TexturedQuadVerts t{params.rect.x,
-                      params.rect.y,
-                      params.rect.x + params.rect.w,
-                      params.rect.y + params.rect.h,
-                      params.uv.x,
-                      params.uv.y,
-                      params.uv.x + params.uv.w,
-                      params.uv.y + params.uv.h,
-                      params.color};
-  appendTexturedQuadCorners(*this, t);
+  const GuiVertex shared{.color = params.color,
+                         .color2 = params.color,
+                         .flags = GUI_VERTEX_TEXTURED};
+  appendCorners(*this, shared, rectCorners(params.rect, params.uv));
   appendQuadIndices(*this);
   recordQuadBatch(*this, params.texture);
 }
@@ -586,18 +557,16 @@ void GuiRendererContext::emitGlyph(const EmitGlyphParams& params) {
 }
 
 void GuiRendererContext::emitLine(const EmitLineParams& params) {
-  float dx = params.x1 - params.x0;
-  float dy = params.y1 - params.y0;
-  float len = std::sqrt(dx * dx + dy * dy);
+  const float dx = params.x1 - params.x0;
+  const float dy = params.y1 - params.y0;
+  const float len = std::sqrt(dx * dx + dy * dy);
   if (len < MIN_LINE_LENGTH) {
     return;
   }
-  float half = params.width * 0.5f;
-  float nx = -dy / len * half;
-  float ny = dx / len * half;
-  ThickLineVerts ln{params.x0, params.y0, params.x1,   params.y1,
-                    nx,        ny,        params.color};
-  appendThickLineQuad(*this, ln);
+  const float nx = -dy / len * params.width * 0.5f;
+  const float ny = dx / len * params.width * 0.5f;
+  appendCorners(*this, {.color = params.color, .color2 = params.color},
+                lineCorners(params, nx, ny));
   appendQuadIndices(*this);
   recordQuadBatch(*this, 0);
 }
@@ -607,10 +576,12 @@ void GuiRendererContext::pushScissor(const Rect& rect) {
     return;
   }
   const auto depth = scissor_stack.depth;
-  // A nested clip can only ever shrink its parent's.
+  // Clips are laid-out rects, and move with what they clip. A nested clip
+  // can only ever shrink its parent's.
+  const Rect drawn = transform.map(rect);
   const Rect clipped =
-      depth > 0 ? intersectRects(scissorRectAt(scissor_stack, depth - 1), rect)
-                : rect;
+      depth > 0 ? intersectRects(scissorRectAt(scissor_stack, depth - 1), drawn)
+                : drawn;
   storeScissorRect(scissor_stack, depth, clipped);
   scissor_stack.depth++;
   appendScissorCommand(*this, DrawCommandType::PUSH_SCISSOR, clipped);

@@ -7,7 +7,11 @@
 
 #include "draw-pos.h"
 #include "gui-color.h"
+#include "gui-corners.h"
+#include "gui-nine-slice.h"
+#include "gui-rect-paint.h"
 #include "gui-renderer.h"
+#include "gui-shadow.h"
 #include "gui-state-style.h"
 #include "gui-theme.h"
 #include "text-pipeline.h"
@@ -55,11 +59,28 @@ public:
   void drawRoundedRect(const Rect& rect, const GuiColor& color,
                        float radius) const;
 
-  /// Draw @p style's box over @p rect — fill, then border, at its radius —
-  /// with every colour's alpha scaled by @p opacity. What a themed widget
-  /// draws its background with.
+  /// Draw @p style's box over @p rect — the theme's shadow for its
+  /// elevation, its fill, then its border, at its radius — with every
+  /// colour's alpha scaled by @p opacity. What a themed widget draws its
+  /// background with.
   void drawBox(const Rect& rect, const GuiStateStyle& style,
                float opacity) const;
+
+  /// Paint @p paint: its fill or gradient, then its border, at its corner
+  /// radii — any box CSS could draw with `background`, `border` and
+  /// `border-radius`.
+  void drawRect(const GuiRectPaint& paint) const;
+
+  /// Draw @p shadow under a box at @p rect with @p radii: offset, grown by
+  /// its spread and softened by its blur, as CSS's `box-shadow`. Draw it
+  /// before the box.
+  void drawShadow(const Rect& rect, const GuiCorners& radii,
+                  const GuiShadow& shadow) const;
+
+  /// Draw @p image over @p rect, its corners at their own size and its
+  /// edges and middle stretched, tinted by @p tint.
+  void drawNineSlice(const Rect& rect, const GuiNineSlice& image,
+                     const GuiColor& tint) const;
 
   /// Draw a 1px border rectangle.
   void drawBorderRect(const Rect& rect, const GuiColor& color) const;

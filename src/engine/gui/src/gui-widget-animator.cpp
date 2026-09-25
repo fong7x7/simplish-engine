@@ -35,9 +35,27 @@ static float* rectScalarTarget(Rect& rect, GuiAnimProperty prop) {
   }
 }
 
+/// Returns a pointer to the draw-transform field for the property, or
+/// nullptr.
+static float* renderScalarTarget(GuiWidget& w, GuiAnimProperty prop) {
+  switch (prop) {
+    case GuiAnimProperty::RENDER_SCALE:
+      return &w.render_scale;
+    case GuiAnimProperty::RENDER_OFFSET_X:
+      return &w.render_offset_x;
+    case GuiAnimProperty::RENDER_OFFSET_Y:
+      return &w.render_offset_y;
+    default:
+      return nullptr;
+  }
+}
+
 void GuiWidgetAnimator::applyScalar(GuiWidget& w, GuiAnimProperty prop,
                                     float val) {
   float* target = rectScalarTarget(w.rect, prop);
+  if (target == nullptr) {
+    target = renderScalarTarget(w, prop);
+  }
   if (target != nullptr) {
     *target = val;
     return;

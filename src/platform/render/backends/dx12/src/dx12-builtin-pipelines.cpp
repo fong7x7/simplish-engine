@@ -18,7 +18,7 @@ namespace {
   constexpr const char DX12_PS_TARGET[] = "ps_5_1";
 
   /// Byte stride of `eng::GuiVertex`, restated from `gui-vertex-layout.h`.
-  constexpr uint32_t GUI_VERTEX_STRIDE = 40;
+  constexpr uint32_t GUI_VERTEX_STRIDE = 72;
 
   /// Byte stride of `eng::MeshVertex`: two tightly packed float3s.
   constexpr uint32_t MESH_VERTEX_STRIDE = 32;
@@ -36,20 +36,24 @@ struct GuiVertexIn {
   float2 position : ATTR0;
   float2 uv : ATTR1;
   uint color : ATTR2;
-  float corner_radius : ATTR3;
-  float border_width : ATTR4;
-  uint flags : ATTR5;
-  float2 rect_wh : ATTR6;
+  uint color2 : ATTR3;
+  float4 radii : ATTR4;
+  float4 border : ATTR5;
+  uint flags : ATTR6;
+  float2 rect_wh : ATTR7;
+  float param : ATTR8;
 };
 
 struct GuiVsOut {
   float4 position : SV_Position;
   float2 uv : TEXCOORD0;
   float4 color : TEXCOORD1;
-  nointerpolation uint flags : TEXCOORD2;
-  nointerpolation float corner_radius : TEXCOORD3;
-  nointerpolation float border_width : TEXCOORD4;
-  nointerpolation float2 rect_wh : TEXCOORD5;
+  nointerpolation float4 color2 : TEXCOORD2;
+  nointerpolation uint flags : TEXCOORD3;
+  nointerpolation float4 radii : TEXCOORD4;
+  nointerpolation float4 border : TEXCOORD5;
+  nointerpolation float2 rect_wh : TEXCOORD6;
+  nointerpolation float param : TEXCOORD7;
 };
 
 // sRGB-encoded byte (0-1) -> linear, for output to an sRGB colour target.
@@ -75,50 +79,71 @@ GuiVsOut gui_vs_main(GuiVertexIn v) {
                       1.0f - v.position.y * gui_screen_scale.y, 0.0f, 1.0f);
   o.uv = v.uv;
   o.color = unpack_rgba8888(v.color);
+  o.color2 = unpack_rgba8888(v.color2);
   o.flags = v.flags;
-  o.corner_radius = v.corner_radius;
-  o.border_width = v.border_width;
+  o.radii = v.radii;
+  o.border = v.border;
   o.rect_wh = v.rect_wh;
+  o.param = v.param;
   return o;
 }
 
-float gui_rounded_shape_cover_from_p(float2 p, float2 rect_wh, float corner_r) {
-  float rw = rect_wh.x;
-  float rh = rect_wh.y;
-  if (rw <= 0.f || rh <= 0.f) {
-    return 0.f;
+float gui_sd_round_rect(float2 p, float2 half_ext, float4 radii) {
+  float r = p.x < 0.0f ? (p.y < 0.0f ? radii.x : radii.w)
+                       : (p.y < 0.0f ? radii.y : radii.z);
+  r = clamp(r, 0.0f, min(half_ext.x, half_ext.y));
+  float2 q = abs(p) - half_ext + float2(r, r);
+  return length(max(q, float2(0.0f, 0.0f))) + min(max(q.x, q.y), 0.0f) - r;
+}
+
+float gui_cover(float d, float soft) {
+  float w = max(max(fwidth(d), soft), 1e-4f);
+  return 1.0f - smoothstep(-w, w, d);
+}
+
+float4 gui_fill(GuiVsOut i, float2 p) {
+  if ((i.flags & 8u) != 0u) {
+    float2 dir = float2(cos(i.param), sin(i.param));
+    float len = abs(i.rect_wh.x * dir.x) + abs(i.rect_wh.y * dir.y);
+    float t = dot(p, dir) / max(len, 1e-4f) + 0.5f;
+    return lerp(i.color, i.color2, saturate(t));
   }
-  float r = min(max(corner_r, 0.f), min(rw, rh) * 0.5f);
-  float2 half_ext = float2(rw, rh) * 0.5f;
-  float2 b = max(half_ext - float2(r, r), float2(0.f, 0.f));
-  float2 q = abs(p) - b;
-  float d = length(max(q, float2(0.f, 0.f))) + min(max(q.x, q.y), 0.f) - r;
-  float w = max(fwidth(d), 1e-4f);
-  return 1.f - smoothstep(-w, w, d);
+  if ((i.flags & 16u) != 0u) {
+    float t = length(p / max(i.rect_wh * 0.5f, float2(1e-4f, 1e-4f)));
+    return lerp(i.color, i.color2, saturate(t));
+  }
+  return i.color;
+}
+
+float gui_border_cover(float2 p, float2 half_ext, float4 radii, float4 b) {
+  float outer_c = gui_cover(gui_sd_round_rect(p, half_ext, radii), 0.0f);
+  float2 inner_half = half_ext - float2(b.w + b.y, b.x + b.z) * 0.5f;
+  if (inner_half.x <= 0.0f || inner_half.y <= 0.0f) {
+    return outer_c;
+  }
+  float2 centre = float2(b.w - b.y, b.x - b.z) * 0.5f;
+  float4 inner_r = max(radii - float4(max(b.x, b.w), max(b.x, b.y),
+                                      max(b.z, b.y), max(b.z, b.w)),
+                       float4(0.0f, 0.0f, 0.0f, 0.0f));
+  float inner_c =
+      gui_cover(gui_sd_round_rect(p - centre, inner_half, inner_r), 0.0f);
+  return outer_c * (1.0f - inner_c);
 }
 
 float4 gui_ps_main(GuiVsOut i) : SV_Target {
   if ((i.flags & 2u) != 0u) {
     return gui_texture.Sample(gui_sampler, i.uv) * i.color;
   }
-  float2 p = float2((i.uv.x - 0.5f) * i.rect_wh.x,
-                    (i.uv.y - 0.5f) * i.rect_wh.y);
-  float4 c = i.color;
-  const float bw = i.border_width;
-  const uint rounded_flag = i.flags & 4u;
-  if (bw > 1e-5f) {
-    float cr_o = (rounded_flag != 0u) ? i.corner_radius : 0.f;
-    float outer_c = gui_rounded_shape_cover_from_p(p, i.rect_wh, cr_o);
-    float irw = max(i.rect_wh.x - 2.f * bw, 0.f);
-    float irh = max(i.rect_wh.y - 2.f * bw, 0.f);
-    float in_r = (rounded_flag != 0u) ? max(i.corner_radius - bw, 0.f) : 0.f;
-    float inner_c = gui_rounded_shape_cover_from_p(p, float2(irw, irh), in_r);
-    c.a *= outer_c * (1.f - inner_c);
-    return c;
-  }
-  if (rounded_flag != 0u) {
-    c.a *= gui_rounded_shape_cover_from_p(p, i.rect_wh, i.corner_radius);
-    return c;
+  float2 half_ext = i.rect_wh * 0.5f;
+  float2 p = (i.uv - float2(0.5f, 0.5f)) * i.rect_wh;
+  float4 c = gui_fill(i, p);
+  if ((i.flags & 32u) != 0u) {
+    float2 shape = max(half_ext - float2(i.param, i.param), float2(0.0f, 0.0f));
+    c.a *= gui_cover(gui_sd_round_rect(p, shape, i.radii), i.param * 0.5f);
+  } else if (any(i.border > float4(1e-5f, 1e-5f, 1e-5f, 1e-5f))) {
+    c.a *= gui_border_cover(p, half_ext, i.radii, i.border);
+  } else if ((i.flags & 4u) != 0u) {
+    c.a *= gui_cover(gui_sd_round_rect(p, half_ext, i.radii), 0.0f);
   }
   return c;
 }
@@ -1275,20 +1300,24 @@ float4 water_ps_main(WaterVsOut i) : SV_Target {
 
   /// Vertex input elements for `eng::GuiVertex`, in `buildInputLayout`'s
   /// "ATTR<location>" semantic convention.
-  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 7> GUI_INPUT_ELEMENTS{{
+  constexpr std::array<D3D12_INPUT_ELEMENT_DESC, 9> GUI_INPUT_ELEMENTS{{
       {"ATTR", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 8,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
       {"ATTR", 2, DXGI_FORMAT_R32_UINT, 0, 16,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-      {"ATTR", 3, DXGI_FORMAT_R32_FLOAT, 0, 20,
+      {"ATTR", 3, DXGI_FORMAT_R32_UINT, 0, 20,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-      {"ATTR", 4, DXGI_FORMAT_R32_FLOAT, 0, 24,
+      {"ATTR", 4, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-      {"ATTR", 5, DXGI_FORMAT_R32_UINT, 0, 28,
+      {"ATTR", 5, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 40,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-      {"ATTR", 6, DXGI_FORMAT_R32G32_FLOAT, 0, 32,
+      {"ATTR", 6, DXGI_FORMAT_R32_UINT, 0, 56,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 7, DXGI_FORMAT_R32G32_FLOAT, 0, 60,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+      {"ATTR", 8, DXGI_FORMAT_R32_FLOAT, 0, 68,
        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
   }};
 

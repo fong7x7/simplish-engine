@@ -60,16 +60,20 @@ struct TestGuiVertex {
   std::array<float, 2> uv{};
   /// Packed RGBA8, red in the low byte.
   uint32_t color = 0;
-  /// Corner radius of a rounded rect.
-  float corner_radius = 0.0f;
-  /// Border width.
-  float border_width = 0.0f;
-  /// 0x2 textured, 0x4 rounded.
+  /// Gradient end colour.
+  uint32_t color2 = 0;
+  /// Corner radii, top-left clockwise.
+  std::array<float, 4> radii{};
+  /// Border widths, top clockwise.
+  std::array<float, 4> border{};
+  /// 0x2 textured, 0x4 shape.
   uint32_t flags = 0;
-  /// Rect size, for the rounded-rect coverage.
+  /// Rect size, for the shape coverage.
   std::array<float, 2> rect_wh{};
+  /// Gradient angle or shadow blur.
+  float param = 0.0f;
 };
-static_assert(sizeof(TestGuiVertex) == 40);
+static_assert(sizeof(TestGuiVertex) == 72);
 
 /// World-to-clip and object-to-world, both identity.
 constexpr std::array<float, 32> IDENTITY_UNIFORMS{
@@ -183,10 +187,16 @@ std::array<TestSkinnedVertex, 4> skinnedTopHalfQuad(float z) {
 std::array<TestGuiVertex, 4> leftHalfGuiQuad(uint32_t color, uint32_t flags) {
   constexpr float W = GPU_TEST_SIZE / 2.0f;
   constexpr float H = GPU_TEST_SIZE;
-  return {{{{0, 0}, {0, 0}, color, 0, 0, flags, {W, H}},
-           {{W, 0}, {1, 0}, color, 0, 0, flags, {W, H}},
-           {{W, H}, {1, 1}, color, 0, 0, flags, {W, H}},
-           {{0, H}, {0, 1}, color, 0, 0, flags, {W, H}}}};
+  auto corner = [&](std::array<float, 2> pos, std::array<float, 2> uv) {
+    return TestGuiVertex{.position = pos,
+                         .uv = uv,
+                         .color = color,
+                         .color2 = color,
+                         .flags = flags,
+                         .rect_wh = {W, H}};
+  };
+  return {{corner({0, 0}, {0, 0}), corner({W, 0}, {1, 0}),
+           corner({W, H}, {1, 1}), corner({0, H}, {0, 1})}};
 }
 
 /// One indexed quad's inputs.

@@ -4,6 +4,8 @@
 
 #include "engine/gui/gui-software-rasterizer.h"
 
+#include "gui-quad-shading.h"
+
 // Use stb_image_write declarations only. The single-file implementation
 // is already compiled into each RHI backend (dx12 / metal / vulkan /
 // opengl) via its own `stb-image-write-impl.cpp` — re-defining
@@ -34,8 +36,6 @@ namespace {
   /// `engine/gui/src/gui-renderer.cpp`).
   constexpr size_t VERTICES_PER_QUAD = 4;
 
-  /// `GuiVertex::flags` bit marking a textured quad; glyphs use it alone.
-  constexpr uint32_t VERTEX_FLAG_TEXTURED = 0x2U;
 
   /// Smallest quad extent used as a divisor, to keep the UV map finite.
   constexpr float MIN_QUAD_EXTENT = 1e-4F;
@@ -191,19 +191,6 @@ namespace {
     return c;
   }
 
-  /// True when `(x, y)` lies within `stroke_px` of any edge of the half-
-  /// open rectangle `[bounds.x_min, bounds.x_max) × [bounds.y_min,
-  /// bounds.y_max)`. Used to rasterize border-only quads as an outline
-  /// frame instead of a filled box.
-  bool isOnBorder(int32_t x, int32_t y, const PixelBounds& bounds,
-                  int32_t stroke_px) {
-    bool near_left = (x - bounds.x_min) < stroke_px;
-    bool near_right = (bounds.x_max - 1 - x) < stroke_px;
-    bool near_top = (y - bounds.y_min) < stroke_px;
-    bool near_bottom = (bounds.y_max - 1 - y) < stroke_px;
-    return near_left || near_right || near_top || near_bottom;
-  }
-
   /// Texture-coordinate extent of a quad, taken as min/max across its
   /// corners so the mapping does not depend on vertex winding.
   struct UvBounds {
@@ -293,37 +280,56 @@ namespace {
     }
   }
 
-  /// Composite one solid quad: a filled box, or a frame when the quad
-  /// carries a border width.
+  /// Composite a quad with no shape — a line — as its colour across its
+  /// bounding box.
   void compositeSolidQuad(const PixelTarget& tgt, const PixelBounds& bounds,
-                          const FloatRgba& src, int32_t stroke_px) {
-    const bool is_border = stroke_px > 0;
+                          const FloatRgba& src) {
     for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
       for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
-        if (is_border && !isOnBorder(x, y, bounds, stroke_px)) {
-          continue;
-        }
         writePixel(tgt, x, y, compositeOver(src, readPixel(tgt, x, y)));
       }
     }
   }
 
-  /// Composite one quad's bounding box into the pixel buffer.
+  /// Composite a shape quad pixel by pixel as the GUI shader shades it:
+  /// rounded, bordered, graded or a shadow.
+  void compositeShapeQuad(const PixelTarget& tgt, const PixelBounds& bounds,
+                          const FloatBounds& box, const GuiVertex& shape) {
+    const float cx = (box.min_x + box.max_x) * 0.5F;
+    const float cy = (box.min_y + box.max_y) * 0.5F;
+    for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
+      for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
+        const GuiShadedPixel px =
+            shadeGuiShape(shape, static_cast<float>(x) + 0.5F - cx,
+                          static_cast<float>(y) + 0.5F - cy);
+        if (px.a > 0.0F) {
+          writePixel(
+              tgt, x, y,
+              compositeOver({px.r, px.g, px.b, px.a}, readPixel(tgt, x, y)));
+        }
+      }
+    }
+  }
+
+  /// Composite one quad: a glyph sampled from the atlas, a shape shaded
+  /// per pixel, or a line filled across its box.
   void compositeQuad(const PixelTarget& tgt, uint32_t image_h,
                      const std::array<GuiVertex, VERTICES_PER_QUAD>& quad) {
-    auto src = unpackRgba(quad[0].color);
-    if (src.a <= 0.0F) {
+    const GuiVertex& v = quad[0];
+    const auto bounds = quadBoundsClipped(quad, tgt.width, image_h);
+    const FloatBounds box = quadFloatBounds(quad);
+    if ((v.flags & GUI_VERTEX_TEXTURED) != 0 && tgt.hasGlyphAtlas()) {
+      compositeGlyphQuad(tgt, bounds, makeUvMap(box, quadUvBounds(quad)),
+                         unpackRgba(v.color));
       return;
     }
-    auto bounds = quadBoundsClipped(quad, tgt.width, image_h);
-    if ((quad[0].flags & VERTEX_FLAG_TEXTURED) != 0 && tgt.hasGlyphAtlas()) {
-      const FloatBounds box = quadFloatBounds(quad);
-      compositeGlyphQuad(tgt, bounds, makeUvMap(box, quadUvBounds(quad)), src);
-      return;
+    const bool shaped = (v.flags & GUI_VERTEX_TEXTURED) == 0 &&
+                        v.rect_w > 0.0F && v.rect_h > 0.0F;
+    if (shaped) {
+      compositeShapeQuad(tgt, bounds, box, v);
+    } else {
+      compositeSolidQuad(tgt, bounds, unpackRgba(v.color));
     }
-    compositeSolidQuad(
-        tgt, bounds, src,
-        static_cast<int32_t>(std::max(0.0F, quad[0].border_width)));
   }
 
   /// Initialise the pixel buffer with the background colour.

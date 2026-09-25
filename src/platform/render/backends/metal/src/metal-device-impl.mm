@@ -278,7 +278,7 @@ namespace {
   }
 
   /// Byte stride for `GuiVertex` in the Metal GUI pipeline.
-  constexpr NSUInteger GUI_VERTEX_STRIDE = 40;
+  constexpr NSUInteger GUI_VERTEX_STRIDE = 72;
 
   /// MSL source for screen-space GUI quads (matches `GuiVertex`).
   constexpr const char GUI_MSL_SOURCE[] = R"msl(
@@ -293,20 +293,24 @@ struct GuiVertexIn {
   float2 position [[attribute(0)]];
   float2 uv [[attribute(1)]];
   uint color [[attribute(2)]];
-  float corner_radius [[attribute(3)]];
-  float border_width [[attribute(4)]];
-  uint flags [[attribute(5)]];
-  float2 rect_wh [[attribute(6)]];
+  uint color2 [[attribute(3)]];
+  float4 radii [[attribute(4)]];
+  float4 border [[attribute(5)]];
+  uint flags [[attribute(6)]];
+  float2 rect_wh [[attribute(7)]];
+  float param [[attribute(8)]];
 };
 
 struct GuiVsOut {
   float4 position [[position]];
   float2 uv;
   float4 color;
-  uint flags;
-  float corner_radius;
-  float border_width;
-  float2 rect_wh;
+  float4 color2 [[flat]];
+  uint flags [[flat]];
+  float4 radii [[flat]];
+  float4 border [[flat]];
+  float2 rect_wh [[flat]];
+  float param [[flat]];
 };
 
 /// sRGB-encoded byte (0–1) → linear for fragment output to an sRGB color attachment.
@@ -334,26 +338,66 @@ vertex GuiVsOut gui_vs_main(GuiVertexIn in [[stage_in]],
              1.0f - in.position.y * screen.scale.y, 0.0f, 1.0f);
   out.uv = in.uv;
   out.color = unpack_rgba8888(in.color);
+  out.color2 = unpack_rgba8888(in.color2);
   out.flags = in.flags;
-  out.corner_radius = in.corner_radius;
-  out.border_width = in.border_width;
+  out.radii = in.radii;
+  out.border = in.border;
   out.rect_wh = in.rect_wh;
+  out.param = in.param;
   return out;
 }
 
-float gui_rounded_shape_cover_from_p(float2 p, float2 rect_wh, float corner_r) {
-  float rw = rect_wh.x;
-  float rh = rect_wh.y;
-  if (rw <= 0.f || rh <= 0.f) {
-    return 0.f;
+// The GUI's shapes, in the quad's own pixels: p runs from -half to +half,
+// y down. `gui-quad-shading.cpp` is the same maths on the CPU, for the
+// software rasterizer, and the reference for every backend's copy.
+
+/// Signed distance from p to a rounded rect of half-size half_ext, whose
+/// corners are radii (top-left, top-right, bottom-right, bottom-left).
+float gui_sd_round_rect(float2 p, float2 half_ext, float4 radii) {
+  float r = p.x < 0.0f ? (p.y < 0.0f ? radii.x : radii.w)
+                       : (p.y < 0.0f ? radii.y : radii.z);
+  r = clamp(r, 0.0f, min(half_ext.x, half_ext.y));
+  float2 q = abs(p) - half_ext + float2(r);
+  return length(max(q, float2(0.0f))) + min(max(q.x, q.y), 0.0f) - r;
+}
+
+/// Coverage of a pixel at distance d from an edge, faded over soft pixels
+/// (at least one, for anti-aliasing).
+float gui_cover(float d, float soft) {
+  float w = max(max(fwidth(d), soft), 1e-4f);
+  return 1.0f - smoothstep(-w, w, d);
+}
+
+/// The fill colour at p: flat, or a linear or radial gradient.
+float4 gui_fill(GuiVsOut in, float2 p) {
+  if ((in.flags & 8u) != 0u) {
+    float2 dir = float2(cos(in.param), sin(in.param));
+    float len = abs(in.rect_wh.x * dir.x) + abs(in.rect_wh.y * dir.y);
+    float t = dot(p, dir) / max(len, 1e-4f) + 0.5f;
+    return mix(in.color, in.color2, clamp(t, 0.0f, 1.0f));
   }
-  float r = min(max(corner_r, 0.f), min(rw, rh) * 0.5f);
-  float2 half_ext = float2(rw, rh) * 0.5f;
-  float2 b = max(half_ext - float2(r), float2(0));
-  float2 q = abs(p) - b;
-  float d = length(max(q, float2(0))) + min(max(q.x, q.y), 0.f) - r;
-  float w = max(fwidth(d), 1e-4f);
-  return 1.f - smoothstep(-w, w, d);
+  if ((in.flags & 16u) != 0u) {
+    float t = length(p / max(in.rect_wh * 0.5f, float2(1e-4f)));
+    return mix(in.color, in.color2, clamp(t, 0.0f, 1.0f));
+  }
+  return in.color;
+}
+
+/// Coverage of the ring between the shape and the shape inset by the
+/// border widths (top, right, bottom, left).
+float gui_border_cover(float2 p, float2 half_ext, float4 radii, float4 b) {
+  float outer_c = gui_cover(gui_sd_round_rect(p, half_ext, radii), 0.0f);
+  float2 inner_half = half_ext - float2(b.w + b.y, b.x + b.z) * 0.5f;
+  if (inner_half.x <= 0.0f || inner_half.y <= 0.0f) {
+    return outer_c;
+  }
+  float2 centre = float2(b.w - b.y, b.x - b.z) * 0.5f;
+  float4 inner_r = max(radii - float4(max(b.x, b.w), max(b.x, b.y),
+                                      max(b.z, b.y), max(b.z, b.w)),
+                       float4(0.0f));
+  float inner_c =
+      gui_cover(gui_sd_round_rect(p - centre, inner_half, inner_r), 0.0f);
+  return outer_c * (1.0f - inner_c);
 }
 
 fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
@@ -362,28 +406,20 @@ fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
   if ((in.flags & 2u) != 0u) {
     return tex.sample(smp, in.uv) * in.color;
   }
-  float2 p = float2((in.uv.x - 0.5f) * in.rect_wh.x,
-                    (in.uv.y - 0.5f) * in.rect_wh.y);
-  float4 c = in.color;
-  const float bw = in.border_width;
-  const uint rounded_flag = in.flags & 4u;
-  if (bw > 1e-5f) {
-    float cr_o = (rounded_flag != 0u) ? in.corner_radius : 0.f;
-    float outer_c = gui_rounded_shape_cover_from_p(p, in.rect_wh, cr_o);
-    float irw = max(in.rect_wh.x - 2.f * bw, 0.f);
-    float irh = max(in.rect_wh.y - 2.f * bw, 0.f);
-    float in_r = (rounded_flag != 0u) ? max(in.corner_radius - bw, 0.f) : 0.f;
-    float inner_c =
-        gui_rounded_shape_cover_from_p(p, float2(irw, irh), in_r);
-    float ring = outer_c * (1.f - inner_c);
-    c.a *= ring;
+  float2 half_ext = in.rect_wh * 0.5f;
+  float2 p = (in.uv - float2(0.5f)) * in.rect_wh;
+  float4 c = gui_fill(in, p);
+  if ((in.flags & 32u) != 0u) {
+    float2 shape = max(half_ext - float2(in.param), float2(0.0f));
+    c.a *= gui_cover(gui_sd_round_rect(p, shape, in.radii), in.param * 0.5f);
     return c;
   }
-  if (rounded_flag != 0u) {
-    float cover = gui_rounded_shape_cover_from_p(p, in.rect_wh,
-                                                 in.corner_radius);
-    c.a *= cover;
+  if (any(in.border > float4(1e-5f))) {
+    c.a *= gui_border_cover(p, half_ext, in.radii, in.border);
     return c;
+  }
+  if ((in.flags & 4u) != 0u) {
+    c.a *= gui_cover(gui_sd_round_rect(p, half_ext, in.radii), 0.0f);
   }
   return c;
 }
@@ -404,33 +440,30 @@ fragment float4 gui_fs_main(GuiVsOut in [[stage_in]],
     vd.attributes[1].bufferIndex = 0;
   }
 
-  void setGuiVertexAttrs2345(MTLVertexDescriptor* vd) {
-    vd.attributes[2].format = MTLVertexFormatUInt;
-    vd.attributes[2].offset = 16;
-    vd.attributes[2].bufferIndex = 0;
-    vd.attributes[3].format = MTLVertexFormatFloat;
-    vd.attributes[3].offset = 20;
-    vd.attributes[3].bufferIndex = 0;
-    vd.attributes[4].format = MTLVertexFormatFloat;
-    vd.attributes[4].offset = 24;
-    vd.attributes[4].bufferIndex = 0;
-    vd.attributes[5].format = MTLVertexFormatUInt;
-    vd.attributes[5].offset = 28;
-    vd.attributes[5].bufferIndex = 0;
+  /// Set attribute @p index of @p vd to @p format at @p offset.
+  void setGuiAttr(MTLVertexDescriptor* vd, NSUInteger index,
+                  MTLVertexFormat format, NSUInteger offset) {
+    vd.attributes[index].format = format;
+    vd.attributes[index].offset = offset;
+    vd.attributes[index].bufferIndex = 0;
   }
 
-  void setGuiVertexAttr6RectWh(MTLVertexDescriptor* vd) {
-    vd.attributes[6].format = MTLVertexFormatFloat2;
-    vd.attributes[6].offset = 32;
-    vd.attributes[6].bufferIndex = 0;
+  /// `eng::GuiVertex` from `color` on, at `gui-vertex-layout.h`'s offsets.
+  void setGuiVertexAttrs2To8(MTLVertexDescriptor* vd) {
+    setGuiAttr(vd, 2, MTLVertexFormatUInt, 16);
+    setGuiAttr(vd, 3, MTLVertexFormatUInt, 20);
+    setGuiAttr(vd, 4, MTLVertexFormatFloat4, 24);
+    setGuiAttr(vd, 5, MTLVertexFormatFloat4, 40);
+    setGuiAttr(vd, 6, MTLVertexFormatUInt, 56);
+    setGuiAttr(vd, 7, MTLVertexFormatFloat2, 60);
+    setGuiAttr(vd, 8, MTLVertexFormatFloat, 68);
   }
 
   MTLVertexDescriptor* makeGuiVertexDescriptor() {
     auto* vd = [[MTLVertexDescriptor alloc] init];
     setGuiVertexBufferLayout(vd);
     setGuiVertexAttrs01(vd);
-    setGuiVertexAttrs2345(vd);
-    setGuiVertexAttr6RectWh(vd);
+    setGuiVertexAttrs2To8(vd);
     return vd;
   }
 

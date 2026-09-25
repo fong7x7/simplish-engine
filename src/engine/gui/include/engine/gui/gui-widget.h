@@ -211,8 +211,17 @@ public:
   /// it: it is never the widget hit itself, though its children may be.
   /// A see-through overlay — a game's HUD over its view — sets it.
   bool pointer_through = false;
-  /// Opacity multiplier [0, 1] applied to all colors during rendering.
+  /// Opacity multiplier [0, 1] applied to all colors during rendering —
+  /// the widget's own, and, in a tree, its whole subtree's.
   float opacity = 1.0f;
+  /// Drawn scaled by this about its centre, with its subtree: a button
+  /// pressed in, a dialog popping up. Layout and hit testing ignore it,
+  /// as they ignore a CSS transform's effect on flow.
+  float render_scale = 1.0f;
+  /// Drawn moved right by this many layout pixels, with its subtree.
+  float render_offset_x = 0.0f;
+  /// Drawn moved down by this many layout pixels, with its subtree.
+  float render_offset_y = 0.0f;
   /// Turned off: drawn in the DISABLED style, clicks and navigation pass
   /// it by, and focus skips it.
   bool disabled = false;

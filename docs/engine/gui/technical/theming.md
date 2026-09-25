@@ -208,8 +208,9 @@ function. After editing a `GuiTheme` in code, call `deriveComponents()`.
 - **Interaction goes through flags** (`disabled`, `selected`), never by
   swapping styles by hand each tick. The transition only animates a change
   of state.
-- **Elevation is recorded now and drawn by the renderer's shadow
-  primitive.** Until that lands, `drawBox` ignores it.
+- **Elevation draws a shadow.** `drawBox` draws the theme's `shadow(elevation)`
+  under any filled style that is raised; `GuiDropdown` does, from
+  `theme.menu`.
 
 ## 6. What is not here
 

@@ -1198,7 +1198,7 @@ namespace {
 
   /// Keep in sync with `sizeof(eng::GuiVertex)` /
   /// `eng::gui::GUI_VERTEX_STRIDE`.
-  constexpr uint32_t GUI_VERTEX_STRIDE_BYTES = 40;
+  constexpr uint32_t GUI_VERTEX_STRIDE_BYTES = 72;
   /// Size of one `eng::MeshVertex`: position, normal, and texture
   /// coordinate. Restated here as every backend restates it — see
   /// `mesh-vertex.h`, whose own test asserts this number.
@@ -2327,17 +2327,21 @@ void main() {
 layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec2 a_uv;
 layout(location = 2) in uint a_packed_color;
-layout(location = 3) in float a_corner_radius;
-layout(location = 4) in float a_border_width;
-layout(location = 5) in uint a_flags;
-layout(location = 6) in vec2 a_rect_wh;
+layout(location = 3) in uint a_packed_color2;
+layout(location = 4) in vec4 a_radii;
+layout(location = 5) in vec4 a_border;
+layout(location = 6) in uint a_flags;
+layout(location = 7) in vec2 a_rect_wh;
+layout(location = 8) in float a_param;
 uniform vec2 u_screen_scale;
 out vec2 v_uv;
 out vec4 v_color;
+flat out vec4 v_color2;
 flat out uint v_flags;
-flat out float v_corner_radius;
-flat out float v_border_width;
+flat out vec4 v_radii;
+flat out vec4 v_border;
 flat out vec2 v_rect_wh;
+flat out float v_param;
 float srgb_to_lin(float srgb) {
   if (srgb <= 0.04045) {
     return srgb / 12.92;
@@ -2356,10 +2360,12 @@ void main() {
                      1.0 - a_pos.y * u_screen_scale.y, 0.0, 1.0);
   v_uv = a_uv;
   v_color = unpack_rgba8888(a_packed_color);
+  v_color2 = unpack_rgba8888(a_packed_color2);
   v_flags = a_flags;
-  v_corner_radius = a_corner_radius;
-  v_border_width = a_border_width;
+  v_radii = a_radii;
+  v_border = a_border;
   v_rect_wh = a_rect_wh;
+  v_param = a_param;
 }
 )glsl";
 
@@ -2367,50 +2373,67 @@ void main() {
 #version 460 core
 in vec2 v_uv;
 in vec4 v_color;
+flat in vec4 v_color2;
 flat in uint v_flags;
-flat in float v_corner_radius;
-flat in float v_border_width;
+flat in vec4 v_radii;
+flat in vec4 v_border;
 flat in vec2 v_rect_wh;
+flat in float v_param;
 layout(binding = 0) uniform sampler2D u_gui_tex;
 out vec4 frag_color;
-float gui_shape_cover(vec2 p, vec2 rect_wh, float corner_r) {
-  float rw = rect_wh.x;
-  float rh = rect_wh.y;
-  if (rw <= 0.0 || rh <= 0.0) {
-    return 0.0;
-  }
-  float r = min(max(corner_r, 0.0), min(rw, rh) * 0.5);
-  vec2 half_ext = vec2(rw, rh) * 0.5;
-  vec2 b = max(half_ext - vec2(r), vec2(0.0));
-  vec2 q = abs(p) - b;
-  float d = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
-  float w = max(fwidth(d), 1e-4);
+float gui_sd_round_rect(vec2 p, vec2 half_ext, vec4 radii) {
+  float r = p.x < 0.0 ? (p.y < 0.0 ? radii.x : radii.w)
+                      : (p.y < 0.0 ? radii.y : radii.z);
+  r = clamp(r, 0.0, min(half_ext.x, half_ext.y));
+  vec2 q = abs(p) - half_ext + vec2(r);
+  return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
+}
+float gui_cover(float d, float soft) {
+  float w = max(max(fwidth(d), soft), 1e-4);
   return 1.0 - smoothstep(-w, w, d);
+}
+vec4 gui_fill(vec2 p) {
+  if ((v_flags & 8u) != 0u) {
+    vec2 dir = vec2(cos(v_param), sin(v_param));
+    float len = abs(v_rect_wh.x * dir.x) + abs(v_rect_wh.y * dir.y);
+    float t = dot(p, dir) / max(len, 1e-4) + 0.5;
+    return mix(v_color, v_color2, clamp(t, 0.0, 1.0));
+  }
+  if ((v_flags & 16u) != 0u) {
+    float t = length(p / max(v_rect_wh * 0.5, vec2(1e-4)));
+    return mix(v_color, v_color2, clamp(t, 0.0, 1.0));
+  }
+  return v_color;
+}
+float gui_border_cover(vec2 p, vec2 half_ext, vec4 radii, vec4 b) {
+  float outer_c = gui_cover(gui_sd_round_rect(p, half_ext, radii), 0.0);
+  vec2 inner_half = half_ext - vec2(b.w + b.y, b.x + b.z) * 0.5;
+  if (inner_half.x <= 0.0 || inner_half.y <= 0.0) {
+    return outer_c;
+  }
+  vec2 centre = vec2(b.w - b.y, b.x - b.z) * 0.5;
+  vec4 inner_r = max(radii - vec4(max(b.x, b.w), max(b.x, b.y),
+                                  max(b.z, b.y), max(b.z, b.w)),
+                     vec4(0.0));
+  float inner_c =
+      gui_cover(gui_sd_round_rect(p - centre, inner_half, inner_r), 0.0);
+  return outer_c * (1.0 - inner_c);
 }
 void main() {
   if ((v_flags & 2u) != 0u) {
     frag_color = texture(u_gui_tex, v_uv) * v_color;
     return;
   }
-  vec2 p = vec2((v_uv.x - 0.5) * v_rect_wh.x, (v_uv.y - 0.5) * v_rect_wh.y);
-  vec4 c = v_color;
-  float bw = v_border_width;
-  uint rf = v_flags & 4u;
-  if (bw > 1e-5) {
-    float cr_o = (rf != 0u) ? v_corner_radius : 0.0;
-    float outer_c = gui_shape_cover(p, v_rect_wh, cr_o);
-    float irw = max(v_rect_wh.x - 2.0 * bw, 0.0);
-    float irh = max(v_rect_wh.y - 2.0 * bw, 0.0);
-    float in_r = (rf != 0u) ? max(v_corner_radius - bw, 0.0) : 0.0;
-    float inner_c = gui_shape_cover(p, vec2(irw, irh), in_r);
-    c.a *= outer_c * (1.0 - inner_c);
-    frag_color = c;
-    return;
-  }
-  if (rf != 0u) {
-    c.a *= gui_shape_cover(p, v_rect_wh, v_corner_radius);
-    frag_color = c;
-    return;
+  vec2 half_ext = v_rect_wh * 0.5;
+  vec2 p = (v_uv - vec2(0.5)) * v_rect_wh;
+  vec4 c = gui_fill(p);
+  if ((v_flags & 32u) != 0u) {
+    vec2 shape = max(half_ext - vec2(v_param), vec2(0.0));
+    c.a *= gui_cover(gui_sd_round_rect(p, shape, v_radii), v_param * 0.5);
+  } else if (any(greaterThan(v_border, vec4(1e-5)))) {
+    c.a *= gui_border_cover(p, half_ext, v_radii, v_border);
+  } else if ((v_flags & 4u) != 0u) {
+    c.a *= gui_cover(gui_sd_round_rect(p, half_ext, v_radii), 0.0);
   }
   frag_color = c;
 }
@@ -2492,32 +2515,36 @@ void main() {
     glBindVertexArray(0);
   }
 
+  /// Point float attribute @p index at @p count floats from @p offset.
+  void guiFloatAttr(GLuint index, GLint count, GLuint offset) {
+    glEnableVertexAttribArray(index);
+    glVertexAttribFormat(index, count, GL_FLOAT, GL_FALSE, offset);
+    glVertexAttribBinding(index, 0);
+  }
+
+  /// Point integer attribute @p index at one uint at @p offset.
+  void guiUintAttr(GLuint index, GLuint offset) {
+    glEnableVertexAttribArray(index);
+    glVertexAttribIFormat(index, 1, GL_UNSIGNED_INT, offset);
+    glVertexAttribBinding(index, 0);
+  }
+
+  /// `eng::GuiVertex` at `gui-vertex-layout.h`'s offsets.
   void setupGuiVertexArray(GLuint vao) {
     glBindVertexArray(vao);
-    glEnableVertexAttribArray(0);
-    glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0);
-    glVertexAttribBinding(0, 0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8);
-    glVertexAttribBinding(1, 0);
-    glEnableVertexAttribArray(2);
-    glVertexAttribIFormat(2, 1, GL_UNSIGNED_INT, 16);
-    glVertexAttribBinding(2, 0);
-    glEnableVertexAttribArray(3);
-    glVertexAttribFormat(3, 1, GL_FLOAT, GL_FALSE, 20);
-    glVertexAttribBinding(3, 0);
-    glEnableVertexAttribArray(4);
-    glVertexAttribFormat(4, 1, GL_FLOAT, GL_FALSE, 24);
-    glVertexAttribBinding(4, 0);
-    glEnableVertexAttribArray(5);
-    glVertexAttribIFormat(5, 1, GL_UNSIGNED_INT, 28);
-    glVertexAttribBinding(5, 0);
-    glEnableVertexAttribArray(6);
-    glVertexAttribFormat(6, 2, GL_FLOAT, GL_FALSE, 32);
-    glVertexAttribBinding(6, 0);
+    guiFloatAttr(0, 2, 0);
+    guiFloatAttr(1, 2, 8);
+    guiUintAttr(2, 16);
+    guiUintAttr(3, 20);
+    guiFloatAttr(4, 4, 24);
+    guiFloatAttr(5, 4, 40);
+    guiUintAttr(6, 56);
+    guiFloatAttr(7, 2, 60);
+    guiFloatAttr(8, 1, 68);
     glVertexBindingDivisor(0, 0);
     glBindVertexArray(0);
   }
+
 
 }  // namespace
 

@@ -25,6 +25,9 @@ enum class GuiAnimProperty : uint8_t {
   OPACITY,
   FILL_COLOR,
   BORDER_COLOR,
+  RENDER_SCALE,
+  RENDER_OFFSET_X,
+  RENDER_OFFSET_Y,
 };
 
 /// A single property animation running on a widget.

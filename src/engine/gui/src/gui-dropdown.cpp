@@ -57,13 +57,16 @@ void GuiDropdown::renderBackground(const GuiDrawContext& ctx,
   const auto wf = static_cast<float>(rs.width);
   const auto ihf = static_cast<float>(rs.item_height);
   const float h = static_cast<float>(static_cast<int>(items.size())) * ihf;
-  Rect bg{rect.x, rect.y, wf, h};
-  ctx.drawRoundedRect(bg, rs.bg, corner_radius);
+  // The theme's menu: raised on its shadow, rounded; the widget's own
+  // corner radius and border win where it sets them.
+  GuiStateStyle box = ctx.activeTheme().menu;
+  box.fill = rs.bg;
+  box.radius = corner_radius > 0.0f ? corner_radius : box.radius;
   if (border_width > 0.0f) {
-    ctx.drawRoundedBorderRect({bg, border_color, corner_radius, border_width});
-  } else {
-    ctx.drawBorderRect(bg, rs.bg);
+    box.border = border_color;
+    box.border_width = border_width;
   }
+  ctx.drawBox({rect.x, rect.y, wf, h}, box, opacity);
 }
 
 void GuiDropdown::renderHoverHighlight(const GuiDrawContext& ctx,
@@ -73,7 +76,7 @@ void GuiDropdown::renderHoverHighlight(const GuiDrawContext& ctx,
   const auto ihf = static_cast<float>(rs.item_height);
   Rect hr{rect.x + static_cast<float>(HOVER_INSET), iy,
           wf - 2.0f * static_cast<float>(HOVER_INSET), ihf};
-  ctx.drawFilledRect(hr, rs.hover);
+  ctx.drawRoundedRect(hr, rs.hover, ctx.activeTheme().radius(GuiRadius::SM));
 }
 
 void GuiDropdown::renderSeparator(const GuiDrawContext& ctx,

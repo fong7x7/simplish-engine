@@ -29,17 +29,21 @@ layout(set = 0, binding = 1, std140) uniform ScreenToNdc {
 layout(location = 0) in vec2 in_position;
 layout(location = 1) in vec2 in_uv;
 layout(location = 2) in uint in_color;
-layout(location = 3) in float in_corner_radius;
-layout(location = 4) in float in_border_width;
-layout(location = 5) in uint in_flags;
-layout(location = 6) in vec2 in_rect_wh;
+layout(location = 3) in uint in_color2;
+layout(location = 4) in vec4 in_radii;
+layout(location = 5) in vec4 in_border;
+layout(location = 6) in uint in_flags;
+layout(location = 7) in vec2 in_rect_wh;
+layout(location = 8) in float in_param;
 
 layout(location = 0) out vec2 out_uv;
 layout(location = 1) out vec4 out_color;
-layout(location = 2) flat out uint out_flags;
-layout(location = 3) flat out float out_corner_radius;
-layout(location = 4) flat out float out_border_width;
-layout(location = 5) flat out vec2 out_rect_wh;
+layout(location = 2) flat out vec4 out_color2;
+layout(location = 3) flat out uint out_flags;
+layout(location = 4) flat out vec4 out_radii;
+layout(location = 5) flat out vec4 out_border;
+layout(location = 6) flat out vec2 out_rect_wh;
+layout(location = 7) flat out float out_param;
 
 // sRGB-encoded byte (0-1) -> linear, for output to an sRGB colour target.
 float srgb_byte_to_linear(float srgb) {
@@ -63,10 +67,12 @@ void main() {
                      1.0 - in_position.y * screen.scale.y, 0.0, 1.0);
   out_uv = in_uv;
   out_color = unpack_rgba8888(in_color);
+  out_color2 = unpack_rgba8888(in_color2);
   out_flags = in_flags;
-  out_corner_radius = in_corner_radius;
-  out_border_width = in_border_width;
+  out_radii = in_radii;
+  out_border = in_border;
   out_rect_wh = in_rect_wh;
+  out_param = in_param;
 }
 )glsl";
 
@@ -79,26 +85,55 @@ layout(set = 0, binding = 6) uniform sampler gui_sampler;
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in vec4 in_color;
-layout(location = 2) flat in uint in_flags;
-layout(location = 3) flat in float in_corner_radius;
-layout(location = 4) flat in float in_border_width;
-layout(location = 5) flat in vec2 in_rect_wh;
+layout(location = 2) flat in vec4 in_color2;
+layout(location = 3) flat in uint in_flags;
+layout(location = 4) flat in vec4 in_radii;
+layout(location = 5) flat in vec4 in_border;
+layout(location = 6) flat in vec2 in_rect_wh;
+layout(location = 7) flat in float in_param;
 
 layout(location = 0) out vec4 out_color;
 
-float gui_rounded_shape_cover_from_p(vec2 p, vec2 rect_wh, float corner_r) {
-  float rw = rect_wh.x;
-  float rh = rect_wh.y;
-  if (rw <= 0.0 || rh <= 0.0) {
-    return 0.0;
-  }
-  float r = min(max(corner_r, 0.0), min(rw, rh) * 0.5);
-  vec2 half_ext = vec2(rw, rh) * 0.5;
-  vec2 b = max(half_ext - vec2(r), vec2(0.0));
-  vec2 q = abs(p) - b;
-  float d = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
-  float w = max(fwidth(d), 1e-4);
+float gui_sd_round_rect(vec2 p, vec2 half_ext, vec4 radii) {
+  float r = p.x < 0.0 ? (p.y < 0.0 ? radii.x : radii.w)
+                      : (p.y < 0.0 ? radii.y : radii.z);
+  r = clamp(r, 0.0, min(half_ext.x, half_ext.y));
+  vec2 q = abs(p) - half_ext + vec2(r);
+  return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float gui_cover(float d, float soft) {
+  float w = max(max(fwidth(d), soft), 1e-4);
   return 1.0 - smoothstep(-w, w, d);
+}
+
+vec4 gui_fill(vec2 p) {
+  if ((in_flags & 8u) != 0u) {
+    vec2 dir = vec2(cos(in_param), sin(in_param));
+    float len = abs(in_rect_wh.x * dir.x) + abs(in_rect_wh.y * dir.y);
+    float t = dot(p, dir) / max(len, 1e-4) + 0.5;
+    return mix(in_color, in_color2, clamp(t, 0.0, 1.0));
+  }
+  if ((in_flags & 16u) != 0u) {
+    float t = length(p / max(in_rect_wh * 0.5, vec2(1e-4)));
+    return mix(in_color, in_color2, clamp(t, 0.0, 1.0));
+  }
+  return in_color;
+}
+
+float gui_border_cover(vec2 p, vec2 half_ext, vec4 radii, vec4 b) {
+  float outer_c = gui_cover(gui_sd_round_rect(p, half_ext, radii), 0.0);
+  vec2 inner_half = half_ext - vec2(b.w + b.y, b.x + b.z) * 0.5;
+  if (inner_half.x <= 0.0 || inner_half.y <= 0.0) {
+    return outer_c;
+  }
+  vec2 centre = vec2(b.w - b.y, b.x - b.z) * 0.5;
+  vec4 inner_r = max(radii - vec4(max(b.x, b.w), max(b.x, b.y),
+                                  max(b.z, b.y), max(b.z, b.w)),
+                     vec4(0.0));
+  float inner_c =
+      gui_cover(gui_sd_round_rect(p - centre, inner_half, inner_r), 0.0);
+  return outer_c * (1.0 - inner_c);
 }
 
 void main() {
@@ -106,24 +141,16 @@ void main() {
     out_color = texture(sampler2D(gui_texture, gui_sampler), in_uv) * in_color;
     return;
   }
-  vec2 p = vec2((in_uv.x - 0.5) * in_rect_wh.x,
-                (in_uv.y - 0.5) * in_rect_wh.y);
-  vec4 c = in_color;
-  float bw = in_border_width;
-  uint rounded_flag = in_flags & 4u;
-  if (bw > 1e-5) {
-    float cr_o = (rounded_flag != 0u) ? in_corner_radius : 0.0;
-    float outer_c = gui_rounded_shape_cover_from_p(p, in_rect_wh, cr_o);
-    float irw = max(in_rect_wh.x - 2.0 * bw, 0.0);
-    float irh = max(in_rect_wh.y - 2.0 * bw, 0.0);
-    float in_r = (rounded_flag != 0u) ? max(in_corner_radius - bw, 0.0) : 0.0;
-    float inner_c = gui_rounded_shape_cover_from_p(p, vec2(irw, irh), in_r);
-    c.a *= outer_c * (1.0 - inner_c);
-    out_color = c;
-    return;
-  }
-  if (rounded_flag != 0u) {
-    c.a *= gui_rounded_shape_cover_from_p(p, in_rect_wh, in_corner_radius);
+  vec2 half_ext = in_rect_wh * 0.5;
+  vec2 p = (in_uv - vec2(0.5)) * in_rect_wh;
+  vec4 c = gui_fill(p);
+  if ((in_flags & 32u) != 0u) {
+    vec2 shape = max(half_ext - vec2(in_param), vec2(0.0));
+    c.a *= gui_cover(gui_sd_round_rect(p, shape, in_radii), in_param * 0.5);
+  } else if (any(greaterThan(in_border, vec4(1e-5)))) {
+    c.a *= gui_border_cover(p, half_ext, in_radii, in_border);
+  } else if ((in_flags & 4u) != 0u) {
+    c.a *= gui_cover(gui_sd_round_rect(p, half_ext, in_radii), 0.0);
   }
   out_color = c;
 }
@@ -1324,7 +1351,7 @@ void main() {
 )glsl";
 
   /// Byte stride of `eng::GuiVertex`, restated from `gui-vertex-layout.h`.
-  constexpr uint32_t GUI_VERTEX_STRIDE = 40;
+  constexpr uint32_t GUI_VERTEX_STRIDE = 72;
 
   /// Byte stride of `eng::MeshVertex`: position, normal, uv.
   constexpr uint32_t MESH_VERTEX_STRIDE = 32;
@@ -1335,16 +1362,18 @@ void main() {
 
   using Attribute = VkVertexInputAttributeDescription;
 
-  /// `GuiVertex`: position, uv, packed colour, corner radius, border width,
-  /// flags, rect size.
-  constexpr std::array<Attribute, 7> GUI_ATTRIBUTES{{
+  /// `GuiVertex`: position, uv, packed colour and gradient end, corner
+  /// radii, border widths, flags, rect size, param.
+  constexpr std::array<Attribute, 9> GUI_ATTRIBUTES{{
       {0, 0, VK_FORMAT_R32G32_SFLOAT, 0},
       {1, 0, VK_FORMAT_R32G32_SFLOAT, 8},
       {2, 0, VK_FORMAT_R32_UINT, 16},
-      {3, 0, VK_FORMAT_R32_SFLOAT, 20},
-      {4, 0, VK_FORMAT_R32_SFLOAT, 24},
-      {5, 0, VK_FORMAT_R32_UINT, 28},
-      {6, 0, VK_FORMAT_R32G32_SFLOAT, 32},
+      {3, 0, VK_FORMAT_R32_UINT, 20},
+      {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 24},
+      {5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 40},
+      {6, 0, VK_FORMAT_R32_UINT, 56},
+      {7, 0, VK_FORMAT_R32G32_SFLOAT, 60},
+      {8, 0, VK_FORMAT_R32_SFLOAT, 68},
   }};
 
   /// `MeshVertex` for the static pipeline, and the first three of the

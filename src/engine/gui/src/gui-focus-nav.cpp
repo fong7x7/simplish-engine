@@ -179,6 +179,57 @@ namespace {
     GuiRendererContext* renderer_ = nullptr;
   };
 
+  /// Draws a widget and its subtree moved and faded as one: sets the
+  /// renderer's transform to the widget's `render_scale` and
+  /// `render_offset` inside its parent's for the widget and its children,
+  /// and, for the children, multiplies the alpha by the widget's opacity
+  /// (the widget applies its own to itself). Restores both on the way out.
+  class ScopedLayer {
+  public:
+    ScopedLayer(const GuiDrawContext& ctx, const GuiWidget& widget)
+      : renderer_(ctx.renderer), widget_(widget) {
+      if (renderer_ == nullptr) {
+        return;
+      }
+      transform_ = renderer_->transform;
+      alpha_ = renderer_->alpha_scale;
+      if (widget.render_scale != 1.0f || widget.render_offset_x != 0.0f ||
+          widget.render_offset_y != 0.0f) {
+        renderer_->transform = transform_.after(GuiRenderTransform::about(
+            widget.rect, widget.render_scale, widget.render_offset_x,
+            widget.render_offset_y));
+      }
+    }
+    ~ScopedLayer() {
+      if (renderer_ != nullptr) {
+        renderer_->transform = transform_;
+        renderer_->alpha_scale = alpha_;
+      }
+    }
+    ScopedLayer(const ScopedLayer&) = delete;
+    ScopedLayer& operator=(const ScopedLayer&) = delete;
+    ScopedLayer(ScopedLayer&&) = delete;
+    ScopedLayer& operator=(ScopedLayer&&) = delete;
+
+    /// Fade what is drawn from here on — the children — by the widget's
+    /// opacity.
+    void enterChildren() const {
+      if (renderer_ != nullptr) {
+        renderer_->alpha_scale = alpha_ * widget_.opacity;
+      }
+    }
+
+  private:
+    /// The renderer drawn to, or null when there is none.
+    GuiRendererContext* renderer_ = nullptr;
+    /// The widget whose layer this is.
+    const GuiWidget& widget_;
+    /// The transform to restore.
+    GuiRenderTransform transform_{};
+    /// The alpha scale to restore.
+    float alpha_ = 1.0f;
+  };
+
   /// @p rect grown by the ring's outset on every side.
   Rect ringAround(const Rect& rect) {
     return {rect.x - RING_OUTSET, rect.y - RING_OUTSET,
@@ -428,9 +479,11 @@ void GuiWidgetTree::renderTreeNode(GuiWidgetId id,
   if (widget == nullptr || !widget->visible) {
     return;
   }
+  const ScopedLayer layer{ctx, *widget};
   if (!widget->overlay_registered) {
     widget->render(ctx);
   }
+  layer.enterChildren();
   const ScopedClip clip{ctx, widget->childClipRect()};
   for (const GuiWidgetId child : sortedChildIdsByZ(*this, *widget)) {
     renderTreeNode(child, ctx);

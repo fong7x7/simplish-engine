@@ -9,6 +9,7 @@
 #include "glyph-info.h"
 #include "gui-frame-buffers.h"
 #include "gui-rect.h"
+#include "gui-render-transform.h"
 #include "gui-vertex.h"
 #include "scissor-stack.h"
 
@@ -51,6 +52,11 @@ public:
   std::vector<DrawCommand> commands{};
   /// Clipping scissor rect stack.
   ScissorStack scissor_stack;
+  /// Applied to everything emitted, and to scissor rects: a subtree drawn
+  /// scaled or moved (`GuiWidget::render_scale`, `render_offset`).
+  GuiRenderTransform transform{};
+  /// Multiplies every emitted colour's alpha: a subtree fading as one.
+  float alpha_scale = 1.0f;
   /// Command index where a 3D scene composites; `NO_SCENE_SPLIT` when the
   /// frame marked none.
   size_t scene_split = NO_SCENE_SPLIT;
@@ -99,6 +105,12 @@ public:
 
   /// Emit a solid or rounded-rect quad.
   void emitQuad(const EmitQuadParams& params);
+
+  /// Emit a quad over @p rect drawn as @p style says: its colours, radii,
+  /// borders, `GUI_VERTEX_*` flags and param. Position, uv and rect size
+  /// are filled in here. What every shape — gradient, shadow, per-corner
+  /// radii, per-side borders — is drawn with.
+  void emitShape(const Rect& rect, const GuiVertex& style);
 
   /// Parameters for emitting a textured quad.
   struct EmitTexturedQuadParams {

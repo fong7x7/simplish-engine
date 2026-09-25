@@ -13,20 +13,16 @@
 ///     live vertex buffer to PNG without going through the GPU.
 ///   - Game debug captures / error reports.
 ///
-/// Scope limits (what WILL and WON'T be correctly visualised):
-///   - Solid-coloured axis-aligned quads (every panel fill) — rendered
-///     with alpha compositing. Perfect for layout verification.
-///   - Borders / thick lines — approximated as their axis-aligned
-///     bounding box. Legible but not pixel-perfect.
-///   - Rounded rects — rendered as straight rects at the quad bounding
-///     box. Corner radius is ignored; colour is correct.
-///   - Text glyphs are emitted as textured quads. Given the font
-///     atlas (`rasterizeQuads` overload taking a `GlyphAtlas`) they
-///     are sampled per pixel and come out legible; without it they
-///     fall back to their fill colour across the bounding box
-///     (readable silhouettes, not legible text).
-///   - Shader effects (drop shadows, SDF anti-aliasing, gradients)
-///     are not rendered; only base fill colours appear.
+/// What it draws: every shape quad — fills, rounded and per-corner
+/// radii, per-side borders, linear and radial gradients, soft shadows —
+/// shaded per pixel by the same maths as the GPU shader
+/// (`gui-quad-shading.h`), so a capture shows corners, rings and shadows
+/// as the editor does. Lines are filled across their bounding box. Glyph
+/// quads are sampled from the font atlas when given one
+/// (`rasterizeQuads` taking a `GlyphAtlas`), else painted as boxes.
+/// Colours blend in sRGB bytes rather than linear light, so
+/// translucent overlaps and gradient midpoints differ a little from the
+/// GPU's, and scissor clips are not applied.
 ///
 /// For pixel-perfect rendering, capture from the real RHI backend and
 /// GPU-readback into `ImageData`. The interface below remains identical

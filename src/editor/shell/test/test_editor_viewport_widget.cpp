@@ -73,7 +73,7 @@ TEST_CASE("the viewport paints no opaque background over itself") {
 
   for (size_t q = 0; q + 3 < vertices.size(); q += 4) {
     // A border-only quad draws a frame, not a fill, so it may span the rect.
-    if (vertices[q].border_width > 0.0f) {
+    if (vertices[q].border[0] > 0.0f) {
       continue;
     }
     float min_x = vertices[q].pos[0];
