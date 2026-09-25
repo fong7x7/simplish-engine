@@ -35,6 +35,7 @@ namespace {
     pool.max_health[i] = pool.health[i];
     pool.damaged_tick[i] = ACTOR_NEVER_DAMAGED;
     pool.attack_ready_tick[i] = 0;
+    pool.attack_lands_tick[i] = ACTOR_NOT_WINDING;
     pool.death_blast_radius[i] = spawn.death_blast_radius;
     pool.death_blast_damage[i] = spawn.death_blast_damage;
   }
@@ -74,6 +75,7 @@ namespace {
     sim::applySlotMoves(moves, pool.max_health);
     sim::applySlotMoves(moves, pool.damaged_tick);
     sim::applySlotMoves(moves, pool.attack_ready_tick);
+    sim::applySlotMoves(moves, pool.attack_lands_tick);
     sim::applySlotMoves(moves, pool.death_blast_radius);
     sim::applySlotMoves(moves, pool.death_blast_damage);
   }
@@ -128,6 +130,7 @@ namespace {
     hasher.addSpan(live(pool.max_health, n));
     hasher.addSpan(live(pool.damaged_tick, n));
     hasher.addSpan(live(pool.attack_ready_tick, n));
+    hasher.addSpan(live(pool.attack_lands_tick, n));
     hasher.addSpan(live(pool.death_blast_radius, n));
     hasher.addSpan(live(pool.death_blast_damage, n));
   }

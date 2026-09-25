@@ -8,6 +8,7 @@
 #include <game/combat/combat-system.h>
 #include <game/content/behavior-lookup.h>
 #include <game/content/character-lookup.h>
+#include <game/content/step-set-stride.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
 #include <game/world/logic-combatant.h>
@@ -116,8 +117,12 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
     content_(actorCapacity(setup) > setup.actors.size() ? content
                                                         : GameContent{}) {
   for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
-    (void)spawnPlayer(players_, slot, setup.spawns[slot],
-                      resolveCharacter(content, setup.characters[slot]));
+    const CharacterDefinition& character =
+        resolveCharacter(content, setup.characters[slot]);
+    if (const auto handle =
+            spawnPlayer(players_, slot, setup.spawns[slot], character)) {
+      player_gaits_[handle->index].stride = stepSetStride(character.footsteps);
+    }
   }
   spawnActors(setup, content);
   reserveEffects(effects_, actorCapacity(setup));
@@ -145,6 +150,58 @@ void GameWorld::enemyAi(const sim::TickContext& context) {
                               .rng = ai_rng_};
   stepActors(actors_, view, workspace_);
   noteActorEvents();
+  noteSteps();
+}
+
+void GameWorld::noteSteps() {
+  if (logic_ == nullptr || logic_steps_ == LogicSteps::NONE) {
+    return;
+  }
+  notePlayerSteps();
+  if (logic_steps_ == LogicSteps::EVERYONE) {
+    noteActorSteps();
+  }
+}
+
+void GameWorld::notePlayerSteps() {
+  for (uint32_t p = 0; p < players_.slots.size(); ++p) {
+    const sim::EntityHandle handle = players_.slots.handleAt(p);
+    if (walkOn(player_gaits_[handle.index], players_.position[p])) {
+      logic_events_.note(
+          {.kind = LogicEventKind::PLAYER_STEPPED,
+           .target = *logicTargetOf({CombatantKind::PLAYER, handle}),
+           .at = players_.position[p]});
+    }
+  }
+}
+
+void GameWorld::noteActorSteps() {
+  for (uint32_t i = 0; i < actors_.slots.size(); ++i) {
+    const sim::EntityHandle handle = actors_.slots.handleAt(i);
+    if (actors_.health[i] != 0 &&
+        walkOn(actor_gaits_[handle.index], actors_.position[i])) {
+      logic_events_.note(
+          {.kind = LogicEventKind::ACTOR_STEPPED,
+           .target = *logicTargetOf({CombatantKind::ACTOR, handle}),
+           .at = actors_.position[i],
+           .id = actor_ids_[handle.index]});
+    }
+  }
+}
+
+void GameWorld::hashGaits(sim::StateHasher& hasher) const {
+  hasher.add(logic_steps_);
+  const auto hashOne = [&hasher](const WalkerGait& gait) {
+    hasher.add(gait.last);
+    hasher.add(gait.travelled);
+    hasher.add(gait.known);
+  };
+  for (uint32_t p = 0; p < players_.slots.size(); ++p) {
+    hashOne(player_gaits_[players_.slots.handleAt(p).index]);
+  }
+  for (uint32_t i = 0; i < actors_.slots.size(); ++i) {
+    hashOne(actor_gaits_[actors_.slots.handleAt(i).index]);
+  }
 }
 
 void GameWorld::noteActorEvents() {
@@ -161,7 +218,7 @@ LogicEvent GameWorld::actorEvent(const ActorNote& note, uint32_t index) const {
   // In `ActorNoteKind` order.
   static constexpr LogicEventKind KINDS[] = {
       LogicEventKind::ACTOR_STATE_ENTERED, LogicEventKind::ACTOR_NOTICED,
-      LogicEventKind::ACTOR_ATTACKED};
+      LogicEventKind::ACTOR_ATTACKED, LogicEventKind::ACTOR_WINDING_UP};
   const bool entered = note.kind == ActorNoteKind::STATE_ENTERED;
   return {.kind = KINDS[static_cast<size_t>(note.kind)],
           .target = {LogicTargetKind::ACTOR, note.actor.index,
@@ -259,6 +316,7 @@ void GameWorld::addActor(const ActorSpawn& spawn) {
     actor_ids_[handle->index] = spawn.id;
     actor_models_[handle->index] = spawn.model;
     actor_spawned_[handle->index] = 1;
+    actor_gaits_[handle->index] = {.stride = stepSetStride(spawn.footsteps)};
     logic_events_.note(
         {LogicEventKind::ACTOR_SPAWNED,
          {LogicTargetKind::ACTOR, handle->index, handle->generation},
@@ -299,7 +357,7 @@ void GameWorld::runLogic(const sim::TickContext& context, LogicCall call) {
                        .obstacles = obstacles_,
                        .events = logic_events_.events(),
                        .rng = logic_rng_,
-                       .outcome = logic_outcome_,
+                       .run = {logic_outcome_, logic_steps_},
                        .output = {logic_log_, logic_cues_}});
   callLogic(view, context.tick, call);
 }
@@ -352,6 +410,7 @@ void GameWorld::enterLogicState(uint32_t index, uint8_t state, uint64_t tick) {
   actors_.state[index] = state;
   actors_.state_since[index] = tick;
   actors_.has_goal[index] = 0;
+  actors_.attack_lands_tick[index] = ACTOR_NOT_WINDING;
   logic_events_.note(actorEvent({.kind = ActorNoteKind::STATE_ENTERED,
                                  .actor = actors_.slots.handleAt(index),
                                  .state = state},
@@ -441,6 +500,7 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
     sim::StateHasher& section = builder.section("logic");
     section.add(logic_outcome_);
     section.add(logic_ended_);
+    hashGaits(section);
     section.add(logic_rng_.state());
     logic_events_.hashInto(section);
     WorldLogicHash hash(section);
@@ -504,6 +564,7 @@ void GameWorld::sizeActorSlots(uint32_t capacity) {
   actor_ids_.resize(capacity);
   actor_models_.resize(capacity);
   actor_spawned_.resize(capacity);
+  actor_gaits_.resize(capacity);
 }
 
 void GameWorld::spawnActors(const GameSetup& setup,
@@ -520,6 +581,7 @@ void GameWorld::spawnActors(const GameSetup& setup,
       assignRoute(actors_.slots.size() - 1U, spawn.route);
       actor_ids_[handle->index] = spawn.id;
       actor_models_[handle->index] = spawn.model;
+      actor_gaits_[handle->index] = {.stride = stepSetStride(spawn.footsteps)};
     }
   }
 }

@@ -82,6 +82,8 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onActorStateEntered(world, event)` | An actor went into another state of its behavior — by its own exits or the logic's `setActorState`; `event.state` is the state's id |
 | `onActorNoticed(world, event)` | An actor took someone new as its target; `event.other` is whom |
 | `onActorAttacked(world, event)` | An actor struck, fired, spat or blew itself up; `event.other` is whom it had in mind |
+| `onActorWindingUp(world, event)` | An actor began an attack that winds up; it lands its state's `windup_ticks` later, if it still can |
+| `onPlayerStepped(world, event)`, `onActorStepped(world, event)` | A foot came down — heard once `world.listenForSteps(LogicSteps::PLAYERS)` or `EVERYONE` asks |
 | `onTick(world)` | Every tick, after the hooks above |
 | `onRunEnded(world)` | Once, at the end of the tick the run ended on; `world.outcome()` says how. The tick after is never played, so writes do nothing — log the tally here |
 | `onHash(hash)` | Fold every member a later tick decides anything by into the tick hash |
@@ -95,6 +97,27 @@ void onActorHurt(GameLogicWorld& world, const LogicEvent& hit) override {
   }
 }
 ```
+
+### Moments smaller than a hit
+
+The low-level moments a game hangs rules on come from the simulation, in ticks — never from animation, which is presentation and may differ from machine to machine:
+
+```cpp
+void onStart(GameLogicWorld& world) override {
+  world.listenForSteps(LogicSteps::PLAYERS);   // PLAYER_STEPPED from now on
+}
+void onPlayerStepped(GameLogicWorld& world, const LogicEvent& step) override {
+  // Loud boots wake what is near.
+  for (const auto& sleeper : sdk::actorsWithin(world, step.at, 4.0F, {})) {
+    (void)world.setActorState(sleeper.target, "hunt");
+  }
+}
+void onActorWindingUp(GameLogicWorld& world, const LogicEvent& swing) override {
+  world.cue({.at = swing.at, .effect = "muzzle_sparks"});  // telegraph it
+}
+```
+
+A step comes each time a walker covers its feet's stride; a wind-up is an attacking state's `windup_ticks` ([actors.md §3](actors.md#3-behaviors)), heard as it begins, with `ACTOR_ATTACKED` as it lands.
 
 ### Asking the tick's events
 

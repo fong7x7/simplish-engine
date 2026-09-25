@@ -33,6 +33,7 @@ namespace {
                              .state = next});
     a.pool.state[a.i] = next;
     a.pool.state_since[a.i] = context.tick;
+    a.pool.attack_lands_tick[a.i] = ACTOR_NOT_WINDING;
     a.pool.has_goal[a.i] = 0;
     a.pool.arrived[a.i] = 0;
     a.pool.blocked[a.i] = 0;

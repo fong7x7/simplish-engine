@@ -259,7 +259,11 @@ rigged one step alike and a faster walker steps more often unasked. A
 walker just seen starts half a stride in; one that stopped starts again most
 of a stride in, so moving off is heard at once; more than a tile in one tick
 is a spawn or a jump, not a step. Strides: default 0.75 tiles, boots 0.8,
-bare 0.7, claws 0.45, heavy 1.1.
+bare 0.7, claws 0.45, heavy 1.1 — `stepSetStride`, in `game/content`, since
+the simulation steps by the same strides when game logic listens for steps
+([logic.md](../game/logic.md)). The sound's steps are presentation's own and
+the simulation's are the tick's; they fall at the same stride, not
+necessarily on the same frame.
 
 **What it sounds like** (`footstep-sounds.h`). Every surface has a built-in
 step, synthesised, under `step.default.<surface>`: a scuff, a swish, a

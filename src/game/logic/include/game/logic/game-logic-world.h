@@ -18,6 +18,7 @@
 #include <game/logic/logic-player.h>
 #include <game/logic/logic-shot.h>
 #include <game/logic/logic-spawn.h>
+#include <game/logic/logic-steps.h>
 #include <game/logic/logic-target.h>
 #include <game/logic/run-outcome.h>
 #include <optional>
@@ -160,6 +161,10 @@ public:
   /// playtest does; the headless deployed game drops it. Presentation:
   /// never state, and nothing a tick reads.
   virtual void cue(const LogicCue& cue) = 0;
+  /// Hear the steps of @p steps from the next tick on, as `PLAYER_STEPPED`
+  /// and `ACTOR_STEPPED` events: one each time a walker covers its feet's
+  /// stride. `NONE` until asked.
+  virtual void listenForSteps(LogicSteps steps) = 0;
 
   GameLogicWorld(const GameLogicWorld&) = delete;
   GameLogicWorld& operator=(const GameLogicWorld&) = delete;

@@ -20,6 +20,9 @@ namespace eng::game {
 /// What `ActorPool::damaged_tick` holds for an actor never hurt.
 inline constexpr uint64_t ACTOR_NEVER_DAMAGED = UINT64_MAX;
 
+/// What `ActorPool::attack_lands_tick` holds for an actor not winding up.
+inline constexpr uint64_t ACTOR_NOT_WINDING = UINT64_MAX;
+
 /// The actor pool (ADR-004): the enemies and NPCs, one array per field,
 /// each indexed by dense index. Every field is simulation state and is
 /// hashed; what a tick works out and throws away lives in `ActorWorkspace`.
@@ -56,6 +59,9 @@ struct ActorPool {
   std::vector<uint64_t> damaged_tick;
   /// The first tick each actor's attack can strike again.
   std::vector<uint64_t> attack_ready_tick;
+  /// The tick each actor's wound-up attack lands on, or
+  /// `ACTOR_NOT_WINDING`.
+  std::vector<uint64_t> attack_lands_tick;
   /// How far the blast each actor goes off in when it dies reaches; 0 for
   /// none.
   std::vector<float> death_blast_radius;

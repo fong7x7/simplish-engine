@@ -95,7 +95,16 @@ LogicActor WorldLogicView::actor(uint32_t index) const {
 }
 
 RunOutcome WorldLogicView::outcome() const {
-  return scene_.outcome;
+  if (scene_.run.outcome != RunOutcome::PLAYING) {
+    return scene_.run.outcome;
+  }
+  // As `GameWorld::outcome` has it: lost once no player is up.
+  for (uint32_t p = 0; p < scene_.players.slots.size(); ++p) {
+    if (playerIsUp(scene_.players, p)) {
+      return RunOutcome::PLAYING;
+    }
+  }
+  return RunOutcome::LOST;
 }
 
 std::optional<uint32_t> WorldLogicView::actorIndex(LogicTarget target) const {
@@ -162,8 +171,8 @@ void WorldLogicView::heal(LogicTarget target, uint16_t amount) {
 }
 
 void WorldLogicView::endRun(RunOutcome outcome) {
-  if (scene_.outcome == RunOutcome::PLAYING) {
-    scene_.outcome = outcome;
+  if (scene_.run.outcome == RunOutcome::PLAYING) {
+    scene_.run.outcome = outcome;
   }
 }
 
@@ -274,6 +283,10 @@ void WorldLogicView::log(std::string_view message) {
   if (scene_.output.log.size() < WORLD_LOGIC_LOG_LINES) {
     scene_.output.log.emplace_back(message);
   }
+}
+
+void WorldLogicView::listenForSteps(LogicSteps steps) {
+  scene_.run.steps = steps;
 }
 
 void WorldLogicView::cue(const LogicCue& cue) {

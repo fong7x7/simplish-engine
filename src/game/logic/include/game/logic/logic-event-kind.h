@@ -36,6 +36,21 @@ enum class LogicEventKind : uint8_t {
   /// An actor attacked — struck, fired, spat, or blew itself up; `other`
   /// is whom it had in mind, if anyone.
   ACTOR_ATTACKED,
+  /// An actor began an attack that winds up — a swing, a fuse — to land
+  /// its behavior's `windup_ticks` later, if it still can; `other` is whom
+  /// it has in mind.
+  ACTOR_WINDING_UP,
+  /// A player's foot came down: they covered their feet's stride. Heard
+  /// only while the logic listens for steps.
+  PLAYER_STEPPED,
+  /// An actor's foot came down. Heard only while the logic listens for
+  /// everyone's steps.
+  ACTOR_STEPPED,
 };
+
+/// How many kinds of event there are: whatever hands each kind to its own
+/// handler checks it has one for every kind against this.
+inline constexpr uint8_t LOGIC_EVENT_KIND_COUNT =
+    static_cast<uint8_t>(LogicEventKind::ACTOR_STEPPED) + 1;
 
 }  // namespace eng::game

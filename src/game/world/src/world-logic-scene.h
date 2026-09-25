@@ -6,6 +6,7 @@
 /// A view over the world's state for one tick.
 
 #include "world-logic-output.h"
+#include "world-logic-run.h"
 
 #include <engine/core/pcg32.h>
 #include <engine/physics/collision-box.h>
@@ -55,8 +56,8 @@ struct WorldLogicScene {
   std::span<const LogicEvent> events;
   /// The logic's own random stream.
   Pcg32& rng;
-  /// How the run stands; the logic may end it.
-  RunOutcome& outcome;
+  /// How the logic has ended the run, and whose steps it hears.
+  WorldLogicRun run;
   /// Where what the logic says and cues is kept for presentation.
   WorldLogicOutput output;
 };

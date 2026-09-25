@@ -91,6 +91,8 @@ A behavior is a state machine written as data ([ADR-009](../decisions/ADR-009-ac
 | `spit` | stands, and lobs a hazard pool where its target was seen each cooldown | `radius` 1, `duration_ticks` 300, `damage` 1 a bite, `cooldown_ticks` 150 |
 | `detonate` | blows up at once, hurting everyone within the radius — every side — and dies | `radius` 2, `damage` 2 |
 
+**Wind-ups.** Any attacking state may take `windup_ticks` (default 0): the attack begins the first tick it could go off, and lands that many ticks later — the swing before the bite, the fuse before the blast — only if it still can then: its target seen, and for `melee` and `charge` still in reach. One that cannot has missed, and cools down as if it had landed, so a telegraphed attack can be dodged. Leaving the state abandons it. Game logic hears `ACTOR_WINDING_UP` as it begins and `ACTOR_ATTACKED` as it lands ([logic.md](logic.md)) — the moments of an attack gameplay can time by, where a clip's moments are presentation's ([animation.md §4.5](../engine/animation.md#45-events-moments-of-a-clip)).
+
 | Condition | Holds when |
 |---|---|
 | `always` | always |

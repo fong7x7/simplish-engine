@@ -119,7 +119,7 @@ A clip can mark moments — a foot landing, a sword swinging — and whoever pla
 
 **Foot contacts.** A clip nobody has marked still knows when its feet land. `findFootJoints` takes every joint named with `foot` or `ankle`, not an exporter's helper (`end`, `ik`, `target`, `pole`). `detectFootContacts` samples the clip 120 times a second, reads each foot's height — Z *after the skin's root*, which is where a Y-up glTF is turned upright, so up is up whatever the file's convention — and marks every moment a foot drops into the lowest fifth of its travel, looping round the clip's end. A foot that travels less than 3% of the skeleton's height at rest is standing, not walking, so an idle marks nothing.
 
-Presentation, like every clip time: the tick never reads a moment of a clip, so a foot landing never changes the game.
+Presentation, like every clip time: the tick never reads a moment of a clip, so a foot landing never changes the game. Gameplay that needs such a moment takes it from the simulation instead, timed in ticks: a step each time a walker covers its feet's stride, which game logic hears when it listens for steps, and an attack's `windup_ticks` — the swing before it lands ([logic.md](../game/logic.md), [actors.md §3](../game/actors.md#3-behaviors)).
 
 ---
 

@@ -9,6 +9,7 @@
 #include <engine/sim/tick-context.h>
 #include <game/actors/actor-spawn.h>
 #include <game/combat/combat-effects.h>
+#include <game/logic/logic-steps.h>
 #include <game/logic/run-outcome.h>
 #include <game/world/logic-command.h>
 #include <game/world/world-cue.h>
@@ -34,6 +35,8 @@ struct WorldReadScratch {
   Pcg32 rng;
   /// A copy of the outcome.
   RunOutcome outcome = RunOutcome::PLAYING;
+  /// Whose steps, never listened for.
+  LogicSteps steps = LogicSteps::NONE;
   /// Lines logged, never shown.
   std::vector<std::string> log{};
   /// Cues raised, never played.

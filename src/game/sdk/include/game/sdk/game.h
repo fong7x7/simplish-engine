@@ -75,6 +75,16 @@ protected:
   /// An actor attacked; `event.other` is whom it had in mind.
   virtual void onActorAttacked([[maybe_unused]] GameLogicWorld& world,
                                [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor began an attack that winds up; it lands, if it still can,
+  /// its behavior's `windup_ticks` later.
+  virtual void onActorWindingUp([[maybe_unused]] GameLogicWorld& world,
+                                [[maybe_unused]] const LogicEvent& event) {}
+  /// A player's foot came down; heard while listening for steps.
+  virtual void onPlayerStepped([[maybe_unused]] GameLogicWorld& world,
+                               [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor's foot came down; heard while listening for everyone's.
+  virtual void onActorStepped([[maybe_unused]] GameLogicWorld& world,
+                              [[maybe_unused]] const LogicEvent& event) {}
   /// Once, when the run is over — `world.outcome()` says how. Log the
   /// run's tally here; writes do nothing.
   virtual void onRunEnded([[maybe_unused]] GameLogicWorld& world) {}

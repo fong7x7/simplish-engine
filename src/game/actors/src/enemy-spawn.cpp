@@ -17,6 +17,7 @@ ActorSpawn makeEnemySpawn(const EnemyDefinition& enemy, Vec3 at,
           .health = enemy.health,
           .death_blast_radius = enemy.death_blast_radius,
           .death_blast_damage = enemy.death_blast_damage,
+          .footsteps = enemy.footsteps,
           .model = enemy.model};
 }
 

@@ -70,6 +70,7 @@ game::ActorSpawn editorActorSpawn(const EditorPlacement& placement,
           .radius = std::clamp(narrower * 0.5f, EDITOR_ACTOR_MIN_RADIUS,
                                EDITOR_ACTOR_MAX_RADIUS),
           .height = std::max(box.max.z - box.min.z, EDITOR_ACTOR_MIN_RADIUS),
+          .footsteps = placement.footsteps,
           .id = placement.id};
 }
 

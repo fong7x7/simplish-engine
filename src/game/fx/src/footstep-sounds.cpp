@@ -11,8 +11,6 @@ namespace {
 
   /// How a step set sounds, whatever it walks on.
   struct StepVoice {
-    /// Tiles between one step and the next.
-    float stride = 0.75F;
     /// Its loudness.
     float gain = 0.3F;
     /// The pitch a stood-in clip is shifted to.
@@ -21,11 +19,11 @@ namespace {
 
   /// Every step set's voice, by `StepSet`.
   constexpr std::array<StepVoice, STEP_SET_COUNT> VOICES{{
-      {.stride = 0.75F, .gain = 0.30F, .pitch = 1.0F},
-      {.stride = 0.8F, .gain = 0.36F, .pitch = 0.92F},
-      {.stride = 0.7F, .gain = 0.20F, .pitch = 1.18F},
-      {.stride = 0.45F, .gain = 0.26F, .pitch = 1.4F},
-      {.stride = 1.1F, .gain = 0.50F, .pitch = 0.68F},
+      {.gain = 0.30F, .pitch = 1.0F},
+      {.gain = 0.36F, .pitch = 0.92F},
+      {.gain = 0.20F, .pitch = 1.18F},
+      {.gain = 0.26F, .pitch = 1.4F},
+      {.gain = 0.50F, .pitch = 0.68F},
   }};
 
   /// Every surface's built-in step, by `FootstepSurface`.
@@ -181,10 +179,6 @@ namespace {
   }
 
 }  // namespace
-
-float stepSetStride(StepSet steps) {
-  return voiceOf(steps).stride;
-}
 
 std::string footstepSoundName(StepSet steps, FootstepSurface surface) {
   return "step." + std::string(stepSetWord(steps)) + "." +

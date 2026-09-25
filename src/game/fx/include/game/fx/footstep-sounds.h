@@ -19,6 +19,7 @@
 #include <engine/audio/sound-play.h>
 #include <engine/math/vec3.h>
 #include <game/content/footstep-surface.h>
+#include <game/content/step-set-stride.h>  // IWYU pragma: export
 #include <game/content/step-set.h>
 #include <game/fx/footstep-clip.h>
 #include <game/fx/footstep-cue.h>
@@ -40,8 +41,6 @@ using FootstepSoundClips =
 /// feet; the nearest few are what the ear picks out of them.
 inline constexpr size_t FOOTSTEPS_HEARD = 6;
 
-/// How far @p steps walks between one step and the next, in tiles.
-[[nodiscard]] float stepSetStride(StepSet steps);
 
 /// What the bank calls the clip @p steps plays on @p surface:
 /// `step.boots.sand`. Also the slot a project records it in.

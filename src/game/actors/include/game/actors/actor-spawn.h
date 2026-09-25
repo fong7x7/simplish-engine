@@ -9,6 +9,7 @@
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
+#include <game/content/step-set.h>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,9 @@ struct ActorSpawn {
   float death_blast_radius = 0.0F;
   /// Segments that blast takes from everyone it reaches.
   uint16_t death_blast_damage = 0;
+  /// Its feet: how far it walks between steps (`stepSetStride`), and what
+  /// they sound like.
+  StepSet footsteps = StepSet::DEFAULT;
   /// What the level calls it — the id of the prop it was placed as — so a
   /// project's game logic can pick it out by name; empty for none.
   std::string id{};

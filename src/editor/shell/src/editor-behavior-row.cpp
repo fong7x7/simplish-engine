@@ -230,8 +230,9 @@ namespace {
                             {attack.speed, 0.0F, MAX_PROJECTILE_SPEED}, row);
   }
 
-  /// @p made's attack, read under the keys its action names them by: a
-  /// strike's `damage`, `reach` and `cooldown_ticks`, a volley's `count`,
+  /// @p made's attack, read under the keys its action names them by: every
+  /// attack's `windup_ticks`; a strike's `damage`, `reach` and
+  /// `cooldown_ticks`, a volley's `count`,
   /// `spread_degrees` and `projectile_speed`, a pool's `radius` and
   /// `duration_ticks`, a blast's `radius`.
   void readAttack(const json& state, game::BehaviorState& made,
@@ -242,6 +243,9 @@ namespace {
     attack.cooldown_ticks = countAt<uint32_t>(
         state, "cooldown_ticks",
         countRule(static_cast<float>(attack.cooldown_ticks), MAX_TICKS), row);
+    attack.windup_ticks = countAt<uint32_t>(
+        state, "windup_ticks",
+        countRule(static_cast<float>(attack.windup_ticks), MAX_TICKS), row);
     attack.reach_tiles = distanceAt(state, "reach", attack.reach_tiles, row);
     readVolley(state, attack, row);
     attack.radius = distanceAt(state, "radius", attack.radius, row);

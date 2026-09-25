@@ -5,6 +5,7 @@
 /// @par Threading
 /// Main-thread-only.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <engine/core/pcg32.h>
@@ -30,6 +31,7 @@
 #include <game/content/game-content.h>
 #include <game/logic/game-logic-world.h>
 #include <game/logic/game-logic.h>
+#include <game/logic/logic-steps.h>
 #include <game/logic/run-outcome.h>
 #include <game/player/player-change.h>
 #include <game/player/player-pool.h>
@@ -37,6 +39,7 @@
 #include <game/world/logic-call.h>
 #include <game/world/logic-command.h>
 #include <game/world/logic-event-log.h>
+#include <game/world/walker-gait.h>
 #include <game/world/world-cue.h>
 #include <memory>
 #include <span>
@@ -225,6 +228,15 @@ private:
                                       uint32_t index) const;
   /// Tell the logic of every revive and every player put out in @p changes.
   void notePlayerChanges(std::span<const PlayerChange> changes);
+  /// Tell the logic of every step taken this tick by whoever it listens
+  /// to.
+  void noteSteps();
+  /// Tell the logic of the players' steps this tick.
+  void notePlayerSteps();
+  /// Tell the logic of the actors' steps this tick.
+  void noteActorSteps();
+  /// Fold the gaits of everyone the logic hears step into @p hasher.
+  void hashGaits(sim::StateHasher& hasher) const;
   /// Put the actor at dense index @p index in state @p state for the logic,
   /// telling it so.
   void enterLogicState(uint32_t index, uint8_t state, uint64_t tick);
@@ -289,6 +301,14 @@ private:
   RunOutcome logic_outcome_ = RunOutcome::PLAYING;
   /// 1 once the logic has been told the run is over.
   uint8_t logic_ended_ = 0;
+  /// Whose steps the logic hears.
+  LogicSteps logic_steps_ = LogicSteps::NONE;
+  /// Each player's gait, by their handle's slot; state while steps are
+  /// heard.
+  std::array<WalkerGait, PLAYER_POOL_CAPACITY> player_gaits_{};
+  /// Each actor's gait, by its handle's slot; state while everyone's steps
+  /// are heard.
+  std::vector<WalkerGait> actor_gaits_;
   /// What the logic asked for this tick; empty between ticks.
   std::vector<LogicCommand> logic_commands_;
   /// The actors the logic asked for this tick; empty between ticks.

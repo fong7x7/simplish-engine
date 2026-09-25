@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <engine/input/player-input-builder.h>
 #include <engine/sim/simulation.h>
 #include <functional>
 #include <game/logic/game-logic.h>
@@ -16,6 +17,7 @@ using eng::game::GameSetup;
 using eng::game::GameWorld;
 using eng::game::LogicEvent;
 using eng::game::LogicEventKind;
+using eng::game::LogicSteps;
 using eng::game::RunOutcome;
 using eng::sim::Simulation;
 using eng::sim::TickHashing;
@@ -198,4 +200,54 @@ TEST_CASE("a cue the logic raises is kept for presentation, and changes "
   CHECK(quiet.empty());
   REQUIRE(loud.size() == 2);
   CHECK((loud[1].tick == 1 && loud[1].sound == "combat.blast"));
+}
+
+namespace {
+
+/// Count the events of @p kind a logic listening for @p steps hears while
+/// player 1 walks along +X for @p ticks.
+size_t stepsHeard(LogicSteps steps, LogicEventKind kind, uint64_t ticks) {
+  Listening logic([steps](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      world.listenForSteps(steps);
+    }
+  });
+  GameWorld world(chaserBeside(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+  TickInput walking;
+  walking.players[0].move_x = eng::input::INPUT_AXIS_MAX;
+  for (uint64_t i = 0; i < ticks; ++i) {
+    (void)simulation.step(walking);
+  }
+  return static_cast<size_t>(
+      std::ranges::count(logic.heard_, kind, &LogicEvent::kind));
+}
+
+}  // namespace
+
+TEST_CASE("game logic hears the steps of whoever it listens to, and nobody's "
+          "until it asks") {
+  CHECK(stepsHeard(LogicSteps::NONE, LogicEventKind::PLAYER_STEPPED, 90) == 0);
+  CHECK(stepsHeard(LogicSteps::PLAYERS, LogicEventKind::PLAYER_STEPPED, 90) >=
+        2);
+  CHECK(stepsHeard(LogicSteps::PLAYERS, LogicEventKind::ACTOR_STEPPED, 90) ==
+        0);
+  CHECK(stepsHeard(LogicSteps::EVERYONE, LogicEventKind::ACTOR_STEPPED, 90) >=
+        1);
+}
+
+TEST_CASE("game logic told the run is over hears it lost when nobody is up") {
+  Listening logic([](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      world.damage(world.player(0).target, 999);
+    }
+  });
+  // One player alone: nothing bites first, to leave them in their grace.
+  GameWorld world(GameSetup{}, {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 5);
+
+  CHECK(logic.ends_ == 1);
+  CHECK(logic.outcome_ == RunOutcome::LOST);
 }

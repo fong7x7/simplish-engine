@@ -18,6 +18,8 @@ enum class ActorNoteKind : uint8_t {
   NOTICED,
   /// It attacked: struck, fired, spat, or blew itself up.
   ATTACKED,
+  /// It began an attack that winds up, to land `windup_ticks` later.
+  WINDING_UP,
 };
 
 }  // namespace eng::game

@@ -23,6 +23,7 @@ GameSetup sample() {
   actor.yaw_degrees = 33.3F;
   actor.route = {{1.0F, 1.0F}, {4.5F, 1.0F / 7.0F}};
   actor.health = 9;
+  actor.footsteps = eng::game::StepSet::CLAWS;
   setup.actors.push_back(actor);
   return setup;
 }
@@ -57,6 +58,7 @@ TEST_CASE("a setup's actors read back whole") {
   REQUIRE(actor.behavior == "guard");
   REQUIRE(actor.faction == eng::game::Faction::FRIENDLY);
   REQUIRE(actor.health == 9);
+  REQUIRE(actor.footsteps == eng::game::StepSet::CLAWS);
   REQUIRE(sameBits(actor.route[1].y, 1.0F / 7.0F));
   REQUIRE(sameBits(actor.yaw_degrees, 33.3F));
 }

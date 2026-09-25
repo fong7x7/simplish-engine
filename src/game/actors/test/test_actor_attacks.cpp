@@ -3,6 +3,7 @@
 
 #include "support/actor-arena.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <game/actors/actor-system.h>
 #include <game/content/behavior-lookup.h>
@@ -154,4 +155,52 @@ TEST_CASE("a downed player is nobody's target") {
   arena.step(5);
   REQUIRE(arena.actors.remembers_target[actor] == 0);
   REQUIRE(arena.effects.damage.empty());
+}
+
+namespace {
+
+/// @p action's one state, its attack winding up for @p ticks.
+BehaviorDefinition windingUp(BehaviorAction action, uint32_t ticks) {
+  BehaviorDefinition behavior = oneState(action);
+  behavior.states[0].attack.windup_ticks = ticks;
+  return behavior;
+}
+
+/// How many of @p arena's notes are of @p kind.
+size_t notesOf(const ActorArena& arena, ActorNoteKind kind) {
+  return static_cast<size_t>(
+      std::ranges::count(arena.notes, kind, &ActorNote::kind));
+}
+
+}  // namespace
+
+TEST_CASE("a volley that winds up is noted begun, and fires when the wind-up "
+          "has run") {
+  ActorArena arena;
+  arena.addPlayer({6.0F, 0.0F});
+  arena.addActor(windingUp(BehaviorAction::FIRE, 10), {.at = {}});
+
+  arena.step(10);
+  CHECK(arena.effects.shots.empty());
+  CHECK(notesOf(arena, ActorNoteKind::WINDING_UP) == 1);
+  arena.step();
+
+  CHECK(arena.effects.shots.size() == 3);
+  CHECK(notesOf(arena, ActorNoteKind::ATTACKED) == 1);
+}
+
+TEST_CASE("a melee wind-up whose target steps out of reach misses, and cools "
+          "down") {
+  ActorArena arena;
+  const uint32_t player = arena.addPlayer({0.6F, 0.0F});
+  arena.addActor(windingUp(BehaviorAction::MELEE, 10), {.at = {}});
+  arena.step();
+  REQUIRE(notesOf(arena, ActorNoteKind::WINDING_UP) == 1);
+
+  arena.players.position[player] = {5.0F, 0.0F, 0.0F};
+  arena.step(15);
+
+  CHECK(arena.effects.damage.empty());
+  CHECK(arena.actors.attack_lands_tick[0] == ACTOR_NOT_WINDING);
+  CHECK(arena.actors.attack_ready_tick[0] == 10 + 45);
 }
