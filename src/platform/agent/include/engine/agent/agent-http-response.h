@@ -4,6 +4,7 @@
 /// @brief What the agent API sends back.
 /// @par Threading Main-thread-only.
 
+#include <engine/agent/agent-reply-timing.h>
 #include <string>
 
 namespace eng::agent {
@@ -21,6 +22,8 @@ struct AgentHttpResponse {
   int status = 200;
   /// The JSON body.
   std::string body = "{}";
+  /// Whether this is the answer, or the server should ask again next poll.
+  AgentReplyTiming timing = AgentReplyTiming::NOW;
 };
 
 }  // namespace eng::agent

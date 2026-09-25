@@ -11,6 +11,7 @@
 simplish_add_module(simplish-editor-build
     INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES     ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-build-commands.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-build-diagnostics.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-build-job.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-build-log.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-build-paths.cpp

@@ -18,6 +18,26 @@ namespace {
     return path.empty() ? json(nullptr) : json(path.string());
   }
 
+  /// One diagnostic, taken apart.
+  json diagnosticJson(const EditorBuildDiagnostic& diagnostic) {
+    return {{"file", diagnostic.file},
+            {"line", diagnostic.line},
+            {"column", diagnostic.column},
+            {"severity", diagnostic.severity == EditorDiagnosticSeverity::ERROR
+                             ? "error"
+                             : "warning"},
+            {"message", diagnostic.message}};
+  }
+
+  /// Every diagnostic of @p build.
+  json diagnosticsJson(const EditorBuildState& build) {
+    json out = json::array();
+    for (const EditorBuildDiagnostic& diagnostic : build.diagnostics) {
+      out.push_back(diagnosticJson(diagnostic));
+    }
+    return out;
+  }
+
   /// The last build: what it made, how it went, and what it printed.
   json buildJson(const EditorBuildState& build) {
     return {{"kind", agentBuildKindName(build.kind)},
@@ -25,6 +45,7 @@ namespace {
             {"builds", build.builds},
             {"log", pathOrNull(build.log)},
             {"errors", build.errors},
+            {"diagnostics", diagnosticsJson(build)},
             {"log_tail", build.log_tail}};
   }
 
@@ -58,7 +79,11 @@ std::string agentBuildJson(const EditorShellState& state) {
 }
 
 AgentResult runAgentGetBuild(EditorShellState& state,
-                             const nlohmann::json& /*params*/) {
+                             const nlohmann::json& params) {
+  if (agentBoolParam(params, "wait").value_or(false) &&
+      state.build.status == EditorBuildStatus::RUNNING) {
+    return agentLater();
+  }
   return agentOk(agentBuildJson(state));
 }
 

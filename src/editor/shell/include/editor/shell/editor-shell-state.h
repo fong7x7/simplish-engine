@@ -20,6 +20,7 @@
 #include <editor/shell/editor-graphics-settings.h>
 #include <editor/shell/editor-level-entry.h>
 #include <editor/shell/editor-level-json.h>
+#include <editor/shell/editor-log-state.h>
 #include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-sound-settings.h>
@@ -139,6 +140,10 @@ struct EditorShellState {
   /// any, whether a build of it is loaded, and how the last build went.
   /// Refreshed by the editor; read by the agent API's `get_build`.
   EditorBuildState build;
+  /// The editor's recent log: every warning and error it has logged,
+  /// numbered, for the agent API's `get_log`. Filled by the editor each
+  /// frame.
+  EditorLogState log;
 };
 
 }  // namespace eng::editor

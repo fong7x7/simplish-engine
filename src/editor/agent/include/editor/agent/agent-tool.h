@@ -170,6 +170,8 @@ enum class AgentTool : uint8_t {
   GET_BUILD,
   /// Create a project in a new directory and open it.
   CREATE_PROJECT,
+  /// The editor's recent log: what it warned of and showed nowhere else.
+  GET_LOG,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -248,6 +250,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::PAINT_WATER,
     AgentTool::GET_BUILD,
     AgentTool::CREATE_PROJECT,
+    AgentTool::GET_LOG,
 };
 
 }  // namespace eng::editor

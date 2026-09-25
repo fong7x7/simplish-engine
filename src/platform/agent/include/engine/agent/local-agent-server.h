@@ -53,7 +53,10 @@ public:
   /// request that is now complete through @p handler.
   ///
   /// Never blocks. A connection that has sent half a request is left
-  /// half-read until the next poll.
+  /// half-read until the next poll; one whose handler answered
+  /// `AgentReplyTiming::LATER` is kept open, and its request handed to the
+  /// handler again on the next poll, until it answers or the caller hangs
+  /// up.
   void poll(
       const std::function<AgentHttpResponse(const AgentHttpRequest&)>& handler);
 

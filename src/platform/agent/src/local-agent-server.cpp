@@ -219,6 +219,11 @@ bool LocalAgentServer::respond(
   const AgentHttpRequest request = parseAgentHttpRequest(
       std::string_view(connection.buffer).substr(0, length));
   const AgentHttpResponse response = handler(request);
+  if (response.timing == AgentReplyTiming::LATER) {
+    // Kept open, the whole request still buffered: the next poll finds it
+    // complete and asks the handler again.
+    return true;
+  }
   sendAll(connection.socket,
           formatAgentHttpResponse(response.status, response.body));
   // One request per connection, which is what `Connection: close` said.

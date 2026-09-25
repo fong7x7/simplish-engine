@@ -132,6 +132,7 @@
 #include <editor/shell/editor-ground-ops.h>
 #include <editor/shell/editor-level-result.h>
 #include <editor/shell/editor-level-unsaved.h>
+#include <editor/shell/editor-log-book.h>
 #include <editor/shell/editor-menu-bar-widget.h>
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-placement-animator.h>
@@ -1434,6 +1435,8 @@ private:
   std::unique_ptr<EditorPlaytestSession> playtest_{};
   /// The build running in the background, or the last one to.
   EditorBuildJob build_job_{};
+  /// Everything logged, caught for `state_.log`.
+  EditorLogBook log_book_{};
   /// The project's game logic as last built and loaded; the next playtest
   /// runs it. Null with none.
   std::shared_ptr<EditorLogicLibrary> logic_library_{};

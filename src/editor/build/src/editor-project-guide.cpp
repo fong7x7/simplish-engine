@@ -33,14 +33,17 @@ every tool. The loop:
 1. Author the level: `place_asset`, `set_behavior`, `add_player_start`,
    `paint_ground`; then `run_command` `save`.
 2. Write or change the logic in `src/`.
-3. `run_command` `build_game_logic`, then poll `get_build` until
-   `build.status` is `succeeded` or `failed`. On failure, `build.errors`
-   names file and line. Every build is also run for ten seconds of the
+3. `run_command` `build_game_logic`, then `get_build` with `"wait": true`:
+   it answers when the build has finished. On failure,
+   `build.diagnostics` gives file, line, column and message. Every build is also run for ten seconds of the
    open level in a process of its own, twice: a crash fails it, and so
    does a run that ends differently the second time (nondeterminism).
 4. `start_playtest`, `send_input` (`fire`, `move_x`, `aim_x`, …),
-   `step_playtest`; `get_playtest` reports actors, `outcome` and
-   `logic_log`. `stop_playtest` when done.
+   `step_playtest` — which answers with the playtest at the tick it
+   reached: actors, `outcome`, `logic_log`. `stop_playtest` when done.
+   Calls like these answer with what they did; no sleeping between them.
+   `get_log` has what the editor warned of — level problems, failed
+   builds, the logic's own lines.
 5. `run_command` `deploy_game` puts a standalone build in `build/deploy/`.
 
 ## Writing game logic

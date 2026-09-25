@@ -131,3 +131,22 @@ TEST_CASE("create_project needs a path") {
   CHECK(runAgentTool(state, "create_project", "{}").status ==
         AgentStatus::BAD_PARAMS);
 }
+
+TEST_CASE("get_log answers the lines asked for, from a sequence on") {
+  EditorShellState state;
+  state.log.entries = {{0, LogLevel::INFO, "editor", "opened"},
+                       {1, LogLevel::WARN, "editor", "dropped a prop"},
+                       {2, LogLevel::ERROR, "logic", "would not load"}};
+  state.log.next = 3;
+
+  const json warnings = call(state, "get_log", R"({"level": "warn"})");
+  const json logic = call(state, "get_log", R"({"subsystem": "logic"})");
+  const json newer = call(state, "get_log", R"({"since": 2, "limit": 1})");
+
+  CHECK(warnings["entries"].size() == 2);
+  CHECK(logic["entries"][0]["message"] == "would not load");
+  CHECK(newer["entries"].size() == 1);
+  CHECK(newer["next"] == 3);
+  CHECK(runAgentTool(state, "get_log", R"({"level": "loud"})").status ==
+        AgentStatus::BAD_PARAMS);
+}

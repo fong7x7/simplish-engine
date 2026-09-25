@@ -182,6 +182,7 @@ each one's parameters; this table is the map.
 | `get_water` | The named depths, the user's water fidelity and where it is kept, and what the level's water did last frame: whether a moving surface was drawn, how finely it is simulated, how much water there is, how much it is moving, how often it has been pushed and has splashed, and how many placements stand in it |
 | `get_sound` | The user's volumes and where they are kept, each of the game's sounds and the project file it plays (or the built-in), the project's `.wav` and `.ogg` files, and what was wrong with the sounds table |
 | `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in or a seated pad (`pad`) plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the effects playing and the cues played and heard (`effects.sounds`), how the run stands (`outcome`: playing, won, lost), whether the project's game logic runs (`logic`) and what it last said (`logic_log`) — actors it spawned are listed after the level's, `spawned: true`, the latest tick hash, dropped ticks, and queued input |
+| `get_log` | The editor's recent log, numbered: lines at or above a level, from a sequence on, optionally one subsystem's |
 | `get_build` | The project's own C++ game logic ([logic.md](../game/logic.md)) and the game it deploys to: whether it has logic and where its source is, whether a build is loaded and whether the source has changed since (`logic_stale`), why a library would not load, the logic API version, the toolchain the editor builds with, where the last deploy went, and the last build — `logic` or `deploy`, `idle`/`running`/`succeeded`/`failed`, a count of builds to tell yours from the last, its log file, the lines naming an error, and its last lines. `run_command` runs `new_game_logic`, `build_game_logic` and `deploy_game`; poll this to see them finish |
 
 ### Editing
@@ -236,6 +237,26 @@ each one's parameters; this table is the map.
 
 ### Conventions worth knowing before calling one
 
+- **A call answers with what it did.** The tools the editor itself carries
+  out — `start_playtest`, `step_playtest`, `stop_playtest`, `open_project`,
+  `create_project`, `create_level`, `open_level`, `rescan_assets`,
+  `run_command` — are done before the answer is sent, and the answer is
+  the part of the state they changed, with `ran` naming the call: the
+  playtest after a step, the project after an open, the build after a Build
+  command. No sleeping between a call and reading its effect.
+- **Waiting is a call that answers later.** `get_build` with `"wait": true`
+  answers when a running build has finished; `get_playtest` with
+  `"until_tick": n` answers when a playtest running in real time reaches
+  tick n (or is paused, stopped or over). The editor keeps drawing
+  meanwhile — the connection is simply held open — so give the HTTP call a
+  timeout to match: seconds for a logic build, minutes for a first deploy.
+- **What the editor warns of is in `get_log`.** A prop dropped because its
+  asset is gone, a level that will not read, a build that failed, a table
+  with a bad row, and every line the game logic logs (`subsystem: logic`).
+  Pass the last answer's `next` as `since` to hear only what is new.
+- **Build errors come taken apart.** `get_build`'s `build.diagnostics` has
+  `file`, `line`, `column`, `severity` and `message` for every compiler,
+  linker, CMake and logic-check error and warning.
 - **Levels.** A level is a whole document. `create_level` and `open_level`
   replace the placements, the lights, the selection and the undo history in
   one go, and both refuse outright while the open level holds edits its file

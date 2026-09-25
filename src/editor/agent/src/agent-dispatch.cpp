@@ -6,6 +6,7 @@
 #include "agent-effects.h"
 #include "agent-emitters.h"
 #include "agent-ground.h"
+#include "agent-log.h"
 #include "agent-sound.h"
 #include "agent-sprites.h"
 #include "agent-water.h"
@@ -148,7 +149,15 @@ namespace {
     return runAgentGetGround(state, params);
   }
 
-  AgentResult toolGetPlaytest(EditorShellState& state, const json&) {
+  AgentResult toolGetPlaytest(EditorShellState& state, const json& params) {
+    // Waiting for a tick only makes sense while the clock runs toward it.
+    const std::optional<size_t> until = agentIndexParam(params, "until_tick");
+    const EditorPlaytestState& playtest = state.playtest;
+    if (until && playtest.mode == EditorPlayMode::PLAYING &&
+        playtest.clock == EditorPlaytestClock::RUNNING && !playtest.run_over &&
+        playtest.tick < *until) {
+      return agentLater();
+    }
     return agentOk(agentPlaytestJson(state));
   }
 
@@ -274,6 +283,7 @@ namespace {
       runAgentPaintWater,
       runAgentGetBuild,
       toolCreateProject,
+      runAgentGetLog,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

@@ -16,6 +16,7 @@
 #include <editor/shell/editor-property-field.h>
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
+#include <engine/core/logger.h>
 #include <game/combat/combat-cue-kind.h>
 #include <game/logic/run-outcome.h>
 #include <iterator>
@@ -221,6 +222,33 @@ agentPlayModeName(EditorPlayMode mode) {
       break;
   }
   return "editing";
+}
+
+/// Wire name of how serious a log line is.
+[[nodiscard]] constexpr std::string_view agentLogLevelName(LogLevel level) {
+  switch (level) {
+    case LogLevel::DEBUG:
+      return "debug";
+    case LogLevel::WARN:
+      return "warn";
+    case LogLevel::ERROR:
+      return "error";
+    case LogLevel::INFO:
+      break;
+  }
+  return "info";
+}
+
+/// The log level @p name names, or nothing.
+[[nodiscard]] constexpr std::optional<LogLevel>
+agentLogLevelFromName(std::string_view name) {
+  for (const LogLevel level :
+       {LogLevel::DEBUG, LogLevel::INFO, LogLevel::WARN, LogLevel::ERROR}) {
+    if (agentLogLevelName(level) == name) {
+      return level;
+    }
+  }
+  return std::nullopt;
 }
 
 /// Wire name of what a build makes.

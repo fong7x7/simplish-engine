@@ -1,4 +1,5 @@
 #include "agent-call.h"
+#include "agent-host-outcome.h"
 
 #include <cstdlib>
 #include <editor/agent/agent-dispatch.h>
@@ -149,10 +150,17 @@ bool EditorAgentService::runPresentationRequest(
   return true;
 }
 
-agent::AgentHttpResponse EditorAgentService::finish(const AgentResult& result) {
+agent::AgentHttpResponse EditorAgentService::finish(EditorShellState& state,
+                                                    const AgentResult& result) {
+  if (result.timing == agent::AgentReplyTiming::LATER) {
+    return {200, "{}", agent::AgentReplyTiming::LATER};
+  }
   changed_ = changed_ || result.changed;
   runHostRequest(result.host);
-  return jsonResponse(agentResponseJson(result));
+  // The editor has done it: answer with what it did.
+  AgentResult answered = result;
+  answered.json = agentHostOutcomeJson(state, result);
+  return jsonResponse(agentResponseJson(answered));
 }
 
 agent::AgentHttpResponse EditorAgentService::routeGet(EditorShellState& state,
@@ -173,12 +181,12 @@ agent::AgentHttpResponse
 EditorAgentService::routePost(EditorShellState& state,
                               const agent::AgentHttpRequest& request) {
   if (request.path == "/call") {
-    return finish(runAgentRequest(state, request.body));
+    return finish(state, runAgentRequest(state, request.body));
   }
   if (request.path.starts_with(TOOL_ROUTE)) {
     const std::string_view tool =
         std::string_view(request.path).substr(TOOL_ROUTE.size());
-    return finish(runAgentTool(state, tool, request.body));
+    return finish(state, runAgentTool(state, tool, request.body));
   }
   return {404, nlohmann::json{{"message", ROUTE_HELP}}.dump(2)};
 }

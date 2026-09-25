@@ -2116,6 +2116,7 @@ void SimplishEditor::runStateHook() {
 }
 
 bool SimplishEditor::onTick(float dt) {
+  log_book_.drainInto(state_.log);
   syncViewState();
   runStateHook();
   tickControls();

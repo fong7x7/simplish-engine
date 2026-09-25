@@ -6,6 +6,7 @@
 
 #include <editor/agent/agent-host-request.h>
 #include <editor/agent/agent-status.h>
+#include <engine/agent/agent-reply-timing.h>
 #include <string>
 
 namespace eng::editor {
@@ -25,6 +26,10 @@ struct AgentResult {
   /// has to be rebuilt from it. False for every read, and false for a
   /// write that turned out to change nothing.
   bool changed = false;
+  /// Whether this is the answer, or the caller is waiting for something —
+  /// a build to finish, a playtest to reach a tick — and the call is to be
+  /// asked again on the next frame.
+  agent::AgentReplyTiming timing = agent::AgentReplyTiming::NOW;
 };
 
 }  // namespace eng::editor

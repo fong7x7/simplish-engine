@@ -661,6 +661,34 @@ inline constexpr AgentParam AGENT_PARAMS_CREATE_PROJECT[] = {
      "The project's name. Omitted, it is the directory's own name."},
 };
 
+inline constexpr AgentParam AGENT_PARAMS_GET_BUILD[] = {
+    {"wait", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "Hold the answer until a running build has finished — the editor keeps "
+     "drawing meanwhile — rather than answering running. Defaults to false. "
+     "A deploy can take minutes; give the HTTP call a timeout to match."},
+};
+
+inline constexpr AgentParam AGENT_PARAMS_GET_PLAYTEST[] = {
+    {"until_tick", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Hold the answer until a playtest running in real time reaches this "
+     "tick (60 a second), or is paused, stopped or over. Omitted, it "
+     "answers at once."},
+};
+
+inline constexpr AgentParam AGENT_PARAMS_GET_LOG[] = {
+    {"since", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "The first sequence number wanted: pass the last answer's next to hear "
+     "only what is new. Defaults to 0, the oldest kept."},
+    {"level", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The least serious level wanted: debug, info, warn or error. Defaults "
+     "to info."},
+    {"subsystem", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "Only lines one subsystem logged — editor, logic, renderer, … Omitted, "
+     "every subsystem's."},
+    {"limit", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "Most lines to answer with, 1 to 500. Defaults to 100."},
+};
+
 /// One tool's published description.
 /// @thread_safety Immutable value type.
 struct AgentToolInfo {
@@ -1058,8 +1086,7 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "starts, selection, undo history — so all of it is replaced by what "
      "the new level's file holds.",
      AgentToolEffect::HOST, AGENT_PARAMS_OPEN_LEVEL},
-    {AgentTool::GET_PLAYTEST,
-     "get_playtest",
+    {AgentTool::GET_PLAYTEST, "get_playtest",
      "Whether the open level is being played, and if so: the tick the "
      "simulation is on, where each player is, who they play as, their "
      "health, whether they are down or out and whether a stand-in or a "
@@ -1077,8 +1104,7 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "latest tick hash, how many ticks the frame clock has dropped, and "
      "how many ticks of queued input are left. Poll it after "
      "start_playtest or send_input to watch the game run.",
-     AgentToolEffect::READ,
-     {}},
+     AgentToolEffect::READ, AGENT_PARAMS_GET_PLAYTEST},
     {AgentTool::START_PLAYTEST, "start_playtest",
      "Play the open level in the real simulation, as the toolbar's Play "
      "button or F5 does — but with no character selector: player 1 plays "
@@ -1260,8 +1286,7 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "honey). One undoable edit; refused while "
      "playing. Answers with how many cells changed.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_WATER},
-    {AgentTool::GET_BUILD,
-     "get_build",
+    {AgentTool::GET_BUILD, "get_build",
      "The project's own C++ game logic and the game it deploys to. A "
      "project's rules can be written in C++ in its src/ folder with the "
      "game SDK, <game/sdk/sdk.h>: a class deriving eng::game::sdk::Game, "
@@ -1275,20 +1300,21 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "the background, and loads it for the next playtest; run_command "
      "deploy_game bakes every saved level and builds a standalone game "
      "into build/deploy/ (the first deploy builds the engine, and takes "
-     "minutes). Poll this until build.status is succeeded or failed, and "
-     "compare build.builds with the value before the call to know it is "
-     "the build you started. Reports has_logic, source (the src/ folder), "
+     "minutes). Call this with wait true to be answered once the build has "
+     "finished; build.builds tells your build from the one before. Reports "
+     "has_logic, source (the src/ folder), "
      "logic_loaded, logic_stale (the source is newer than the library "
      "loaded: build again), logic_error (why a library would not load), "
      "logic_library, api_version, deployed (the folder of the last deploy "
      "that worked, or null), the toolchain the editor builds with, and "
      "build: kind (logic or deploy), status (idle, running, succeeded, "
      "failed), builds, log (the file holding everything the build "
-     "printed), errors (its lines naming an error) and log_tail (its last "
-     "lines). While playing, get_playtest reports logic, outcome and "
+     "printed), errors (its lines naming an error), diagnostics (the "
+     "errors and warnings taken apart: file, line, column, severity, "
+     "message) and log_tail (its last lines). While playing, get_playtest "
+     "reports logic, outcome and "
      "logic_log: what the logic said with world.log().",
-     AgentToolEffect::READ,
-     {}},
+     AgentToolEffect::READ, AGENT_PARAMS_GET_BUILD},
     {AgentTool::CREATE_PROJECT, "create_project",
      "Create a project in a directory and open it, as File > New Project "
      "does with no dialog: .simplish/project.json, assets/, content/levels/ "
@@ -1298,6 +1324,17 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "held one. run_command new_game_logic then gives it C++ game logic "
      "to start from.",
      AgentToolEffect::HOST, AGENT_PARAMS_CREATE_PROJECT},
+    {AgentTool::GET_LOG, "get_log",
+     "The editor's recent log, oldest first: every line the engine and the "
+     "editor logged, numbered, the last 500 kept. Where the editor says "
+     "what it shows nowhere else — a prop dropped because its asset is "
+     "gone, a level that will not read, a logic library that will not "
+     "load, a table with a bad row — and what the game logic says "
+     "(subsystem logic). Each entry has seq, level, subsystem and message; "
+     "next is the seq the next line will have, and more says lines were "
+     "left out past limit. Call with since set to the last next to hear "
+     "only what is new.",
+     AgentToolEffect::READ, AGENT_PARAMS_GET_LOG},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

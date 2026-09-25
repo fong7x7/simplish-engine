@@ -80,7 +80,8 @@ private:
   bool pump(EditorShellState& state);
   /// Turn one tool result into a response, and carry out whatever it left
   /// for the editor to do.
-  [[nodiscard]] agent::AgentHttpResponse finish(const AgentResult& result);
+  [[nodiscard]] agent::AgentHttpResponse finish(EditorShellState& state,
+                                                const AgentResult& result);
   /// Carry out the work a tool could not do itself.
   void runHostRequest(const AgentHostRequest& request);
   /// Carry out the requests that replace or run the document: creating or

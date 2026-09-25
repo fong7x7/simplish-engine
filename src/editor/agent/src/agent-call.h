@@ -41,6 +41,9 @@ agentStringParam(const nlohmann::json& params, std::string_view key);
 /// A successful read: @p payload, and nothing for the editor to do.
 [[nodiscard]] AgentResult agentOk(std::string payload);
 
+/// Not yet: the call waits, and is asked again on the next frame.
+[[nodiscard]] AgentResult agentLater();
+
 /// A successful write: @p payload, and the chrome to rebuild from state.
 [[nodiscard]] AgentResult agentEdited(std::string payload);
 

@@ -39,6 +39,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ground-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-io.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-log-book.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-json.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-list.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-level-ops.cpp"

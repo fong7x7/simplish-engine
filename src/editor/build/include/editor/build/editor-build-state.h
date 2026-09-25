@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <cstdint>
+#include <editor/build/editor-build-diagnostic.h>
 #include <editor/build/editor-build-kind.h>
 #include <editor/build/editor-build-status.h>
 #include <filesystem>
@@ -20,6 +21,9 @@ inline constexpr size_t EDITOR_BUILD_LOG_TAIL = 40;
 /// Lines naming an error kept apart from the tail, so an error scrolled
 /// out of it by a long link line is still seen.
 inline constexpr size_t EDITOR_BUILD_ERROR_LINES = 20;
+
+/// Errors and warnings a build's state keeps, taken apart.
+inline constexpr size_t EDITOR_BUILD_DIAGNOSTICS = 50;
 
 /// Lines of what the running playtest's game logic said, kept for reading.
 inline constexpr size_t EDITOR_LOGIC_LOG_LINES = 50;
@@ -42,6 +46,9 @@ struct EditorBuildState {
   std::vector<std::string> log_tail{};
   /// Its lines naming an error, at most `EDITOR_BUILD_ERROR_LINES`.
   std::vector<std::string> errors{};
+  /// Its errors and warnings taken apart — file, line, column, message —
+  /// at most `EDITOR_BUILD_DIAGNOSTICS`.
+  std::vector<EditorBuildDiagnostic> diagnostics{};
   /// Whether the open project has game logic of its own: a
   /// `src/CMakeLists.txt`.
   bool has_logic = false;

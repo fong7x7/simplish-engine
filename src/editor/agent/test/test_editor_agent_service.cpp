@@ -122,3 +122,45 @@ TEST_CASE("no port is opened unless the environment names one") {
 
   clearAgentPortVariable();
 }
+
+TEST_CASE("get_build with wait holds its answer while a build runs") {
+  EditorAgentService service;
+  EditorShellState state;
+  state.project.loaded = true;
+  state.build.status = EditorBuildStatus::RUNNING;
+
+  CHECK(post(service, state, "/tools/get_build", R"({"wait": true})").timing ==
+        AgentReplyTiming::LATER);
+  CHECK(post(service, state, "/tools/get_build", "{}").timing ==
+        AgentReplyTiming::NOW);
+  state.build.status = EditorBuildStatus::SUCCEEDED;
+  CHECK(post(service, state, "/tools/get_build", R"({"wait": true})").timing ==
+        AgentReplyTiming::NOW);
+}
+
+TEST_CASE("get_playtest with until_tick holds its answer until the tick") {
+  EditorAgentService service;
+  EditorShellState state;
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.tick = 30;
+  const std::string until = R"({"until_tick": 60})";
+
+  CHECK(post(service, state, "/tools/get_playtest", until).timing ==
+        AgentReplyTiming::LATER);
+  state.playtest.tick = 60;
+  CHECK(post(service, state, "/tools/get_playtest", until).timing ==
+        AgentReplyTiming::NOW);
+}
+
+TEST_CASE("a tool the editor carries out answers with what it did") {
+  EditorAgentService service;
+  EditorShellState state;
+  state.project.loaded = true;
+
+  const json answer = json::parse(post(service, state, "/tools/run_command",
+                                       R"({"command": "build_game_logic"})")
+                                      .body);
+
+  CHECK(answer.at("result").at("ran") == "build_game_logic");
+  CHECK(answer.at("result").contains("build"));
+}

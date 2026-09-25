@@ -66,6 +66,17 @@ namespace {
            "; the first deploy builds the whole engine, and takes minutes";
   }
 
+  /// What @p lines, a build's log, say of it into @p build: its last lines,
+  /// its errors, and those taken apart. None for no lines.
+  void readBuildLog(EditorBuildState& build,
+                    const std::vector<std::string>& lines) {
+    const size_t tail = std::min(lines.size(), EDITOR_BUILD_LOG_TAIL);
+    build.log_tail.assign(lines.end() - static_cast<std::ptrdiff_t>(tail),
+                          lines.end());
+    build.errors = buildErrorLines(lines, EDITOR_BUILD_ERROR_LINES);
+    build.diagnostics = buildDiagnostics(lines, EDITOR_BUILD_DIAGNOSTICS);
+  }
+
   /// What the status line says about a logic build that ended as @p state.
   std::string logicBuildMessage(const EditorBuildState& state) {
     if (state.status != EditorBuildStatus::SUCCEEDED) {
@@ -178,8 +189,7 @@ bool SimplishEditor::startBuild(EditorBuildKind kind,
   build.status = EditorBuildStatus::RUNNING;
   build.builds += 1;
   build.log = log;
-  build.log_tail.clear();
-  build.errors.clear();
+  readBuildLog(build, {});
   LOG_INFO("editor", "Build started; its output goes to " + log.string());
   return true;
 }
@@ -229,15 +239,16 @@ void SimplishEditor::forgetGameLogic() {
 void SimplishEditor::finishBuild(EditorBuildStatus status) {
   EditorBuildState& build = state_.build;
   build.status = status;
-  const std::vector<std::string> lines = readLogLines(build.log);
-  build.log_tail = readLogTail(build.log, EDITOR_BUILD_LOG_TAIL);
-  build.errors = buildErrorLines(lines, EDITOR_BUILD_ERROR_LINES);
+  readBuildLog(build, readLogLines(build.log));
   if (build.kind == EditorBuildKind::LOGIC) {
     finishLogicBuild();
     return;
   }
   if (status == EditorBuildStatus::SUCCEEDED && !finishDeploy()) {
     build.status = EditorBuildStatus::FAILED;
+  }
+  if (build.status != EditorBuildStatus::SUCCEEDED) {
+    LOG_WARN("build", "Deploy failed — see " + build.log.string());
   }
   showStatusMessage(build.status == EditorBuildStatus::SUCCEEDED
                         ? "Deployed to " + build.deployed.string()
@@ -250,7 +261,11 @@ void SimplishEditor::finishLogicBuild() {
     loadGameLogic();
   }
   refreshLogicState();
-  showStatusMessage(logicBuildMessage(state_.build));
+  const std::string message = logicBuildMessage(state_.build);
+  if (state_.build.status == EditorBuildStatus::FAILED) {
+    LOG_WARN("build", message);
+  }
+  showStatusMessage(message);
 }
 
 void SimplishEditor::loadGameLogic() {

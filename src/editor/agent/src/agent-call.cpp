@@ -64,6 +64,12 @@ std::optional<bool> agentBoolParam(const nlohmann::json& params,
   return value.get<bool>();
 }
 
+AgentResult agentLater() {
+  AgentResult result;
+  result.timing = agent::AgentReplyTiming::LATER;
+  return result;
+}
+
 AgentResult agentOk(std::string payload) {
   return {AgentStatus::OK, std::move(payload), {}, false};
 }
