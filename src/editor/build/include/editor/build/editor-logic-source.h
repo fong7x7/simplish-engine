@@ -17,6 +17,10 @@ inline constexpr const char* LOGIC_CMAKE_FILE_NAME = "CMakeLists.txt";
 /// The file the scaffold's example logic is written to.
 inline constexpr const char* LOGIC_EXAMPLE_FILE_NAME = "game-logic.cpp";
 
+/// The file, in `src/`, the scaffold's example tests are written to.
+inline constexpr const char* LOGIC_EXAMPLE_TESTS_FILE_NAME =
+    "tests/game-logic-test.cpp";
+
 /// Whether the project at @p root has game logic: a `src/CMakeLists.txt`.
 [[nodiscard]] bool projectHasLogic(const std::filesystem::path& root);
 
@@ -37,5 +41,8 @@ scaffoldProjectLogic(const std::filesystem::path& root);
 
 /// The scaffold's example logic.
 [[nodiscard]] std::string logicScaffoldSource();
+
+/// The scaffold's example logic tests.
+[[nodiscard]] std::string logicScaffoldTests();
 
 }  // namespace eng::editor

@@ -1295,7 +1295,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "src/CMakeLists.txt. docs/game/sdk.md under toolchain.engine_root "
      "documents it; run_command new_game_logic writes a commented example "
      "to start from. Every build is run for ten seconds in a process of "
-     "its own before it is loaded; a crash there fails the build. run_command "
+     "its own before it is loaded; a crash there fails the build, and so do "
+     "the project's SIMPLISH_LOGIC_TESTs (listed under TESTS in "
+     "src/CMakeLists.txt), run next. run_command "
      "build_game_logic compiles it in "
      "the background, and loads it for the next playtest; run_command "
      "deploy_game bakes every saved level and builds a standalone game "
@@ -1311,7 +1313,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "failed), builds, log (the file holding everything the build "
      "printed), errors (its lines naming an error), diagnostics (the "
      "errors and warnings taken apart: file, line, column, severity, "
-     "message) and log_tail (its last lines). While playing, get_playtest "
+     "message), log_tail (its last lines) and tests (each logic test: name, "
+     "level, passed, ticks, failures as diagnostics). While playing, "
+     "get_playtest "
      "reports logic, outcome and "
      "logic_log: what the logic said with world.log().",
      AgentToolEffect::READ, AGENT_PARAMS_GET_BUILD},

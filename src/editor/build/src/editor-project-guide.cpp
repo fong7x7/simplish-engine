@@ -38,6 +38,8 @@ every tool. The loop:
    `build.diagnostics` gives file, line, column and message. Every build is also run for ten seconds of the
    open level in a process of its own, twice: a crash fails it, and so
    does a run that ends differently the second time (nondeterminism).
+   Then the tests in `src/tests/` run; `build.tests` says how each went,
+   and a failed one fails the build.
 4. `start_playtest`, `send_input` (`fire`, `move_x`, `aim_x`, …),
    `step_playtest` — which answers with the playtest at the tick it
    reached: actors, `outcome`, `logic_log`. `stop_playtest` when done.

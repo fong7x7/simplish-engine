@@ -11,7 +11,7 @@ namespace {
 /// Longest a check may take before it is taken to have hung. Wall-clock
 /// time, on purpose: it watches the simulation from outside, and nothing
 /// it measures reaches a tick.
-constexpr std::chrono::seconds CHECK_LIMIT{30};
+constexpr std::chrono::seconds CHECK_LIMIT{60};
 
 /// Give up on the check, and say why, once `CHECK_LIMIT` has passed.
 void watchdog() {

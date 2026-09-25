@@ -2,6 +2,7 @@
 #include <charconv>
 #include <editor/build/editor-deploy-manifest.h>
 #include <editor/build/editor-setup-json.h>
+#include <editor/deploy/deployed-content.h>
 #include <editor/deploy/deployed-game.h>
 #include <editor/project/project-text-file.h>
 #include <editor/shell/editor-behavior-table.h>
@@ -17,22 +18,14 @@ namespace eng::editor {
 
 namespace {
 
-  /// The setup baked for @p level in the deployed content at @p content,
-  /// or nothing when there is none.
-  std::optional<game::GameSetup> readSetup(const std::filesystem::path& content,
-                                           const std::string& level) {
-    const std::optional<std::string> text =
-        readProjectTextFile(content / EDITOR_DEPLOY_LEVELS_DIR /
-                            (level + std::string(EDITOR_SETUP_FILE_SUFFIX)));
-    return text ? parseGameSetup(*text) : std::nullopt;
-  }
-
-  /// The data tables deployed with the game: the project's, read as the
-  /// editor reads them, from the copy beside the game.
-  game::GameContent readContent(const std::filesystem::path& content) {
-    return {loadEditorCharacterTable(content).characters,
-            loadEditorBehaviorTable(content).behaviors,
-            loadEditorEnemyTable(content).enemies};
+  /// Room in @p setup for @p logic to spawn into, as a playtest gives it,
+  /// when there is logic.
+  void makeRoomFor(game::GameSetup& setup,
+                   const game::GameLogicInstance& logic) {
+    if (logic.get() != nullptr) {
+      setup.actor_capacity =
+          std::max(setup.actor_capacity, game::GAME_LOGIC_ACTOR_CAPACITY);
+    }
   }
 
   /// Players @p options seats: 1 to `sim::MAX_PLAYERS`.
@@ -82,14 +75,14 @@ namespace {
   /// level when it asks for none — naming it in @p run; nothing, with
   /// @p run's error saying why, when there is none.
   std::optional<game::GameSetup>
-  readDeployedSetup(const DeployedGameOptions& options, DeployedGameRun& run) {
+  manifestSetup(const DeployedGameOptions& options, DeployedGameRun& run) {
     const std::optional<std::string> text =
         readProjectTextFile(options.content / EDITOR_DEPLOY_MANIFEST);
     const auto manifest = text ? parseDeployManifest(*text) : std::nullopt;
     run.level = options.level.empty() && manifest ? manifest->start_level
                                                   : options.level;
     auto setup =
-        manifest ? readSetup(options.content, run.level) : std::nullopt;
+        manifest ? readDeployedSetup(options.content, run.level) : std::nullopt;
     if (!setup) {
       run.error = manifest ? "No level " + run.level + " in this game"
                            : "No deployed game at " + options.content.string();
@@ -133,7 +126,7 @@ DeployedGameRun runDeployedGame(const DeployedGameOptions& options,
                                 game::GameLogicFactory logic,
                                 std::ostream& out) {
   DeployedGameRun run;
-  std::optional<game::GameSetup> setup = readDeployedSetup(options, run);
+  std::optional<game::GameSetup> setup = manifestSetup(options, run);
   if (!setup) {
     return run;
   }
@@ -141,12 +134,9 @@ DeployedGameRun runDeployedGame(const DeployedGameOptions& options,
   setup->player_count = seatsFor(options);
   run.players = setup->player_count;
   const game::GameLogicInstance instance(logic);
-  if (instance.get() != nullptr) {
-    // Room for the logic to spawn into, as a playtest gives it.
-    setup->actor_capacity =
-        std::max(setup->actor_capacity, game::GAME_LOGIC_ACTOR_CAPACITY);
-  }
-  game::GameWorld world(*setup, readContent(options.content), instance.get());
+  makeRoomFor(*setup, instance);
+  game::GameWorld world(*setup, readDeployedContent(options.content),
+                        instance.get());
   run.logic = world.hasLogic();
   play(world, options, run, out);
   return run;

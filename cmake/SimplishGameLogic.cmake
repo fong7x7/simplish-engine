@@ -81,19 +81,23 @@ function(_simplish_game_logic_standalone sources)
     endif()
 endfunction()
 
-# simplish_game_logic(SOURCES <file>...)
+# simplish_game_logic(SOURCES <file>... [TESTS <file>...])
 #
 # The project's game logic, from SOURCES — relative to the calling
-# CMakeLists.txt, and listed explicitly: nothing is globbed.
+# CMakeLists.txt, and listed explicitly: nothing is globbed. TESTS are its
+# logic tests (SIMPLISH_LOGIC_TEST, docs/game/sdk.md): built into the
+# library a playtest loads, which the logic check runs them from, and
+# never into a deployed game.
 function(simplish_game_logic)
-    cmake_parse_arguments(ARG "" "" "SOURCES" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "SOURCES;TESTS" ${ARGN})
     if(NOT ARG_SOURCES)
         message(FATAL_ERROR "simplish_game_logic: list the logic's SOURCES")
     endif()
     if(TARGET simplish-game-logic)
         _simplish_game_logic_in_engine("${ARG_SOURCES}")
     else()
-        _simplish_game_logic_standalone("${ARG_SOURCES}")
+        set(_with_tests ${ARG_SOURCES} ${ARG_TESTS})
+        _simplish_game_logic_standalone("${_with_tests}")
     endif()
 endfunction()
 

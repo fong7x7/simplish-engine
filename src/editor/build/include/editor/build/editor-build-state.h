@@ -8,6 +8,7 @@
 #include <editor/build/editor-build-diagnostic.h>
 #include <editor/build/editor-build-kind.h>
 #include <editor/build/editor-build-status.h>
+#include <editor/build/editor-logic-test.h>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -61,6 +62,9 @@ struct EditorBuildState {
   std::string logic_error{};
   /// The copy of the library that is loaded; empty with none.
   std::filesystem::path logic_library{};
+  /// How each of the project's logic tests went in the last logic build
+  /// that got as far as running them; empty with none.
+  std::vector<EditorLogicTest> tests{};
   /// Where the last deploy that succeeded put the game; empty before one.
   std::filesystem::path deployed{};
 };

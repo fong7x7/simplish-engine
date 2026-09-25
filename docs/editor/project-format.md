@@ -51,8 +51,10 @@ my-project/
 │       ├── sounds.data.json       # read and written today (§8.4)
 │       └── projectiles.data.json
 ├── src/                      # the project's own C++ game logic (ADR-011)
-│   ├── CMakeLists.txt        # simplish_game_logic(SOURCES ...)
-│   └── game-logic.cpp
+│   ├── CMakeLists.txt        # simplish_game_logic(SOURCES ... TESTS ...)
+│   ├── game-logic.cpp
+│   └── tests/
+│       └── game-logic-test.cpp   # SIMPLISH_LOGIC_TESTs, run by every build
 ├── CLAUDE.md                 # the project's guide for agents (AGENTS.md points here)
 ├── build/                    # everything the editor builds — ignored
 │   ├── logic/                #   the logic library a playtest loads

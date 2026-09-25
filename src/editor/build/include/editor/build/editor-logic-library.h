@@ -5,6 +5,7 @@
 /// @par Threading Main-thread-only.
 
 #include <filesystem>
+#include <string_view>
 #include <game/logic/game-logic-factory.h>
 
 namespace eng::editor {
@@ -33,6 +34,10 @@ public:
 
   /// What makes and unmakes an instance of the logic.
   [[nodiscard]] game::GameLogicFactory factory() const { return factory_; }
+
+  /// The address of what the library exports as @p name, or null — for
+  /// the exports besides the logic's own, such as its tests.
+  [[nodiscard]] void* symbol(std::string_view name) const;
 
   /// The copy that was loaded.
   [[nodiscard]] const std::filesystem::path& path() const { return path_; }

@@ -3,10 +3,13 @@
 #include <editor/build/editor-logic-library-load.h>
 #include <editor/deploy/deployed-game.h>
 #include <editor/deploy/logic-check.h>
+#include <editor/deploy/logic-test-runner.h>
+#include <editor/project/project-text-file.h>
 #include <engine/sim/hash-divergence.h>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace eng::editor {
 
@@ -77,6 +80,35 @@ namespace {
     return true;
   }
 
+  /// Say how @p result went to @p out: a line for the test, and one for
+  /// each failure, in the form compilers write errors in.
+  void report(const LogicTestResult& result, std::ostream& out) {
+    out << "test: " << (result.passed ? "PASS " : "FAIL ") << result.name
+        << " (" << result.level << ", " << result.ticks << " ticks)\n";
+    for (const LogicTestFailure& failure : result.failures) {
+      out << (failure.file.empty()
+                  ? ""
+                  : failure.file + ":" + std::to_string(failure.line) + ": ")
+          << "error: test '" << result.name << "': " << failure.message << '\n';
+    }
+  }
+
+  /// Run every test @p library exports on @p options' content, saying how
+  /// each went to @p out and writing the results beside the content.
+  /// Whether every one passed.
+  bool runTests(const LogicCheckOptions& options,
+                const EditorLogicLibrary& library, std::ostream& out) {
+    std::vector<LogicTestResult> results;
+    for (const game::sdk::LogicTestCase& test : libraryTests(library)) {
+      results.push_back(runLogicTest(test, library.factory(), options.content));
+      report(results.back(), out);
+    }
+    (void)writeProjectTextFile(options.content / LOGIC_TEST_RESULTS_FILE,
+                               logicTestResultsJson(results));
+    return std::ranges::all_of(
+        results, [](const LogicTestResult& result) { return result.passed; });
+  }
+
 }  // namespace
 
 int runLogicCheck(const LogicCheckOptions& options, std::ostream& out) {
@@ -99,7 +131,7 @@ int runLogicCheck(const LogicCheckOptions& options, std::ostream& out) {
   }
   out << "check: passed — " << first.ticks
       << " ticks without a crash, the same both times\n";
-  return 0;
+  return runTests(options, *load.library, out) ? 0 : 1;
 }
 
 std::optional<LogicCheckOptions>

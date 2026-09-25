@@ -51,6 +51,8 @@ EditorLogicScaffold scaffoldProjectLogic(const std::filesystem::path& root) {
   const bool written =
       writeProjectTextFile(src / LOGIC_EXAMPLE_FILE_NAME,
                            logicScaffoldSource()) &&
+      writeProjectTextFile(src / LOGIC_EXAMPLE_TESTS_FILE_NAME,
+                           logicScaffoldTests()) &&
       writeProjectTextFile(src / LOGIC_CMAKE_FILE_NAME, logicScaffoldCMake()) &&
       ignoreBuildFolder(root) &&
       writeProjectAgentGuide(root, editorToolchain().engine_root);

@@ -7,6 +7,7 @@
 #include <editor/build/editor-build-paths.h>
 #include <editor/build/editor-logic-library-load.h>
 #include <editor/build/editor-logic-source.h>
+#include <editor/build/editor-logic-test.h>
 #include <editor/build/editor-toolchain.h>
 #include <editor/build/editor-deploy-manifest.h>
 #include <editor/build/editor-setup-json.h>
@@ -121,14 +122,14 @@ SIMPLISH_GAME_LOGIC(Crashes)
 )";
 
 /// Lay the check's content out for the project at @p root: setup() as its
-/// one level.
+/// one level, `main`.
 void bakeCheck(const std::filesystem::path& root) {
   const auto check = projectLogicCheckPath(root);
-  REQUIRE(writeProjectTextFile(check / "levels" / "check.setup.json",
+  REQUIRE(writeProjectTextFile(check / "levels" / "main.setup.json",
                                serializeGameSetup(setup())));
   REQUIRE(writeProjectTextFile(
       check / EDITOR_DEPLOY_MANIFEST,
-      serializeDeployManifest({"check", {"check"}, "check", true})));
+      serializeDeployManifest({"check", {"main"}, "main", true})));
 }
 
 /// The logic build and its check, for the project at @p root.
@@ -158,13 +159,51 @@ TEST_CASE("a logic that crashes fails its check, and the build with it",
           std::string::npos);
 }
 
-TEST_CASE("a logic that runs cleanly passes its check", "[toolchain]") {
+TEST_CASE("a logic that runs cleanly passes its check, and its tests",
+          "[toolchain]") {
   const test::BuildTempDir dir("checked-logic");
   REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
   bakeCheck(dir.path());
 
   REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
           EditorBuildStatus::SUCCEEDED);
+  const auto results = parseLogicTestResults(
+      readProjectTextFile(projectLogicCheckPath(dir.path()) /
+                          LOGIC_TEST_RESULTS_FILE)
+          .value_or(""));
+  REQUIRE(results.size() == 2);
+  CHECK(results[0].passed);
+  CHECK(results[1].passed);
+}
+
+namespace {
+
+/// A logic test that can never pass, its failed check on line 3.
+constexpr std::string_view FAILING_TEST = R"(#include <game/sdk/sdk.h>
+SIMPLISH_LOGIC_TEST(never, "main") {
+  test.expect(false, "this cannot hold");
+}
+)";
+
+}  // namespace
+
+TEST_CASE("a logic test that fails fails the build, at its line",
+          "[toolchain]") {
+  const test::BuildTempDir dir("failing-test");
+  REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
+  REQUIRE(writeProjectTextFile(
+      projectSourcePath(dir.path()) / LOGIC_EXAMPLE_TESTS_FILE_NAME,
+      FAILING_TEST));
+  bakeCheck(dir.path());
+
+  REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
+          EditorBuildStatus::FAILED);
+  const auto found = buildDiagnostics(
+      readLogLines(projectBuildLogPath(dir.path(), EditorBuildKind::LOGIC)), 5);
+  REQUIRE_FALSE(found.empty());
+  CHECK(found[0].file.ends_with("game-logic-test.cpp"));
+  CHECK(found[0].line == 3);
+  CHECK(found[0].message == "test 'never': this cannot hold");
 }
 
 namespace {

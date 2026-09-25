@@ -38,6 +38,23 @@ namespace {
     return out;
   }
 
+  /// The logic tests of the last build that ran them.
+  json testsJson(const EditorBuildState& build) {
+    json out = json::array();
+    for (const EditorLogicTest& test : build.tests) {
+      json failures = json::array();
+      for (const EditorBuildDiagnostic& failure : test.failures) {
+        failures.push_back(diagnosticJson(failure));
+      }
+      out.push_back({{"name", test.name},
+                     {"level", test.level},
+                     {"passed", test.passed},
+                     {"ticks", test.ticks},
+                     {"failures", failures}});
+    }
+    return out;
+  }
+
   /// The last build: what it made, how it went, and what it printed.
   json buildJson(const EditorBuildState& build) {
     return {{"kind", agentBuildKindName(build.kind)},
@@ -46,6 +63,7 @@ namespace {
             {"log", pathOrNull(build.log)},
             {"errors", build.errors},
             {"diagnostics", diagnosticsJson(build)},
+            {"tests", testsJson(build)},
             {"log_tail", build.log_tail}};
   }
 

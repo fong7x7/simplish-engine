@@ -18,6 +18,7 @@ simplish_add_module(simplish-editor-build
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-deploy-manifest.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-logic-library.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-logic-source.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-logic-test.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-logic-templates.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-project-guide.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-setup-json.cpp

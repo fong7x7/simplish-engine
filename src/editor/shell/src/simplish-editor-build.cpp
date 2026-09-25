@@ -141,21 +141,32 @@ void SimplishEditor::buildGameLogic() {
 }
 
 bool SimplishEditor::bakeLogicCheck() {
-  const std::filesystem::path check =
-      projectLogicCheckPath(state_.project.root);
+  const std::filesystem::path& root = state_.project.root;
+  const std::filesystem::path check = projectLogicCheckPath(root);
   std::error_code ec;
   std::filesystem::remove_all(check, ec);
-  game::GameSetup setup = makeEditorPlaytestSetup(
-      state_.document, state_.assets, playtestFallback());
-  setup.actor_capacity = game::GAME_LOGIC_ACTOR_CAPACITY;
+  // Every saved level, for the tests; then the open one as it stands,
+  // unsaved edits and all, over its saved self — what the checks run.
+  std::vector<std::string> levels = bakeDeployLevels(check);
+  if (std::ranges::find(levels, state_.level_id) == levels.end()) {
+    levels.push_back(state_.level_id);
+  }
   return writeProjectTextFile(
              check / EDITOR_DEPLOY_LEVELS_DIR /
-                 ("check" + std::string(EDITOR_SETUP_FILE_SUFFIX)),
-             serializeGameSetup(setup)) &&
-         copyDataTables(state_.project.root, check) &&
+                 (state_.level_id + std::string(EDITOR_SETUP_FILE_SUFFIX)),
+             serializeGameSetup(openLevelSetup())) &&
+         copyDataTables(root, check) &&
          writeProjectTextFile(
              check / EDITOR_DEPLOY_MANIFEST,
-             serializeDeployManifest({"check", {"check"}, "check", true}));
+             serializeDeployManifest({"check", levels, state_.level_id, true}));
+}
+
+game::GameSetup SimplishEditor::openLevelSetup() {
+  game::GameSetup setup = makeEditorPlaytestSetup(
+      state_.document, state_.assets, playtestFallback());
+  addEditorStandIns(setup, state_.document, sim::MAX_PLAYERS - 1);
+  setup.actor_capacity = game::GAME_LOGIC_ACTOR_CAPACITY;
+  return setup;
 }
 
 void SimplishEditor::deployGame() {
@@ -260,6 +271,10 @@ void SimplishEditor::finishLogicBuild() {
       state_.project.loaded) {
     loadGameLogic();
   }
+  state_.build.tests = parseLogicTestResults(
+      readProjectTextFile(projectLogicCheckPath(building_root_) /
+                          LOGIC_TEST_RESULTS_FILE)
+          .value_or(""));
   refreshLogicState();
   const std::string message = logicBuildMessage(state_.build);
   if (state_.build.status == EditorBuildStatus::FAILED) {

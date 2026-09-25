@@ -329,6 +329,9 @@ private:
   /// data tables into the logic check's folder, for the check that runs a
   /// new build in a process of its own. False when it could not be written.
   bool bakeLogicCheck();
+  /// The open level's setup, as it stands — unsaved edits and all — with
+  /// every seat filled and room for logic to spawn into.
+  [[nodiscard]] game::GameSetup openLevelSetup();
   /// Bake the open project's levels and content into its deploy folder,
   /// then build the deployed game in the background.
   void deployGame();

@@ -27,12 +27,14 @@
 #include <game/combat/projectile-pool.h>
 #include <game/content/behavior-definition.h>
 #include <game/content/game-content.h>
+#include <game/logic/game-logic-world.h>
 #include <game/logic/game-logic.h>
 #include <game/logic/run-outcome.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/logic-command.h>
 #include <game/world/logic-event-log.h>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -117,6 +119,11 @@ public:
   /// How the run stands: as the game logic ended it, else lost once no
   /// player is up, else still playing.
   [[nodiscard]] RunOutcome outcome() const;
+  /// The world as tick @p tick — the last one stepped — left it, through
+  /// the interface game logic reads: what a logic test reads between
+  /// ticks. Its writes, spawns and dice change nothing. Valid until the
+  /// world is next stepped.
+  [[nodiscard]] std::unique_ptr<GameLogicWorld> readView(uint64_t tick) const;
   /// Whether this world runs a project's game logic.
   [[nodiscard]] bool hasLogic() const { return logic_ != nullptr; }
 

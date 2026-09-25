@@ -1,5 +1,6 @@
 #include "world-logic-hash.h"
 #include "world-logic-view.h"
+#include "world-read-view.h"
 
 #include <algorithm>
 #include <game/actors/actor-system.h>
@@ -203,6 +204,12 @@ void GameWorld::addActor(const ActorSpawn& spawn) {
          spawn.at,
          spawn.id});
   }
+}
+
+std::unique_ptr<GameLogicWorld> GameWorld::readView(uint64_t tick) const {
+  return std::make_unique<WorldReadView>(WorldReadSources{
+      players_, actors_, brains_, actor_ids_, content_, grid_, obstacles_,
+      logic_events_.events(), tick, logic_rng_, outcome()});
 }
 
 std::string_view GameWorld::actorId(uint32_t index) const {

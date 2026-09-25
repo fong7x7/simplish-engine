@@ -9,11 +9,15 @@
 
 simplish_add_module(simplish-editor-deploy
     INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include
-    SOURCES     ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-game.cpp
+    SOURCES     ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-content.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-game.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/host-logic-test.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-check.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-test-runner.cpp
     DEPENDENCIES simplish-editor-build
                  simplish-editor-shell
                  simplish-game-logic
+                 simplish-game-sdk
                  simplish-game-world
 )
 

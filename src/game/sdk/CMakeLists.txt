@@ -17,6 +17,7 @@ simplish_add_module(simplish-game-sdk
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-filter.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/actor-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-tests.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/random.cpp

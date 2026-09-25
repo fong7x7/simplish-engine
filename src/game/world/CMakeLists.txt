@@ -15,6 +15,7 @@ simplish_add_module(simplish-game-world
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/stand-in-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/world-logic-view.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/world-nav-grid.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/world-read-view.cpp
     DEPENDENCIES simplish-engine-input
                  simplish-game-actors
                  simplish-game-logic

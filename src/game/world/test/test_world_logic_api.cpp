@@ -411,3 +411,20 @@ TEST_CASE("damage the logic credits nobody is credited to nobody") {
   REQUIRE(hurts.size() == 1);
   CHECK_FALSE(hurts[0].by.has_value());
 }
+
+TEST_CASE("a read view shows the world between ticks, and changes nothing") {
+  Scripted logic([](GameLogicWorld&) {});
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+  run(simulation, 3);
+
+  const auto view = world.readView(2);
+  auto& writable = const_cast<GameLogicWorld&>(*view);
+  writable.damage(view->actor(0).target, 5);
+  writable.endRun(eng::game::RunOutcome::WON);
+
+  CHECK(view->tick() == 2);
+  CHECK(view->actor(0).id == "boss");
+  CHECK(world.actors().health[0] == 5);
+  CHECK(world.outcome() == eng::game::RunOutcome::PLAYING);
+}

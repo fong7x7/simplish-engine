@@ -20,7 +20,7 @@ namespace eng::game {
 
 /// `GameLogicWorld` over a `GameWorld`'s pools: reads copy out of them,
 /// writes queue a `LogicCommand` the world applies when the logic returns.
-class WorldLogicView final : public GameLogicWorld {
+class WorldLogicView : public GameLogicWorld {
 public:
   /// A view of @p scene, which must outlive it.
   explicit WorldLogicView(const WorldLogicScene& scene) : scene_(scene) {}

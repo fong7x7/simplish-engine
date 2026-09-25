@@ -22,6 +22,7 @@ include("${SIMPLISH_ROOT}/cmake/SimplishGameLogic.cmake")
 
 simplish_game_logic(
     SOURCES game-logic.cpp
+    TESTS   tests/game-logic-test.cpp
 )
 )";
 
@@ -138,7 +139,43 @@ private:
 SIMPLISH_GAME_LOGIC(SurviveTheWaves)
 )";
 
+  /// The scaffold's example tests, as written.
+  constexpr std::string_view SCAFFOLD_TESTS = R"(// Tests of this project's game logic.
+//
+// Each SIMPLISH_LOGIC_TEST plays a level — by id — with a fresh instance of
+// the logic, driven by the test: hold a player's controls, run ticks, read
+// the world, expect what should be true. Every Build Game Logic runs them,
+// in a process of their own; a failure fails the build, naming this file
+// and line. They are built into the playtest library, never into a
+// deployed game. The engine's docs/game/sdk.md says more.
+
+#include <cstdint>
+#include <game/sdk/sdk.h>
+
+namespace sdk = eng::game::sdk;
+
+SIMPLISH_LOGIC_TEST(first_wave_comes_at_once, "main") {
+  test.run(2);
+  test.expect(sdk::countActors(test.world(), {.id_prefix = "wave"}) > 0,
+              "wave 1 spawned");
+  test.expect(test.logged("Wave 1"), "wave 1 announced");
+}
+
+SIMPLISH_LOGIC_TEST(the_rifle_kills_what_comes_from_ahead, "main") {
+  // Aim at the chaser coming in along +X, and hold the trigger.
+  test.hold(0, {.aim_x = 1.0F, .fire = true});
+  test.run(2);
+  const uint32_t before =
+      sdk::countActors(test.world(), {.id_prefix = "wave"});
+  test.run(sdk::seconds(4));
+  test.expect(sdk::countActors(test.world(), {.id_prefix = "wave"}) < before,
+              "a chaser fell to the rifle");
+}
+)";
+
 }  // namespace
+
+std::string logicScaffoldTests() { return std::string(SCAFFOLD_TESTS); }
 
 std::string logicScaffoldCMake() { return std::string(SCAFFOLD_CMAKE); }
 

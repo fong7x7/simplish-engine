@@ -87,6 +87,10 @@ EditorLogicLibrary::EditorLogicLibrary(void* handle,
                                        std::filesystem::path path)
   : handle_(handle), factory_(factory), path_(std::move(path)) {}
 
+void* EditorLogicLibrary::symbol(std::string_view name) const {
+  return DynamicLibrary::symbol(handle_, name);
+}
+
 EditorLogicLibrary::~EditorLogicLibrary() {
   DynamicLibrary::close(handle_);
   std::error_code ec;

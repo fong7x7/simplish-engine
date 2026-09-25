@@ -222,6 +222,36 @@ Everything in [logic.md §4](logic.md#4-rules-the-logic-has-to-keep) holds. The 
 
 ---
 
-## 10. Growing it
+## 10. Testing it
+
+A logic test plays one of the project's levels with a fresh instance of the logic and checks what happens. Tests live in `src/tests/`, are listed under `TESTS` — `simplish_game_logic(SOURCES game-logic.cpp TESTS tests/game-logic-test.cpp)` — and are built into the library a playtest loads, never into a deployed game.
+
+```cpp
+SIMPLISH_LOGIC_TEST(the_rifle_kills_what_comes_from_ahead, "main") {
+  test.hold(0, {.aim_x = 1.0F, .fire = true});   // player 1's controls
+  test.run(2);
+  const uint32_t before = sdk::countActors(test.world(), {.id_prefix = "wave"});
+  test.run(sdk::seconds(4));
+  test.expect(sdk::countActors(test.world(), {.id_prefix = "wave"}) < before,
+              "a chaser fell to the rifle");
+}
+```
+
+| On `test` | Does |
+|---|---|
+| `run(ticks)` | Plays that many ticks |
+| `runUntil(done, max_ticks)` | Plays until `done(world)` holds, or `max_ticks` pass; whether it held |
+| `hold(slot, {.move_x, .move_y, .aim_x, .aim_y, .fire})` | Holds a player's controls from the next tick until changed |
+| `world()` | The world between ticks — every read of `GameLogicWorld`; writes through it do nothing |
+| `logged(text)` | Whether the logic's `world.log()` has said something containing `text` |
+| `expect(condition, what)` | Records a failure at this line when `condition` is false; the test goes on |
+
+`SIMPLISH_LOGIC_TEST_WITH(name, "level", players)` plays with more than one player, up to four. The level is the saved file, except the open one, whose unsaved edits are played.
+
+Every Build Game Logic runs every test after the determinism check, in the check's own process: a crash or a hang there fails the build rather than the editor. A failed `expect` fails the build and is reported as `path:line: error: test 'name': what` — a diagnostic in `get_build` like a compiler's — and `get_build`'s `tests` lists each test with its level, ticks, and failures.
+
+---
+
+## 11. Growing it
 
 The SDK is engine code: a tool a second project would want belongs here, with a test in `src/game/sdk/test/` against the real `GameWorld`. What the world lets logic do is `GameLogicWorld`'s: a new read or write there is a new virtual function, implemented in `src/game/world/src/world-logic-view.cpp`, tested in `test_world_logic_api.cpp`, and a bump of `GAME_LOGIC_API_VERSION` so libraries built against the old table are refused rather than misread.
