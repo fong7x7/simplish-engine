@@ -99,7 +99,7 @@ Every widget must have tests covering all six categories:
 - `toHaveBorderColor(color)` — panel border color
 - `toHaveCornerRadius(r)` — panel corner radius
 - `toHaveBorderWidth(w)` — panel border width
-- `toHaveButtonStyle(field, color)` — button style fields (`GuiButtonStyleField::BG_COLOR`, `TEXT_COLOR`, `HOVER_COLOR`)
+- `toHaveButtonStyle(field, color)` — button style fields (`GuiButtonStyleField::BG_COLOR`, `TEXT_COLOR`, `HOVER_COLOR`). *(Obsolete: buttons now draw per-state `GuiStateStyles`; assert on `drawnStyle(ctx)` instead — see [theming.md](theming.md).)*
 - `toHaveRect(rect, tolerance)` — computed layout rect
 - `toHaveOpacity(expected, epsilon)` — widget opacity
 

@@ -11,9 +11,12 @@
 #include "gui-nav-command.h"
 #include "gui-rect.h"
 #include "gui-scroll-event.h"
-#include "gui-style.h"
+#include "gui-state-styles.h"
+#include "gui-style-transition.h"
+#include "gui-theme.h"
 #include "gui-widget-animator.h"
 #include "gui-widget-id.h"
+#include "gui-widget-state.h"
 #include "gui-widget-type.h"
 #include "layout-engine.h"
 #include "layout-size.h"
@@ -155,8 +158,24 @@ public:
   /// Test whether point (mx, my) is inside this component's rect.
   bool isInside(float mx, float my) const;
 
-  /// True when the component should read colors from `ui_style` instead
-  bool hasSharedStyle() const;
+  /// The state this widget is drawn in, from `disabled`, `pressed`,
+  /// `selected`, `hovered` and `focused`, in that order of precedence.
+  [[nodiscard]] virtual GuiWidgetState visualState() const;
+
+  /// The look this kind of widget takes from @p theme in each state — a
+  /// button's variant, a field's — or null for a widget the theme does not
+  /// style. Default: null.
+  [[nodiscard]] virtual const GuiStateStyles*
+  themeStyles(const GuiTheme& theme) const;
+
+  /// The styles this widget draws with: its own `state_styles` when set,
+  /// else `themeStyles`. Null when it has neither.
+  [[nodiscard]] const GuiStateStyles* activeStyles(const GuiTheme& theme) const;
+
+  /// What to draw now: the blend `update` is running between two states'
+  /// looks, else the look for `visualState()`. Only meaningful when
+  /// `activeStyles` is not null.
+  [[nodiscard]] GuiStateStyle drawnStyle(const GuiDrawContext& ctx) const;
 
   /// Start a property animation. Replaces any existing animation on the
   /// same property.
@@ -194,12 +213,15 @@ public:
   bool pointer_through = false;
   /// Opacity multiplier [0, 1] applied to all colors during rendering.
   float opacity = 1.0f;
-  /// Pointer to the active shared style (not owned).
-  /// When non-null and override_style is false, components read colors
-  /// from this style. When null, components use their inline fields.
-  const GuiStyle* ui_style = nullptr;
-  /// When true, ignore the shared style and use per-instance fields.
-  bool override_style = false;
+  /// Turned off: drawn in the DISABLED style, clicks and navigation pass
+  /// it by, and focus skips it.
+  bool disabled = false;
+  /// Chosen — the active tool, the open tab — and drawn so.
+  bool selected = false;
+  /// Holding keyboard or pad focus; kept by `handleFocusChange`.
+  bool focused = false;
+  /// This widget's own look in every state, in place of the theme's.
+  std::optional<GuiStateStyles> state_styles{};
 
   /// Numeric id when this component is a node in `GuiWidgetTree`.
   GuiWidgetId widget_id = GUI_WIDGET_ID_INVALID;
@@ -249,5 +271,7 @@ private:
   std::vector<std::function<void(GuiFocusChange)>> on_focus_handlers_{};
   /// Per-widget animation state (active animations ticked in update).
   GuiWidgetAnimator animator_{};
+  /// Blends the drawn style between states; ticked in update.
+  GuiStyleTransition style_transition_{};
 };
 }  // namespace eng

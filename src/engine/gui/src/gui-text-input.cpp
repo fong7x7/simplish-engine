@@ -1,7 +1,6 @@
 #include "engine/gui/gui-text-input.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 #include "engine/gui/gui-theme-constants.h"
 
 #pragma clang diagnostic push
@@ -22,14 +21,6 @@ namespace {
   constexpr float CURSOR_WIDTH = 1.0f;
   /// Vertical inset from the input rect top/bottom for the cursor line.
   constexpr float CURSOR_VPAD = 3.0f;
-  /// Default border width for text inputs.
-  constexpr float INPUT_BORDER_WIDTH = 1.0f;
-  /// Fallback selection highlight color when no shared style is set.
-  constexpr GuiColor FALLBACK_SELECTION_BG{50, 100, 200};
-  /// Fallback selected text color when no shared style is set.
-  constexpr GuiColor FALLBACK_SELECTION_TEXT{255, 255, 255};
-  /// Fallback placeholder text color when no shared style is set.
-  constexpr GuiColor FALLBACK_PLACEHOLDER_COLOR{120, 120, 120};
 
   /// Whether the cursor should be visible at this point in the blink cycle.
   bool isCursorVisible(float timer) {
@@ -321,31 +312,31 @@ void GuiTextInput::resolveWordSelect(const GuiDrawContext& ctx) {
 
 // ─── Rendering ───────────────────────────────────────────────
 
+const GuiStateStyles* GuiTextInput::themeStyles(const GuiTheme& theme) const {
+  return &theme.field;
+}
+
+GuiWidgetState GuiTextInput::visualState() const {
+  if (!disabled && focus == GuiTextInputFocus::FOCUSED) {
+    return GuiWidgetState::FOCUSED;
+  }
+  return GuiWidget::visualState();
+}
+
 void GuiTextInput::renderBox(const GuiDrawContext& ctx) const {
-  const bool use_shared = hasSharedStyle();
-  auto bg = GuiColor::applyOpacity(use_shared ? ui_style->input_bg : fill_color,
-                                   opacity);
-  float rad = use_shared ? ui_style->input_corner_radius : corner_radius;
-  ctx.drawRoundedRect(rect, bg, rad);
-  auto bc = use_shared ? ui_style->input_border : border_color;
-  if (focus == GuiTextInputFocus::FOCUSED && use_shared) {
-    bc = ui_style->input_border_focused;
-  }
-  bc = GuiColor::applyOpacity(bc, opacity);
-  float bw = use_shared ? INPUT_BORDER_WIDTH : border_width;
-  if (bw > 0.0f) {
-    ctx.drawRoundedBorderRect({rect, bc, rad, bw});
-  }
+  ctx.drawBox(rect, drawnStyle(ctx), opacity);
 }
 
-GuiColor GuiTextInput::selectionBgColor() const {
-  return hasSharedStyle() ? ui_style->input_selection_bg
-                          : FALLBACK_SELECTION_BG;
+GuiColor GuiTextInput::selectionBgColor(const GuiDrawContext& ctx) const {
+  return ctx.activeTheme().palette.selection;
 }
 
-GuiColor GuiTextInput::selectionTextColor() const {
-  return hasSharedStyle() ? ui_style->input_selection_text
-                          : FALLBACK_SELECTION_TEXT;
+GuiColor GuiTextInput::selectionTextColor(const GuiDrawContext& ctx) const {
+  return ctx.activeTheme().palette.on_primary;
+}
+
+GuiColor GuiTextInput::textColor(const GuiDrawContext& ctx) const {
+  return GuiColor::applyOpacity(drawnStyle(ctx).text, opacity);
 }
 
 void GuiTextInput::renderSelectionHighlight(const GuiDrawContext& ctx,
@@ -360,9 +351,9 @@ void GuiTextInput::renderSelectionHighlight(const GuiDrawContext& ctx,
   float cy = rect.y + CURSOR_VPAD;
   float ch = rect.h - 2.0f * CURSOR_VPAD;
   ctx.drawFilledRect({x0, cy, x1 - x0, ch},
-                     GuiColor::applyOpacity(selectionBgColor(), opacity));
+                     GuiColor::applyOpacity(selectionBgColor(ctx), opacity));
   std::string_view sel_str{buffer_.data() + lo, hi - lo};
-  ctx.drawText(GuiColor::applyOpacity(selectionTextColor(), opacity),
+  ctx.drawText(GuiColor::applyOpacity(selectionTextColor(ctx), opacity),
                {x0, rect.y + INPUT_TEXT_VPAD}, sel_str);
 }
 
@@ -374,9 +365,7 @@ void GuiTextInput::renderCursorLine(const GuiDrawContext& ctx,
   if (!isCursorVisible(blink_timer_)) {
     return;
   }
-  const bool use_shared = hasSharedStyle();
-  auto tc = GuiColor::applyOpacity(
-      use_shared ? ui_style->input_text : text_color, opacity);
+  const GuiColor tc = textColor(ctx);
   float cx = text_x + measurePrefix(ctx, cursor_pos_);
   float cy = rect.y + CURSOR_VPAD;
   float ch = rect.h - 2.0f * CURSOR_VPAD;
@@ -388,19 +377,15 @@ void GuiTextInput::renderPlaceholder(const GuiDrawContext& ctx,
   if (!buffer_.empty() || placeholder.empty()) {
     return;
   }
-  const bool use_shared = hasSharedStyle();
-  auto tc = GuiColor::applyOpacity(
-      use_shared ? ui_style->text_dim : FALLBACK_PLACEHOLDER_COLOR, opacity);
+  const GuiColor tc =
+      GuiColor::applyOpacity(ctx.activeTheme().palette.text_muted, opacity);
   ctx.drawText(tc, {text_x, rect.y + INPUT_TEXT_VPAD}, placeholder);
 }
 
 void GuiTextInput::renderTextAndCursor(const GuiDrawContext& ctx) const {
   float text_x = rect.x + INPUT_TEXT_PAD;
   if (!buffer_.empty()) {
-    const bool use_shared = hasSharedStyle();
-    auto tc = GuiColor::applyOpacity(
-        use_shared ? ui_style->input_text : text_color, opacity);
-    ctx.drawText(tc, {text_x, rect.y + INPUT_TEXT_VPAD}, buffer_);
+    ctx.drawText(textColor(ctx), {text_x, rect.y + INPUT_TEXT_VPAD}, buffer_);
   }
   renderPlaceholder(ctx, text_x);
   renderSelectionHighlight(ctx, text_x);

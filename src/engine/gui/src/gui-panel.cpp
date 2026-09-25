@@ -1,7 +1,6 @@
 #include "engine/gui/gui-panel.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 
 namespace eng {
 
@@ -24,9 +23,11 @@ void GuiPanel::renderPanel(const RenderPanelParams& params) const {
 }
 
 void GuiPanel::render(const GuiDrawContext& ctx) const {
-  const bool use_shared = hasSharedStyle();
-  auto color = use_shared ? ui_style->panel : fill_color;
-  renderPanel({ctx, color});
+  if (activeStyles(ctx.activeTheme()) != nullptr) {
+    ctx.drawBox(rect, drawnStyle(ctx), opacity);
+    return;
+  }
+  renderPanel({ctx, fill_color});
 }
 
 }  // namespace eng

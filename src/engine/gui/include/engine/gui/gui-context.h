@@ -14,6 +14,7 @@
 #include <engine/render/rhi-command-list.h>
 #include <engine/render/rhi-device.h>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace eng {
@@ -23,8 +24,9 @@ class GuiContext {
 public:
   /// Owned widget tree context for all GUI widgets.
   std::unique_ptr<GuiWidgetTree> tree{};
-  /// Owned theme scope stack for themed rendering.
-  std::unique_ptr<ThemeScopeStack> theme_stack{};
+  /// The theme every widget draws from; `GuiTheme::dark()` until one is
+  /// applied.
+  GuiTheme theme = GuiTheme::dark();
   /// Owned text pipeline context for font rendering.
   std::unique_ptr<TextPipelineContext> text_pipeline{};
   /// Owned GUI renderer context for draw submission.
@@ -41,9 +43,6 @@ public:
   /// True when the developer console overlay is open.
   bool dev_console_open = false;
 
-  /// Owned copy of the application root theme (root_theme_stack pointer targets
-  /// this). Empty until a theme is applied successfully.
-  std::unique_ptr<Theme> root_theme_storage{};
 
   ~GuiContext();
 
@@ -64,13 +63,12 @@ public:
   /// Render the widget tree: walk tree, emit quads, batch, submit to RHI.
   void render(RhiCommandList& cmd_list);
 
-  /// Load and set the root theme from a JSON file path.
-  bool setRootTheme(std::string_view theme_path);
+  /// Draw with @p next from the next frame on.
+  void applyTheme(GuiTheme next);
 
-  /// Apply an already-loaded theme as the application root (transfers ownership
-  /// into this context). Used when theme JSON is loaded out-of-band (tests,
-  /// editor).
-  bool applyRootTheme(Theme&& theme);
+  /// Load the theme file at @p theme_path (`gui-theme-json.h`) and apply
+  /// it; false, with why in @p error, leaves the theme as it was.
+  bool loadTheme(std::string_view theme_path, std::string& error);
 };
 
 }  // namespace eng

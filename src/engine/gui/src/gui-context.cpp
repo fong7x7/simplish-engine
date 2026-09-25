@@ -1,6 +1,6 @@
 #include <engine/gui/gui-context.h>
 #include <engine/gui/gui-renderer.h>
-#include <engine/gui/gui-theme.h>
+#include <engine/gui/gui-theme-json.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <engine/gui/text-pipeline.h>
 #include <engine/render/rhi-device.h>
@@ -16,7 +16,6 @@ namespace {
 
   void allocateSubsystems(GuiContext& ctx) {
     ctx.tree = std::make_unique<GuiWidgetTree>();
-    ctx.theme_stack = std::make_unique<ThemeScopeStack>();
     ctx.text_pipeline = std::make_unique<TextPipelineContext>();
     ctx.renderer = std::make_unique<GuiRendererContext>();
   }
@@ -68,11 +67,6 @@ namespace {
 
 void GuiContext::shutdown() {
   shutdownSubsystems(*this);
-  if (theme_stack != nullptr) {
-    theme_stack->root_theme = nullptr;
-  }
-  root_theme_storage.reset();
-  theme_stack.reset();
   tree.reset();
 }
 
@@ -96,21 +90,17 @@ void GuiContext::render(RhiCommandList& cmd_list) {
   renderer->endFrame(cmd_list);
 }
 
-bool GuiContext::applyRootTheme(Theme&& theme) {
-  if (!theme_stack) {
-    return false;
-  }
-  root_theme_storage = std::make_unique<Theme>(std::move(theme));
-  theme_stack->root_theme = root_theme_storage.get();
-  return true;
+void GuiContext::applyTheme(GuiTheme next) {
+  theme = std::move(next);
 }
 
-bool GuiContext::setRootTheme(std::string_view theme_path) {
-  auto theme = loadTheme(theme_path);
-  if (!theme.has_value()) {
+bool GuiContext::loadTheme(std::string_view theme_path, std::string& error) {
+  std::optional<GuiTheme> loaded = loadGuiTheme(theme_path, error);
+  if (!loaded) {
     return false;
   }
-  return applyRootTheme(std::move(*theme));
+  applyTheme(std::move(*loaded));
+  return true;
 }
 
 }  // namespace eng

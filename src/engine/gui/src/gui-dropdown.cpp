@@ -1,7 +1,6 @@
 #include "engine/gui/gui-dropdown.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 
 #include <utility>
 
@@ -40,16 +39,17 @@ namespace {
 
 }  // namespace
 
-GuiDropdown::ResolvedStyle GuiDropdown::resolveStyle() const {
-  const bool use_shared = hasSharedStyle();
-  auto bg = use_shared ? ui_style->dropdown_bg : style.bg_color;
-  auto text = use_shared ? ui_style->dropdown_text : style.text_color;
-  auto hover = use_shared ? ui_style->dropdown_hover : style.hover_color;
+GuiDropdown::ResolvedStyle
+GuiDropdown::resolveStyle(const GuiDrawContext& ctx) const {
+  const GuiTheme& theme = ctx.activeTheme();
+  const GuiColor bg = style.bg_color.value_or(theme.menu.fill);
+  const GuiColor text = style.text_color.value_or(theme.menu.text);
+  const GuiColor hover =
+      style.hover_color.value_or(theme.palette.control_hover);
   return {GuiColor::applyOpacity(bg, opacity),
           GuiColor::applyOpacity(text, opacity),
-          GuiColor::applyOpacity(hover, opacity),
-          use_shared ? ui_style->dropdown_width : style.width,
-          use_shared ? ui_style->dropdown_item_height : style.item_height};
+          GuiColor::applyOpacity(hover, opacity), style.width,
+          style.item_height};
 }
 
 void GuiDropdown::renderBackground(const GuiDrawContext& ctx,
@@ -145,7 +145,7 @@ void GuiDropdown::renderItems(const GuiDrawContext& ctx,
 }
 
 void GuiDropdown::render(const GuiDrawContext& ctx) const {
-  auto rs = resolveStyle();
+  auto rs = resolveStyle(ctx);
   renderBackground(ctx, rs);
   renderItems(ctx, rs);
 }

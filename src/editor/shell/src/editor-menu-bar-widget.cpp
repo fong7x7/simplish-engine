@@ -138,10 +138,6 @@ namespace {
       {"Help", HELP_ROWS, std::size(HELP_ROWS), NO_BLOCK, NO_BLOCK},
   };
 
-  GuiButtonStyle titleStyle() {
-    return {THEME_BG, THEME_TEXT, THEME_HOVER, 0.0f};
-  }
-
   GuiDropdownStyle menuStyle() {
     return {THEME_PANEL, THEME_TEXT, THEME_ACCENT, MENU_WIDTH,
             MENU_ITEM_HEIGHT};
@@ -218,8 +214,8 @@ void EditorMenuBarWidget::wireTitleButton(GuiWidgetTree& tree, size_t index) {
   }
   button->label = menu.title;
   button->debug_name = std::string(menu.title);
-  button->style = titleStyle();
-  button->override_style = true;
+  // No box until hovered, or while its menu is open (`selected`).
+  button->variant = GuiButtonVariant::GHOST;
   const auto slot = static_cast<int>(index);
   button->onClick([this, slot](const GuiMouseEvent&) {
     requestMenu(open_menu_ == slot ? -1 : slot);
@@ -234,7 +230,6 @@ void EditorMenuBarWidget::wireDropdown(GuiWidgetTree& tree, size_t index) {
   }
   view->debug_name = std::string(menus_[index].title).append("-menu");
   view->style = menuStyle();
-  view->override_style = true;
   view->border_color = THEME_BORDER;
   view->border_width = 1.0f;
   view->z_index = DROPDOWN_Z;
@@ -505,18 +500,26 @@ void EditorMenuBarWidget::openMenu(GuiWidgetTree& tree, int index) {
   const auto count = static_cast<int>(menus_.size());
   open_menu_ = (index >= 0 && index < count) ? index : -1;
   for (size_t i = 0; i < menus_.size(); ++i) {
-    auto* menu =
-        dynamic_cast<GuiDropdown*>(tree.findWidget(menus_[i].dropdown));
-    if (menu == nullptr) {
-      continue;
-    }
-    menu->visible = (static_cast<int>(i) == open_menu_);
-    if (!menu->visible) {
-      menu->hovered_item = -1;
-    }
+    showMenu(tree, i);
   }
   if (auto* panel = tree.findWidget(scrim_)) {
     panel->visible = open_menu_ >= 0;
+  }
+}
+
+void EditorMenuBarWidget::showMenu(GuiWidgetTree& tree, size_t index) {
+  const bool open = static_cast<int>(index) == open_menu_;
+  if (auto* title = tree.findWidget(menus_[index].button)) {
+    title->selected = open;
+  }
+  auto* menu =
+      dynamic_cast<GuiDropdown*>(tree.findWidget(menus_[index].dropdown));
+  if (menu == nullptr) {
+    return;
+  }
+  menu->visible = open;
+  if (!open) {
+    menu->hovered_item = -1;
   }
 }
 

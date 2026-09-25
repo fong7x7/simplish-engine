@@ -5,6 +5,8 @@
 /// @threading Main-thread only.
 
 #include <cstdint>
+#include <optional>
+#include <string_view>
 
 namespace eng {
 
@@ -41,6 +43,10 @@ struct GuiColor {
 /// write, so its clear value is linear, and handing it a raw byte over 255
 /// paints the surface visibly lighter than the colour asked for.
 [[nodiscard]] float srgbByteToLinear(uint8_t channel);
+
+/// The colour `#rrggbb` or `#rrggbbaa` names — as theme and screen files
+/// write them — or nothing when @p text is neither.
+[[nodiscard]] std::optional<GuiColor> parseGuiColor(std::string_view text);
 
 inline constexpr GuiColor GUI_COLOR_WHITE{255, 255, 255, 255};
 inline constexpr GuiColor GUI_COLOR_BLACK{0, 0, 0, 255};

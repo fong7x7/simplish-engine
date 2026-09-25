@@ -23,7 +23,7 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 | [renderer.md](technical/renderer.md) | Quad batching, scissor stack, draw-command emission | `gui-renderer.cpp`, `gui-draw-context.cpp` |
 | [text-pipeline.md](technical/text-pipeline.md) | FreeType glyph rasterisation, font atlas, shaping, line breaking | `text-pipeline.cpp`, `shaped-run.cpp`, `gui-font-discovery.cpp` |
 | [rhi-text-draw-path.md](technical/rhi-text-draw-path.md) | How text reaches the RHI | `gui-renderer.cpp` |
-| [theming.md](technical/theming.md) | Theme tokens, scope stack, JSON loading | `gui-theme.cpp`, `gui-style.cpp`, `gui-color.cpp` |
+| [theming.md](technical/theming.md) | The typed theme: palette, spacing/radius/type/elevation scales, per-state component styles and their transitions, button variants, theme files — with recipes | `gui-theme.cpp`, `gui-theme-json.cpp`, `gui-state-style.cpp`, `gui-style-transition.cpp` |
 | [input.md](technical/input.md) | Hit testing, focus, event dispatch, input contexts | `gui-input.cpp` |
 | [dockspace.md](technical/dockspace.md) | Dock region arrangement and config loading | `dockspace-arrange.cpp`, `dockspace-config-loader.cpp`, `gui-dockspace-widget.cpp` |
 | [markdown-parser.md](technical/markdown-parser.md) | Block and inline markdown parsing | `markdown-parser.cpp` |
@@ -34,7 +34,7 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 
 ## What is implemented, and what is not
 
-**Built and linked:** widget tree, layout engine, theming with scope stacking, the FreeType text pipeline, the quad-batch RHI renderer, the software rasterizer used for testing, docking, widget animation and easing, image loading via stb_image, and the markdown parser and renderer including tables.
+**Built and linked:** widget tree, layout engine, a typed theme with per-state styles and transitions, the FreeType text pipeline, the quad-batch RHI renderer, the software rasterizer used for testing, docking, widget animation and easing, image loading via stb_image, and the markdown parser and renderer including tables.
 
 **Described but not present:** HarfBuzz shaping and ICU line breaking — FreeType is built with `FT_DISABLE_HARFBUZZ` and the in-tree `shaped-run` path handles kerning and ligatures without complex-script support ([gui.md §3](gui.md#3-dependencies)). The dev console described in the source project's docs was not carried over. Gamepad navigation is built — focus moves spatially between buttons, sliders, dropdowns and text fields, and a pad drives it through `GuiGamepadNavigator` ([technical/input.md §5](technical/input.md#5-gamepad-navigation)).
 

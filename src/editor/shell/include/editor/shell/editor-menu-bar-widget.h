@@ -109,6 +109,10 @@ public:
   /// Close whichever menu is open.
   void closeMenu(GuiWidgetTree& tree);
 
+  /// Show menu @p index's dropdown, and light its title, when it is the
+  /// open one; hide and unlight it otherwise.
+  void showMenu(GuiWidgetTree& tree, size_t index);
+
   /// Index of the open menu, or -1 when none is.
   [[nodiscard]] int openMenuIndex() const { return open_menu_; }
 

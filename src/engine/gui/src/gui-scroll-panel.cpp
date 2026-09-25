@@ -1,7 +1,6 @@
 #include "engine/gui/gui-scroll-panel.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 #include "engine/gui/gui-widget-tree.h"
 
 #include <algorithm>
@@ -157,10 +156,10 @@ void GuiScrollPanel::render(const GuiDrawContext& ctx) const {
   if (maxScroll() <= 0.0f || content_ <= 0.0f) {
     return;
   }
-  const GuiStyle& style = hasSharedStyle() ? *ui_style : GuiStyle::dark();
-  ctx.drawRoundedRect(thumbRect(),
-                      GuiColor::applyOpacity(style.text_dim, opacity),
-                      THUMB_WIDTH * 0.5f);
+  ctx.drawRoundedRect(
+      thumbRect(),
+      GuiColor::applyOpacity(ctx.activeTheme().palette.text_muted, opacity),
+      THUMB_WIDTH * 0.5f);
 }
 
 }  // namespace eng

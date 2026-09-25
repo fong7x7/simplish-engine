@@ -1,9 +1,40 @@
 #include "engine/gui/gui-color.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 
 namespace eng {
+
+namespace {
+
+  /// Two hex digits of @p text from @p at, as a byte.
+  std::optional<uint8_t> hexByte(std::string_view text, size_t at) {
+    uint8_t out = 0;
+    const char* first = text.data() + at;
+    const auto [end, ec] = std::from_chars(first, first + 2, out, 16);
+    if (ec != std::errc{} || end != first + 2) {
+      return std::nullopt;
+    }
+    return out;
+  }
+
+}  // namespace
+
+std::optional<GuiColor> parseGuiColor(std::string_view text) {
+  if ((text.size() != 7 && text.size() != 9) || text.front() != '#') {
+    return std::nullopt;
+  }
+  const auto r = hexByte(text, 1);
+  const auto g = hexByte(text, 3);
+  const auto b = hexByte(text, 5);
+  const auto a =
+      text.size() == 9 ? hexByte(text, 7) : std::optional<uint8_t>(255);
+  if (!r || !g || !b || !a) {
+    return std::nullopt;
+  }
+  return GuiColor{*r, *g, *b, *a};
+}
 
 namespace {
 

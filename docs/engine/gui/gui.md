@@ -98,6 +98,8 @@ The GUI renderer batches draw calls through the engine's RHI:
 
 ### 4.5 Theming & Customization
 
+> **What ships today** is described, with recipes, in [technical/theming.md](technical/theming.md): a typed `GuiTheme` (palette by role, spacing, radius, type and elevation scales, per-state component styles that blend on change, button variants) loadable from a JSON theme file. Typography by role, named style classes and per-subtree scopes below are not built.
+
 The GUI framework is **visually game-agnostic** — it ships no hardcoded look and feel. Every visual property is driven by a **theme**, which is a JSON file (or set of JSON files) that any game or application can replace entirely.
 
 #### Theme Definition

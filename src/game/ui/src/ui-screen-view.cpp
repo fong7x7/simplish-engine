@@ -17,7 +17,6 @@ namespace {
     auto& panel = *dynamic_cast<GuiPanel*>(
         tree.findWidget(tree.createWidget(GuiWidgetType::PANEL, parent)));
     panel.fill_color = fill;
-    panel.override_style = true;
     return panel;
   }
 
@@ -96,9 +95,7 @@ GuiWidgetId UiScreenView::buildButton(GuiWidgetTree& tree, GuiWidgetId parent,
                                       const UiNode& node) {
   auto& button = *dynamic_cast<GuiButton*>(
       tree.findWidget(tree.createWidget(GuiWidgetType::BUTTON, parent)));
-  button.style = {node.style.fill.value_or(UI_BUTTON_FILL),
-                  node.style.color.value_or(UI_TEXT_COLOR), UI_BUTTON_HOVER,
-                  node.style.radius > 0.0F ? node.style.radius : 6.0F};
+  button.state_styles = uiButtonLook(node.style);
   button.onClick([this, action = node.action](const GuiMouseEvent&) {
     on_action_(action);
   });

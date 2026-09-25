@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-renderer.h>
@@ -153,6 +154,22 @@ void GuiDrawContext::drawText(const GuiColor& color, const DrawPos& pos,
     return;
   }
   emitPlaceholderGlyphs({*renderer, pos.x, pos.y, str}, packed);
+}
+
+void GuiDrawContext::drawBox(const Rect& rect, const GuiStateStyle& style,
+                             float opacity) const {
+  const float radius = std::min(style.radius, std::min(rect.w, rect.h) * 0.5f);
+  if (style.fill.a > 0) {
+    drawRoundedRect(rect, GuiColor::applyOpacity(style.fill, opacity), radius);
+  }
+  if (style.border_width > 0.0f && style.border.a > 0) {
+    drawRoundedBorderRect({rect, GuiColor::applyOpacity(style.border, opacity),
+                           radius, style.border_width});
+  }
+}
+
+const GuiTheme& GuiDrawContext::activeTheme() const {
+  return theme != nullptr ? *theme : GuiTheme::dark();
 }
 
 float GuiDrawContext::measureText(std::string_view str) const {

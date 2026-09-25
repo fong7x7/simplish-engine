@@ -16,7 +16,8 @@ public:
   /// Polymorphic deep-copy.
   std::unique_ptr<GuiWidget> clone() const override;
 
-  /// Render this panel (filled rect + optional border).
+  /// Render this panel: its `state_styles` when it has them — a card, a
+  /// clickable tile — else the fill and border fields below.
   void render(const GuiDrawContext& ctx) const override;
 
   /// Parameters for renderPanel().

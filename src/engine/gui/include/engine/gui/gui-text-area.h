@@ -79,8 +79,6 @@ private:
   [[nodiscard]] static std::size_t columnInLine(const WrappedLine& line,
                                                 std::size_t pos);
 
-  /// Resolve the text color with opacity for this area.
-  [[nodiscard]] GuiColor resolveTextColor() const;
 
   /// Render all wrapped lines of text.
   void renderLines(const GuiDrawContext& ctx,

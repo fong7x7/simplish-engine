@@ -50,7 +50,7 @@ public:
   };
 
   /// Resolve style colors and dimensions for rendering.
-  ResolvedColors resolveStyle() const;
+  ResolvedColors resolveStyle(const GuiDrawContext& ctx) const;
 
   /// Return the value mapped to [min_value, max_value].
   float mappedValue() const;

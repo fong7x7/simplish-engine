@@ -36,31 +36,6 @@ namespace {
     return found != ALIGNS.end() ? std::optional(found->second) : std::nullopt;
   }
 
-  /// Two hex digits of @p text from @p at, as a byte.
-  std::optional<uint8_t> hexByte(std::string_view text, size_t at) {
-    uint8_t value = 0;
-    const char* first = text.data() + at;
-    const auto [end, ec] = std::from_chars(first, first + 2, value, 16);
-    return ec == std::errc{} && end == first + 2 ? std::optional(value)
-                                                 : std::nullopt;
-  }
-
-  /// The colour `#rrggbb` or `#rrggbbaa` names, if it is one.
-  std::optional<GuiColor> colorNamed(std::string_view text) {
-    if ((text.size() != 7 && text.size() != 9) || text.front() != '#') {
-      return std::nullopt;
-    }
-    const auto r = hexByte(text, 1);
-    const auto g = hexByte(text, 3);
-    const auto b = hexByte(text, 5);
-    const auto a =
-        text.size() == 9 ? hexByte(text, 7) : std::optional<uint8_t>(255);
-    if (!r || !g || !b || !a) {
-      return std::nullopt;
-    }
-    return GuiColor{*r, *g, *b, *a};
-  }
-
   /// Edges from a number (all four) or `[top, right, bottom, left]`, or
   /// `[vertical, horizontal]`.
   std::optional<Edges> edgesOf(const nlohmann::json& value) {
@@ -139,7 +114,7 @@ namespace {
     if (!s.node.contains(key)) {
       return;
     }
-    out = colorNamed(uiText(s.node, key));
+    out = parseGuiColor(uiText(s.node, key));
     if (!out) {
       badValue(s, key, "a colour, #rrggbb or #rrggbbaa");
     }

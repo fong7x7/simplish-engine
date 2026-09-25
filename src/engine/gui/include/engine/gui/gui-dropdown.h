@@ -67,7 +67,7 @@ private:
   [[nodiscard]] int nextSelectable(int from, int step) const;
 
   /// Resolve style from shared or per-instance values.
-  ResolvedStyle resolveStyle() const;
+  ResolvedStyle resolveStyle(const GuiDrawContext& ctx) const;
 
   /// Render the background panel.
   void renderBackground(const GuiDrawContext& ctx,

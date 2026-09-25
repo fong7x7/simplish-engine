@@ -146,10 +146,14 @@ TEST_CASE("the active button is styled differently from the others") {
       continue;
     }
     if (EDITOR_TOOLS[index] == EditorTool::HEIGHT) {
-      REQUIRE(button->style.bg_color.r == eng::THEME_ACCENT.r);
+      REQUIRE(button->selected);
+      REQUIRE(button->drawnStyle(eng::GuiDrawContext{}).fill.pack() ==
+              eng::THEME_ACCENT.pack());
       checked_active = true;
     } else {
-      REQUIRE(button->style.bg_color.r == eng::THEME_BTN.r);
+      REQUIRE_FALSE(button->selected);
+      REQUIRE(button->drawnStyle(eng::GuiDrawContext{}).fill.pack() ==
+              eng::THEME_BTN.pack());
       checked_inactive = true;
     }
     ++index;

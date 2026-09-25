@@ -64,7 +64,20 @@ void styleUiWidget(GuiWidget& widget, const UiNode& node) {
   layout.justify_content = s.justify;
   layout.align_self = s.align_self;
   applyKindDefaults(layout, node);
-  widget.override_style = true;
+}
+
+GuiStateStyles uiButtonLook(const UiNodeStyle& style) {
+  const GuiColor fill = style.fill.value_or(UI_BUTTON_FILL);
+  GuiStateStyles look = GuiStateStyles::uniform(
+      {.fill = fill,
+       .text = style.color.value_or(UI_TEXT_COLOR),
+       .radius = style.radius > 0.0F ? style.radius : UI_BUTTON_RADIUS});
+  look.of(GuiWidgetState::HOVER).fill = UI_BUTTON_HOVER;
+  look.of(GuiWidgetState::SELECTED).fill = UI_BUTTON_HOVER;
+  look.of(GuiWidgetState::PRESSED).fill =
+      GuiColor::lerp(fill, UI_BUTTON_HOVER, 0.5F);
+  look.of(GuiWidgetState::DISABLED).fill = GuiColor::applyOpacity(fill, 0.5F);
+  return look;
 }
 
 void anchorUiRoot(LayoutStyle& layout, UiAnchor anchor, float inset) {

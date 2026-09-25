@@ -32,9 +32,8 @@ namespace {
   /// How far along the direction a candidate must be to count as "that
   /// way", in logical pixels — so a widget level with focus is not above it.
   constexpr float MIN_ALONG = 0.5f;
-  /// How far the ring sits outside the widget, and how thick it is.
+  /// How far the ring sits outside the widget; the theme sets its width.
   constexpr float RING_OUTSET = 3.0f;
-  constexpr float RING_WIDTH = 2.0f;
   constexpr float RING_RADIUS = 4.0f;
   /// Half, for a centre.
   constexpr float HALF = 0.5f;
@@ -58,7 +57,7 @@ namespace {
 
   /// Whether @p widget can hold navigation focus.
   bool canFocus(const GuiWidget& widget) {
-    return widget.tree_focusable && widget.visible;
+    return widget.tree_focusable && widget.visible && !widget.disabled;
   }
 
   /// Every visible focusable widget under @p id, pre-order, into @p out. An
@@ -70,7 +69,7 @@ namespace {
     if (widget == nullptr || !widget->visible) {
       return;
     }
-    if (widget->tree_focusable && !widget->overlay_registered) {
+    if (canFocus(*widget) && !widget->overlay_registered) {
       out.push_back(widget);
     }
     for (const GuiWidgetId child : widget->children) {
@@ -417,10 +416,9 @@ void GuiWidgetTree::renderFocusRing(const GuiDrawContext& ctx) const {
     return;
   }
   const ScopedClip clip{ctx, ancestorClip(*widget)};
-  const GuiStyle& style =
-      active_style_ != nullptr ? *active_style_ : GuiStyle::dark();
-  ctx.drawRoundedBorderRect(
-      {ringAround(widget->rect), style.focus_ring, RING_RADIUS, RING_WIDTH});
+  const GuiTheme& theme = ctx.activeTheme();
+  ctx.drawRoundedBorderRect({ringAround(widget->rect), theme.palette.focus_ring,
+                             RING_RADIUS, theme.focus_ring_width});
 }
 
 // NOLINTNEXTLINE(misc-no-recursion) -- tree traversal requires recursion

@@ -470,17 +470,7 @@ size_t GuiWidgetTree::childCount(GuiWidgetId id) const {
   return (it != widget_nodes.end()) ? it->second->children.size() : 0;
 }
 
-void GuiWidgetTree::setStyle(const GuiStyle& style) {
-  active_style_ = &style;
-  for (auto* comp : components_) {
-    comp->ui_style = active_style_;
-  }
-}
-
 void GuiWidgetTree::registerComponent(GuiWidget& comp) {
-  if (active_style_ != nullptr) {
-    comp.ui_style = active_style_;
-  }
   comp.overlay_registered = true;
   components_.push_back(&comp);
 }

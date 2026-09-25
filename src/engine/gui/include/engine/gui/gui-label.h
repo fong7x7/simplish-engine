@@ -4,6 +4,7 @@
 #include "gui-widget.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace eng {
@@ -35,8 +36,8 @@ public:
 
   /// Text string to render.
   std::string_view text{};
-  /// Text color.
-  GuiColor color{};
+  /// Text colour; unset takes the theme's `palette.text`.
+  std::optional<GuiColor> color{};
   /// Alignment mode.
   GuiLabelAlign align = GuiLabelAlign::LEFT;
 };

@@ -8,6 +8,8 @@
 #include "draw-pos.h"
 #include "gui-color.h"
 #include "gui-renderer.h"
+#include "gui-state-style.h"
+#include "gui-theme.h"
 #include "text-pipeline.h"
 
 #include <cstdint>
@@ -40,6 +42,11 @@ public:
   TextPipelineContext* text_pipeline = nullptr;
   /// Active font face ID for text rendering.
   uint32_t face_id = 0;
+  /// The theme widgets draw from (not owned); null for `GuiTheme::dark()`.
+  const GuiTheme* theme = nullptr;
+
+  /// The theme to draw from: `theme`, or the dark preset without one.
+  [[nodiscard]] const GuiTheme& activeTheme() const;
 
   /// Draw a solid-filled rectangle.
   void drawFilledRect(const Rect& rect, const GuiColor& color) const;
@@ -47,6 +54,12 @@ public:
   /// Draw a filled rectangle with rounded corners.
   void drawRoundedRect(const Rect& rect, const GuiColor& color,
                        float radius) const;
+
+  /// Draw @p style's box over @p rect — fill, then border, at its radius —
+  /// with every colour's alpha scaled by @p opacity. What a themed widget
+  /// draws its background with.
+  void drawBox(const Rect& rect, const GuiStateStyle& style,
+               float opacity) const;
 
   /// Draw a 1px border rectangle.
   void drawBorderRect(const Rect& rect, const GuiColor& color) const;

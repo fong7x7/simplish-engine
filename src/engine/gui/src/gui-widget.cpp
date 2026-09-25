@@ -14,8 +14,14 @@ void GuiWidget::resetTransientState() {
   tree_render_dirty = true;
 }
 
-void GuiWidget::update(const GuiDrawContext& /*ctx*/, float dt) {
+void GuiWidget::update(const GuiDrawContext& ctx, float dt) {
   animator_.tick(*this, dt);
+  const GuiTheme& theme = ctx.activeTheme();
+  if (const GuiStateStyles* styles = activeStyles(theme)) {
+    style_transition_.retarget(styles->of(visualState()),
+                               theme.transition_seconds);
+    style_transition_.tick(dt);
+  }
 }
 
 bool GuiWidget::isInside(float mx, float my) const {
@@ -56,6 +62,9 @@ bool GuiWidget::hasClickHandlers() const {
 }
 
 bool GuiWidget::handleMouseDown(const GuiMouseEvent& event) {
+  if (disabled) {
+    return false;
+  }
   for (const auto& handler : on_mouse_down_handlers_) {
     handler(event);
   }
@@ -82,7 +91,7 @@ bool GuiWidget::handleScroll(const GuiScrollEvent& event) {
 }
 
 bool GuiWidget::handleNav(GuiNavCommand command) {
-  if (command != GuiNavCommand::CONFIRM || !hasClickHandlers()) {
+  if (disabled || command != GuiNavCommand::CONFIRM || !hasClickHandlers()) {
     return false;
   }
   // Pressed as the pointer would press it, at its centre.
@@ -100,6 +109,7 @@ void GuiWidget::onFocusChange(
 }
 
 void GuiWidget::handleFocusChange(GuiFocusChange change) {
+  focused = change == GuiFocusChange::GAINED;
   for (const auto& handler : on_focus_handlers_) {
     handler(change);
   }
@@ -120,14 +130,45 @@ std::optional<Rect> GuiWidget::childClipRect() const {
 }
 
 bool GuiWidget::handleClick(const GuiMouseEvent& event) {
+  if (disabled) {
+    return false;
+  }
   for (const auto& handler : on_click_handlers_) {
     handler(event);
   }
   return false;
 }
 
-bool GuiWidget::hasSharedStyle() const {
-  return ui_style != nullptr && !override_style;
+GuiWidgetState GuiWidget::visualState() const {
+  if (disabled) {
+    return GuiWidgetState::DISABLED;
+  }
+  if (pressed) {
+    return GuiWidgetState::PRESSED;
+  }
+  if (selected) {
+    return GuiWidgetState::SELECTED;
+  }
+  if (hovered) {
+    return GuiWidgetState::HOVER;
+  }
+  return focused ? GuiWidgetState::FOCUSED : GuiWidgetState::NORMAL;
+}
+
+const GuiStateStyles* GuiWidget::themeStyles(const GuiTheme& /*theme*/) const {
+  return nullptr;
+}
+
+const GuiStateStyles* GuiWidget::activeStyles(const GuiTheme& theme) const {
+  return state_styles ? &*state_styles : themeStyles(theme);
+}
+
+GuiStateStyle GuiWidget::drawnStyle(const GuiDrawContext& ctx) const {
+  if (style_transition_.isBlending()) {
+    return style_transition_.current();
+  }
+  const GuiStateStyles* styles = activeStyles(ctx.activeTheme());
+  return styles != nullptr ? styles->of(visualState()) : GuiStateStyle{};
 }
 
 void GuiWidget::animate(const GuiAnimation& anim) {

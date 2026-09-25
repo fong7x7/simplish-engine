@@ -1,7 +1,6 @@
 #include "engine/gui/gui-slider.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 
 #include <algorithm>
 
@@ -20,19 +19,20 @@ namespace {
   constexpr float NORM_MAX = 1.0f;
 }  // namespace
 
-GuiSlider::ResolvedColors GuiSlider::resolveStyle() const {
-  if (!hasSharedStyle()) {
-    auto hc = hovered ? style.handle_hover_color : style.handle_color;
-    return {style.track_color, style.fill_color, hc, style.track_height,
-            style.handle_size};
-  }
-  auto hc = hovered ? ui_style->slider_handle_hover : ui_style->slider_handle;
-  return {ui_style->slider_track, ui_style->slider_fill, hc,
-          ui_style->slider_track_height, ui_style->slider_handle_size};
+GuiSlider::ResolvedColors
+GuiSlider::resolveStyle(const GuiDrawContext& ctx) const {
+  const GuiPalette& p = ctx.activeTheme().palette;
+  const GuiColor handle = (hovered || pressed)
+                              ? style.handle_hover_color.value_or(p.on_primary)
+                              : style.handle_color.value_or(p.text);
+  return {style.track_color.value_or(p.control),
+          disabled ? p.text_disabled : style.fill_color.value_or(p.primary),
+          disabled ? p.text_disabled : handle, style.track_height,
+          style.handle_size};
 }
 
 void GuiSlider::render(const GuiDrawContext& ctx) const {
-  auto [track_col, fill_col, handle_col, th, hs] = resolveStyle();
+  auto [track_col, fill_col, handle_col, th, hs] = resolveStyle(ctx);
   auto tc = GuiColor::applyOpacity(track_col, opacity);
   auto fc = GuiColor::applyOpacity(fill_col, opacity);
   auto hc = GuiColor::applyOpacity(handle_col, opacity);
@@ -49,6 +49,9 @@ void GuiSlider::render(const GuiDrawContext& ctx) const {
 }
 
 bool GuiSlider::handleMouseDown(const GuiMouseEvent& event) {
+  if (disabled) {
+    return false;
+  }
   updateValueFromX(event.x);
   return true;
 }

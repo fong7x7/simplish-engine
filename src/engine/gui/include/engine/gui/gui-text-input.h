@@ -58,6 +58,13 @@ public:
   /// Render this text input field.
   void render(const GuiDrawContext& ctx) const override;
 
+  /// The theme's field look.
+  [[nodiscard]] const GuiStateStyles*
+  themeStyles(const GuiTheme& theme) const override;
+
+  /// FOCUSED while typing, unless disabled; else as any widget.
+  [[nodiscard]] GuiWidgetState visualState() const override;
+
   /// One line high, and no width of its own: a field is as wide as its
   /// layout makes it.
   [[nodiscard]] LayoutSize
@@ -102,8 +109,6 @@ public:
   /// Store a pending double-click X for deferred word selection.
   void setPendingWordSelect(float mx);
 
-  /// Text color.
-  GuiColor text_color{};
   /// Whether this input has keyboard focus.
   GuiTextInputFocus focus = GuiTextInputFocus::UNFOCUSED;
   /// Callback fired when text content changes.
@@ -137,10 +142,12 @@ protected:
                                     std::size_t len) const;
 
   /// Resolve selection background color from shared style or fallback.
-  [[nodiscard]] GuiColor selectionBgColor() const;
+  [[nodiscard]] GuiColor selectionBgColor(const GuiDrawContext& ctx) const;
 
   /// Resolve selected text color from shared style or fallback.
-  [[nodiscard]] GuiColor selectionTextColor() const;
+  [[nodiscard]] GuiColor selectionTextColor(const GuiDrawContext& ctx) const;
+  /// The text colour for the state the field is in.
+  [[nodiscard]] GuiColor textColor(const GuiDrawContext& ctx) const;
 
   /// Owned text buffer.
   std::string buffer_{};

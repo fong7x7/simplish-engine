@@ -179,8 +179,6 @@ public:
   /// GUI_WIDGET_ID_INVALID lets it range over the whole tree again.
   void setFocusScope(GuiWidgetId scope);
 
-  /// Set shared style for all registered overlay components.
-  void setStyle(const GuiStyle& style);
 
   /// Register an overlay component (non-owning). Among overlays, higher
   /// `z_index` draws and receives hits above lower; ties keep registration
@@ -496,8 +494,6 @@ private:
 
   /// Flat list of widgets participating in hit-testing and focus (scene order).
   std::vector<GuiWidget*> components_{};
-  /// Theme tokens resolved for the current paint pass.
-  const GuiStyle* active_style_ = nullptr;
   /// Widget that captured mouse after a successful mouse-down dispatch.
   GuiWidget* captured_ = nullptr;
   /// Text field receiving IME/text input when focused.

@@ -20,14 +20,6 @@ namespace {
   /// as a separate thing rather than a sixth tool.
   constexpr float PLAY_BUTTON_GAP = 16.0f;
 
-  GuiButtonStyle activeStyle() {
-    return {THEME_ACCENT, THEME_TEXT, THEME_ACCENT_HOVER, THEME_BTN_RADIUS};
-  }
-
-  GuiButtonStyle inactiveStyle() {
-    return {THEME_BTN, THEME_TEXT, THEME_BTN_HOVER, THEME_BTN_RADIUS};
-  }
-
   /// Give @p widget a fixed @p width and @p height (-1 for its measured
   /// one) that the row never shrinks.
   void fixSize(GuiWidget& widget, float width, float height) {
@@ -166,8 +158,8 @@ void EditorToolbarWidget::stylePlayButton(GuiWidgetTree& tree) {
   }
   const bool playing = play_mode_ == EditorPlayMode::PLAYING;
   button->label = playing ? "Stop" : "Play";
-  button->style = playing ? activeStyle() : inactiveStyle();
-  button->override_style = true;
+  // Lit, in the theme's selected look, while the game runs.
+  button->selected = playing;
 }
 
 void EditorToolbarWidget::styleButtons(GuiWidgetTree& tree) {
@@ -176,9 +168,7 @@ void EditorToolbarWidget::styleButtons(GuiWidgetTree& tree) {
     if (button == nullptr) {
       continue;
     }
-    const bool active = EDITOR_TOOLS[i] == active_tool_;
-    button->style = active ? activeStyle() : inactiveStyle();
-    button->override_style = true;
+    button->selected = EDITOR_TOOLS[i] == active_tool_;
   }
 }
 

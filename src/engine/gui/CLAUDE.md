@@ -55,7 +55,10 @@ root — gitignored artifacts, not fixtures to commit.
   `PositionMode::MANUAL`.
 - Widgets subclassing the external-widget path are inserted with
   `tree.insertExternalWidget(std::make_unique<T>(), parent)`, then `init(tree)`.
-- Theme tokens go through the scope stack in `gui-theme.cpp`; do not hardcode
-  colors in a widget.
+- Colours, spacing and radii come from `ctx.activeTheme()` (`GuiTheme`,
+  [technical/theming.md](../../../docs/engine/gui/technical/theming.md));
+  do not hardcode colours in a widget. Interaction looks go through the
+  `disabled` / `selected` flags and per-state `GuiStateStyles`, which blend
+  on change — never by swapping styles each tick.
 - `image-loader.cpp` calls stb, whose implementation TUs live in
   `engine/image/` — see the root CLAUDE.md for why.

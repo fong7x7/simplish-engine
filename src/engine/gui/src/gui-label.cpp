@@ -1,7 +1,6 @@
 #include "engine/gui/gui-label.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 
 namespace eng {
 
@@ -17,8 +16,8 @@ LayoutSize GuiLabel::measureContent(const GuiDrawContext& ctx) const {
 }
 
 void GuiLabel::render(const GuiDrawContext& ctx) const {
-  const bool use_shared = hasSharedStyle();
-  auto c = GuiColor::applyOpacity(use_shared ? ui_style->text : color, opacity);
+  const GuiColor c = GuiColor::applyOpacity(
+      color.value_or(ctx.activeTheme().palette.text), opacity);
   switch (align) {
     case GuiLabelAlign::LEFT:
       ctx.drawText(c, drawPosInset(rect, 0, 0), text);

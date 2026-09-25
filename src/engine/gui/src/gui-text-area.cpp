@@ -1,7 +1,6 @@
 #include "engine/gui/gui-text-area.h"
 
 #include "engine/gui/gui-draw-context.h"
-#include "engine/gui/gui-style.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
@@ -18,7 +17,6 @@ namespace {
   /// Vertical inset for cursor line from each line's top/bottom.
   constexpr float AREA_CURSOR_VPAD = 1.0f;
   /// Fallback placeholder text color.
-  constexpr GuiColor AREA_PLACEHOLDER_COLOR{120, 120, 120};
 
 }  // namespace
 
@@ -175,18 +173,12 @@ void GuiTextArea::insertAtCursor(std::string_view input) {
 
 // ─── Rendering ──────────────────────────────────────────────
 
-GuiColor GuiTextArea::resolveTextColor() const {
-  const bool use_shared = hasSharedStyle();
-  return GuiColor::applyOpacity(use_shared ? ui_style->input_text : text_color,
-                                opacity);
-}
-
 void GuiTextArea::renderLines(const GuiDrawContext& ctx,
                               const std::vector<WrappedLine>& lines) const {
   if (buffer_.empty()) {
     return;
   }
-  auto tc = resolveTextColor();
+  auto tc = textColor(ctx);
   float lh = ctx.textLineHeight();
   float x = rect.x + text_padding;
   float y = rect.y + text_vpadding;
@@ -216,7 +208,7 @@ void GuiTextArea::renderAreaCursor(
   float cy = rect.y + text_vpadding + static_cast<float>(li) * lh;
   ctx.drawFilledRect({cx, cy + AREA_CURSOR_VPAD, AREA_CURSOR_WIDTH,
                       lh - 2.0f * AREA_CURSOR_VPAD},
-                     resolveTextColor());
+                     textColor(ctx));
 }
 
 void GuiTextArea::renderAreaSelection(
@@ -228,7 +220,7 @@ void GuiTextArea::renderAreaSelection(
   auto hi = std::max(sel_anchor_, cursor_pos_);
   float lh = ctx.textLineHeight();
   float x0 = rect.x + text_padding;
-  auto sel_bg = GuiColor::applyOpacity(selectionBgColor(), opacity);
+  auto sel_bg = GuiColor::applyOpacity(selectionBgColor(ctx), opacity);
   for (std::size_t i = 0; i < lines.size(); ++i) {
     LineSelectionParams lsp{&lines[i], i, lo, hi, lh, x0, sel_bg};
     renderSelectionLine(ctx, lsp);
@@ -256,9 +248,8 @@ void GuiTextArea::renderAreaPlaceholder(const GuiDrawContext& ctx) const {
   if (!buffer_.empty() || placeholder.empty()) {
     return;
   }
-  const bool use_shared = hasSharedStyle();
-  auto tc = GuiColor::applyOpacity(
-      use_shared ? ui_style->text_dim : AREA_PLACEHOLDER_COLOR, opacity);
+  const GuiColor tc =
+      GuiColor::applyOpacity(ctx.activeTheme().palette.text_muted, opacity);
   ctx.drawText(tc, {rect.x + text_padding, rect.y + text_vpadding},
                placeholder);
 }
