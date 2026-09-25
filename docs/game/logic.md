@@ -44,7 +44,8 @@ SIMPLISH_GAME_LOGIC(Survive)
 
 | Piece | Where | What |
 |---|---|---|
-| `GameLogic` | [game-logic.h](../../src/game/logic/include/game/logic/game-logic.h) | What a project subclasses: `start` (tick 0, once), `tick` (every tick), `hashState` |
+| `sdk::Game` and the SDK | [game/sdk/](../../src/game/sdk/include/game/sdk/sdk.h) | What a project's logic is best written with — [sdk.md](sdk.md) |
+| `GameLogic` | [game-logic.h](../../src/game/logic/include/game/logic/game-logic.h) | The interface underneath `sdk::Game`: `start` (tick 0, once), `tick` (every tick), `hashState` |
 | `GameLogicWorld` | [game-logic-world.h](../../src/game/logic/include/game/logic/game-logic-world.h) | The world, as the logic sees it: reads, queued writes, the random stream, the log |
 | `GameLogicHash` | [game-logic-hash.h](../../src/game/logic/include/game/logic/game-logic-hash.h) | Where `hashState` folds the logic's own members |
 | `LogicPlayer`, `LogicActor`, `LogicTarget` | `logic-*.h` | Plain copies of a player or an actor, and the handle a write names one by |
@@ -93,6 +94,8 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
+This is `GameLogicWorld`, API version 3 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+
 | Read | |
 |---|---|
 | `tick()` | The tick being simulated, from 0 |
@@ -100,21 +103,31 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 | `playerCount()`, `player(i)` | Slot, position, aim, health and full bar, up/down/out, and a `target` |
 | `actorCount()`, `actor(i)` | The level's id for it (the prop it was placed as), position, facing, faction, health, the state of its behavior it is in, and a `target` |
 | `outcome()` | Playing, won or lost |
+| `actorOf(target)`, `playerOf(target)` | The entity a kept target names now, or nothing when it is gone |
+| `events()` | What happened in the last tick, in order: actors spawned, hurt, killed and removed; players hurt and downed. A dead actor's event carries where it fell and its name |
+| `lineOfSight(from, to)`, `walkable(at)` | Asked of the navigation grid, for an actor of the default size; false outside it |
+| `obstacleCount()`, `obstacle(i)` | The level's solid props, as boxes |
 
 | Write | |
 |---|---|
 | `damage(target, amount)` | Queued; applied as a hit |
 | `heal(target, amount)` | Queued; up to a full bar |
 | `endRun(outcome)` | The first ending stands |
+| `moveTo(target, at)` | Queued; teleports a player or an actor, which forgets its path |
+| `removeActor(target)` | Queued; out of the run without a death or its blast, reported `ACTOR_REMOVED` |
+| `setActorState(target, state)` | Queued; into a state of its behavior by id, from its start. False for a state its behavior lacks |
+| `setActorFaction(target, faction)` | Queued; onto another side |
 | `spawnEnemy(archetype, at, id)` | Queued; one of the project's enemy archetypes — health, body, behavior, side, model and death blast from `enemies.data.json` — named `id`. False, and nothing queued, for an archetype the project lacks or with no room left |
 | `spawnActor(spawn)` | Queued; an actor made to measure from a `LogicSpawn`: where, facing, behavior, side, health, id, model. False with no room left |
 | `actorRoom()` | How many more can be spawned this tick |
 | `random(bound)` | `0 … bound-1` from the logic's own stream, `LOGIC_RNG_STREAM`, so a draw added to the logic never shifts what actors roll |
 | `log(message)` | Presentation: the editor's log and `get_playtest`'s `logic_log`, or the deployed game's output |
 
-**Spawns** are applied after damage and healing, in the order made, and read from the next tick on; they are not hurt by the tick that made them. A run has a fixed room, `GameSetup::actor_capacity`, so the pools never grow mid-tick: a playtest with logic, and a deployed game with logic linked in, get `GAME_LOGIC_ACTOR_CAPACITY` (2,048), the level's own actors included. A run without logic keeps exactly its level's room, and hashes as it always did. The navigation grid covers the level's players and actors with a margin; an actor spawned far outside it has no floor to plan across. In a playtest, a spawned actor is drawn as a player is — its model, or the stand-in cylinder — shows in the AI overlay, and `get_playtest` lists it after the level's, marked `spawned`. Its footsteps are not heard yet.
+**Events** are gathered as a tick runs — spawns and removals as the logic's writes are applied, hurts, deaths and downs read off the pools at its end — and handed over on the next, so they are state, carried and hashed in the `logic` section.
 
-Everything else — reading props and the navigation grid, cueing effects and sounds — is §9's.
+**Spawns** are applied after the tick's other writes, in the order made, and read from the next tick on; they are not hurt by the tick that made them. A run has a fixed room, `GameSetup::actor_capacity`, so the pools never grow mid-tick: a playtest with logic, and a deployed game with logic linked in, get `GAME_LOGIC_ACTOR_CAPACITY` (2,048), the level's own actors included. A run without logic keeps exactly its level's room, and hashes as it always did. The navigation grid covers the level's players and actors with a margin; an actor spawned far outside it has no floor to plan across. In a playtest, a spawned actor is drawn as a player is — its model, or the stand-in cylinder — shows in the AI overlay, and `get_playtest` lists it after the level's, marked `spawned`. Its footsteps are not heard yet.
+
+Everything else — cueing effects and sounds, patrol routes for spawned actors — is §9's.
 
 ---
 

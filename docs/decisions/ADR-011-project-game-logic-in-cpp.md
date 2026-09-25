@@ -31,6 +31,7 @@ Developers and AI agents need to write that logic **in the game project the edit
 - **Hot, not live.** A build loads a copy of the new library for the *next* playtest; a running playtest keeps the library it started with until it stops. Nothing is swapped mid-run, so there is no state to migrate and no half-applied tick.
 - **A fresh instance per run.** Every playtest, and every run of a deployed game, makes its own instance, so members start from their initialisers each time.
 - **Deploy is static.** A deployed game has no dynamic loader for logic: the project's objects are linked into `simplish-game`, optimised with the engine under LTO.
+- **An SDK on top.** `game/sdk` (`eng::game::sdk`) is what a project's logic is written with: a `Game` base that hands each of the last tick's events to a hook, entity queries, per-entity data, timers, spawn patterns and dice. It calls the world only through `GameLogicWorld`, so its sources compile into the project's module as engine/math's do. What the world can do is `GameLogicWorld`'s, versioned; what makes it pleasant is the SDK's, which can grow without a version bump.
 - **Agents reach all of it.** `run_command` runs New Game Logic, Build Game Logic and Deploy Game; `get_build` reports the build, its log and the compiler's errors; `get_playtest` reports the outcome and what the logic logged.
 
 ## Alternatives Considered

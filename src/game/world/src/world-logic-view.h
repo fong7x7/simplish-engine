@@ -32,6 +32,15 @@ public:
   [[nodiscard]] uint32_t actorCount() const override;
   [[nodiscard]] LogicActor actor(uint32_t index) const override;
   [[nodiscard]] RunOutcome outcome() const override;
+  [[nodiscard]] std::optional<LogicActor>
+  actorOf(LogicTarget target) const override;
+  [[nodiscard]] std::optional<LogicPlayer>
+  playerOf(LogicTarget target) const override;
+  [[nodiscard]] std::span<const LogicEvent> events() const override;
+  [[nodiscard]] bool lineOfSight(Vec3 from, Vec3 to) const override;
+  [[nodiscard]] bool walkable(Vec3 at) const override;
+  [[nodiscard]] uint32_t obstacleCount() const override;
+  [[nodiscard]] physics::CollisionBox obstacle(uint32_t index) const override;
   void damage(LogicTarget target, uint16_t amount) override;
   void heal(LogicTarget target, uint16_t amount) override;
   void endRun(RunOutcome outcome) override;
@@ -39,10 +48,19 @@ public:
                   std::string_view id) override;
   bool spawnActor(const LogicSpawn& spawn) override;
   [[nodiscard]] uint32_t actorRoom() const override;
+  void moveTo(LogicTarget target, Vec3 at) override;
+  void removeActor(LogicTarget target) override;
+  bool setActorState(LogicTarget target, std::string_view state) override;
+  void setActorFaction(LogicTarget target, Faction faction) override;
   [[nodiscard]] uint32_t random(uint32_t bound) override;
   void log(std::string_view message) override;
 
 private:
+  /// The dense index of the actor @p target names, if it is one still in
+  /// the pool.
+  [[nodiscard]] std::optional<uint32_t> actorIndex(LogicTarget target) const;
+  /// The clearance an actor of the default size needs of the grid.
+  [[nodiscard]] uint8_t clearance() const;
   /// Queue @p spawn when there is room. False when there is none.
   bool queueSpawn(ActorSpawn spawn);
 

@@ -32,6 +32,7 @@
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/logic-command.h>
+#include <game/world/logic-event-log.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -184,8 +185,16 @@ private:
   void resolveDamage(uint64_t tick);
   /// Run the game logic's part of @p context's tick.
   void runLogic(const sim::TickContext& context);
+  /// Call the game logic with @p view on @p tick: `start` first on tick 0.
+  void callLogic(GameLogicWorld& view, uint64_t tick);
   /// Apply one of the game logic's queued writes.
   void applyLogicCommand(const LogicCommand& command, uint64_t tick);
+  /// Apply one of the game logic's writes to an actor — a move, a removal,
+  /// a state or a side — at dense index @p index.
+  void applyActorCommand(const LogicCommand& command, uint32_t index,
+                         uint64_t tick);
+  /// Put the player or actor @p target at @p at.
+  void moveTo(const LogicTarget& target, Vec3 at);
   /// Give the player or actor @p target back @p amount health segments.
   void heal(const LogicTarget& target, uint16_t amount);
   /// Apply the game logic's queued writes: damage and healing in order,
@@ -246,6 +255,8 @@ private:
   std::vector<std::string> actor_models_;
   /// Whether each slot's actor was spawned mid-run, 1 for true. Not state.
   std::vector<uint8_t> actor_spawned_;
+  /// What happened last tick, for the game logic; kept only with one.
+  LogicEventLog logic_events_;
   /// The run's content, kept only when actors can be spawned mid-run: the
   /// behaviors and archetypes they name. Empty otherwise.
   GameContent content_;

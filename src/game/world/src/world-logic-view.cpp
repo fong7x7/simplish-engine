@@ -1,6 +1,8 @@
 #include "world-logic-view.h"
 
 #include <algorithm>
+#include <engine/spatial/line-of-sight.h>
+#include <game/actors/actor-spawn.h>
 #include <game/actors/enemy-spawn.h>
 #include <game/content/enemy-lookup.h>
 #include <game/player/player-system.h>
@@ -92,12 +94,64 @@ RunOutcome WorldLogicView::outcome() const {
   return scene_.outcome;
 }
 
+std::optional<uint32_t> WorldLogicView::actorIndex(LogicTarget target) const {
+  if (target.kind != LogicTargetKind::ACTOR) {
+    return std::nullopt;
+  }
+  return scene_.actors.slots.denseIndex({target.index, target.generation});
+}
+
+std::optional<LogicActor> WorldLogicView::actorOf(LogicTarget target) const {
+  const std::optional<uint32_t> index = actorIndex(target);
+  return index ? std::optional{actor(*index)} : std::nullopt;
+}
+
+std::optional<LogicPlayer> WorldLogicView::playerOf(LogicTarget target) const {
+  if (target.kind != LogicTargetKind::PLAYER) {
+    return std::nullopt;
+  }
+  const auto index =
+      scene_.players.slots.denseIndex({target.index, target.generation});
+  return index ? std::optional{player(*index)} : std::nullopt;
+}
+
+std::span<const LogicEvent> WorldLogicView::events() const {
+  return scene_.events;
+}
+
+uint8_t WorldLogicView::clearance() const {
+  return scene_.grid.requiredClearance(ACTOR_DEFAULT_RADIUS_TILES);
+}
+
+bool WorldLogicView::lineOfSight(Vec3 from, Vec3 to) const {
+  const Vec2 a{from.x, from.y};
+  const Vec2 b{to.x, to.y};
+  return scene_.grid.cellAt(a) && scene_.grid.cellAt(b) &&
+         spatial::hasLineOfSight(scene_.grid, a, b, clearance());
+}
+
+bool WorldLogicView::walkable(Vec3 at) const {
+  const auto cell = scene_.grid.cellAt({at.x, at.y});
+  return cell && scene_.grid.isOpen(*cell, clearance());
+}
+
+uint32_t WorldLogicView::obstacleCount() const {
+  return static_cast<uint32_t>(scene_.obstacles.size());
+}
+
+physics::CollisionBox WorldLogicView::obstacle(uint32_t index) const {
+  return index < scene_.obstacles.size() ? scene_.obstacles[index]
+                                         : physics::CollisionBox{};
+}
+
 void WorldLogicView::damage(LogicTarget target, uint16_t amount) {
-  scene_.commands.push_back({LogicCommandKind::DAMAGE, target, amount});
+  scene_.commands.push_back(
+      {.kind = LogicCommandKind::DAMAGE, .target = target, .amount = amount});
 }
 
 void WorldLogicView::heal(LogicTarget target, uint16_t amount) {
-  scene_.commands.push_back({LogicCommandKind::HEAL, target, amount});
+  scene_.commands.push_back(
+      {.kind = LogicCommandKind::HEAL, .target = target, .amount = amount});
 }
 
 void WorldLogicView::endRun(RunOutcome outcome) {
@@ -140,6 +194,40 @@ bool WorldLogicView::queueSpawn(ActorSpawn spawn) {
   }
   scene_.spawns.push_back(std::move(spawn));
   return true;
+}
+
+void WorldLogicView::moveTo(LogicTarget target, Vec3 at) {
+  scene_.commands.push_back(
+      {.kind = LogicCommandKind::MOVE, .target = target, .at = at});
+}
+
+void WorldLogicView::removeActor(LogicTarget target) {
+  scene_.commands.push_back(
+      {.kind = LogicCommandKind::REMOVE, .target = target});
+}
+
+bool WorldLogicView::setActorState(LogicTarget target, std::string_view state) {
+  const std::optional<uint32_t> index = actorIndex(target);
+  if (!index) {
+    return false;
+  }
+  const auto& states =
+      scene_.brains[scene_.actors.brain[*index]].behavior.states;
+  const auto found = std::ranges::find(states, state, &BehaviorState::id);
+  if (found == states.end()) {
+    return false;
+  }
+  scene_.commands.push_back(
+      {.kind = LogicCommandKind::SET_STATE,
+       .target = target,
+       .state = static_cast<uint8_t>(found - states.begin())});
+  return true;
+}
+
+void WorldLogicView::setActorFaction(LogicTarget target, Faction faction) {
+  scene_.commands.push_back({.kind = LogicCommandKind::SET_FACTION,
+                             .target = target,
+                             .faction = faction});
 }
 
 uint32_t WorldLogicView::random(uint32_t bound) {

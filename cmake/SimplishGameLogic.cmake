@@ -12,8 +12,9 @@
 #   shared library, `game-logic.dylib` / `.so` / `.dll`, written to the top
 #   of the build tree, which every playtest loads a fresh copy of. It is
 #   compiled with the engine's own flags (SimplishCompilerOptions), links
-#   no engine library, and carries its own copy of engine/math: everything
-#   else it calls is an interface the editor implements.
+#   no engine library, and carries its own copies of engine/math and the
+#   game SDK (game/sdk): everything else it calls is an interface the
+#   editor implements.
 #
 #   In the engine — Build ▸ Deploy Game configures the engine itself with
 #   -DSIMPLISH_PROJECT_DIR=<project>, and src/bin/game adds the project's
@@ -30,12 +31,15 @@ if(NOT DEFINED SIMPLISH_ROOT OR SIMPLISH_ROOT STREQUAL "")
 endif()
 
 # The public include roots a project's logic compiles against. game/logic's
-# headers name only these, and every one of them is header-only apart from
-# engine/math, whose sources are compiled into the module.
+# and game/sdk's headers name only these, and every one of them is
+# header-only apart from engine/math and game/sdk, whose sources are
+# compiled into the module.
 set(SIMPLISH_GAME_LOGIC_INCLUDE_DIRS
+    "${SIMPLISH_ROOT}/src/game/sdk/include"
     "${SIMPLISH_ROOT}/src/game/logic/include"
     "${SIMPLISH_ROOT}/src/game/content/include"
     "${SIMPLISH_ROOT}/src/engine/sim/include"
+    "${SIMPLISH_ROOT}/src/engine/physics/include"
     "${SIMPLISH_ROOT}/src/engine/math/include"
 )
 
@@ -46,12 +50,16 @@ function(_simplish_game_logic_in_engine sources)
     add_library(simplish-project-logic OBJECT ${sources})
     target_include_directories(simplish-project-logic PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(simplish-project-logic PUBLIC simplish-game-logic)
+    target_link_libraries(simplish-project-logic PUBLIC
+        simplish-game-logic simplish-game-sdk)
 endfunction()
 
 function(_simplish_game_logic_standalone sources)
-    file(GLOB _math_sources "${SIMPLISH_ROOT}/src/engine/math/src/*.cpp")
-    add_library(simplish-project-logic MODULE ${sources} ${_math_sources})
+    # Globbed rather than listed: the engine's packages list their own
+    # sources, and a copy of those lists here would drift from them.
+    file(GLOB _engine_sources "${SIMPLISH_ROOT}/src/engine/math/src/*.cpp"
+                              "${SIMPLISH_ROOT}/src/game/sdk/src/*.cpp")
+    add_library(simplish-project-logic MODULE ${sources} ${_engine_sources})
     target_link_libraries(simplish-project-logic PRIVATE
         simplish_compiler_options)
     target_compile_definitions(simplish-project-logic PRIVATE

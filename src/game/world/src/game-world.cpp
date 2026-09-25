@@ -67,6 +67,12 @@ namespace {
     return PROJECTILE_POOL_CAPACITY + actors * 5 + 64;
   }
 
+  /// The pool a game logic target names an entity of.
+  CombatantKind combatantKindOf(const LogicTarget& target) {
+    return target.kind == LogicTargetKind::PLAYER ? CombatantKind::PLAYER
+                                                  : CombatantKind::ACTOR;
+  }
+
   /// The most actors @p setup's run holds: its own, or the room it asks
   /// for when that is more.
   uint32_t actorCapacity(const GameSetup& setup) {
@@ -184,6 +190,11 @@ void GameWorld::addActor(const ActorSpawn& spawn) {
     actor_ids_[handle->index] = spawn.id;
     actor_models_[handle->index] = spawn.model;
     actor_spawned_[handle->index] = 1;
+    logic_events_.note(
+        {LogicEventKind::ACTOR_SPAWNED,
+         {LogicTargetKind::ACTOR, handle->index, handle->generation},
+         spawn.at,
+         spawn.id});
   }
 }
 
@@ -208,26 +219,65 @@ void GameWorld::runLogic(const sim::TickContext& context) {
                        .commands = logic_commands_,
                        .spawns = logic_spawns_,
                        .content = content_,
+                       .grid = grid_,
+                       .obstacles = obstacles_,
+                       .events = logic_events_.events(),
                        .rng = logic_rng_,
                        .outcome = logic_outcome_,
                        .log = logic_log_});
-  if (context.tick == 0) {
+  callLogic(view, context.tick);
+}
+
+void GameWorld::callLogic(GameLogicWorld& view, uint64_t tick) {
+  if (tick == 0) {
     logic_->start(view);
   }
   logic_->tick(view);
 }
 
 void GameWorld::applyLogicCommand(const LogicCommand& command, uint64_t tick) {
+  const LogicTarget& target = command.target;
+  const sim::EntityHandle handle{target.index, target.generation};
   if (command.kind == LogicCommandKind::HEAL) {
-    heal(command.target, command.amount);
-    return;
+    heal(target, command.amount);
+  } else if (command.kind == LogicCommandKind::DAMAGE) {
+    applyHit({{combatantKindOf(target), handle}, command.amount}, tick);
+  } else if (command.kind == LogicCommandKind::MOVE) {
+    moveTo(target, command.at);
+  } else if (const auto i = actors_.slots.denseIndex(handle);
+             i && target.kind == LogicTargetKind::ACTOR) {
+    applyActorCommand(command, *i, tick);
   }
-  const CombatantKind kind = command.target.kind == LogicTargetKind::PLAYER
-                                 ? CombatantKind::PLAYER
-                                 : CombatantKind::ACTOR;
-  applyHit({{kind, {command.target.index, command.target.generation}},
-            command.amount},
-           tick);
+}
+
+void GameWorld::applyActorCommand(const LogicCommand& command, uint32_t index,
+                                  uint64_t tick) {
+  if (command.kind == LogicCommandKind::REMOVE && actors_.health[index] != 0) {
+    logic_events_.noteRemoved(actors_.slots.handleAt(index));
+    logic_events_.note({LogicEventKind::ACTOR_REMOVED, command.target,
+                        actors_.position[index],
+                        actor_ids_[command.target.index]});
+    removeActor(actors_, index);
+  } else if (command.kind == LogicCommandKind::SET_STATE) {
+    actors_.state[index] = command.state;
+    actors_.state_since[index] = tick;
+    actors_.has_goal[index] = 0;
+  } else if (command.kind == LogicCommandKind::SET_FACTION) {
+    actors_.faction[index] = command.faction;
+  }
+}
+
+void GameWorld::moveTo(const LogicTarget& target, Vec3 at) {
+  const sim::EntityHandle handle{target.index, target.generation};
+  if (target.kind == LogicTargetKind::PLAYER) {
+    if (const auto p = players_.slots.denseIndex(handle)) {
+      players_.position[*p] = at;
+    }
+  } else if (const auto i = actors_.slots.denseIndex(handle)) {
+    actors_.position[*i] = at;
+    actors_.path[*i] = {};
+    actors_.has_goal[*i] = 0;
+  }
 }
 
 void GameWorld::heal(const LogicTarget& target, uint16_t amount) {
@@ -263,7 +313,12 @@ std::vector<std::string> GameWorld::takeLogicLog() {
   return lines;
 }
 
-void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {
+void GameWorld::compaction(const sim::TickContext& context) {
+  if (logic_ != nullptr) {
+    logic_events_.noteActors(actors_, actor_ids_, context.tick);
+    logic_events_.notePlayers(players_, context.tick);
+    logic_events_.publish();
+  }
   compactPlayers(players_);
   compactActors(actors_);
   compactProjectiles(projectiles_);
@@ -281,6 +336,7 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
     sim::StateHasher& section = builder.section("logic");
     section.add(logic_outcome_);
     section.add(logic_rng_.state());
+    logic_events_.hashInto(section);
     WorldLogicHash hash(section);
     logic_->hashState(hash);
   }

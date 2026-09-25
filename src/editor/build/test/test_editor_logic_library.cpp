@@ -97,7 +97,7 @@ TEST_CASE("the scaffold builds with the editor's toolchain, loads, and "
   const std::vector<std::string> log = playToTheEnd(*load.library);
   REQUIRE(log.size() >= 2);
   REQUIRE(log[0] == "Survive 90 s");
-  REQUIRE(log[1] == "Wave 1");
+  REQUIRE(log[1].starts_with("Wave 1: "));
 }
 
 namespace {

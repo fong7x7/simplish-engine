@@ -258,6 +258,11 @@ void healActor(ActorPool& pool, uint32_t index, uint16_t amount) {
   pool.health[index] += std::min(amount, room);
 }
 
+void removeActor(ActorPool& pool, uint32_t index) {
+  pool.health[index] = 0;
+  (void)pool.slots.destroy(pool.slots.handleAt(index));
+}
+
 void compactActors(ActorPool& pool) {
   const auto moves = pool.slots.compact();
   compactBody(pool, moves);

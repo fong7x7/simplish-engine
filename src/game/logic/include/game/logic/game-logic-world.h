@@ -6,12 +6,18 @@
 /// Main-thread-only; valid only during `GameLogic::start` and `tick`.
 
 #include <cstdint>
+#include <engine/math/vec3.h>
+#include <engine/physics/collision-box.h>
 #include <engine/sim/tick-input.h>
+#include <game/content/faction.h>
 #include <game/logic/logic-actor.h>
+#include <game/logic/logic-event.h>
 #include <game/logic/logic-player.h>
 #include <game/logic/logic-spawn.h>
 #include <game/logic/logic-target.h>
 #include <game/logic/run-outcome.h>
+#include <optional>
+#include <span>
 #include <string_view>
 
 namespace eng::game {
@@ -24,10 +30,11 @@ namespace eng::game {
 /// writes, so the order logic reads things in never matters.
 ///
 /// **Writes** are queued, and applied once `GameLogic::tick` returns:
-/// damage and healing first, in the order they were made — damage through
-/// the same path an actor's bite takes, a player's grace after a hit, an
-/// actor's death and any blast it goes off in; healing capped at a full bar
-/// — then spawns, in the order they were made. An actor killed this way is
+/// damage, healing, moves, removals, states and factions first, in the
+/// order they were made — damage through the same path an actor's bite
+/// takes, a player's grace after a hit, an actor's death and any blast it
+/// goes off in; healing capped at a full bar — then spawns, in the order
+/// they were made. An actor killed this way is
 /// gone at the end of the tick, as one killed by a shot is; one spawned is
 /// read from the next tick on.
 ///
@@ -60,6 +67,31 @@ public:
   [[nodiscard]] virtual LogicActor actor(uint32_t index) const = 0;
   /// How the run stands.
   [[nodiscard]] virtual RunOutcome outcome() const = 0;
+  /// The actor @p target names, as it is now; nothing when it is gone or
+  /// is a player.
+  [[nodiscard]] virtual std::optional<LogicActor>
+  actorOf(LogicTarget target) const = 0;
+  /// The player @p target names, as they are now; nothing when it names
+  /// no player.
+  [[nodiscard]] virtual std::optional<LogicPlayer>
+  playerOf(LogicTarget target) const = 0;
+  /// Everything that happened in the last tick, in the order it was
+  /// noticed: actors spawned, hurt, killed and removed; players hurt and
+  /// downed. Empty on tick 0. The events of the tick before are gone.
+  [[nodiscard]] virtual std::span<const LogicEvent> events() const = 0;
+
+  /// Whether an actor of the default size could see from @p from to @p to
+  /// across the level's navigation grid: no solid prop between them.
+  /// False where the run has no grid — no actors, and no room for any.
+  [[nodiscard]] virtual bool lineOfSight(Vec3 from, Vec3 to) const = 0;
+  /// Whether an actor of the default size could stand at @p at: inside
+  /// the navigation grid, and clear of the props. False with no grid.
+  [[nodiscard]] virtual bool walkable(Vec3 at) const = 0;
+  /// The level's solid props, as boxes: how many there are.
+  [[nodiscard]] virtual uint32_t obstacleCount() const = 0;
+  /// The @p index-th solid box, 0 to `obstacleCount() - 1`.
+  [[nodiscard]] virtual physics::CollisionBox
+  obstacle(uint32_t index) const = 0;
 
   /// Take @p amount health segments from @p target. Nothing, when it is
   /// gone.
@@ -80,6 +112,19 @@ public:
   /// Add an actor as @p spawn describes. False, and nothing queued, when
   /// the run has no room left.
   virtual bool spawnActor(const LogicSpawn& spawn) = 0;
+  /// Put the player or actor @p target at @p at, as if it had always been
+  /// there: an actor forgets the path it was walking. Queued, like damage.
+  virtual void moveTo(LogicTarget target, Vec3 at) = 0;
+  /// Take the actor @p target out of the run without its dying — no blast
+  /// goes off, and it is reported as removed, not killed. Queued.
+  virtual void removeActor(LogicTarget target) = 0;
+  /// Put the actor @p target into the state of its behavior called
+  /// @p state, from the start of it, as if an exit had led there. False,
+  /// and nothing queued, when it is gone or its behavior has no such state.
+  virtual bool setActorState(LogicTarget target, std::string_view state) = 0;
+  /// Put the actor @p target on @p faction's side. Queued.
+  virtual void setActorFaction(LogicTarget target, Faction faction) = 0;
+
   /// How many more actors can be spawned this tick: the run's room, less
   /// the actors in it — the dying among them, until the tick ends — and
   /// the spawns already queued.

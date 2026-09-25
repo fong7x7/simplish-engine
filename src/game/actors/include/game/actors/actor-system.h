@@ -63,6 +63,10 @@ void hurtActor(ActorPool& pool, uint32_t index, ActorHarm harm,
 /// what it spawned with — unless it is already dead this tick.
 void healActor(ActorPool& pool, uint32_t index, uint16_t amount);
 
+/// The actor at dense index @p index leaves the run without dying: out of
+/// health and marked for destruction, and no blast goes off.
+void removeActor(ActorPool& pool, uint32_t index);
+
 /// §4.1 step 8: destroy the actors marked for it.
 void compactActors(ActorPool& pool);
 

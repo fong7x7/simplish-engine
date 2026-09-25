@@ -28,81 +28,98 @@ simplish_game_logic(
   /// The scaffold's example logic, as written.
   constexpr std::string_view SCAFFOLD_SOURCE = R"(// This project's game logic: rules the data tables cannot say.
 //
-// It runs inside the deterministic tick, once a tick, after damage. Read
-// the world and change it through GameLogicWorld only; keep every member a
-// later tick decides anything by in hashState; and never read a clock or
-// draw a random number but world.random(). The engine's
-// docs/game/logic.md says why, and lists everything the world offers.
+// Written with the Simplish game SDK — <game/sdk/sdk.h> — on top of what
+// the engine lets game logic read and change, GameLogicWorld. It runs
+// inside the deterministic tick, once a tick, after damage: keep every
+// member a later tick decides anything by in onHash, and never read a
+// clock or draw a random number but world.random(). The engine's
+// docs/game/sdk.md walks through the SDK; docs/game/logic.md says why the
+// rules are what they are.
 
-#include <array>
 #include <cstdint>
-#include <game/logic/game-logic-entry.h>
-#include <game/logic/game-logic.h>
+#include <game/sdk/sdk.h>
 #include <string>
+
+namespace sdk = eng::game::sdk;
+using eng::game::GameLogicHash;
+using eng::game::GameLogicWorld;
+using eng::game::LogicEvent;
+using eng::game::RunOutcome;
 
 namespace {
 
-/// A tick is 1/60 s.
-constexpr uint64_t TICKS_PER_SECOND = 60;
 /// Survive this long and the run is won.
-constexpr uint64_t SURVIVE_TICKS = 90 * TICKS_PER_SECOND;
+constexpr uint64_t SURVIVE_TICKS = sdk::seconds(90);
 /// A wave comes in this often, the first at once.
-constexpr uint64_t WAVE_TICKS = 20 * TICKS_PER_SECOND;
+constexpr sdk::Every WAVES{sdk::seconds(20)};
 /// Players get a segment of health back this often.
-constexpr uint64_t REGENERATE_TICKS = 10 * TICKS_PER_SECOND;
-/// Where a wave's chasers come in, around player 1, in tiles.
-constexpr std::array<eng::Vec3, 4> WAVE_OFFSETS{{
-    {9.0F, 0.0F, 0.0F}, {-9.0F, 0.0F, 0.0F},
-    {0.0F, 9.0F, 0.0F}, {0.0F, -9.0F, 0.0F}}};
+constexpr sdk::Every REGENERATE{sdk::seconds(10), sdk::seconds(10) - 1};
 
-/// Survive 90 seconds against a wave of chasers every 20. Players slowly
-/// heal. A project with an enemies table can spawn its own archetypes
-/// instead: world.spawnEnemy("grunt", at, "name").
-class SurviveTheWaves final : public eng::game::GameLogic {
-public:
-  void start(eng::game::GameLogicWorld& world) override {
-    world.log("Survive " +
-              std::to_string(SURVIVE_TICKS / TICKS_PER_SECOND) + " s");
+/// Survive 90 seconds against a wave of chasers every 20, one more each
+/// wave, closing in on the arena — where the players started — from all
+/// round. Players slowly heal.
+/// With an enemies table, a wave can be the project's own archetype:
+/// set `.enemy = "grunt"` on the ring.
+class SurviveTheWaves final : public sdk::Game {
+protected:
+  void onStart(GameLogicWorld& world) override {
+    // Waves come to the arena, not to wherever the players have run: the
+    // floor actors can stand on is the level's, and a player who has left
+    // it leaves nowhere to spawn round them.
+    arena_ = sdk::playersCentre(world);
+    world.log("Survive " + std::to_string(SURVIVE_TICKS / sdk::seconds(1)) +
+              " s");
   }
 
-  void tick(eng::game::GameLogicWorld& world) override {
-    if (world.outcome() != eng::game::RunOutcome::PLAYING) {
+  void onTick(GameLogicWorld& world) override {
+    if (world.outcome() != RunOutcome::PLAYING) {
       return;
     }
-    if (world.tick() % WAVE_TICKS == 0) {
+    if (WAVES.due(world.tick())) {
       sendWave(world);
     }
-    if (world.tick() % REGENERATE_TICKS == REGENERATE_TICKS - 1) {
-      for (uint32_t i = 0; i < world.playerCount(); ++i) {
-        world.heal(world.player(i).target, 1);
+    if (REGENERATE.due(world.tick())) {
+      for (const auto& player : sdk::playersUp(world)) {
+        world.heal(player.target, 1);
       }
     }
     if (world.tick() + 1 >= SURVIVE_TICKS) {
-      world.log("Survived " + std::to_string(waves_) + " waves");
-      world.endRun(eng::game::RunOutcome::WON);
+      world.log("Survived " + std::to_string(waves_) + " waves, " +
+                std::to_string(kills_) + " kills");
+      world.endRun(RunOutcome::WON);
     }
   }
 
-  void hashState(eng::game::GameLogicHash& hash) const override {
+  void onActorDied([[maybe_unused]] GameLogicWorld& world,
+                   [[maybe_unused]] const LogicEvent& death) override {
+    ++kills_;
+  }
+
+  void onHash(GameLogicHash& hash) const override {
+    hash.add(arena_);
     hash.add(waves_);
+    hash.add(kills_);
   }
 
 private:
-  /// Spawn a chaser at each of the wave's places around player 1.
-  void sendWave(eng::game::GameLogicWorld& world) {
-    const eng::Vec3 centre = world.player(0).position;
-    for (const eng::Vec3& offset : WAVE_OFFSETS) {
-      (void)world.spawnActor(
-          {.at = {centre.x + offset.x, centre.y + offset.y, centre.z},
-           .behavior = "chase",
-           .id = "wave" + std::to_string(waves_)});
-    }
+  /// A ring of chasers round the players, one more than the last wave.
+  void sendWave(GameLogicWorld& world) {
     ++waves_;
-    world.log("Wave " + std::to_string(waves_));
+    const uint32_t spawned = sdk::spawnRing(
+        world, {.centre = arena_,
+                .radius = 7.0F,
+                .count = 3 + waves_,
+                .actor = {.behavior = "chase", .id = "wave"}});
+    world.log("Wave " + std::to_string(waves_) + ": " +
+              std::to_string(spawned) + " chasers");
   }
 
+  /// Where the players started: what the waves close in on.
+  eng::Vec3 arena_{};
   /// Waves sent so far.
   uint32_t waves_ = 0;
+  /// Actors killed so far.
+  uint32_t kills_ = 0;
 };
 
 }  // namespace

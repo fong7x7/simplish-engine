@@ -6,11 +6,14 @@
 /// A view over the world's state for one tick.
 
 #include <engine/core/pcg32.h>
+#include <engine/physics/collision-box.h>
 #include <engine/sim/tick-context.h>
+#include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-spawn.h>
 #include <game/content/game-content.h>
+#include <game/logic/logic-event.h>
 #include <game/logic/run-outcome.h>
 #include <game/player/player-pool.h>
 #include <game/world/logic-command.h>
@@ -39,6 +42,12 @@ struct WorldLogicScene {
   std::vector<ActorSpawn>& spawns;
   /// The run's content: the enemy archetypes `spawnEnemy` names.
   const GameContent& content;
+  /// Where actors can go: what line of sight and walkability are asked of.
+  const spatial::NavGrid& grid;
+  /// The level's solid geometry.
+  std::span<const physics::CollisionBox> obstacles;
+  /// What happened last tick.
+  std::span<const LogicEvent> events;
   /// The logic's own random stream.
   Pcg32& rng;
   /// How the run stands; the logic may end it.

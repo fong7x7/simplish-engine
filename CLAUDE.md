@@ -18,7 +18,7 @@ these rules.
 | Build, tests, lint, CI | [docs/development/REQUIREMENTS.md](docs/development/REQUIREMENTS.md) |
 | Engine, rendering, sim, netcode | [docs/engine/REQUIREMENTS.md](docs/engine/REQUIREMENTS.md) |
 | Skeletons, animation clips, glTF rigs, skinned drawing, clip events and foot contacts | [docs/engine/animation.md](docs/engine/animation.md) — and the [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-09-10-skinned-meshes-for-a-handful-of-characters) that limits it to a handful of characters |
-| A project's own C++ game logic in its `src/`: the `GameLogic` API, the logic phase, Build Game Logic, Deploy Game, `simplish-game` | [docs/game/logic.md](docs/game/logic.md) and [ADR-011](docs/decisions/ADR-011-project-game-logic-in-cpp.md) — compiled C++ under the tick's determinism rules, a library to playtest and linked statically to deploy; never a scripting VM |
+| A project's own C++ game logic in its `src/`: the game SDK (`game/sdk`), the `GameLogicWorld` API, the logic phase, Build Game Logic, the logic check, Deploy Game, `simplish-game` | [docs/game/sdk.md](docs/game/sdk.md), [docs/game/logic.md](docs/game/logic.md) and [ADR-011](docs/decisions/ADR-011-project-game-logic-in-cpp.md) — compiled C++ under the tick's determinism rules, a library to playtest and linked statically to deploy; never a scripting VM |
 | Enemies and NPCs: perception, behaviors, steering, attacks and damage, the Behavior row | [docs/game/actors.md](docs/game/actors.md) and [ADR-009](docs/decisions/ADR-009-actor-behavior-state-machines.md) — an actor's intelligence is a data state machine over closed sets, never a script |
 | Input: actions, key and pad bindings, deadzones, the bindings file, pad backends | [docs/engine/input.md](docs/engine/input.md) — the engine owns the device-neutral vocabulary; which pads a build supports is `src/platform/input/`'s, one backend per target |
 | Sound: clips, the mixer, voice stealing, ducking, panning, audio output, combat sounds, footsteps (feet × surface, props overriding the ground), volume settings, a project's sound files | [docs/engine/audio.md](docs/engine/audio.md) and [ADR-010](docs/decisions/ADR-010-software-mixer.md) — the engine mixes; a platform supplies only an output, one backend a build |
@@ -56,7 +56,8 @@ bin/ ──► editor/ ──► platform/ ──► engine/
 - `src/bin/editor/`, `src/bin/game/` — thin `main()`s; logic that deserves a
   test lives in a library.
 - A **game project's** own C++ rules live in *its* `src/`, outside this tree,
-  and reach the engine only through `src/game/logic/`'s headers
+  and reach the engine only through `src/game/logic/` and the SDK,
+  `src/game/sdk/`
   ([ADR-011](docs/decisions/ADR-011-project-game-logic-in-cpp.md)).
 
 Every package is `src/<layer>/<name>/{include,src,test}` — public headers under
@@ -171,9 +172,10 @@ and attack by their behavior, 2,000 of them inside the AI budget —
 blasts through an effects buffer the damage phase applies, each cued
 for presentation, a blast leaving a cloud of volumetric smoke behind,
 and the nearest few of each cue heard; stand-in players; the `SimulationSystems` composing
-them; and the effect each combat cue plays; `logic`, the API a project's own
-C++ game logic is written against, run in the director's phase and hashed
-— [docs/game/logic.md](docs/game/logic.md)); platform
+them; and the effect each combat cue plays; `logic`, the world a project's own
+C++ game logic reads and changes, run in the director's phase and hashed
+— [docs/game/logic.md](docs/game/logic.md); and `sdk`, the SDK that logic
+is written with — [docs/game/sdk.md](docs/game/sdk.md)); platform
 `render` (five backends), `input` (pad backends: SDL3 on desktop, none
 elsewhere), `audio` (output backends, the same way), `client` (SDL3), `agent` (loopback HTTP); editor
 `project`, `shell` (with the in-editor playtest, sprite billboards
@@ -183,8 +185,9 @@ tool painting its ground, and the Build menu: a project's game logic
 built in the background and loaded for the next playtest, and its game
 deployed), `build` (the scaffold, CMake jobs, the library loader, baked
 setups), `agent` and `deploy` (the headless deployed game); `bin/editor`
-and `bin/game` (`simplish-game`, a project's deployed game with its logic
-linked in — headless until the rendered client exists).
+`bin/game` (`simplish-game`, a project's deployed game with its logic
+linked in — headless until the rendered client exists) and
+`bin/logic-check` (every logic build, run in a process of its own first).
 
 Not written yet: the rest of `engine/spatial` (per-objective fields, the
 tile grid), `render-iso`, the rest of `render-sprite` (atlas packing,

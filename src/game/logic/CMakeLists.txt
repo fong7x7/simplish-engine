@@ -16,6 +16,7 @@ simplish_add_module(simplish-game-logic
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-logic-instance.cpp
     DEPENDENCIES simplish-engine-math
+                 simplish-engine-physics
                  simplish-engine-sim
                  simplish-game-content
 )

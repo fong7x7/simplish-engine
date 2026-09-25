@@ -11,6 +11,8 @@
 #        └────► combat ──┴─► actors ──► world
 #                  └──► fx  (presentation: what each combat cue looks like)
 #   logic ──────────────────────────► world  (a project's own C++ rules)
+#     └──► sdk  (what a project's logic is written with; never linked by
+#                the world, compiled into the project's module)
 
 add_subdirectory(content)
 add_subdirectory(player)
@@ -18,6 +20,7 @@ add_subdirectory(combat)
 add_subdirectory(actors)
 add_subdirectory(logic)
 add_subdirectory(world)
+add_subdirectory(sdk)
 add_subdirectory(fx)
 
 simplish_add_library(simplish-game
@@ -28,6 +31,7 @@ simplish_add_library(simplish-game
             simplish-game-actors
             simplish-game-logic
             simplish-game-world
+            simplish-game-sdk
             simplish-game-fx
 )
 
