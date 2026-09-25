@@ -272,6 +272,22 @@ long differenceOverMiddle(const std::vector<uint8_t>& a,
   return total;
 }
 
+/// How much a read-back varies over the middle half of the target: the
+/// sum of every channel's distance from the neighbour to its east. A calm
+/// surface varies less than a rough one.
+long variationOverMiddle(const std::vector<uint8_t>& texels) {
+  long total = 0;
+  for (uint32_t y = GPU_TEST_SIZE / 4; y < 3 * GPU_TEST_SIZE / 4; ++y) {
+    for (uint32_t x = GPU_TEST_SIZE / 4; x < 3 * GPU_TEST_SIZE / 4; ++x) {
+      const auto p = texelAt(texels, x, y);
+      const auto q = texelAt(texels, x + 1, y);
+      total +=
+          std::abs(p[0] - q[0]) + std::abs(p[1] - q[1]) + std::abs(p[2] - q[2]);
+    }
+  }
+  return total;
+}
+
 /// The ground's grey as the target stores it: a pond hidden entirely
 /// behind the scene's depth.
 std::array<int, 4> groundGrey(const GpuTestContext& ctx) {
@@ -433,4 +449,20 @@ TEST_CASE("WaterRenderer on the GPU: switching caustics off changes the water",
   unlit.effects.on[waterEffectIndex(WaterEffect::CAUSTICS)] = false;
   CHECK(differenceOverMiddle(renderStill(ctx, lit), renderStill(ctx, unlit)) >
         2000);
+}
+
+// Req: docs/engine/water.md §4 — thick fluid barely raises a wave, so it
+// draws differently from water at the same depth and colour.
+TEST_CASE("WaterRenderer on the GPU: thick fluid draws calmer than water",
+          "[gpu][water]") {
+  GpuTestContext ctx;
+  if (!hasWaterPipeline(ctx.device())) {
+    SKIP("no GPU device with a built-in water pipeline");
+  }
+  WaterCell honey = waterOf(1.0f, 110);
+  honey.viscosity = 255;
+  const PondDraw water{.fidelity = WaterFidelity::HIGH};
+  const PondDraw thick{.water = honey, .fidelity = WaterFidelity::HIGH};
+  CHECK(variationOverMiddle(renderStill(ctx, thick)) * 5 <
+        variationOverMiddle(renderStill(ctx, water)) * 4);
 }

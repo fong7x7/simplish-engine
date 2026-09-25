@@ -17,7 +17,7 @@ namespace eng {
 /// whatever water lies over it, and shows through as far as the water is
 /// clear.
 ///
-/// Seven grids of bytes over the same cells, one per field of `WaterCell`,
+/// Eight grids of bytes over the same cells, one per field of `WaterCell`,
 /// each growing to hold whatever is painted as a `GroundGrid` does. A cell
 /// is water where `depth` is not zero; the others are read only there.
 struct WaterLayer {
@@ -35,6 +35,8 @@ struct WaterLayer {
   GroundGrid flow_heading;
   /// How fast each cell flows, in 255ths of `WATER_MAX_FLOW_SPEED`.
   GroundGrid flow_speed;
+  /// How thick each cell's water is, 0 to 255.
+  GroundGrid viscosity;
 
   /// Two layers are equal when every grid is.
   bool operator==(const WaterLayer&) const = default;

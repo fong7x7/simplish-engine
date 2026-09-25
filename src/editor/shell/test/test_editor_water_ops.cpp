@@ -212,3 +212,23 @@ TEST_CASE("a level keeps its water's flow, and reads a file without any") {
   CHECK(waterCellAt(still->document.water, {1, 0}).flow_speed == 0);
   CHECK(waterCellAt(still->document.water, {1, 0}).depth == LAKE.depth);
 }
+
+// Req: docs/engine/water.md §6 — a body of water is as thick as its
+// Viscosity slider says, and a level keeps it; a file without it holds
+// water.
+TEST_CASE("a body's viscosity is set, saved and read back") {
+  EditorDocument document = lakeDocument();
+  CHECK(setEditorWaterValue(document.water, LAKE_CELLS,
+                            EditorPropertyField::VISCOSITY, 1.0f));
+  CHECK(waterCellAt(document.water, {3, 0}).viscosity == 255);
+  const std::string text = serializeEditorLevel(document, {}, "r");
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(text, {});
+  REQUIRE(load.has_value());
+  CHECK(waterCellAt(load->document.water, {0, 0}).viscosity == 255);
+  nlohmann::json older = nlohmann::json::parse(text);
+  older["content"]["layers"]["water"].erase("viscosity");
+  const std::optional<EditorLevelLoad> thin =
+      parseEditorLevel(older.dump(), {});
+  REQUIRE(thin.has_value());
+  CHECK(waterCellAt(thin->document.water, {0, 0}).viscosity == 0);
+}

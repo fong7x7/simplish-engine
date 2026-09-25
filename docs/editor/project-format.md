@@ -240,7 +240,7 @@ Four parts of §4 are written — props, lights, four kinds of entity, and the t
 
 All three keys are written only when something is painted, so a level saved before the ground existed saves back unchanged. The palette is read by name, not position: a hand-edited file may list terrains in any order, and a `tile:` reference the editor has no terrain for reads as bare ground. Runs that do not cover `bounds` exactly, or an `encoding` other than `rle`, leave the whole ground bare rather than shifting every row after the break. Which terrain is drawn over which where they meet is the editor's palette order, not the file's ([ground.md](../engine/ground.md)). The `height` layer is not written.
 
-**Water is a layer of its own over the ground.** Water is not one of the terrains: it lies over whatever terrain a cell holds, which stays under it. `layers.water` gives it its own `bounds` — the smallest rectangle holding every cell of water — and a run list over them for each of the seven bytes a cell of water is, in row order from the south-west as the terrain's are:
+**Water is a layer of its own over the ground.** Water is not one of the terrains: it lies over whatever terrain a cell holds, which stays under it. `layers.water` gives it its own `bounds` — the smallest rectangle holding every cell of water — and a run list over them for each of the eight bytes a cell of water is, in row order from the south-west as the terrain's are:
 
 ```json
 "water": { "bounds": { "min_x": 3, "min_y": 3, "width": 3, "height": 1 },
@@ -248,10 +248,11 @@ All three keys are written only when something is painted, so a level saved befo
            "depth":   [[16, 2], [48, 1]],
            "red":     [[46, 3]], "green": [[122, 3]], "blue": [[150, 3]],
            "opacity": [[110, 3]],
-           "flow_heading": [[64, 3]], "flow_speed": [[0, 2], [170, 1]] }
+           "flow_heading": [[64, 3]], "flow_speed": [[0, 2], [170, 1]],
+           "viscosity": [[0, 3]] }
 ```
 
-`depth` is in `step`s of a tile — 0.0625, written so a reader never has to guess it — from 1 (a sixteenth) to 255 (almost sixteen tiles), and `0` is dry; `red`, `green` and `blue` are the water's sRGB colour and `opacity` how much of the ground a tile of it hides, 0 to 255; `flow_heading` is which way it flows, in 256ths of a turn anticlockwise from east, and `flow_speed` how fast, in 255ths of 1.5 tiles a second — 0 stands — all read only where there is water. A file without the two flow keys, written before water flowed, reads as standing water. The layer is written only when there is water. A layer with another `step`, another `encoding`, or a run list that does not cover its `bounds` reads as no water at all.
+`depth` is in `step`s of a tile — 0.0625, written so a reader never has to guess it — from 1 (a sixteenth) to 255 (almost sixteen tiles), and `0` is dry; `red`, `green` and `blue` are the water's sRGB colour and `opacity` how much of the ground a tile of it hides, 0 to 255; `flow_heading` is which way it flows, in 256ths of a turn anticlockwise from east, and `flow_speed` how fast, in 255ths of 1.5 tiles a second — 0 stands; `viscosity` how thick it is, from water at 0 to something like honey at 255 — all read only where there is water. A file without the flow or viscosity keys, written before water had them, reads as standing water. The layer is written only when there is water. A layer with another `step`, another `encoding`, or a run list that does not cover its `bounds` reads as no water at all.
 
 **A level written before water was a layer painted it as a terrain,** `tile:water` in its palette, with an optional `layers.water_depth` beside it — runs of depth in the same steps, over the ground's `bounds`, where `0` meant the default of one tile. Reading one lays water on every such cell at that depth in the default colour and opacity, and gives the cell the sand the old stacking drew under water; saving it again writes the layers above ([water.md](../engine/water.md)).
 

@@ -20,6 +20,8 @@ struct WaterSample {
   float opacity = 0.0f;
   /// Which way and how fast it flows, in tiles a second.
   Vec2 flow{};
+  /// How thick it is, 0 for water to 1 for the thickest.
+  float viscosity = 0.0f;
 };
 
 }  // namespace eng

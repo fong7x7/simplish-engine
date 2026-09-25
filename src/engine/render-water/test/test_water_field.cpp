@@ -173,6 +173,51 @@ WaterField pushedPond(float depth, float seconds) {
   return field;
 }
 
+/// A pond of fluid @p viscosity thick, 255 the thickest, pushed at its
+/// middle and aged @p seconds.
+WaterField pushedThick(uint8_t viscosity, float seconds) {
+  WaterLayer layer;
+  for (int32_t y = 0; y < 16; ++y) {
+    for (int32_t x = 0; x < 16; ++x) {
+      setWaterCell(layer, {x, y}, {.depth = 16, .viscosity = viscosity});
+    }
+  }
+  WaterField field = fieldOver(layer, 8);
+  disturbWaterField(field, {8.0f, 8.0f}, 0.4f, 0.05f);
+  for (float t = 0.0f; t < seconds; t += WATER_STEP_SECONDS) {
+    stepWaterField(field, WATER_STEP_SECONDS);
+  }
+  return field;
+}
+
+// Req: docs/engine/water.md §3 — a thick fluid carries a ripple slower than
+// water: a second in, water's ring (2.5 tiles a second) has passed 1.8 tiles
+// out, and the thickest fluid's (1.0) has not reached it.
+TEST_CASE("a ripple crawls through thick fluid", "[render-water][field]") {
+  const WaterField water = pushedThick(0, 0.6f);
+  const WaterField thick = pushedThick(255, 0.6f);
+  REQUIRE(thick.viscous);
+  CHECK_FALSE(water.viscous);
+  CHECK(std::abs(levelNear(water, {9.8f, 8.0f})) >
+        10.0f * std::abs(levelNear(thick, {9.8f, 8.0f})));
+}
+
+// Req: docs/engine/water.md §3 — thick fluid does not ring: a dent in it
+// settles slowly back rather than rippling out, so it moves far less.
+TEST_CASE("thick fluid moves far less than water once pushed",
+          "[render-water][field]") {
+  const auto motion = [](const WaterField& field) {
+    double sum = 0.0;
+    for (const float v : field.velocity) {
+      sum += static_cast<double>(v) * v;
+    }
+    return sum;
+  };
+  const double water = motion(pushedThick(0, 1.0f));
+  CHECK(motion(pushedThick(255, 1.0f)) < 0.2 * water);
+  CHECK(motion(pushedThick(128, 1.0f)) < water);
+}
+
 TEST_CASE("a ripple runs faster across a lake than a puddle",
           "[render-water][field]") {
   const WaterField puddle = pushedPond(0.0625f, 0.5f);

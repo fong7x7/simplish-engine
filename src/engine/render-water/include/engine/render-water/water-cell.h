@@ -30,7 +30,10 @@ inline constexpr float WATER_MAX_FLOW_SPEED = 1.5f;
 /// (`water-look.h`); deeper water hides more at any opacity. Water flows
 /// the way `flow_heading` says — 256ths of a turn anticlockwise from east
 /// — at `flow_speed` 255ths of `WATER_MAX_FLOW_SPEED`: a pond at 0 stands,
-/// a river runs.
+/// a river runs. `viscosity` is how thick it is, from water at 0 to
+/// something like honey or mud at 255: thick fluid carries ripples slower,
+/// smooths them into slow broad swells and stills sooner, and barely raises
+/// a wave.
 struct WaterCell {
   /// How deep, in `WATER_DEPTH_STEP`s; 0 is dry.
   uint8_t depth = 0;
@@ -46,6 +49,8 @@ struct WaterCell {
   uint8_t flow_heading = 0;
   /// How fast it flows, in 255ths of `WATER_MAX_FLOW_SPEED`; 0 stands.
   uint8_t flow_speed = 0;
+  /// How thick it is, from water at 0 to the thickest fluid at 255.
+  uint8_t viscosity = 0;
 
   /// Two cells are the same when every byte is.
   bool operator==(const WaterCell&) const = default;

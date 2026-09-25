@@ -78,6 +78,21 @@ inline constexpr float WATER_WET_TILES = 0.35f;
 /// grows from nothing at the bank to its full speed this far out.
 inline constexpr float WATER_FLOW_BANK_TILES = 0.5f;
 
+/// How much slower the thickest fluid carries a ripple than water: its
+/// wave speed is `1 − WATER_VISCOUS_SLOWING` of water's.
+inline constexpr float WATER_VISCOUS_SLOWING = 0.6f;
+
+/// How much faster the thickest fluid stills than water, added to
+/// `WATER_DAMPING`.
+inline constexpr float WATER_VISCOUS_DAMPING = 4.0f;
+
+/// How much of the difference from its neighbours' motion a sample of the
+/// thickest fluid gives up each step at `WATER_HIGH_SAMPLES_PER_TILE`:
+/// viscosity spreading motion out, which stills a short ripple far sooner
+/// than a long swell, as a thick fluid's surface does. Under the scheme's
+/// limit of a quarter.
+inline constexpr float WATER_VISCOUS_SPREAD = 0.2f;
+
 /// How long foam lingers: what is left of it after this many seconds is
 /// `1/e` of what there was.
 inline constexpr float WATER_FOAM_SECONDS = 1.4f;
@@ -165,6 +180,12 @@ struct WaterField {
   std::vector<float> carried_x;
   /// North, as `carried_x`.
   std::vector<float> carried_y;
+  /// How thick each sample's water is, 0 for water to 1 for the
+  /// thickest: its cells' blended between corners.
+  std::vector<float> viscosity;
+  /// Whether any sample is thicker than water, which is when a step
+  /// spreads its motion out.
+  bool viscous = false;
   /// Room for the carried level, speed and foam of every flowing sample,
   /// three to a sample, kept so a step does not allocate.
   std::vector<float> scratch;

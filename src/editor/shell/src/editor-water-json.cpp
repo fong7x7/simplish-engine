@@ -26,28 +26,31 @@ namespace {
   constexpr std::string_view LEGACY_BED = "sand";
 
   /// How many grids a water layer has.
-  constexpr size_t CHANNEL_COUNT = 7;
+  constexpr size_t CHANNEL_COUNT = 8;
 
   /// A water layer's grids by the keys a file writes them under, in the
   /// order `WaterLayer` holds them.
   constexpr std::array<const char*, CHANNEL_COUNT> CHANNEL_KEYS{
-      "depth", "red", "green", "blue", "opacity", "flow_heading", "flow_speed"};
+      "depth",   "red",          "green",      "blue",
+      "opacity", "flow_heading", "flow_speed", "viscosity"};
 
-  /// How many of them every file has: the flow came later, and a file
-  /// without it holds standing water.
+  /// How many of them every file has: the flow and the viscosity came
+  /// later, and a file without them holds standing water.
   constexpr size_t REQUIRED_CHANNELS = 5;
 
   /// @p layer's grids in `CHANNEL_KEYS`' order.
   std::array<const GroundGrid*, CHANNEL_COUNT>
   channelsOf(const WaterLayer& layer) {
-    return {&layer.depth,   &layer.red,          &layer.green,     &layer.blue,
-            &layer.opacity, &layer.flow_heading, &layer.flow_speed};
+    return {&layer.depth,      &layer.red,      &layer.green,
+            &layer.blue,       &layer.opacity,  &layer.flow_heading,
+            &layer.flow_speed, &layer.viscosity};
   }
 
   /// The same, to write into.
   std::array<GroundGrid*, CHANNEL_COUNT> channelsOf(WaterLayer& layer) {
-    return {&layer.depth,   &layer.red,          &layer.green,     &layer.blue,
-            &layer.opacity, &layer.flow_heading, &layer.flow_speed};
+    return {&layer.depth,      &layer.red,      &layer.green,
+            &layer.blue,       &layer.opacity,  &layer.flow_heading,
+            &layer.flow_speed, &layer.viscosity};
   }
 
   /// @p grid over @p bounds as `[value, run_length]` pairs.

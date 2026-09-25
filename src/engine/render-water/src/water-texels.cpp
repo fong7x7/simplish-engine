@@ -99,10 +99,13 @@ void writeWaterStillTexels(const WaterField& field,
   writeEach(field, texels, [&](int64_t x, int64_t y, uint8_t* out) {
     const size_t i =
         static_cast<size_t>(y) * field.width + static_cast<size_t>(x);
-    out[0] = unorm(field.shore[i] / WATER_SHORE_TILES);
+    // A wet sample's distance to the shore above the middle, a dry one's
+    // to the water below it: each is nothing where the other is not.
+    out[0] = signedUnorm(field.shore[i] / WATER_SHORE_TILES -
+                         field.land[i] / WATER_WET_TILES);
     out[1] = signedUnorm(field.flow_x[i] / WATER_MAX_FLOW_SPEED);
     out[2] = signedUnorm(field.flow_y[i] / WATER_MAX_FLOW_SPEED);
-    out[3] = unorm(field.land[i] / WATER_WET_TILES);
+    out[3] = unorm(field.viscosity[i]);
   });
 }
 

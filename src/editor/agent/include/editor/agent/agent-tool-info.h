@@ -526,6 +526,10 @@ inline constexpr AgentParam AGENT_PARAMS_PAINT_WATER[] = {
     {"flow_speed", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
      "How fast it flows, 0 (standing) to 1 (1.5 tiles a second). Defaults "
      "to 0."},
+    {"viscosity", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "How thick it is, 0 (water) to 1 (like honey or mud): thick fluid "
+     "carries ripples slower, settles without ringing and barely raises a "
+     "wave. Defaults to 0."},
     {"dry", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
      "true takes the water off instead, as the Dry card does."},
 };
@@ -1239,7 +1243,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "flow_direction at its flow_speed, carrying its ripples and foam. Set "
      "a whole body's afterwards by selecting it (select, target \"water\") "
      "and calling set_property with color_r, color_g, color_b, opacity, "
-     "flow_direction or flow_speed. One undoable edit; refused while "
+     "flow_direction, flow_speed or viscosity (a thick fluid moves like "
+     "honey). One undoable edit; refused while "
      "playing. Answers with how many cells changed.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_WATER},
 };

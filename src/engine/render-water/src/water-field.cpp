@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <engine/render-water/water-corners.h>
+#include <engine/render-water/water-fidelity.h>
 #include <engine/render-water/water-field.h>
 #include <limits>
 #include <numbers>
@@ -67,6 +68,7 @@ namespace {
     field.foam.assign(count, 0.0f);
     field.flow_x.assign(count, 0.0f);
     field.flow_y.assign(count, 0.0f);
+    field.viscosity.assign(count, 0.0f);
   }
 
   /// Size every array for @p tiles at @p resolution, all still and dry.
@@ -77,6 +79,7 @@ namespace {
     field.height = static_cast<uint32_t>(tiles.height) * resolution;
     clearArrays(field, static_cast<size_t>(field.width) * field.height);
     field.flowing = false;
+    field.viscous = false;
     field.wet_count = 0;
     field.pending_seconds = 0.0f;
     field.drizzle_due = 0.0f;
@@ -235,8 +238,8 @@ namespace {
           std::max(0.0f, 1.0f - field.shore[i] / WATER_BEACH_TILES);
       const float bottom = WATER_BOTTOM_FRICTION /
                            std::max(field.depth[i], WATER_FRICTION_MIN_DEPTH);
-      const float damping =
-          WATER_DAMPING + WATER_BEACH_DAMPING * beach + bottom;
+      const float damping = WATER_DAMPING + WATER_BEACH_DAMPING * beach +
+                            bottom + WATER_VISCOUS_DAMPING * field.viscosity[i];
       field.keep[i] = std::exp(-damping * WATER_STEP_SECONDS);
     }
   }
@@ -287,7 +290,11 @@ namespace {
   /// there, shelved and slowed towards the bank.
   void settleSample(WaterField& field, size_t i, const WaterSample& water) {
     field.depth[i] = water.depth * waterBankShelf(water.depth, field.shore[i]);
-    field.pull[i] = pullAt(field.depth[i], field.samples_per_tile);
+    const float slowed_by = 1.0f - WATER_VISCOUS_SLOWING * water.viscosity;
+    field.pull[i] =
+        pullAt(field.depth[i], field.samples_per_tile) * slowed_by * slowed_by;
+    field.viscosity[i] = water.viscosity;
+    field.viscous |= water.viscosity > 0.0f;
     const float slowed = std::min(1.0f, field.shore[i] / WATER_FLOW_BANK_TILES);
     field.flow_x[i] = water.flow.x * slowed;
     field.flow_y[i] = water.flow.y * slowed;
@@ -406,6 +413,25 @@ namespace {
   }
 
   /// Advance @p field by one fixed step.
+  /// Spread each viscous sample's motion towards its neighbours': a thick
+  /// fluid's viscosity, which stills a short ripple far sooner than a long
+  /// swell. Scaled to the resolution, so the same fluid is as thick at
+  /// every fidelity; the edge row is dry, as `accelerate` relies on.
+  void thicken(WaterField& field) {
+    const float per_tile = static_cast<float>(field.samples_per_tile) /
+                           static_cast<float>(WATER_HIGH_SAMPLES_PER_TILE);
+    const float spread = WATER_VISCOUS_SPREAD * per_tile * per_tile;
+    std::vector<float>& v = field.velocity;
+    for (uint32_t y = 1; y + 1 < field.height; ++y) {
+      for (uint32_t x = 1; x + 1 < field.width; ++x) {
+        const size_t i = slotOf(field, x, y);
+        const float around = v[i - 1] + v[i + 1] + v[i - field.width] +
+                             v[i + field.width] - 4.0f * v[i];
+        v[i] += spread * field.viscosity[i] * around * field.keep[i];
+      }
+    }
+  }
+
   /// Age the foam by one step: what there is thins, and a crest risen
   /// high enough to break throws more.
   void settleFoam(WaterField& field) {
@@ -424,6 +450,9 @@ namespace {
     }
     if (field.flowing) {
       carry(field);
+    }
+    if (field.viscous) {
+      thicken(field);
     }
     settleFoam(field);
     drizzle(field);
@@ -492,6 +521,39 @@ namespace {
     return true;
   }
 
+  /// One step of `shoreThickness`: every dry sample takes the thickest of
+  /// itself and its four neighbours.
+  void spreadThicknessOnce(WaterField& field) {
+    field.scratch = field.viscosity;
+    const float* v = field.scratch.data();
+    for (uint32_t y = 1; y + 1 < field.height; ++y) {
+      for (uint32_t x = 1; x + 1 < field.width; ++x) {
+        const size_t i = slotOf(field, x, y);
+        if (field.keep[i] <= 0.0f) {
+          field.viscosity[i] =
+              std::max({v[i], v[i - 1], v[i + 1], v[i - field.width],
+                        v[i + field.width]});
+        }
+      }
+    }
+  }
+
+  /// Give each dry sample within `WATER_WET_TILES` of the water the
+  /// thickness of the water beside it, so the shore it wets knows what
+  /// laps at it. Nothing steps a dry sample, so the simulation never
+  /// reads it.
+  void shoreThickness(WaterField& field) {
+    if (!field.viscous) {
+      return;
+    }
+    const auto reach = static_cast<int>(std::ceil(
+        WATER_WET_TILES * static_cast<float>(field.samples_per_tile)));
+    for (int pass = 0; pass < reach; ++pass) {
+      spreadThicknessOnce(field);
+    }
+    field.scratch.assign(3 * field.carried.size(), 0.0f);
+  }
+
   /// Shape @p field, already sized, over @p layer's water and round each
   /// of @p obstacles: which samples are wet, how far each is from the
   /// shore, how deep and how fast it runs, and what it keeps a step.
@@ -505,6 +567,7 @@ namespace {
     settleDepth(field, layer);
     settleKeep(field);
     traceFlow(field);
+    shoreThickness(field);
   }
 
 }  // namespace

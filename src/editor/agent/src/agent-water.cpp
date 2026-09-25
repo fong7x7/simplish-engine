@@ -106,8 +106,8 @@ namespace {
   constexpr std::string_view PAINT_WATER_USAGE =
       "x and y are required, with width and height from 1 to 256; depth, "
       "when given, is puddle, shallows, pond, lake or deep or a number of "
-      "tiles; color is \"#rrggbb\"; opacity and flow_speed are numbers "
-      "from 0 to 1; flow_direction is degrees anticlockwise from east";
+      "tiles; color is \"#rrggbb\"; opacity, flow_speed and viscosity are "
+      "numbers from 0 to 1; flow_direction is degrees anticlockwise from east";
 
   /// The depth a call names at @p key, in tiles: a named depth's word or a
   /// number, as a string or as a number.
@@ -209,6 +209,21 @@ namespace {
     return true;
   }
 
+  /// The call's `viscosity`, 0 to 1, into @p water when it gives one; false
+  /// when it gives one out of range.
+  bool readViscosity(const json& params, WaterCell& water) {
+    if (!params.contains("viscosity")) {
+      return true;
+    }
+    const std::optional<double> thick = agentNumberParam(params, "viscosity");
+    if (!thick || *thick < 0.0 || *thick > 1.0) {
+      return false;
+    }
+    water.viscosity = editorWaterByte(EditorPropertyField::VISCOSITY,
+                                      static_cast<float>(*thick));
+    return true;
+  }
+
   /// The water a `paint_water` call lays: its depth, and its colour and
   /// opacity for cells that were dry; nothing when any is wrong.
   std::optional<WaterCell> waterParam(const json& params) {
@@ -222,7 +237,8 @@ namespace {
       return std::nullopt;
     }
     water.depth = waterDepthUnits(*tiles);
-    return readOpacity(params, water) && readFlow(params, water)
+    return readOpacity(params, water) && readFlow(params, water) &&
+                   readViscosity(params, water)
                ? std::optional<WaterCell>(water)
                : std::nullopt;
   }
@@ -303,10 +319,11 @@ AgentResult agentSetWaterField(EditorShellState& state,
                                EditorPropertyField field, float value) {
   if (std::ranges::find(EDITOR_WATER_FIELDS, field) ==
       std::end(EDITOR_WATER_FIELDS)) {
-    return agentFailure(AgentStatus::BAD_PARAMS,
-                        "a body of water has color_r, color_g, color_b, "
-                        "opacity and flow_speed, each from 0 to 1, and "
-                        "flow_direction, in degrees anticlockwise from east");
+    return agentFailure(
+        AgentStatus::BAD_PARAMS,
+        "a body of water has color_r, color_g, color_b, "
+        "opacity, flow_speed and viscosity, each from 0 to 1, and "
+        "flow_direction, in degrees anticlockwise from east");
   }
   WaterLayer painted = state.document.water;
   setEditorWaterValue(painted, state.ground_selection, field, value);

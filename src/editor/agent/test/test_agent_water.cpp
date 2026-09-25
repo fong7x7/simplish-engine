@@ -243,3 +243,20 @@ TEST_CASE("set_property turns a selected body's flow") {
              R"({"target": "selection", "field": "flow_speed", "value": 0.5})")
             ["fields"]["flow_speed"] == static_cast<double>(128.0f / 255.0f));
 }
+
+// Req: docs/engine/water.md §6 — an agent lays thick fluid and thickens a
+// body, as the panel's Viscosity row does.
+TEST_CASE("paint_water lays thick fluid, and set_property thickens a body") {
+  EditorShellState state = withPond();
+  CHECK(call(state, "paint_water",
+             R"({"x": 4, "y": 0, "viscosity": 1})")["changed"] == 1);
+  CHECK(waterCellAt(state.document.water, {4, 0}).viscosity == 255);
+  CHECK(
+      runAgentTool(state, "paint_water", R"({"x": 4, "y": 1, "viscosity": 2})")
+          .status == AgentStatus::BAD_PARAMS);
+  call(state, "select", R"({"target": "water", "x": 0, "y": 0})");
+  CHECK(call(state, "set_property",
+             R"({"target": "selection", "field": "viscosity", "value": 0})")
+            ["fields"]["viscosity"] == 0.0);
+  CHECK(waterCellAt(state.document.water, {4, 0}).viscosity == 0);
+}

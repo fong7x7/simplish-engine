@@ -924,6 +924,10 @@ WATER_CONST float WATER_FLOW_RANGE = 1.5f;
 // stretches.
 WATER_CONST float WATER_DRIFT_CYCLE = 1.6f;
 
+// How much of the wind's waves the thickest fluid still raises: most are
+// gone, leaving a slow glossy swell.
+WATER_CONST float WATER_VISCOUS_CALM = 0.85f;
+
 // How much of the sky wet ground mirrors.
 WATER_CONST float WATER_WET_SKY = 0.015f;
 // How bright the lights' sheen on wet ground is, against a wave's glint.
@@ -1043,6 +1047,18 @@ float water_streaks(float2 p, float2 flow, float t, float pixel) {
          water_resolved(0.12f, pixel);
 }
 
+// How far the water at a sample is from its shore, in tiles, from the still
+// texels' R: above the middle, a wet sample's distance.
+float water_shore_of(float4 still) {
+  return max(still.r * 2.0f - 1.0f, 0.0f) * WATER_SHORE_TILES;
+}
+
+// How far dry land is from the water, in tiles, from the same channel:
+// below the middle, a dry sample's distance.
+float water_land_of(float4 still) {
+  return max(1.0f - still.r * 2.0f, 0.0f) * WATER_WET_TILES;
+}
+
 // Which way the shore lies from `uv`, as the slope of its distance: a
 // unit step away from the bank, or nothing out in the open.
 float2 water_shore_way(WATER_PC float2 uv) {
@@ -1061,8 +1077,9 @@ float2 water_shore_way(WATER_PC float2 uv) {
 // more than its bright ones — and a little glossy, fading out
 // `WATER_WET_TILES` from the water. Well inside the water, which is drawn over the band, nothing.
 float4 water_wet_ground(WATER_PC float3 world, float4 still, float4 frag) {
-  float wet = 1.0f - smoothstep(0.0f, 1.0f, still.a);
-  if (wet <= 0.0f || still.r * WATER_SHORE_TILES > 0.25f) {
+  float wet = 1.0f - smoothstep(0.0f, 1.0f, water_land_of(still) /
+                                                 WATER_WET_TILES);
+  if (wet <= 0.0f || water_shore_of(still) > 0.25f) {
     discard;
   }
   float3 up = float3(0.0f, 0.0f, 1.0f);
@@ -1084,8 +1101,8 @@ float4 water_wet_ground(WATER_PC float3 world, float4 still, float4 frag) {
                   water_linear(s.sky.rgb) * WATER_WET_SKY) * wet;
   // The sheet of water a lapping wave runs up the ground: a glassy film,
   // with a line of foam at its edge.
-  float land = still.a * WATER_WET_TILES;
-  float run = water_lap_run(world.xy, s.view.w) * s.light.y;
+  float land = water_land_of(still);
+  float run = water_lap_run(world.xy, s.view.w) * s.light.y * (1.0f - still.a);
   float film = 1.0f - smoothstep(run - 0.03f, run, land);
   float lip = film * smoothstep(run - 0.05f, run - 0.01f, land) *
               (0.6f + 0.4f * water_froth(world.xy, s.view.w, s.texel.w));
@@ -1121,7 +1138,9 @@ float4 water_shade(WATER_PC float3 world, float2 uv, float depth_in,
   float4 from = water_drift(world.xy, flow, s.view.w);
   float drift = water_drift_weight(s.view.w);
   float level = (texel.b * 2.0f - 1.0f) * WATER_LEVEL_RANGE;
-  float shore = still.r * WATER_SHORE_TILES;
+  float shore = water_shore_of(still);
+  // How thick the water is: a thick fluid barely raises a wave or laps.
+  float thick = still.a;
   // How deep the water is here: the tiles' depths blended between them,
   // shelving to nothing at the bank.
   float depth = depth_in * water_shelf(depth_in, shore);
@@ -1144,14 +1163,16 @@ float4 water_shade(WATER_PC float3 world, float2 uv, float depth_in,
   // The waves lapping at the shore: rising out of the shallows, rolling
   // in across the way the shore lies, and breaking into foam at the bank.
   float lap = water_lap_phase(world.xy, shore, t);
-  float near_bank = (1.0f - smoothstep(0.0f, WATER_LAP_REACH, shore)) * s.light.y;
+  float near_bank = (1.0f - smoothstep(0.0f, WATER_LAP_REACH, shore)) *
+                    s.light.y * (1.0f - thick);
   ripple += water_shore_way(WATER_AC uv) *
             (WATER_LAP_HEIGHT * 6.2831853f / WATER_LAP_WAVELENGTH *
              cos(lap) * near_bank *
              water_resolved(WATER_LAP_WAVELENGTH, pixel));
   // The shallows are sheltered: the wind raises less there, and a still
   // surface raises none.
-  float calm = s.detail.z * (0.3f + 0.7f * deepness);
+  float calm = s.detail.z * (0.3f + 0.7f * deepness) *
+               (1.0f - WATER_VISCOUS_CALM * thick);
   float3 wind = mix(water_wind_slope(from.zw, t, s.detail.x,
                                      float2(pixel, s.light.z)),
                     water_wind_slope(from.xy, t, s.detail.x,
@@ -1202,7 +1223,9 @@ float4 water_shade(WATER_PC float3 world, float2 uv, float depth_in,
     seen = water_depth_at(WATER_AC bent.xy) >= bent.z ? bent.xy : here;
   }
   float3 ground = water_scene_at(WATER_AC seen);
+  // A calm surface focuses little: thick fluid all but loses its caustics.
   ground *= 1.0f + WATER_CAUSTIC_LIGHT * s.detail.y *
+                       (1.0f - WATER_VISCOUS_CALM * thick) *
                        mix(water_caustic(from.zw, slope, t, pixel),
                            water_caustic(from.xy, slope, t, pixel), drift);
   float3 color = ground * through + water * (1.0f - through);

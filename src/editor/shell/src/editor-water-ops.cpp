@@ -15,24 +15,34 @@ namespace {
         std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
   }
 
-  /// The byte of @p water @p field names.
+  /// A property field and the byte of a water cell it names.
+  struct WaterChannel {
+    /// The field.
+    EditorPropertyField field;
+    /// The byte it names.
+    uint8_t WaterCell::* byte;
+  };
+
+  /// Every field a body of water has but its depth, and its byte.
+  constexpr WaterChannel WATER_CHANNELS[] = {
+      {EditorPropertyField::COLOR_R, &WaterCell::red},
+      {EditorPropertyField::COLOR_G, &WaterCell::green},
+      {EditorPropertyField::COLOR_B, &WaterCell::blue},
+      {EditorPropertyField::OPACITY, &WaterCell::opacity},
+      {EditorPropertyField::FLOW_DIRECTION, &WaterCell::flow_heading},
+      {EditorPropertyField::FLOW_SPEED, &WaterCell::flow_speed},
+      {EditorPropertyField::VISCOSITY, &WaterCell::viscosity},
+  };
+
+  /// The byte of @p water @p field names, or null for a field water has
+  /// not.
   uint8_t* channelOf(WaterCell& water, EditorPropertyField field) {
-    switch (field) {
-      case EditorPropertyField::COLOR_R:
-        return &water.red;
-      case EditorPropertyField::COLOR_G:
-        return &water.green;
-      case EditorPropertyField::COLOR_B:
-        return &water.blue;
-      case EditorPropertyField::OPACITY:
-        return &water.opacity;
-      case EditorPropertyField::FLOW_DIRECTION:
-        return &water.flow_heading;
-      case EditorPropertyField::FLOW_SPEED:
-        return &water.flow_speed;
-      default:
-        return nullptr;
+    for (const WaterChannel& channel : WATER_CHANNELS) {
+      if (channel.field == field) {
+        return &(water.*channel.byte);
+      }
     }
+    return nullptr;
   }
 
   /// @p byte of @p field as the panel shows it.

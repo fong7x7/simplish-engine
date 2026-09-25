@@ -7,7 +7,7 @@ namespace eng {
 namespace {
 
   /// A dry cell: every byte zero.
-  constexpr WaterCell DRY{0, 0, 0, 0, 0, 0, 0};
+  constexpr WaterCell DRY{0, 0, 0, 0, 0, 0, 0, 0};
 
 }  // namespace
 
@@ -22,7 +22,8 @@ WaterCell waterCellAt(const WaterLayer& layer, GroundCell cell) {
           layer.blue.at(cell),
           layer.opacity.at(cell),
           layer.flow_heading.at(cell),
-          layer.flow_speed.at(cell)};
+          layer.flow_speed.at(cell),
+          layer.viscosity.at(cell)};
 }
 
 bool setWaterCell(WaterLayer& layer, GroundCell cell, const WaterCell& water) {
@@ -34,6 +35,7 @@ bool setWaterCell(WaterLayer& layer, GroundCell cell, const WaterCell& water) {
   changed = layer.opacity.set(cell, stored.opacity) || changed;
   changed = layer.flow_heading.set(cell, stored.flow_heading) || changed;
   changed = layer.flow_speed.set(cell, stored.flow_speed) || changed;
+  changed = layer.viscosity.set(cell, stored.viscosity) || changed;
   return changed;
 }
 
