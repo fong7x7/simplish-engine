@@ -53,6 +53,7 @@ my-project/
 ├── src/                      # the project's own C++ game logic (ADR-011)
 │   ├── CMakeLists.txt        # simplish_game_logic(SOURCES ...)
 │   └── game-logic.cpp
+├── CLAUDE.md                 # the project's guide for agents (AGENTS.md points here)
 ├── build/                    # everything the editor builds — ignored
 │   ├── logic/                #   the logic library a playtest loads
 │   └── deploy/               #   the deployed game

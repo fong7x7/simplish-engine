@@ -5,8 +5,10 @@
 /// @par Threading Thread-safe (immutable value type).
 
 #include <cstdint>
+#include <engine/sim/tick-hash.h>
 #include <game/logic/run-outcome.h>
 #include <string>
+#include <vector>
 
 namespace eng::editor {
 
@@ -28,6 +30,8 @@ struct DeployedGameRun {
   uint64_t hash = 0;
   /// Whether the project's game logic ran.
   bool logic = false;
+  /// Every tick's hash, in order, when the options asked for them.
+  std::vector<sim::TickHash> tick_hashes{};
 };
 
 }  // namespace eng::editor

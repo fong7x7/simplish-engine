@@ -1,6 +1,7 @@
 #include "support/build-temp-dir.h"
 #include <catch2/catch_test_macros.hpp>
 #include <editor/build/editor-logic-source.h>
+#include <editor/build/editor-project-guide.h>
 #include <editor/project/project-paths.h>
 #include <editor/project/project-text-file.h>
 
@@ -41,4 +42,24 @@ TEST_CASE("the scaffold's example exports its logic") {
           std::string::npos);
   REQUIRE(logicScaffoldCMake().find("simplish_game_logic(") !=
           std::string::npos);
+}
+
+TEST_CASE("a project given logic gets a guide for agents, which is never "
+          "written over") {
+  const test::BuildTempDir dir("guide");
+  REQUIRE(writeProjectTextFile(dir.path() / "AGENTS.md", "# ours\n"));
+
+  REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
+
+  const auto guide = readProjectTextFile(dir.path() / PROJECT_GUIDE_FILE_NAME);
+  REQUIRE(guide.has_value());
+  CHECK(guide->find("SIMPLISH_GAME_LOGIC") != std::string::npos);
+  CHECK(guide->find("@ENGINE@") == std::string::npos);
+  CHECK(readProjectTextFile(dir.path() / "AGENTS.md") == "# ours\n");
+}
+
+TEST_CASE("the guide names where the engine's documents are") {
+  const std::string guide = projectAgentGuide("/src/simplish");
+
+  CHECK(guide.find("/src/simplish/docs/game/sdk.md") != std::string::npos);
 }

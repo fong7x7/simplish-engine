@@ -1,5 +1,7 @@
 #include <editor/build/editor-build-paths.h>
 #include <editor/build/editor-logic-source.h>
+#include <editor/build/editor-project-guide.h>
+#include <editor/build/editor-toolchain.h>
 #include <editor/project/project-paths.h>
 #include <editor/project/project-text-file.h>
 #include <system_error>
@@ -50,7 +52,8 @@ EditorLogicScaffold scaffoldProjectLogic(const std::filesystem::path& root) {
       writeProjectTextFile(src / LOGIC_EXAMPLE_FILE_NAME,
                            logicScaffoldSource()) &&
       writeProjectTextFile(src / LOGIC_CMAKE_FILE_NAME, logicScaffoldCMake()) &&
-      ignoreBuildFolder(root);
+      ignoreBuildFolder(root) &&
+      writeProjectAgentGuide(root, editorToolchain().engine_root);
   return written ? EditorLogicScaffold::CREATED : EditorLogicScaffold::FAILED;
 }
 

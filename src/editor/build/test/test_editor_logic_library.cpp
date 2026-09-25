@@ -166,3 +166,45 @@ TEST_CASE("a logic that runs cleanly passes its check", "[toolchain]") {
   REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
           EditorBuildStatus::SUCCEEDED);
 }
+
+namespace {
+
+/// A logic whose state outlives its run, in a static: the second run of
+/// a check starts from what the first left.
+constexpr std::string_view LEAKY_LOGIC = R"(
+#include <cstdint>
+#include <game/logic/game-logic-entry.h>
+#include <game/logic/game-logic.h>
+namespace {
+uint32_t runs = 0;
+class Leaky final : public eng::game::GameLogic {
+public:
+  void start(eng::game::GameLogicWorld&) override { ++runs; }
+  void tick(eng::game::GameLogicWorld&) override {}
+  void hashState(eng::game::GameLogicHash& hash) const override {
+    hash.add(runs);
+  }
+};
+}  // namespace
+SIMPLISH_GAME_LOGIC(Leaky)
+)";
+
+}  // namespace
+
+TEST_CASE("a logic that runs differently the second time fails its check",
+          "[toolchain]") {
+  const test::BuildTempDir dir("leaky-logic");
+  REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
+  REQUIRE(writeProjectTextFile(projectSourcePath(dir.path()) /
+                                   LOGIC_EXAMPLE_FILE_NAME,
+                               LEAKY_LOGIC));
+  bakeCheck(dir.path());
+
+  REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
+          EditorBuildStatus::FAILED);
+  const auto errors = buildErrorLines(
+      readLogLines(projectBuildLogPath(dir.path(), EditorBuildKind::LOGIC)), 5);
+  REQUIRE_FALSE(errors.empty());
+  CHECK(errors.front().find("not deterministic") != std::string::npos);
+  CHECK(errors.front().find("in logic") != std::string::npos);
+}

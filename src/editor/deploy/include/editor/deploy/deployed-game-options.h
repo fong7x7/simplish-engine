@@ -5,6 +5,7 @@
 /// @par Threading Thread-safe (immutable value type).
 
 #include <cstdint>
+#include <editor/deploy/deployed-hashes.h>
 #include <filesystem>
 #include <string>
 
@@ -26,6 +27,8 @@ struct DeployedGameOptions {
   /// Players in the session, 1 to 4 — every one a stand-in, since nobody
   /// holds the controls of a headless game.
   uint8_t players = 1;
+  /// Whether every tick's hash is kept.
+  DeployedHashes hashes = DeployedHashes::LAST_ONLY;
 };
 
 }  // namespace eng::editor

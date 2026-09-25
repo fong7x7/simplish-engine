@@ -22,7 +22,8 @@ inline constexpr const char* LOGIC_EXAMPLE_FILE_NAME = "game-logic.cpp";
 
 /// Give the project at @p root game logic to start from — a build file
 /// and a small example in `src/` — unless it has some. Also marks
-/// `build/` as ignored, with a `.gitignore` of its own inside it.
+/// `build/` as ignored, with a `.gitignore` of its own inside it, and
+/// writes the project's guide for agents when it has none.
 [[nodiscard]] EditorLogicScaffold
 scaffoldProjectLogic(const std::filesystem::path& root);
 

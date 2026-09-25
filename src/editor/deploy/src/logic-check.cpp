@@ -1,8 +1,12 @@
+#include <algorithm>
 #include <charconv>
 #include <editor/build/editor-logic-library-load.h>
 #include <editor/deploy/deployed-game.h>
 #include <editor/deploy/logic-check.h>
+#include <engine/sim/hash-divergence.h>
+#include <sstream>
 #include <string>
+#include <string_view>
 
 namespace eng::editor {
 
@@ -33,6 +37,46 @@ namespace {
            ("game-logic-check" + options.library.extension().string());
   }
 
+  /// A run of @p options' content with @p library's logic, keeping every
+  /// tick's hash, saying what the logic says to @p out.
+  DeployedGameRun checkRun(const LogicCheckOptions& options,
+                           const EditorLogicLibrary& library,
+                           std::ostream& out) {
+    return runDeployedGame(
+        {options.content, {}, options.ticks, 1, DeployedHashes::EVERY_TICK},
+        library.factory(), out);
+  }
+
+  /// What diverging in @p section says about the logic.
+  std::string_view divergenceCause(std::string_view section) {
+    return section == "logic"
+               ? "its own state differs: a clock, std::rand or <random>, an "
+                 "unordered container iterated, uninitialised memory, or a "
+                 "static that outlives a run"
+               : "the world differs, so the logic changed it differently: "
+                 "look for what it decides by that it does not hash, or "
+                 "anything above";
+  }
+
+  /// Whether @p second ran exactly as @p first did; when not, say where it
+  /// first differed to @p out.
+  bool sameRun(const DeployedGameRun& first, const DeployedGameRun& second,
+               std::ostream& out) {
+    const size_t ticks =
+        std::min(first.tick_hashes.size(), second.tick_hashes.size());
+    for (size_t i = 0; i < ticks; ++i) {
+      if (const auto diverged = sim::findDivergence(first.tick_hashes[i],
+                                                    second.tick_hashes[i])) {
+        out << "error: the game logic is not deterministic: a second run "
+               "of the same level first differs on tick "
+            << diverged->tick << ", in " << diverged->section << " — "
+            << divergenceCause(diverged->section) << '\n';
+        return false;
+      }
+    }
+    return true;
+  }
+
 }  // namespace
 
 int runLogicCheck(const LogicCheckOptions& options, std::ostream& out) {
@@ -42,14 +86,19 @@ int runLogicCheck(const LogicCheckOptions& options, std::ostream& out) {
     out << "error: the game logic would not load: " << load.error << '\n';
     return 1;
   }
-  out << "check: running the game logic for " << options.ticks << " ticks\n";
-  const DeployedGameRun run = runDeployedGame(
-      {options.content, {}, options.ticks, 1}, load.library->factory(), out);
-  if (!run.error.empty()) {
-    out << "error: " << run.error << '\n';
+  out << "check: running the game logic for " << options.ticks
+      << " ticks, twice\n";
+  const DeployedGameRun first = checkRun(options, *load.library, out);
+  if (!first.error.empty()) {
+    out << "error: " << first.error << '\n';
     return 1;
   }
-  out << "check: passed — " << run.ticks << " ticks without a crash\n";
+  std::ostringstream quiet;
+  if (!sameRun(first, checkRun(options, *load.library, quiet), out)) {
+    return 1;
+  }
+  out << "check: passed — " << first.ticks
+      << " ticks without a crash, the same both times\n";
   return 0;
 }
 

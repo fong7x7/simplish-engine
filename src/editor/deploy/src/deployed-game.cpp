@@ -50,6 +50,16 @@ namespace {
     return input;
   }
 
+  /// Keep what @p result says of its tick in @p run: its hash, and — when
+  /// @p hashes asks — the whole of it.
+  void keepTick(const sim::TickResult& result, DeployedHashes hashes,
+                DeployedGameRun& run) {
+    run.hash = result.hash ? result.hash->combined : 0;
+    if (hashes == DeployedHashes::EVERY_TICK && result.hash) {
+      run.tick_hashes.push_back(*result.hash);
+    }
+  }
+
   /// Step @p world until its run is over or @p run's ticks are spent,
   /// saying what its logic says to @p out.
   void play(game::GameWorld& world, const DeployedGameOptions& options,
@@ -59,7 +69,7 @@ namespace {
     while (!world.runOver() && simulation.nextTick() < options.max_ticks) {
       const sim::TickResult result =
           simulation.step(standInsFor(world, players));
-      run.hash = result.hash ? result.hash->combined : 0;
+      keepTick(result, options.hashes, run);
       for (const std::string& line : world.takeLogicLog()) {
         out << "[logic " << result.tick << "] " << line << '\n';
       }

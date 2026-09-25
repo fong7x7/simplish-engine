@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <editor/build/editor-project-guide.h>
+#include <editor/build/editor-toolchain.h>
 #include <editor/project/project-ops.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-action-ops.h>
@@ -2454,6 +2456,12 @@ void SimplishEditor::onFolderChosen(const std::filesystem::path& path) {
   (void)openProjectAt(path);
 }
 
+void SimplishEditor::writeProjectGuide(const std::filesystem::path& root) {
+  if (!writeProjectAgentGuide(root, editorToolchain().engine_root)) {
+    LOG_WARN("editor", "Could not write the project's CLAUDE.md");
+  }
+}
+
 bool SimplishEditor::createProjectAt(const std::filesystem::path& root,
                                      std::string_view name_in) {
   // The dialog hands back the full path the user typed, so its last
@@ -2471,6 +2479,7 @@ bool SimplishEditor::createProjectAt(const std::filesystem::path& root,
     return false;
   }
   LOG_INFO("editor", "Created project: " + name);
+  writeProjectGuide(root);
   return openProjectAt(root);
 }
 

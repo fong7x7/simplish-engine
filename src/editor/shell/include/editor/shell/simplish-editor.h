@@ -1256,6 +1256,8 @@ private:
   void applyViewCommand(EditorMenuCommand command);
   /// Close the open project, leaving the editor with none.
   void closeProject();
+  /// Give the project at @p root its guide for agents, when it has none.
+  void writeProjectGuide(const std::filesystem::path& root);
   /// Show build information in the toolbar status line for a few seconds.
   void showAbout();
   /// Put a message in the toolbar status line for a few seconds.
