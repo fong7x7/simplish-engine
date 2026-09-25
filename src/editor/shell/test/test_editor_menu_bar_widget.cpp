@@ -101,7 +101,7 @@ EditorActionHistory historyWithOnePlacement(EditorDocument& document) {
 
 TEST_CASE("the bar creates one dropdown per title, all hidden") {
   MenuFixture fx;
-  REQUIRE(fx.bar()->menuCount() == 5);
+  REQUIRE(fx.bar()->menuCount() == 6);
   REQUIRE(fx.bar()->openMenuIndex() == -1);
   for (size_t i = 0; i < fx.bar()->menuCount(); ++i) {
     REQUIRE(fx.menu(i) != nullptr);

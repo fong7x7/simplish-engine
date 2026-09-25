@@ -205,7 +205,7 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   setup.characters[0] = character;
   addPlaytestPlayers(setup);
   playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
-                                                      state_.level_id);
+                                                      playtestRun());
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
@@ -226,7 +226,7 @@ std::string SimplishEditor::playingMessage() const {
   const std::string on_pads =
       pads == 0 ? "" : ", players 2–" + std::to_string(pads + 1) + " on pads";
   return "Playing " + state_.level_id + (name.empty() ? "" : " as " + name) +
-         on_pads + " — F5 or Esc to stop";
+         on_pads + " — F5 or Esc to stop" + playtestLogicNote();
 }
 
 game::GameContent SimplishEditor::playtestContent() const {

@@ -61,6 +61,17 @@ puzzled over.
 | See which level is open | ✅ | `get_level`, `list_levels` | Also on the title bar and the toolbar, after the project's name |
 | Rename or delete a level | ❌ | ❌ | An id is a reference every other content file will use ([project-format.md §3](project-format.md#3-conventions-common-to-every-file)), so renaming is a refactor across the project rather than a file move. Deleting is a filesystem operation with no undo behind it yet |
 
+## 2.2 Game logic and deploying
+
+| Capability | In the editor | Agent | Notes |
+|---|---|---|---|
+| Give a project C++ game logic of its own | ✅ | `run_command` (`new_game_logic`) | Build › New Game Logic writes `src/CMakeLists.txt` and a commented example, and a `.gitignore` inside `build/`. Never writes over a project's own `src/`. An agent may equally write `src/` itself ([logic.md](../game/logic.md)) |
+| Build it | ✅ | `run_command` (`build_game_logic`), `get_build` | Build › Build Game Logic, `Cmd`/`Ctrl`+B: CMake in the background with the editor's own compiler, into `build/logic/`, in about two seconds; scaffolds first when there is no `src/`. The status line reports the first error; `get_build` has them all, the log's tail and the log's path. One build at a time |
+| Play it | ✅ | `start_playtest`, `get_playtest` (`logic`, `outcome`, `logic_log`) | A build is loaded for the next playtest; a running one keeps the library it started with. Opening a project loads its last build. What the logic says goes to the editor's log |
+| See that the loaded logic is out of date | ✅ | `get_build` (`logic_stale`) | Compared on project open, after each build, and on Play |
+| Deploy the game | 🚧 | `run_command` (`deploy_game`), `get_build` (`deployed`) | Build › Deploy Game bakes every saved level and the data tables into `build/deploy/game/` and builds `simplish-game` in Release with the logic linked in — minutes the first time. The deployed game is headless — the simulation with stand-in players, for a dedicated host or CI — until the rendered client exists; assets are not copied yet |
+| Debug the logic | 🚧 | ❌ | The library is a Debug build with symbols, so a debugger attached to the editor stops in it; nothing in the editor attaches one |
+
 ## 3. Assets
 
 | Capability | In the editor | Agent | Notes |

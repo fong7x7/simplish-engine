@@ -76,6 +76,11 @@ void movePlayers(PlayerPool& pool, const sim::TickInput& input,
 void hurtPlayer(PlayerPool& pool, uint32_t index, uint16_t amount,
                 uint64_t tick);
 
+/// The player at dense index @p index gets back @p amount segments, up to
+/// their full bar — unless they are not up: reviving is a teammate's, not
+/// a heal's.
+void healPlayer(PlayerPool& pool, uint32_t index, uint16_t amount);
+
 /// §4.1 step 6's end: revive every downed player a teammate who is up has
 /// stood by long enough, and put out of the run every one down past the
 /// window — or down with no teammate up to revive them (Game §3.3: solo

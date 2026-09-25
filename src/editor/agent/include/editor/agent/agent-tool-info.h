@@ -1036,7 +1036,9 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "and how many shot_fired, shot_hit_body, shot_hit_wall and blast cues "
      "the run has played, and how many of those were sent to be heard "
      "(sounds: the nearest few of each kind a tick); whether the run is "
-     "over (no player up); the "
+     "over (no player up, or the game logic ended it) and its outcome "
+     "(playing, won or lost); whether the project's game logic runs (logic) "
+     "and the last lines it said (logic_log); the "
      "latest tick hash, how many ticks the frame clock has dropped, and "
      "how many ticks of queued input are left. Poll it after "
      "start_playtest or send_input to watch the game run.",
@@ -1207,6 +1209,31 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "set_property with color_r, color_g, color_b or opacity. One undoable "
      "edit; refused while playing. Answers with how many cells changed.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_WATER},
+    {AgentTool::GET_BUILD,
+     "get_build",
+     "The project's own C++ game logic and the game it deploys to. A "
+     "project's rules can be written in C++ in its src/ folder against "
+     "<game/logic/game-logic.h>: a class deriving eng::game::GameLogic, "
+     "exported once with SIMPLISH_GAME_LOGIC(ClassName), and listed in "
+     "src/CMakeLists.txt; run_command new_game_logic writes a commented "
+     "example to start from. run_command build_game_logic compiles it in "
+     "the background, and loads it for the next playtest; run_command "
+     "deploy_game bakes every saved level and builds a standalone game "
+     "into build/deploy/ (the first deploy builds the engine, and takes "
+     "minutes). Poll this until build.status is succeeded or failed, and "
+     "compare build.builds with the value before the call to know it is "
+     "the build you started. Reports has_logic, source (the src/ folder), "
+     "logic_loaded, logic_stale (the source is newer than the library "
+     "loaded: build again), logic_error (why a library would not load), "
+     "logic_library, api_version, deployed (the folder of the last deploy "
+     "that worked, or null), the toolchain the editor builds with, and "
+     "build: kind (logic or deploy), status (idle, running, succeeded, "
+     "failed), builds, log (the file holding everything the build "
+     "printed), errors (its lines naming an error) and log_tail (its last "
+     "lines). While playing, get_playtest reports logic, outcome and "
+     "logic_log: what the logic said with world.log().",
+     AgentToolEffect::READ,
+     {}},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

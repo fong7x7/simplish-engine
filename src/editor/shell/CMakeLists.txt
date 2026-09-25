@@ -83,6 +83,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesh-rasterizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-animation-events.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-build.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-ground.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/simplish-editor-playtest.cpp"
@@ -103,6 +104,7 @@ simplish_add_module(simplish-editor-shell
     INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES     ${_shell_sources}
     DEPENDENCIES
+        simplish-editor-build
         simplish-editor-project
         simplish-engine-animation
         simplish-engine-core

@@ -101,6 +101,15 @@ enum class EditorMenuCommand : uint8_t {
   /// Draw water as a simulated, rippling surface, finely, with wind waves,
   /// light in the shallows and foam on the crests.
   SET_WATER_HIGH,
+  /// Give the open project C++ game logic of its own to start from: a
+  /// build file and an example in its `src/` (ADR-011).
+  NEW_GAME_LOGIC,
+  /// Compile the project's game logic into the library the next playtest
+  /// runs, in the background.
+  BUILD_GAME_LOGIC,
+  /// Build the deployed game — the engine with the project's logic linked
+  /// in — and put it, with the project's content, in `build/deploy/`.
+  DEPLOY_GAME,
 };
 
 /// The water rows, indexed by the fidelity each sets.
@@ -181,6 +190,13 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SET_WATER_FLAT, "Water: Flat", ""},
     {EditorMenuCommand::SET_WATER_LOW, "Water: Low", ""},
     {EditorMenuCommand::SET_WATER_HIGH, "Water: High", ""},
+    {EditorMenuCommand::NEW_GAME_LOGIC, "New Game Logic", ""},
+#ifdef __APPLE__
+    {EditorMenuCommand::BUILD_GAME_LOGIC, "Build Game Logic", "Cmd+B"},
+#else
+    {EditorMenuCommand::BUILD_GAME_LOGIC, "Build Game Logic", "Ctrl+B"},
+#endif
+    {EditorMenuCommand::DEPLOY_GAME, "Deploy Game", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is

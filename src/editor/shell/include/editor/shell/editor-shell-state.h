@@ -4,6 +4,7 @@
 /// @brief Editor state that outlives any one frame.
 /// @par Threading Main-thread-only.
 
+#include <editor/build/editor-build-state.h>
 #include <editor/project/project-context.h>
 #include <editor/project/recent-projects-list.h>
 #include <editor/shell/editor-action-history.h>
@@ -134,6 +135,10 @@ struct EditorShellState {
   EditorGraphicsSettings graphics;
   /// What the level's water is doing, refreshed by the editor every frame.
   EditorWaterState water;
+  /// The project's game logic and the game it deploys to: whether it has
+  /// any, whether a build of it is loaded, and how the last build went.
+  /// Refreshed by the editor; read by the agent API's `get_build`.
+  EditorBuildState build;
 };
 
 }  // namespace eng::editor

@@ -69,7 +69,8 @@ game::ActorSpawn editorActorSpawn(const EditorPlacement& placement,
           .faction = placement.faction,
           .radius = std::clamp(narrower * 0.5f, EDITOR_ACTOR_MIN_RADIUS,
                                EDITOR_ACTOR_MAX_RADIUS),
-          .height = std::max(box.max.z - box.min.z, EDITOR_ACTOR_MIN_RADIUS)};
+          .height = std::max(box.max.z - box.min.z, EDITOR_ACTOR_MIN_RADIUS),
+          .id = placement.id};
 }
 
 EditorPlacement editorActorPose(const EditorPlacement& placement, Vec3 feet,

@@ -50,8 +50,16 @@ my-project/
 │       ├── enemies.data.json      # read today (§8.3)
 │       ├── sounds.data.json       # read and written today (§8.4)
 │       └── projectiles.data.json
+├── src/                      # the project's own C++ game logic (ADR-011)
+│   ├── CMakeLists.txt        # simplish_game_logic(SOURCES ...)
+│   └── game-logic.cpp
+├── build/                    # everything the editor builds — ignored
+│   ├── logic/                #   the logic library a playtest loads
+│   └── deploy/               #   the deployed game
 └── data/                     # editor-owned scratch: layouts, bookmarks
 ```
+
+`src/` is the project's **game logic**: C++ rules the data tables cannot say, compiled by the editor into a library each playtest loads and linked into the game a deploy builds. It is optional — a project without one plays by the game's own rules — and Build › New Game Logic writes a starting point. `build/` is everything the editor builds from the project, logic and deployed game alike; it carries a `.gitignore` of its own and is never content. Both are specified in [docs/game/logic.md](../game/logic.md).
 
 `assets/` is source material the asset pipeline consumes ([Editor §8](REQUIREMENTS.md#8-asset-pipeline)). `content/` is authored data this document specifies. The split matters: assets are imported and cached, content is generated and compiled.
 

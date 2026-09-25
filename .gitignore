@@ -12,6 +12,8 @@ build/*
 # Editor build module and tests are source code, not build artifacts
 !editor/build/
 !editor/build/**
+!src/editor/build/
+!src/editor/build/**
 !tests/**/build/
 # A solutions category, not a build directory — build*/ would swallow it.
 !docs/solutions/build-issues/

@@ -690,6 +690,17 @@ std::string agentSpritesJson(const EditorShellState& state) {
       .dump(2);
 }
 
+namespace {
+
+  /// How the run stands, and what the project's game logic has said.
+  json playtestLogicJson(const EditorPlaytestState& playtest) {
+    return {{"outcome", agentRunOutcomeName(playtest.outcome)},
+            {"logic", playtest.logic},
+            {"logic_log", playtest.logic_log}};
+  }
+
+}  // namespace
+
 std::string agentPlaytestJson(const EditorShellState& state) {
   const EditorPlaytestState& playtest = state.playtest;
   json out = {{"mode", agentPlayModeName(playtest.mode)},
@@ -702,6 +713,7 @@ std::string agentPlaytestJson(const EditorShellState& state) {
               {"run_over", playtest.run_over},
               {"stand_ins", state.playtest_stand_ins}};
   out.update(playtestCombatJson(playtest));
+  out.update(playtestLogicJson(playtest));
   out["effects"] = playtestEffectsJson(playtest.effects);
   out["hash"] = playtest.hash ? json(hashHex(*playtest.hash)) : json(nullptr);
   return out.dump(2);

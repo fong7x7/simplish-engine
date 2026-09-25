@@ -1,10 +1,12 @@
 # editor
 
-The desktop authoring application. Three packages: `project/` (project
-format, open and create, recent list), `shell/` (title bar, menus, toolbar,
-viewport, asset browser, properties panel), and `agent/` (the tool surface
-agents drive the editor through). Links `platform` and `engine`; namespace
-`eng::editor` throughout.
+The desktop authoring application. Five packages: `project/` (project
+format, open and create, recent list), `build/` (a project's C++ game
+logic: the scaffold, the CMake jobs, the library loader, the setups a
+deploy bakes), `shell/` (title bar, menus, toolbar, viewport, asset
+browser, properties panel), `agent/` (the tool surface agents drive the
+editor through), and `deploy/` (the headless deployed game `simplish-game`
+runs). Links `platform` and `engine`; namespace `eng::editor` throughout.
 
 ## Read first
 
@@ -116,6 +118,17 @@ agents drive the editor through). Links `platform` and `engine`; namespace
   direction from the camera's axes before input is quantised — while
   `send_input` stays in world axes, so a script means one run under either
   projection.
+- **A project's game logic is C++ in its own `src/`, never in this tree**
+  ([ADR-011](../../docs/decisions/ADR-011-project-game-logic-in-cpp.md),
+  [logic.md](../../docs/game/logic.md)). `SimplishEditor` owns the
+  `EditorBuildJob` and the loaded `EditorLogicLibrary`; `state_.build` is
+  what agents and the menu see of them. The library is built with the
+  toolchain the editor was built with — baked into `editor-toolchain.cpp`
+  by CMake, because the logic is called through vtables — and loaded from a
+  copy for the **next** playtest: a running one holds a `shared_ptr` to the
+  library it started with, so a rebuild never swaps code under a live run.
+  One build at a time; the Build rows are refused, not queued, while one
+  runs. Deploy bakes the *saved* level files, not the open document.
 - **The recent-projects list is written outside the checkout** when the
   platform offers a user data directory. `data/editor/recent-projects.json` is
   gitignored on purpose — it belongs to whoever runs the editor.
@@ -143,6 +156,9 @@ agents drive the editor through). Links `platform` and `engine`; namespace
 
 `SIMPLISH_AGENT_PORT=default` opens the agent API on 127.0.0.1:8787 — see
 [agent-api.md](../../docs/editor/agent-api.md).
+
+`SIMPLISH_ENGINE_ROOT` points Build Game Logic at an engine tree other than
+the one that built the editor.
 
 `SIMPLISH_LLDB=1` runs it under LLDB and prints a backtrace on a crash;
 `SIMPLISH_LLDB=i` drops into interactive LLDB. macOS also writes crash reports

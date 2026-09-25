@@ -50,6 +50,9 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::SET_WATER_FLAT,
     EditorMenuCommand::SET_WATER_LOW,
     EditorMenuCommand::SET_WATER_HIGH,
+    EditorMenuCommand::NEW_GAME_LOGIC,
+    EditorMenuCommand::BUILD_GAME_LOGIC,
+    EditorMenuCommand::DEPLOY_GAME,
 };
 
 /// Whether @p command names work that exists at all.
@@ -59,6 +62,10 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
 /// go until one is open. The menu bar, which sees no `EditorShellState`,
 /// reads this directly; everything else asks `editorMenuCommandEnabled`.
 [[nodiscard]] bool editorMenuCommandNeedsProject(EditorMenuCommand command);
+
+/// Whether @p command is one of the Build menu's: it needs a project, and
+/// no build already running.
+[[nodiscard]] bool editorMenuCommandBuilds(EditorMenuCommand command);
 
 /// Whether @p command acts on a running playtest, and so does nothing
 /// while the level is being edited. The menu bar reads this directly, as it

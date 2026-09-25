@@ -250,6 +250,14 @@ void hurtActor(ActorPool& pool, uint32_t index, ActorHarm harm,
   }
 }
 
+void healActor(ActorPool& pool, uint32_t index, uint16_t amount) {
+  if (pool.health[index] == 0) {
+    return;
+  }
+  const uint16_t room = pool.max_health[index] - pool.health[index];
+  pool.health[index] += std::min(amount, room);
+}
+
 void compactActors(ActorPool& pool) {
   const auto moves = pool.slots.compact();
   compactBody(pool, moves);

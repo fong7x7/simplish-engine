@@ -1,3 +1,6 @@
+#include "world-logic-hash.h"
+#include "world-logic-view.h"
+
 #include <algorithm>
 #include <game/actors/actor-system.h>
 #include <game/actors/actor-tick-context.h>
@@ -72,7 +75,8 @@ namespace {
 
 }  // namespace
 
-GameWorld::GameWorld(const GameSetup& setup, const GameContent& content)
+GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
+                     GameLogic* logic)
   : obstacles_(setup.obstacles), grid_(navGridFor(setup)),
     broadphase_(obstacles_),
     actors_(static_cast<uint32_t>(setup.actors.size())),
@@ -80,7 +84,8 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content)
     combat_(static_cast<uint32_t>(setup.actors.size() + sim::MAX_PLAYERS),
             grid_.spec(), broadphase_),
     workspace_(static_cast<uint32_t>(setup.actors.size()), grid_, broadphase_),
-    ai_rng_(setup.seed, AI_RNG_STREAM) {
+    ai_rng_(setup.seed, AI_RNG_STREAM), logic_(logic),
+    logic_rng_(setup.seed, LOGIC_RNG_STREAM) {
   for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
     (void)spawnPlayer(players_, slot, setup.spawns[slot],
                       resolveCharacter(content, setup.characters[slot]));
@@ -123,28 +128,98 @@ void GameWorld::projectiles(const sim::TickContext& context) {
 }
 
 void GameWorld::damage(const sim::TickContext& context) {
-  const CombatScene scene = combatScene(context.tick);
+  resolveDamage(context.tick);
+  updateDownedPlayers(players_, context.tick);
+  clearCombatEffects(effects_);
+}
+
+void GameWorld::resolveDamage(uint64_t tick) {
+  const CombatScene scene = combatScene(tick);
   // A death can set off a blast, and a blast can kill: go round until
   // neither leaves anything to do. Each actor dies once, so it ends.
   resolveBlasts(scene);
   size_t next = 0;
   while (next < effects_.damage.size()) {
     for (; next < effects_.damage.size(); ++next) {
-      applyHit(effects_.damage[next], context.tick);
+      applyHit(effects_.damage[next], tick);
     }
     resolveBlasts(scene);
   }
-  updateDownedPlayers(players_, context.tick);
+}
+
+void GameWorld::director(const sim::TickContext& context) {
+  if (logic_ == nullptr) {
+    return;
+  }
+  runLogic(context);
+  for (const LogicCommand& command : logic_commands_) {
+    applyLogicCommand(command, context.tick);
+  }
+  logic_commands_.clear();
+  resolveDamage(context.tick);
   clearCombatEffects(effects_);
 }
 
+void GameWorld::runLogic(const sim::TickContext& context) {
+  WorldLogicView view({.context = context,
+                       .players = players_,
+                       .actors = actors_,
+                       .brains = brains_,
+                       .actor_ids = actor_ids_,
+                       .commands = logic_commands_,
+                       .rng = logic_rng_,
+                       .outcome = logic_outcome_,
+                       .log = logic_log_});
+  if (context.tick == 0) {
+    logic_->start(view);
+  }
+  logic_->tick(view);
+}
+
+void GameWorld::applyLogicCommand(const LogicCommand& command, uint64_t tick) {
+  if (command.kind == LogicCommandKind::HEAL) {
+    heal(command.target, command.amount);
+    return;
+  }
+  const CombatantKind kind = command.target.kind == LogicTargetKind::PLAYER
+                                 ? CombatantKind::PLAYER
+                                 : CombatantKind::ACTOR;
+  applyHit({{kind, {command.target.index, command.target.generation}},
+            command.amount},
+           tick);
+}
+
+void GameWorld::heal(const LogicTarget& target, uint16_t amount) {
+  const sim::EntityHandle handle{target.index, target.generation};
+  if (target.kind == LogicTargetKind::PLAYER) {
+    if (const auto p = players_.slots.denseIndex(handle)) {
+      healPlayer(players_, *p, amount);
+    }
+  } else if (const auto i = actors_.slots.denseIndex(handle)) {
+    healActor(actors_, *i, amount);
+  }
+}
+
 bool GameWorld::runOver() const {
+  return outcome() != RunOutcome::PLAYING;
+}
+
+RunOutcome GameWorld::outcome() const {
+  if (logic_outcome_ != RunOutcome::PLAYING) {
+    return logic_outcome_;
+  }
   for (uint32_t p = 0; p < players_.slots.size(); ++p) {
     if (playerIsUp(players_, p)) {
-      return false;
+      return RunOutcome::PLAYING;
     }
   }
-  return true;
+  return RunOutcome::LOST;
+}
+
+std::vector<std::string> GameWorld::takeLogicLog() {
+  std::vector<std::string> lines;
+  lines.swap(logic_log_);
+  return lines;
 }
 
 void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {
@@ -161,6 +236,13 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
   hashProjectiles(projectiles_, builder.section("projectiles"));
   hashHazards(hazards_, builder.section("hazards"));
   builder.section("ai_rng").add(ai_rng_.state());
+  if (logic_ != nullptr) {
+    sim::StateHasher& section = builder.section("logic");
+    section.add(logic_outcome_);
+    section.add(logic_rng_.state());
+    WorldLogicHash hash(section);
+    logic_->hashState(hash);
+  }
 }
 
 CombatScene GameWorld::combatScene(uint64_t tick) {
@@ -190,12 +272,14 @@ void GameWorld::spawnActors(const GameSetup& setup,
   brains_.reserve(setup.actors.size());
   routes_.reserve(setup.actors.size());
   actor_handles_.reserve(setup.actors.size());
+  actor_ids_.resize(setup.actors.size());
   for (const ActorSpawn& spawn : setup.actors) {
     const uint16_t brain = brainIndex(resolveBehavior(content, spawn.behavior));
     const auto handle = spawnActor(actors_, spawn, brain, brains_[brain]);
     actor_handles_.push_back(handle.value_or(sim::EntityHandle{}));
     if (handle) {
       assignRoute(actors_.slots.size() - 1U, spawn.route);
+      actor_ids_[handle->index] = spawn.id;
     }
   }
 }

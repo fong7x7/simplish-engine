@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <editor/build/editor-build-state.h>
 #include <editor/project/project-paths.h>
 #include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-character-choices.h>
@@ -6,6 +7,7 @@
 #include <editor/shell/editor-player-start-ops.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-waypoint-ops.h>
+#include <engine/core/logger.h>
 #include <engine/sim/replay-codec.h>
 #include <fstream>
 #include <game/combat/combat-system.h>
@@ -213,10 +215,14 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
 
 EditorPlaytestSession::EditorPlaytestSession(const game::GameSetup& setup,
                                              const game::GameContent& content,
-                                             const std::string& level_id)
-  : world_(std::make_unique<game::GameWorld>(setup, content)),
+                                             const EditorPlaytestRun& run)
+  : logic_library_(run.logic),
+    logic_(run.logic ? game::GameLogicInstance(run.logic->factory())
+                     : game::GameLogicInstance()),
+    world_(std::make_unique<game::GameWorld>(setup, content, logic_.get())),
     simulation_(*world_, sim::TickHashing::ON),
-    recorder_(replayHeader(setup, level_id), sim::DEFAULT_CHECKPOINT_INTERVAL),
+    recorder_(replayHeader(setup, run.level_id),
+              sim::DEFAULT_CHECKPOINT_INTERVAL),
     content_(content), characters_(setup.characters),
     previous_(world_->players().position),
     previous_actors_(world_->actors().position) {}
@@ -247,6 +253,19 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
   last_hash_ = result.hash;
   playCues();
   feelTick(health_before);
+  keepLogicLog();
+}
+
+void EditorPlaytestSession::keepLogicLog() {
+  for (std::string& line : world_->takeLogicLog()) {
+    LOG_INFO("logic", line);
+    logic_log_.push_back(std::move(line));
+  }
+  if (logic_log_.size() > EDITOR_LOGIC_LOG_LINES) {
+    logic_log_.erase(logic_log_.begin(),
+                     logic_log_.end() -
+                         static_cast<std::ptrdiff_t>(EDITOR_LOGIC_LOG_LINES));
+  }
 }
 
 std::optional<uint32_t> EditorPlaytestSession::playerOneIndex() const {
@@ -478,7 +497,14 @@ void EditorPlaytestSession::publishCombat(EditorPlaytestState& state) const {
                              pools.radius[i],
                              pools.ticks_left[i]});
   }
+  publishRun(state);
+}
+
+void EditorPlaytestSession::publishRun(EditorPlaytestState& state) const {
   state.run_over = world_->runOver();
+  state.outcome = world_->outcome();
+  state.logic = world_->hasLogic();
+  state.logic_log = logic_log_;
 }
 
 void EditorPlaytestSession::publishActors(EditorPlaytestState& state) const {

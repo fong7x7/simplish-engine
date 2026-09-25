@@ -12,7 +12,9 @@
 #include <editor/shell/editor-playtest-hazard.h>
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
+#include <game/logic/run-outcome.h>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace eng::editor {
@@ -47,8 +49,15 @@ struct EditorPlaytestState {
   std::vector<EditorPlaytestHazard> hazards;
   /// The effects shots, hits and blasts have played.
   EditorPlaytestEffects effects{};
-  /// Whether the run is over: no player is up.
+  /// Whether the run is over: the game logic ended it, or no player is up.
   bool run_over = false;
+  /// How the run stands: still playing, won or lost.
+  game::RunOutcome outcome = game::RunOutcome::PLAYING;
+  /// Whether the playtest runs the project's game logic.
+  bool logic = false;
+  /// The last lines the game logic said, oldest first; at most
+  /// `EDITOR_LOGIC_LOG_LINES`.
+  std::vector<std::string> logic_log;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

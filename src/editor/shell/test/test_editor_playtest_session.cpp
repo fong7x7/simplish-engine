@@ -57,7 +57,7 @@ std::vector<std::byte> readBytes(const std::filesystem::path& path) {
 EditorPlaytestSession sessionAt(WorldPoint spawn) {
   EditorDocument document;
   document.player_starts.push_back(makeEditorPlayerStart(1, spawn));
-  return {makeEditorPlaytestSetup(document, {}, {}), {}, "main"};
+  return {makeEditorPlaytestSetup(document, {}, {}), {}, {"main"}};
 }
 
 }  // namespace
@@ -163,7 +163,7 @@ TEST_CASE("a player is drawn between where the last tick found and left it") {
 TEST_CASE("a playtest's replay reproduces it in a fresh world") {
   EditorDocument document = documentWithStarts();
   const game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
-  EditorPlaytestSession session(setup, {}, "main");
+  EditorPlaytestSession session(setup, {}, {"main"});
   std::vector<EditorScriptedInput> none;
   for (uint64_t tick = 0; tick < 200; ++tick) {
     sim::PlayerInput input = pushingRight();
@@ -222,7 +222,7 @@ TEST_CASE("walking right in a playtest stops at the first solid prop") {
   crate.position = {6.0F, 2.0F, 0.0F};
   document.placements.push_back(crate);
   EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
-                                "main");
+                                {"main"});
   std::vector<EditorScriptedInput> none;
 
   for (int tick = 0; tick < 120; ++tick) {
@@ -255,7 +255,7 @@ TEST_CASE("a playtest plays and reports the character player 1 picked") {
   setup.characters[0] = "tank";
   game::GameContent content;
   content.characters.push_back({"tank", "Tank", "mesh:tank", 3.0F, 9});
-  EditorPlaytestSession session(setup, content, "main");
+  EditorPlaytestSession session(setup, content, {"main"});
   std::vector<EditorScriptedInput> none;
   EditorPlaytestState state;
 
@@ -312,7 +312,7 @@ EditorDocument documentWithActor(std::string behavior) {
 /// What a playtest of @p document reports after @p ticks idle ticks.
 EditorPlaytestState publishedAfter(const EditorDocument& document, int ticks) {
   EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
-                                "main");
+                                {"main"});
   session.setActorIds(editorActorIds(document));
   std::vector<EditorScriptedInput> none;
   for (int tick = 0; tick < ticks; ++tick) {
@@ -381,7 +381,7 @@ TEST_CASE("a playtest reports each actor by the prop it came from") {
 TEST_CASE("an actor is drawn between the ticks it moved between") {
   const EditorDocument document = documentWithActor("behavior:chase");
   EditorPlaytestSession session(makeEditorPlaytestSetup(document, {}, {}), {},
-                                "main");
+                                {"main"});
   std::vector<EditorScriptedInput> none;
   for (int tick = 0; tick < 10; ++tick) {
     session.step({}, none);
@@ -413,7 +413,7 @@ TEST_CASE("a stand-in plays their player, and says so") {
   game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
   addEditorStandIns(setup, document, 1);
   setup.spawns[1] = {setup.spawns[0].x + 8.0F, setup.spawns[0].y, 0.0F};
-  EditorPlaytestSession session(setup, {}, "main");
+  EditorPlaytestSession session(setup, {}, {"main"});
   std::vector<EditorScriptedInput> none;
   for (int tick = 0; tick < 30; ++tick) {
     session.step({}, none);
@@ -454,7 +454,7 @@ EditorPlaytestSession skirmisherSession() {
   return {
       makeEditorPlaytestSetup(documentWithActor("behavior:skirmisher"), {}, {}),
       {},
-      "main"};
+      {"main"}};
 }
 
 }  // namespace
@@ -533,7 +533,7 @@ TEST_CASE("a pad seated for a player plays them in place of the stand-in") {
   game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
   addEditorStandIns(setup, document, 1);
   setup.spawns[1] = {setup.spawns[0].x + 8.0F, setup.spawns[0].y, 0.0F};
-  EditorPlaytestSession session(setup, {}, "main");
+  EditorPlaytestSession session(setup, {}, {"main"});
   // The pad pushes player 2 further away, where the stand-in would come
   // back.
   sim::PlayerInput away;
@@ -553,7 +553,7 @@ TEST_CASE("a player whose pad is gone goes back to the stand-in") {
   EditorDocument document = documentWithStarts();
   game::GameSetup setup = makeEditorPlaytestSetup(document, {}, {});
   addEditorStandIns(setup, document, 1);
-  EditorPlaytestSession session(setup, {}, "main");
+  EditorPlaytestSession session(setup, {}, {"main"});
   session.setPadInput(1, sim::PlayerInput{});
   session.setPadInput(1, std::nullopt);
   EditorPlaytestState state;

@@ -1,0 +1,83 @@
+#include <catch2/catch_test_macros.hpp>
+#include <editor/shell/editor-playtest-session.h>
+#include <memory>
+#include <vector>
+
+using namespace eng;
+using namespace eng::editor;
+
+namespace {
+
+/// Wins on tick 2, saying so.
+class WinsOnTwo final : public game::GameLogic {
+public:
+  void tick(game::GameLogicWorld& world) override {
+    if (world.tick() == 2) {
+      world.log("won on two");
+      world.endRun(game::RunOutcome::WON);
+    }
+  }
+};
+
+game::GameLogic* makeLogic() {
+  return std::make_unique<WinsOnTwo>().release();
+}
+
+void unmakeLogic(game::GameLogic* logic) {
+  const std::unique_ptr<game::GameLogic> owned(logic);
+}
+
+/// A "library" holding the logic above: nothing to open or close, since
+/// the logic is linked into this test.
+std::shared_ptr<EditorLogicLibrary> linkedLibrary() {
+  return std::make_shared<EditorLogicLibrary>(
+      nullptr, game::GameLogicFactory{makeLogic, unmakeLogic},
+      std::filesystem::path{});
+}
+
+/// Step @p session @p ticks times on no input.
+void run(EditorPlaytestSession& session, int ticks) {
+  std::vector<EditorScriptedInput> scripted;
+  for (int i = 0; i < ticks; ++i) {
+    session.step({}, scripted);
+  }
+}
+
+}  // namespace
+
+TEST_CASE("a playtest runs the project's game logic and reports it") {
+  EditorPlaytestSession session(game::GameSetup{}, {},
+                                {"main", linkedLibrary()});
+  EditorPlaytestState state;
+
+  run(session, 3);
+  session.publish(state);
+
+  CHECK(state.logic);
+  CHECK(state.run_over);
+  CHECK(state.outcome == game::RunOutcome::WON);
+  CHECK(state.logic_log == std::vector<std::string>{"won on two"});
+}
+
+TEST_CASE("a playtest keeps its logic's library open while it runs") {
+  std::shared_ptr<EditorLogicLibrary> library = linkedLibrary();
+  const std::weak_ptr<EditorLogicLibrary> watched = library;
+  auto session = std::make_unique<EditorPlaytestSession>(
+      game::GameSetup{}, game::GameContent{},
+      EditorPlaytestRun{"main", std::move(library)});
+
+  CHECK_FALSE(watched.expired());
+  session.reset();
+  CHECK(watched.expired());
+}
+
+TEST_CASE("a playtest with no library plays without logic") {
+  EditorPlaytestSession session(game::GameSetup{}, {}, {"main"});
+  EditorPlaytestState state;
+
+  run(session, 3);
+  session.publish(state);
+
+  CHECK_FALSE(state.logic);
+  CHECK(state.outcome == game::RunOutcome::PLAYING);
+}

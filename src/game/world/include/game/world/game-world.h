@@ -5,6 +5,7 @@
 /// @par Threading
 /// Main-thread-only.
 
+#include <cstddef>
 #include <cstdint>
 #include <engine/core/pcg32.h>
 #include <engine/physics/box-broadphase.h>
@@ -26,9 +27,13 @@
 #include <game/combat/projectile-pool.h>
 #include <game/content/behavior-definition.h>
 #include <game/content/game-content.h>
+#include <game/logic/game-logic.h>
+#include <game/logic/run-outcome.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
+#include <game/world/logic-command.h>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace eng::game {
@@ -37,6 +42,15 @@ namespace eng::game {
 /// derived from the session seed (Engine REQUIREMENTS §4.3: one named
 /// stream per system).
 inline constexpr uint64_t AI_RNG_STREAM = 1;
+
+/// The PCG32 stream a project's game logic draws from through
+/// `GameLogicWorld::random`: its own, so adding a draw to the logic never
+/// shifts what the actors roll.
+inline constexpr uint64_t LOGIC_RNG_STREAM = 2;
+
+/// Most lines a world keeps of what its game logic said before whoever
+/// runs it takes them; past it, a line is dropped rather than grown into.
+inline constexpr size_t WORLD_LOGIC_LOG_LINES = 256;
 
 /// Everything the game simulates, and the phases that simulate it — the
 /// `SimulationSystems` a `sim::Simulation` steps.
@@ -54,7 +68,12 @@ public:
   ///
   /// The navigation grid is built here, from the setup's obstacles, sized
   /// to take in every spawn — and only when there are actors to use it.
-  GameWorld(const GameSetup& setup, const GameContent& content);
+  ///
+  /// @p logic, when given, is a project's own game rules (ADR-011), run in
+  /// the director's phase of every tick. The world borrows it: whoever made
+  /// it keeps it alive for as long as the world is stepped.
+  GameWorld(const GameSetup& setup, const GameContent& content,
+            GameLogic* logic = nullptr);
 
   /// Moves every player by its stick, and keeps them out of the level's
   /// solid geometry. The first phase, so it also empties the last tick's
@@ -73,15 +92,33 @@ public:
   /// their own — and players out of health go down. Then downed players
   /// are revived or put out.
   void damage(const sim::TickContext& context) override;
+  /// Runs the project's game logic, when there is one: `start` on tick 0,
+  /// then `tick`, then everything it asked for — damage through the same
+  /// path as a bite, blasts included.
+  void director(const sim::TickContext& context) override;
   /// Destroys what the tick marked for destruction.
   void compaction(const sim::TickContext& context) override;
   /// The players, the actors, the flow fields, the projectiles, the
-  /// hazards and the AI stream, one section each.
+  /// hazards and the AI stream, one section each — and, with game logic,
+  /// a last "logic" section: the outcome, the logic stream and whatever
+  /// the logic hashes of its own. A world with no logic hashes exactly as
+  /// it did before logic existed, so its replays still verify.
   void hashState(sim::TickHashBuilder& builder) const override;
 
-  /// Whether the run is over: no player is up (Game §3.3 — solo death
-  /// ends the run, and a co-op one ends when nobody is left to revive).
+  /// Whether the run is over: the game logic ended it, or no player is up
+  /// (Game §3.3 — solo death ends the run, and a co-op one ends when nobody
+  /// is left to revive).
   [[nodiscard]] bool runOver() const;
+  /// How the run stands: as the game logic ended it, else lost once no
+  /// player is up, else still playing.
+  [[nodiscard]] RunOutcome outcome() const;
+  /// Whether this world runs a project's game logic.
+  [[nodiscard]] bool hasLogic() const { return logic_ != nullptr; }
+
+  /// Every line the game logic has said since the last call, in order,
+  /// and forget them — at most `WORLD_LOGIC_LOG_LINES` between calls.
+  /// Presentation: never state, never hashed.
+  [[nodiscard]] std::vector<std::string> takeLogicLog();
 
   /// The players, for whatever draws them. Read-only: nothing outside the
   /// tick may change simulation state.
@@ -129,6 +166,15 @@ private:
   /// The index in `brains_` of @p behavior, compiled and added if it is
   /// not there yet.
   uint16_t brainIndex(const BehaviorDefinition& behavior);
+  /// Apply every hit in the effects buffer and every blast they set off,
+  /// in order, until neither leaves anything to do.
+  void resolveDamage(uint64_t tick);
+  /// Run the game logic's part of @p context's tick.
+  void runLogic(const sim::TickContext& context);
+  /// Apply one of the game logic's queued writes.
+  void applyLogicCommand(const LogicCommand& command, uint64_t tick);
+  /// Give the player or actor @p target back @p amount health segments.
+  void heal(const LogicTarget& target, uint16_t amount);
 
   /// Every player in the session.
   PlayerPool players_;
@@ -164,6 +210,19 @@ private:
   ActorWorkspace workspace_;
   /// The AI stream.
   Pcg32 ai_rng_;
+  /// A project's game logic, borrowed; null for none.
+  GameLogic* logic_ = nullptr;
+  /// The game logic's stream.
+  Pcg32 logic_rng_;
+  /// How the game logic has ended the run; `PLAYING` until it does.
+  RunOutcome logic_outcome_ = RunOutcome::PLAYING;
+  /// What the logic asked for this tick; empty between ticks.
+  std::vector<LogicCommand> logic_commands_;
+  /// The level's name for each actor, by its handle's slot.
+  std::vector<std::string> actor_ids_;
+  /// What the game logic has said since `takeLogicLog` last ran; not
+  /// state.
+  std::vector<std::string> logic_log_;
 };
 
 }  // namespace eng::game

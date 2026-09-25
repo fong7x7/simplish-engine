@@ -163,6 +163,9 @@ enum class AgentTool : uint8_t {
   SET_WATER_DEPTH,
   /// Lay water over a rectangle of the ground, or dry it.
   PAINT_WATER,
+  /// The project's own C++ game logic and its deployed game: whether it
+  /// has logic, whether a build is loaded, and how the last build went.
+  GET_BUILD,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -238,6 +241,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::SET_WATER_FIDELITY,
     AgentTool::SET_WATER_DEPTH,
     AgentTool::PAINT_WATER,
+    AgentTool::GET_BUILD,
 };
 
 }  // namespace eng::editor

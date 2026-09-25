@@ -39,3 +39,4 @@ An ADR is *not* required for implementation detail with one obvious answer, or f
 | [ADR-008](ADR-008-level-scenario-hierarchy.md) | Levels own the space, scenarios sequence stages, groups select what varies | Proposed | 2026-09-09 |
 | [ADR-009](ADR-009-actor-behavior-state-machines.md) | Actor behavior as data-driven state machines over closed sets | Proposed | 2026-09-11 |
 | [ADR-010](ADR-010-software-mixer.md) | The engine mixes its own audio; a platform supplies only an output (not OpenAL Soft) | Proposed | 2026-09-22 |
+| [ADR-011](ADR-011-project-game-logic-in-cpp.md) | A project's own game logic is C++ in its `src/`, loaded as a library to playtest and linked statically to deploy | Proposed | 2026-09-24 |

@@ -5,6 +5,8 @@
 /// @par Threading Thread-safe (pure functions over value types).
 
 #include <cstddef>
+#include <editor/build/editor-build-kind.h>
+#include <editor/build/editor-build-status.h>
 #include <editor/shell/editor-action-kind.h>
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-level-unsaved.h>
@@ -15,6 +17,7 @@
 #include <editor/shell/editor-selection.h>
 #include <editor/shell/editor-tool.h>
 #include <game/combat/combat-cue-kind.h>
+#include <game/logic/run-outcome.h>
 #include <iterator>
 #include <optional>
 #include <string_view>
@@ -90,6 +93,9 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "set_water_flat",
     "set_water_low",
     "set_water_high",
+    "new_game_logic",
+    "build_game_logic",
+    "deploy_game",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==
@@ -208,6 +214,42 @@ agentPlayModeName(EditorPlayMode mode) {
       break;
   }
   return "editing";
+}
+
+/// Wire name of what a build makes.
+[[nodiscard]] constexpr std::string_view
+agentBuildKindName(EditorBuildKind kind) {
+  return kind == EditorBuildKind::DEPLOY ? "deploy" : "logic";
+}
+
+/// Wire name of where a build is.
+[[nodiscard]] constexpr std::string_view
+agentBuildStatusName(EditorBuildStatus status) {
+  switch (status) {
+    case EditorBuildStatus::RUNNING:
+      return "running";
+    case EditorBuildStatus::SUCCEEDED:
+      return "succeeded";
+    case EditorBuildStatus::FAILED:
+      return "failed";
+    case EditorBuildStatus::IDLE:
+      break;
+  }
+  return "idle";
+}
+
+/// Wire name of how a run stands.
+[[nodiscard]] constexpr std::string_view
+agentRunOutcomeName(game::RunOutcome outcome) {
+  switch (outcome) {
+    case game::RunOutcome::WON:
+      return "won";
+    case game::RunOutcome::LOST:
+      return "lost";
+    case game::RunOutcome::PLAYING:
+      break;
+  }
+  return "playing";
 }
 
 /// Wire name of how far an asset's card picture has got.

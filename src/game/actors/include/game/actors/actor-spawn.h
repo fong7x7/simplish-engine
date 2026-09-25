@@ -54,6 +54,9 @@ struct ActorSpawn {
   float death_blast_radius = 0.0F;
   /// Segments that blast takes from everyone it reaches.
   uint16_t death_blast_damage = 0;
+  /// What the level calls it — the id of the prop it was placed as — so a
+  /// project's game logic can pick it out by name; empty for none.
+  std::string id{};
 };
 
 }  // namespace eng::game

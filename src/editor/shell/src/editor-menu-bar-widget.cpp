@@ -112,6 +112,14 @@ namespace {
       EditorMenuCommand::PLAY_THREE_STAND_INS,
   };
 
+  /// The project's own C++ game logic, and the game it deploys to.
+  constexpr EditorMenuCommand BUILD_ROWS[] = {
+      EditorMenuCommand::NEW_GAME_LOGIC,
+      EditorMenuCommand::BUILD_GAME_LOGIC,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::DEPLOY_GAME,
+  };
+
   constexpr EditorMenuCommand HELP_ROWS[] = {EditorMenuCommand::ABOUT};
 
   /// The menu bar, left to right. Recent projects follow "Open Project..."
@@ -122,6 +130,7 @@ namespace {
       {"Edit", EDIT_ROWS, std::size(EDIT_ROWS), NO_BLOCK, NO_BLOCK},
       {"Level", LEVEL_ROWS, std::size(LEVEL_ROWS), NO_BLOCK, 0},
       {"View", VIEW_ROWS, std::size(VIEW_ROWS), NO_BLOCK, NO_BLOCK},
+      {"Build", BUILD_ROWS, std::size(BUILD_ROWS), NO_BLOCK, NO_BLOCK},
       {"Help", HELP_ROWS, std::size(HELP_ROWS), NO_BLOCK, NO_BLOCK},
   };
 

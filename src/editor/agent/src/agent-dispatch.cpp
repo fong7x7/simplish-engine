@@ -1,4 +1,5 @@
 #include "agent-animation-events.h"
+#include "agent-build.h"
 #include "agent-call.h"
 #include "agent-commands.h"
 #include "agent-controls.h"
@@ -266,6 +267,7 @@ namespace {
       runAgentSetWaterFidelity,
       runAgentSetWaterDepth,
       runAgentPaintWater,
+      runAgentGetBuild,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

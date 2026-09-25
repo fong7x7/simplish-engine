@@ -125,6 +125,14 @@ void hurtPlayer(PlayerPool& pool, uint32_t index, uint16_t amount,
   }
 }
 
+void healPlayer(PlayerPool& pool, uint32_t index, uint16_t amount) {
+  if (!playerIsUp(pool, index)) {
+    return;
+  }
+  const uint16_t room = pool.max_health[index] - pool.health[index];
+  pool.health[index] += std::min(amount, room);
+}
+
 void updateDownedPlayers(PlayerPool& pool, uint64_t tick) {
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
     if (pool.downed[i] != 0) {

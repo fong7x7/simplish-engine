@@ -2105,6 +2105,7 @@ bool SimplishEditor::onTick(float dt) {
   tickControls();
   tickTables();
   tickPlaytest();
+  tickBuild();
   if (chromeNeedsLayout()) {
     layoutChrome();
   }
@@ -2241,7 +2242,8 @@ bool SimplishEditor::runEditCommand(EditorMenuCommand command) {
 
 void SimplishEditor::executeCommand(EditorMenuCommand command) {
   if (runProjectCommand(command) || runEditCommand(command) ||
-      runPlaytestCommand(command) || runSettingsCommand(command)) {
+      runPlaytestCommand(command) || runSettingsCommand(command) ||
+      runBuildCommand(command)) {
     return;
   }
   if (command == EditorMenuCommand::ABOUT) {
@@ -2509,10 +2511,16 @@ bool SimplishEditor::handleEditKey(uint32_t key, ClientKeyModifiers modifiers) {
 
 bool SimplishEditor::handleFileKey(uint32_t key, ClientKeyModifiers modifiers) {
   // Control and Command both, as the Edit accelerators already accept both.
-  if ((!modifiers.ctrl && !modifiers.gui) || (key != 's' && key != 'S')) {
+  if (!modifiers.ctrl && !modifiers.gui) {
     return false;
   }
-  executeCommand(EditorMenuCommand::SAVE);
+  if (key == 's' || key == 'S') {
+    executeCommand(EditorMenuCommand::SAVE);
+  } else if (key == 'b' || key == 'B') {
+    executeCommand(EditorMenuCommand::BUILD_GAME_LOGIC);
+  } else {
+    return false;
+  }
   return true;
 }
 

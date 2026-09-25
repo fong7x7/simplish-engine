@@ -23,6 +23,12 @@ inline constexpr std::string_view PROJECT_CONTENT_DIR_NAME = "content";
 inline constexpr std::string_view PROJECT_LEVELS_DIR_NAME = "levels";
 /// Directory inside `PROJECT_DIR_NAME` holding generated asset thumbnails.
 inline constexpr std::string_view PROJECT_THUMBNAILS_DIR_NAME = "thumbnails";
+/// Directory inside a project root holding the project's own C++ game
+/// logic (ADR-011).
+inline constexpr std::string_view PROJECT_SOURCE_DIR_NAME = "src";
+/// Directory inside a project root holding everything the editor builds:
+/// the game logic library and the deployed game. Derived, and ignored.
+inline constexpr std::string_view PROJECT_BUILD_DIR_NAME = "build";
 
 /// Path to a project root's editor directory (`<root>/.simplish`).
 [[nodiscard]] inline std::filesystem::path
@@ -74,6 +80,23 @@ projectLevelsPath(const std::filesystem::path& root) {
 [[nodiscard]] inline std::filesystem::path
 projectThumbnailsPath(const std::filesystem::path& root) {
   return projectDirPath(root) / PROJECT_THUMBNAILS_DIR_NAME;
+}
+
+/// Path to a project root's game logic source (`<root>/src`).
+[[nodiscard]] inline std::filesystem::path
+projectSourcePath(const std::filesystem::path& root) {
+  return root / PROJECT_SOURCE_DIR_NAME;
+}
+
+/// Path to a project root's build output (`<root>/build`).
+///
+/// Beside the project's own folders rather than under `.simplish/`: it can
+/// run to gigabytes once a game is deployed, and a person looking for the
+/// game they just deployed looks at the top of their project, not inside a
+/// hidden folder.
+[[nodiscard]] inline std::filesystem::path
+projectBuildPath(const std::filesystem::path& root) {
+  return root / PROJECT_BUILD_DIR_NAME;
 }
 
 }  // namespace eng::editor

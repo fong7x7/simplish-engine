@@ -16,6 +16,25 @@ namespace {
             editorSelectableCount(state, state.selection.kind) > 0);
   }
 
+  /// Whether a Build menu @p command would do anything: a project is open,
+  /// no build is running — one at a time — and, to scaffold, the project
+  /// has no logic yet.
+  bool buildCommandEnabled(const EditorShellState& state,
+                           EditorMenuCommand command) {
+    return state.project.loaded &&
+           state.build.status != EditorBuildStatus::RUNNING &&
+           (command != EditorMenuCommand::NEW_GAME_LOGIC ||
+            !state.build.has_logic);
+  }
+
+  /// Whether a @p command that needs a project would do anything.
+  bool projectCommandEnabled(const EditorShellState& state,
+                             EditorMenuCommand command) {
+    return editorMenuCommandBuilds(command)
+               ? buildCommandEnabled(state, command)
+               : state.project.loaded;
+  }
+
 }  // namespace
 
 bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
@@ -28,7 +47,13 @@ bool editorMenuCommandNeedsProject(EditorMenuCommand command) {
          command == EditorMenuCommand::SET_SHADING_CEL ||
          command == EditorMenuCommand::PLAYTEST ||
          command == EditorMenuCommand::IMPORT_SOUND ||
-         editorStandInsOf(command) >= 0;
+         editorMenuCommandBuilds(command) || editorStandInsOf(command) >= 0;
+}
+
+bool editorMenuCommandBuilds(EditorMenuCommand command) {
+  return command == EditorMenuCommand::NEW_GAME_LOGIC ||
+         command == EditorMenuCommand::BUILD_GAME_LOGIC ||
+         command == EditorMenuCommand::DEPLOY_GAME;
 }
 
 bool editorMenuCommandNeedsPlaytest(EditorMenuCommand command) {
@@ -47,7 +72,7 @@ bool editorMenuCommandEnabled(const EditorShellState& state,
   // The state-dependent rows first: each is built, and each would still do
   // nothing if it were live right now.
   if (editorMenuCommandNeedsProject(command)) {
-    return state.project.loaded;
+    return projectCommandEnabled(state, command);
   }
   if (editorMenuCommandNeedsPlaytest(command)) {
     return state.playtest.mode == EditorPlayMode::PLAYING;

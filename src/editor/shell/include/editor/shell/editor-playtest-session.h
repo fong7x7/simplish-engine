@@ -11,6 +11,7 @@
 #include <editor/shell/editor-asset.h>
 #include <editor/shell/editor-character-gait.h>
 #include <editor/shell/editor-document.h>
+#include <editor/shell/editor-playtest-run.h>
 #include <editor/shell/editor-playtest-state.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <editor/shell/iso-projection.h>
@@ -38,6 +39,7 @@
 #include <game/fx/footstep-surfaces.h>
 #include <game/fx/footstep-tracker.h>
 #include <game/fx/footstep-walker.h>
+#include <game/logic/game-logic-instance.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
 #include <game/world/game-world.h>
@@ -121,11 +123,13 @@ bool writeEditorPlaytestReplay(const std::filesystem::path& root,
 /// @thread_safety Main-thread-only.
 class EditorPlaytestSession {
 public:
-  /// A playtest at tick 0 of the level @p level_id, set up as @p setup and
-  /// played with @p content, which the session keeps a copy of.
+  /// A playtest at tick 0 of the level @p run names, set up as @p setup
+  /// and played with @p content, which the session keeps a copy of — and
+  /// with a fresh instance of the project's game logic, when @p run has
+  /// one loaded.
   EditorPlaytestSession(const game::GameSetup& setup,
                         const game::GameContent& content,
-                        const std::string& level_id);
+                        const EditorPlaytestRun& run);
 
   /// Runs every tick @p elapsed_ns of real time pays for, at most four,
   /// each on player 1's next input: the front of @p scripted while any is
@@ -276,6 +280,12 @@ private:
   void publishCombat(EditorPlaytestState& state) const;
   /// The effects' part of `publish`.
   void publishEffects(EditorPlaytestState& state) const;
+  /// The run's part of `publish`: whether it is over and how, and what
+  /// the game logic has said.
+  void publishRun(EditorPlaytestState& state) const;
+  /// Take what the game logic said on the last tick into the log, and the
+  /// editor's log.
+  void keepLogicLog();
   /// Play the effects of every cue the last tick left, count them, and
   /// keep the ones worth hearing.
   void playCues();
@@ -305,6 +315,12 @@ private:
   [[nodiscard]] EditorPlaytestActor actorReport(size_t actor,
                                                 uint32_t index) const;
 
+  /// The library the logic's code is in, kept open while it runs. Before
+  /// the logic and the world, so it closes after both are gone.
+  std::shared_ptr<EditorLogicLibrary> logic_library_;
+  /// This run's instance of the project's game logic; none without. Before
+  /// the world, which borrows it.
+  game::GameLogicInstance logic_;
   /// The game being played. Held by pointer because `simulation_` holds
   /// its address, and the session must be movable without moving it.
   std::unique_ptr<game::GameWorld> world_;
@@ -358,6 +374,8 @@ private:
   uint64_t animation_sounds_ = 0;
   /// The input each slot's pad gives, for the slots a pad plays.
   std::array<std::optional<sim::PlayerInput>, sim::MAX_PLAYERS> pad_input_{};
+  /// The last `EDITOR_LOGIC_LOG_LINES` lines the game logic said.
+  std::vector<std::string> logic_log_{};
 };
 
 }  // namespace eng::editor

@@ -109,6 +109,11 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <editor/build/editor-build-command.h>
+#include <editor/build/editor-build-job.h>
+#include <editor/build/editor-build-kind.h>
+#include <editor/build/editor-build-status.h>
+#include <editor/build/editor-logic-library.h>
 #include <editor/project/project-open-error.h>
 #include <editor/shell/editor-asset-browser-widget.h>
 #include <editor/shell/editor-asset-scan.h>
@@ -131,6 +136,7 @@
 #include <editor/shell/editor-menu-command.h>
 #include <editor/shell/editor-placement-animator.h>
 #include <editor/shell/editor-playtest-controls.h>
+#include <editor/shell/editor-playtest-run.h>
 #include <editor/shell/editor-playtest-session.h>
 #include <editor/shell/editor-properties-widget.h>
 #include <editor/shell/editor-property-edit.h>
@@ -301,6 +307,62 @@ protected:
   void onClientGamepadButtonDown(input::GamepadButton button) override;
 
 private:
+  // -- Build (simplish-editor-build.cpp) ------------------------------------
+  /// Carry out @p command when it is one of the Build menu's. Returns true
+  /// when it was.
+  bool runBuildCommand(EditorMenuCommand command);
+  /// Give the open project game logic of its own to start from.
+  void newGameLogic();
+  /// Build the open project's game logic in the background — scaffolding
+  /// it first when it has none — for the next playtest to run.
+  void buildGameLogic();
+  /// Bake the open project's levels and content into its deploy folder,
+  /// then build the deployed game in the background.
+  void deployGame();
+  /// Start a build of @p kind running @p commands. False, with the reason
+  /// in the status line, when one is already running.
+  bool startBuild(EditorBuildKind kind,
+                  std::vector<EditorBuildCommand> commands);
+  /// Once a tick: follow the open project, and finish a build that has
+  /// ended.
+  void tickBuild();
+  /// When the open project is not the one the build state describes, drop
+  /// the old one's library and load this one's, if it has one built.
+  void followBuildProject();
+  /// Drop the loaded logic library and what the build state says of it
+  /// and of the last deploy: they describe a project no longer open.
+  void forgetGameLogic();
+  /// Everything that follows a build ending as @p status.
+  void finishBuild(EditorBuildStatus status);
+  /// What follows a logic build ending: load what it made, if it made
+  /// something, and say how it went.
+  void finishLogicBuild();
+  /// Load the project's built logic library for the next playtest.
+  void loadGameLogic();
+  /// Read again whether the project has logic, and whether the library is
+  /// older than its source.
+  void refreshLogicState();
+  /// Write every level's setup, the content tables and the manifest into
+  /// the deploy folder. False, with the reason shown, when it could not.
+  bool bakeDeployContent();
+  /// Bake every saved level's setup into @p content's `levels/`, returning
+  /// the ids of those baked, in the project's order.
+  [[nodiscard]] std::vector<std::string>
+  bakeDeployLevels(const std::filesystem::path& content);
+  /// The setup the saved level @p id starts a run from, or nothing when
+  /// its file will not read.
+  [[nodiscard]] std::optional<game::GameSetup>
+  bakeLevelSetup(const std::string& id);
+  /// Copy the built game beside its content. False when it is not there.
+  bool finishDeploy();
+  /// What the next playtest is of, and the logic it runs — reading again,
+  /// as it does, whether that logic is older than its source, so Play can
+  /// say so.
+  [[nodiscard]] EditorPlaytestRun playtestRun();
+  /// What the status line adds about the project's logic when play
+  /// starts: that it is not built, or older than its source; else nothing.
+  [[nodiscard]] std::string playtestLogicNote() const;
+
   // -- Playtest (simplish-editor-playtest.cpp) ------------------------------
   /// Whether the level is being played.
   [[nodiscard]] bool isPlaying() const;
@@ -1342,6 +1404,18 @@ private:
   EditorEmitterPlayer emitter_player_{};
   /// The level being played, or nothing while editing.
   std::unique_ptr<EditorPlaytestSession> playtest_{};
+  /// The build running in the background, or the last one to.
+  EditorBuildJob build_job_{};
+  /// The project's game logic as last built and loaded; the next playtest
+  /// runs it. Null with none.
+  std::shared_ptr<EditorLogicLibrary> logic_library_{};
+  /// Loads of a logic library this session, which names each load's copy.
+  uint32_t logic_loads_ = 0;
+  /// The project the build state describes; empty with none.
+  std::filesystem::path build_root_{};
+  /// The project the running — or last — build was started for. A build
+  /// that ends after that project is closed has nothing left to load into.
+  std::filesystem::path building_root_{};
   /// The clip each combat cue plays, loaded into the client's audio bank
   /// when the editor starts.
   game::CombatSoundClips combat_sounds_{};

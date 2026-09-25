@@ -59,6 +59,10 @@ void stepActors(ActorPool& pool, const ActorTickContext& context,
 void hurtActor(ActorPool& pool, uint32_t index, ActorHarm harm,
                CombatEffects& effects);
 
+/// The actor at dense index @p index gets back @p amount segments, up to
+/// what it spawned with — unless it is already dead this tick.
+void healActor(ActorPool& pool, uint32_t index, uint16_t amount);
+
 /// §4.1 step 8: destroy the actors marked for it.
 void compactActors(ActorPool& pool);
 
