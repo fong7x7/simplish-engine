@@ -40,7 +40,7 @@ puzzled over.
 |---|---|---|---|
 | Open a project from a path | ✅ | `open_project` | |
 | Open a project from a dialog | ✅ | `run_command` (`open_project`) | The dialog is the OS's; an agent wanting a path uses the tool above |
-| Create a project | ✅ | `run_command` (`new_project`) | Dialog only — the name comes from what the user types, so there is no path-taking tool |
+| Create a project | ✅ | `create_project`, `run_command` (`new_project`) | File › New Project asks the OS where; `create_project` takes the path, and a name or the directory's. Refused, leaving the open project alone, where a project already is |
 | Close a project | ✅ | `run_command` (`close_project`) | |
 | Recent projects list | ✅ | ❌ | Reachable from the menu, not from the API. Add `list_recent` when something needs it |
 | Read the open project | ✅ | `get_state` | Name, root, and whether one is open |

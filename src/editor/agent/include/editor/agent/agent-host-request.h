@@ -25,7 +25,8 @@ struct AgentHostRequest {
   AgentHostRequestKind kind = AgentHostRequestKind::NONE;
   /// The command to run, meaningful only for `RUN_COMMAND`.
   EditorMenuCommand command = EditorMenuCommand::SEPARATOR;
-  /// The project directory to open, meaningful only for `OPEN_PROJECT`.
+  /// The project directory to open or create, meaningful only for
+  /// `OPEN_PROJECT` and `CREATE_PROJECT`.
   std::string path;
   /// The level id to create or open, meaningful only for `CREATE_LEVEL`
   /// and `OPEN_LEVEL`.
@@ -44,6 +45,9 @@ struct AgentHostRequest {
   /// The slot or project sound file to play, meaningful only for
   /// `PLAY_SOUND`.
   std::string sound{};
+  /// The new project's name, meaningful only for `CREATE_PROJECT`; empty
+  /// for the directory's own name.
+  std::string name{};
 };
 
 }  // namespace eng::editor

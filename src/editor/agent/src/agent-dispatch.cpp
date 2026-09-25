@@ -128,6 +128,10 @@ namespace {
     return runAgentOpenProject(params);
   }
 
+  AgentResult toolCreateProject(EditorShellState&, const json& params) {
+    return runAgentCreateProject(params);
+  }
+
   AgentResult toolRescanAssets(EditorShellState& state, const json&) {
     return runAgentRescanAssets(state);
   }
@@ -268,6 +272,7 @@ namespace {
       runAgentSetWaterDepth,
       runAgentPaintWater,
       runAgentGetBuild,
+      toolCreateProject,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

@@ -112,3 +112,22 @@ TEST_CASE("get_playtest marks the actors the logic spawned") {
   CHECK(actor["id"] == "imp");
   CHECK(actor["spawned"] == true);
 }
+
+TEST_CASE("create_project asks the editor to make a project where it is told") {
+  EditorShellState state;
+
+  const AgentResult result = runAgentTool(
+      state, "create_project", R"({"path": "/games/dig", "name": "Dig"})");
+
+  CHECK(result.status == AgentStatus::OK);
+  CHECK(result.host.kind == AgentHostRequestKind::CREATE_PROJECT);
+  CHECK(result.host.path == "/games/dig");
+  CHECK(result.host.name == "Dig");
+}
+
+TEST_CASE("create_project needs a path") {
+  EditorShellState state;
+
+  CHECK(runAgentTool(state, "create_project", "{}").status ==
+        AgentStatus::BAD_PARAMS);
+}

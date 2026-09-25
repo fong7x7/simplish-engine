@@ -166,6 +166,8 @@ enum class AgentTool : uint8_t {
   /// The project's own C++ game logic and its deployed game: whether it
   /// has logic, whether a build is loaded, and how the last build went.
   GET_BUILD,
+  /// Create a project in a new directory and open it.
+  CREATE_PROJECT,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -242,6 +244,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::SET_WATER_DEPTH,
     AgentTool::PAINT_WATER,
     AgentTool::GET_BUILD,
+    AgentTool::CREATE_PROJECT,
 };
 
 }  // namespace eng::editor

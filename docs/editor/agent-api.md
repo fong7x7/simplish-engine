@@ -224,6 +224,7 @@ each one's parameters; this table is the map.
 |---|---|
 | `run_command` | Runs a menu command — camera, grid, close project, quit; and the Build menu's `new_game_logic`, `build_game_logic` and `deploy_game`, whose progress `get_build` reports |
 | `open_project` | Opens the project in a directory |
+| `create_project` | Creates a project in a directory — named, or after the directory — and opens it |
 | `rescan_assets` | Rescans from disk, which drops the level and its history |
 | `play_sound` | Plays a slot as the game plays it now, or a project sound file, once through the editor's speakers |
 | `create_level` | Adds an empty level to the project and starts editing it |

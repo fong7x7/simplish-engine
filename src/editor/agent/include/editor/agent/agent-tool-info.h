@@ -627,6 +627,15 @@ inline constexpr AgentParam AGENT_PARAMS_OPEN_PROJECT[] = {
      "if the current one has unsaved edits."},
 };
 
+inline constexpr AgentParam AGENT_PARAMS_CREATE_PROJECT[] = {
+    {"path", AgentParamType::STRING, AgentParamNeed::REQUIRED,
+     "Directory to create the project in; made if it is not there. Refused "
+     "by the editor, which then leaves the open project alone, when it "
+     "already holds a project."},
+    {"name", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The project's name. Omitted, it is the directory's own name."},
+};
+
 /// One tool's published description.
 /// @thread_safety Immutable value type.
 struct AgentToolInfo {
@@ -1235,6 +1244,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "logic_log: what the logic said with world.log().",
      AgentToolEffect::READ,
      {}},
+    {AgentTool::CREATE_PROJECT, "create_project",
+     "Create a project in a directory and open it, as File > New Project "
+     "does with no dialog: .simplish/project.json, assets/, content/levels/ "
+     "and data/. Opening it drops the document held in memory, so save "
+     "first. Carried out on the editor's next frame; get_state then shows "
+     "it open, or the old project still open when the directory already "
+     "held one. run_command new_game_logic then gives it C++ game logic "
+     "to start from.",
+     AgentToolEffect::HOST, AGENT_PARAMS_CREATE_PROJECT},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

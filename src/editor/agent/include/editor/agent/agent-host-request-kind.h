@@ -28,6 +28,9 @@ enum class AgentHostRequestKind : uint8_t {
   RUN_COMMAND,
   /// Open the project at `AgentHostRequest::path`.
   OPEN_PROJECT,
+  /// Create a project at `AgentHostRequest::path`, named
+  /// `AgentHostRequest::name`, and open it.
+  CREATE_PROJECT,
   /// Rescan the open project's assets.
   RESCAN_ASSETS,
   /// Create the level `AgentHostRequest::level` and edit it.

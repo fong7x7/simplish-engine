@@ -1232,6 +1232,21 @@ AgentResult runAgentOpenProject(const json& params) {
                 "open_project");
 }
 
+AgentResult runAgentCreateProject(const json& params) {
+  const std::string path = agentStringParam(params, "path").value_or("");
+  if (path.empty()) {
+    return agentFailure(AgentStatus::BAD_PARAMS,
+                        "path is required: the directory to create the "
+                        "project in");
+  }
+  AgentHostRequest request{AgentHostRequestKind::CREATE_PROJECT,
+                           EditorMenuCommand::SEPARATOR,
+                           path,
+                           {}};
+  request.name = agentStringParam(params, "name").value_or("");
+  return queued(request, "create_project");
+}
+
 AgentResult runAgentRescanAssets(const EditorShellState& state) {
   if (!state.project.loaded) {
     return agentFailure(AgentStatus::UNAVAILABLE,

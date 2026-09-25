@@ -2438,17 +2438,20 @@ void SimplishEditor::onFolderChosen(const std::filesystem::path& path) {
   (void)openProjectAt(path);
 }
 
-bool SimplishEditor::createProjectAt(const std::filesystem::path& root) {
+bool SimplishEditor::createProjectAt(const std::filesystem::path& root,
+                                     std::string_view name_in) {
   // The dialog hands back the full path the user typed, so its last
   // component is the name they chose.
-  std::string name = root.filename().string();
+  std::string name =
+      name_in.empty() ? root.filename().string() : std::string(name_in);
   if (name.empty()) {
     name = "Untitled";
   }
   auto result = createProject(root, name, isoTimestampNow());
   if (!result.ok()) {
-    LOG_ERROR("editor", std::string("Cannot create project: ")
-                            .append(projectOpenErrorMessage(result.error)));
+    const std::string why(projectOpenErrorMessage(result.error));
+    LOG_ERROR("editor", "Cannot create project: " + why);
+    showStatusMessage("Cannot create project: " + why);
     return false;
   }
   LOG_INFO("editor", "Created project: " + name);

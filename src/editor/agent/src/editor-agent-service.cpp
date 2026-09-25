@@ -24,6 +24,7 @@ namespace {
         return true;
       case AgentHostRequestKind::NONE:
       case AgentHostRequestKind::OPEN_PROJECT:
+      case AgentHostRequestKind::CREATE_PROJECT:
       case AgentHostRequestKind::CREATE_LEVEL:
       case AgentHostRequestKind::OPEN_LEVEL:
       case AgentHostRequestKind::START_PLAYTEST:
@@ -109,6 +110,8 @@ bool EditorAgentService::runLevelRequest(const AgentHostRequest& request) {
     editor_->stepPlaytest(request.ticks);
   } else if (request.kind == AgentHostRequestKind::OPEN_PROJECT) {
     (void)editor_->openProjectAt(std::filesystem::path(request.path));
+  } else if (request.kind == AgentHostRequestKind::CREATE_PROJECT) {
+    (void)editor_->createProjectAt(request.path, request.name);
   } else {
     return false;
   }

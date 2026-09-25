@@ -87,6 +87,11 @@ namespace eng::editor {
 /// Ask the editor to open a project directory.
 [[nodiscard]] AgentResult runAgentOpenProject(const nlohmann::json& params);
 
+/// `create_project`: create a project in the directory `path` names —
+/// called `name`, or after the directory — and open it, on the editor's
+/// next frame.
+[[nodiscard]] AgentResult runAgentCreateProject(const nlohmann::json& params);
+
 /// Ask the editor to rescan the open project's assets.
 [[nodiscard]] AgentResult runAgentRescanAssets(const EditorShellState& state);
 

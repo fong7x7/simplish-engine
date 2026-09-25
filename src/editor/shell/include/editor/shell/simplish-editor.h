@@ -194,6 +194,13 @@ public:
   /// leaves any current project untouched when the open fails.
   bool openProjectAt(const std::filesystem::path& root);
 
+  /// Create a project at @p root named @p name — or, empty, after the
+  /// directory, which is what the user just typed into the dialog — and
+  /// open it. False, with the reason logged and shown, and the open project
+  /// left alone, when it cannot be created: one is already there.
+  bool createProjectAt(const std::filesystem::path& root,
+                       std::string_view name = {});
+
   /// Path the recent-projects list is read from and written to, and which
   /// the list is read from as soon as it is known. Must be set before
   /// init() to take effect at startup.
@@ -1234,10 +1241,6 @@ private:
   void applyViewCommand(EditorMenuCommand command);
   /// Close the open project, leaving the editor with none.
   void closeProject();
-  /// Create a project at @p root and open it. The directory's own name
-  /// becomes the project name, which is what the user just typed into the
-  /// dialog.
-  bool createProjectAt(const std::filesystem::path& root);
   /// Show build information in the toolbar status line for a few seconds.
   void showAbout();
   /// Put a message in the toolbar status line for a few seconds.
