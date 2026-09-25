@@ -46,11 +46,14 @@ enum class LogicEventKind : uint8_t {
   /// An actor's foot came down. Heard only while the logic listens for
   /// everyone's steps.
   ACTOR_STEPPED,
+  /// A player chose an action on one of the game's screens — a button —
+  /// on the tick before; `id` is the action (ADR-012).
+  UI_ACTION,
 };
 
 /// How many kinds of event there are: whatever hands each kind to its own
 /// handler checks it has one for every kind against this.
 inline constexpr uint8_t LOGIC_EVENT_KIND_COUNT =
-    static_cast<uint8_t>(LogicEventKind::ACTOR_STEPPED) + 1;
+    static_cast<uint8_t>(LogicEventKind::UI_ACTION) + 1;
 
 }  // namespace eng::game

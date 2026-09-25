@@ -13,6 +13,7 @@
 #include <editor/shell/editor-level-io.h>
 #include <editor/shell/editor-level-json.h>
 #include <editor/shell/editor-playtest-session.h>
+#include <editor/shell/editor-ui-table.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/core/logger.h>
 #include <system_error>
@@ -35,23 +36,32 @@ namespace {
                                       : levels.front();
   }
 
-  /// Copy the project at @p root's data tables into the deployed game's
-  /// content at @p content. False when they are there and will not copy.
-  bool copyDataTables(const std::filesystem::path& root,
-                      const std::filesystem::path& content) {
-    const std::filesystem::path tables = projectContentPath(root) / "data";
+  /// Copy the folder @p name of the project at @p root's content into the
+  /// deployed game's content at @p content. False when it is there and
+  /// will not copy.
+  bool copyContentFolder(const std::filesystem::path& root,
+                         const std::filesystem::path& content,
+                         std::string_view name) {
+    const std::filesystem::path from = projectContentPath(root) / name;
     std::error_code ec;
-    if (!std::filesystem::exists(tables, ec)) {
+    if (!std::filesystem::exists(from, ec)) {
       return true;
     }
-    const std::filesystem::path to =
-        content / PROJECT_CONTENT_DIR_NAME / "data";
+    const std::filesystem::path to = content / PROJECT_CONTENT_DIR_NAME / name;
     std::filesystem::create_directories(to, ec);
-    std::filesystem::copy(tables, to,
+    std::filesystem::copy(from, to,
                           std::filesystem::copy_options::recursive |
                               std::filesystem::copy_options::overwrite_existing,
                           ec);
     return !ec;
+  }
+
+  /// Copy the project at @p root's data tables and screens into the
+  /// deployed game's content at @p content. False when they will not copy.
+  bool copyDataTables(const std::filesystem::path& root,
+                      const std::filesystem::path& content) {
+    return copyContentFolder(root, content, "data") &&
+           copyContentFolder(root, content, EDITOR_UI_DIR_NAME);
   }
 
   /// What the status line says as a deploy of @p state's project starts —

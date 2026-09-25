@@ -27,6 +27,10 @@ struct PlayerInput {
   int16_t aim_y = 0;
   /// Held buttons, one bit per game-defined action.
   uint32_t buttons = 0;
+  /// A choice made on one of the game's screens this tick: 0 for none,
+  /// else one plus the action's index in the project's action list
+  /// (ADR-012). A pulse, set for the one tick the choice is made.
+  uint32_t ui_action = 0;
 
   /// Inputs are equal when every field is.
   bool operator==(const PlayerInput&) const = default;

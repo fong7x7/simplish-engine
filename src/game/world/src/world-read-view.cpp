@@ -21,7 +21,7 @@ namespace {
             .events = sources.events,
             .rng = scratch.rng,
             .run = {scratch.outcome, scratch.steps},
-            .output = {scratch.log, scratch.cues}};
+            .output = {scratch.log, scratch.cues, scratch.ui, sources.screens}};
   }
 
   /// The scratch a view of @p sources starts with.
@@ -29,6 +29,7 @@ namespace {
     WorldReadScratch scratch{.rng = sources.rng};
     scratch.context.tick = sources.tick;
     scratch.outcome = sources.outcome;
+    scratch.ui = sources.ui;
     return scratch;
   }
 

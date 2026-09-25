@@ -116,10 +116,19 @@ void SimplishEditor::reloadEnemies() {
   }
 }
 
+void SimplishEditor::reloadUi() {
+  state_.ui = state_.project.loaded ? loadEditorUiTable(state_.project.root)
+                                    : EditorUiTable{};
+  for (const std::string& problem : state_.ui.problems) {
+    LOG_WARN("editor", "content/ui/" + problem);
+  }
+}
+
 void SimplishEditor::reloadDataTables() {
   reloadCharacters();
   reloadBehaviors();
   reloadEnemies();
+  reloadUi();
   reloadSounds();
   reloadAnimationEvents();
 }
@@ -240,8 +249,10 @@ std::string SimplishEditor::playingMessage() const {
 }
 
 game::GameContent SimplishEditor::playtestContent() const {
-  return {state_.characters.characters, state_.behaviors.behaviors,
-          state_.enemies.enemies};
+  game::GameContent content{state_.characters.characters,
+                            state_.behaviors.behaviors, state_.enemies.enemies};
+  addEditorUiContent(state_.ui, content);
+  return content;
 }
 
 void SimplishEditor::beginPlaytestState() {

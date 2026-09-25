@@ -416,6 +416,8 @@ private:
   /// Read the project's enemies table into the state, logging what was
   /// wrong with it.
   void reloadEnemies();
+  /// Read the project's game screens, `content/ui/`, again.
+  void reloadUi();
   /// Read every data table the project has — characters, behaviors,
   /// enemies — into the state.
   void reloadDataTables();

@@ -8,6 +8,7 @@
 #include <game/content/behavior-definition.h>
 #include <game/content/character-definition.h>
 #include <game/content/enemy-definition.h>
+#include <string>
 #include <vector>
 
 namespace eng::game {
@@ -27,6 +28,12 @@ struct GameContent {
   /// The enemy archetypes the director spawns, in the order the table
   /// lists them.
   std::vector<EnemyDefinition> enemies{};
+  /// The ids of the project's screens (`content/ui/`), which the game
+  /// logic shows by (ADR-012).
+  std::vector<std::string> ui_screens{};
+  /// Every action the screens' buttons name, sorted and once each: what
+  /// `PlayerInput::ui_action` numbers from 1.
+  std::vector<std::string> ui_actions{};
 };
 
 }  // namespace eng::game

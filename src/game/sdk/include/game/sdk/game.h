@@ -85,6 +85,10 @@ protected:
   /// An actor's foot came down; heard while listening for everyone's.
   virtual void onActorStepped([[maybe_unused]] GameLogicWorld& world,
                               [[maybe_unused]] const LogicEvent& event) {}
+  /// A player chose an action on one of the game's screens; `event.id` is
+  /// the action, `event.target` the player.
+  virtual void onUiAction([[maybe_unused]] GameLogicWorld& world,
+                          [[maybe_unused]] const LogicEvent& event) {}
   /// Once, when the run is over — `world.outcome()` says how. Log the
   /// run's tally here; writes do nothing.
   virtual void onRunEnded([[maybe_unused]] GameLogicWorld& world) {}

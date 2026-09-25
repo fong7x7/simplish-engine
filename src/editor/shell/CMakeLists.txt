@@ -27,6 +27,7 @@ set(_shell_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-character-transform.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-enemy-table.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-ui-table.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-ops.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-emitter-player.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/editor-entity-id.cpp"
@@ -123,6 +124,7 @@ simplish_add_module(simplish-editor-shell
         simplish-game-actors
         simplish-game-content
         simplish-game-fx
+        simplish-game-ui
         simplish-game-world
         simplish-platform-client
         simplish-platform-input

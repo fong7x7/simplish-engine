@@ -61,6 +61,10 @@ public:
   void log(std::string_view message) override;
   void cue(const LogicCue& cue) override;
   void listenForSteps(LogicSteps steps) override;
+  void showScreen(std::string_view id) override;
+  void hideScreen(std::string_view id) override;
+  [[nodiscard]] bool showing(std::string_view id) const override;
+  void setUiValue(std::string_view key, std::string_view text) override;
 
 private:
   /// The dense index of the actor @p target names, if it is one still in

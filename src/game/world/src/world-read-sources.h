@@ -15,6 +15,7 @@
 #include <game/logic/logic-event.h>
 #include <game/logic/run-outcome.h>
 #include <game/player/player-pool.h>
+#include <game/world/world-ui.h>
 #include <span>
 #include <string>
 
@@ -45,6 +46,10 @@ struct WorldReadSources {
   Pcg32 rng;
   /// How the run stands.
   RunOutcome outcome = RunOutcome::PLAYING;
+  /// A copy of the screens shown.
+  WorldUi ui{};
+  /// The project's screens, by id.
+  std::span<const std::string> screens{};
 };
 
 }  // namespace eng::game

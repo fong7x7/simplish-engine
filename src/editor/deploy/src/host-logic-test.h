@@ -33,6 +33,8 @@ public:
   void hold(uint8_t slot, const game::sdk::TestInput& input) override;
   [[nodiscard]] const game::GameLogicWorld& world() const override;
   [[nodiscard]] bool logged(std::string_view text) const override;
+  bool choose(uint8_t slot, std::string_view action) override;
+  [[nodiscard]] std::string uiValue(std::string_view key) const override;
   void record(const game::sdk::TestCheck& check) override;
 
   /// Every failed expectation.
@@ -57,6 +59,8 @@ private:
   std::vector<std::string> log_;
   /// Every failed expectation.
   std::vector<LogicTestFailure> failures_;
+  /// The project's actions, which a choice is numbered by.
+  std::vector<std::string> actions_;
 };
 
 }  // namespace eng::editor

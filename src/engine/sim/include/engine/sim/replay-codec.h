@@ -15,7 +15,7 @@
 namespace eng::sim {
 
 /// The replay format version `encodeReplay` writes and `decodeReplay` reads.
-inline constexpr uint16_t REPLAY_FORMAT_VERSION = 2;
+inline constexpr uint16_t REPLAY_FORMAT_VERSION = 3;
 
 /// Longest replay `decodeReplay` accepts: six hours at 60 Hz. A bound, so a
 /// corrupt tick count cannot ask the decoder for gigabytes.
@@ -35,14 +35,16 @@ enum class ReplayDecodeError : uint8_t {
 /// (u8), the seed and content hash (u64 each), the level id as a varint
 /// length and its bytes, then each player's character the same way, one
 /// per player in the session. Fixed-width integers are little-endian;
-/// varints are LEB128. Version 1 had no characters, and is not read.
+/// varints are LEB128. Version 1 had no characters, and version 2 no
+/// screen choices; neither is read.
 ///
 /// Inputs: a varint tick count, then alternating runs — a varint count of
 /// ticks identical to the one before, then one changed tick. A changed tick
-/// writes, per player, a byte flagging which of its five fields changed and
+/// writes, per player, a byte flagging which of its six fields changed and
 /// then only those: axis deltas as zigzag varints, buttons as the XOR of
-/// old and new. A final run closes the stream. Held input costs nothing; a
-/// moving stick costs a few bytes a tick, not twelve per player.
+/// old and new, and the screen choice as its new value. A final run closes the
+/// stream. Held input costs nothing; a moving stick costs a few bytes a tick,
+/// not twelve per player.
 ///
 /// Checkpoints: a varint count, then each as a varint tick, the combined
 /// hash (u64), a section count (u8) and each section's hash (u64).

@@ -5,6 +5,7 @@
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-enemy-table.h>
+#include <editor/shell/editor-ui-table.h>
 
 namespace eng::editor {
 
@@ -18,9 +19,11 @@ readDeployedSetup(const std::filesystem::path& content,
 }
 
 game::GameContent readDeployedContent(const std::filesystem::path& content) {
-  return {loadEditorCharacterTable(content).characters,
-          loadEditorBehaviorTable(content).behaviors,
-          loadEditorEnemyTable(content).enemies};
+  game::GameContent read{loadEditorCharacterTable(content).characters,
+                         loadEditorBehaviorTable(content).behaviors,
+                         loadEditorEnemyTable(content).enemies};
+  addEditorUiContent(loadEditorUiTable(content), read);
+  return read;
 }
 
 }  // namespace eng::editor

@@ -11,6 +11,7 @@
 #include <game/sdk/test-check.h>
 #include <game/sdk/test-input.h>
 #include <source_location>
+#include <string>
 #include <string_view>
 
 namespace eng::game::sdk {
@@ -46,6 +47,12 @@ public:
   [[nodiscard]] virtual const GameLogicWorld& world() const = 0;
   /// Whether the logic has logged a line containing @p text.
   [[nodiscard]] virtual bool logged(std::string_view text) const = 0;
+  /// Have the player in input slot @p slot choose @p action on a screen,
+  /// on the next tick only — as a button pressed (ADR-012). False when no
+  /// screen of the project names it.
+  virtual bool choose(uint8_t slot, std::string_view action) = 0;
+  /// The value @p key the logic has set for its screens; empty when none.
+  [[nodiscard]] virtual std::string uiValue(std::string_view key) const = 0;
   /// Note @p check: a failed one fails the test, which runs on.
   virtual void record(const TestCheck& check) = 0;
 

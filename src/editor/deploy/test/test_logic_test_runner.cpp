@@ -16,7 +16,8 @@ using game::sdk::LogicTestCase;
 
 namespace {
 
-/// Content with one level, `arena`: a player at (1.5, 1.5).
+/// Content with one level, `arena`: a player at (1.5, 1.5); and one
+/// screen, `over`, with the buttons `retry` and `quit`.
 class TestContent {
 public:
   TestContent()
@@ -28,6 +29,10 @@ public:
     setup.spawns[0] = {1.5F, 1.5F, 0.0F};
     (void)writeProjectTextFile(path_ / "levels" / "arena.setup.json",
                                serializeGameSetup(setup));
+    (void)writeProjectTextFile(path_ / "content" / "ui" / "over.ui.json",
+                               R"({"root": {"type": "panel", "children": [
+             {"type": "button", "text": "Again", "action": "retry"},
+             {"type": "button", "text": "Quit", "action": "quit"}]}})");
   }
   ~TestContent() {
     std::error_code ec;
@@ -58,6 +63,32 @@ game::GameLogic* makeChatty() {
   return std::make_unique<Chatty>().release();
 }
 
+/// Shows `over` at once; counts each `retry` chosen in the value
+/// `tries`, and hides `over` on the first.
+class Retrier final : public game::GameLogic {
+public:
+  void tick(game::GameLogicWorld& world) override {
+    if (world.tick() == 0) {
+      world.showScreen("over");
+    }
+    for (const game::LogicEvent& event : world.events()) {
+      if (event.kind == game::LogicEventKind::UI_ACTION &&
+          event.id == "retry") {
+        world.setUiValue("tries", std::to_string(++tries_));
+        world.hideScreen("over");
+      }
+    }
+  }
+
+private:
+  /// Retries chosen.
+  int tries_ = 0;
+};
+
+game::GameLogic* makeRetrier() {
+  return std::make_unique<Retrier>().release();
+}
+
 void unmake(game::GameLogic* logic) {
   const std::unique_ptr<game::GameLogic> owned(logic);
 }
@@ -76,6 +107,16 @@ void walksRight(LogicTest& test) {
 
 void fails(LogicTest& test) {
   test.expect(false, "this cannot hold");
+}
+
+void choosesRetry(LogicTest& test) {
+  test.run(1);
+  test.expect(test.world().showing("over"), "the screen is shown");
+  test.expect(test.choose(0, "retry"), "retry is an action");
+  test.expect(!test.choose(0, "nope"), "nope is not");
+  test.run(2);
+  test.expect(test.uiValue("tries") == "1", "the choice was heard once");
+  test.expect(!test.world().showing("over"), "and the screen hidden");
 }
 
 /// @p body as a test of the level `arena`.
@@ -138,4 +179,14 @@ TEST_CASE("logic test results read back as the editor keeps them") {
   CHECK(read[0].ticks == 5);
   CHECK_FALSE(read[1].passed);
   CHECK(read[1].failures[0].line > 0);
+}
+
+TEST_CASE("a logic test chooses on a screen, and reads what it shows") {
+  const TestContent content;
+
+  const LogicTestResult result =
+      runLogicTest(testOf(choosesRetry), {makeRetrier, unmake}, content.path());
+
+  CHECK(result.failures.empty());
+  CHECK(result.passed);
 }

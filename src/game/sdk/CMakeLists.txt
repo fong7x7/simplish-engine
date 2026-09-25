@@ -24,6 +24,7 @@ simplish_add_module(simplish-game-sdk
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/random.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ring-spawn.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/weapon.cpp
     DEPENDENCIES simplish-game-logic

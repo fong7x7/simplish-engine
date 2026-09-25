@@ -14,8 +14,8 @@ using eng::sim::TickInput;
 namespace {
 
 /// Two players whose inputs change in every way the format encodes: axes
-/// both directions and across the full range, buttons on and off, and long
-/// runs of held input between.
+/// both directions and across the full range, buttons on and off, screen
+/// choices made, and long runs of held input between.
 Replay sampleReplay() {
   Replay replay;
   replay.header = {"transit_station", 0xC0FFEEULL, 42, 2, {"scout", "tank"}};
@@ -25,6 +25,9 @@ Replay sampleReplay() {
     input.players[0].aim_y = static_cast<int16_t>((tick * 331) % 20000);
     input.players[0].buttons = tick % 40 < 5 ? 0x80000001U : 0U;
     input.players[1].move_y = tick > 200 ? int16_t{-12} : int16_t{0};
+    // A screen choice: a one-tick pulse, now and then.
+    input.players[1].ui_action =
+        tick % 97 == 3 ? static_cast<uint32_t>(tick % 5 + 1) : 0U;
     replay.inputs.push_back(input);
   }
   for (const uint64_t tick : {0ULL, 60ULL, 299ULL}) {

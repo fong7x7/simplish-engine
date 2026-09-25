@@ -27,11 +27,16 @@ HostLogicTest::HostLogicTest(const game::GameSetup& setup,
                              const game::GameContent& content,
                              game::GameLogicFactory logic)
   : logic_(logic), world_(setup, content, logic_.get()),
-    simulation_(world_, sim::TickHashing::OFF), view_(world_.readView(0)) {}
+    simulation_(world_, sim::TickHashing::OFF), view_(world_.readView(0)),
+    actions_(content.ui_actions) {}
 
 void HostLogicTest::run(uint64_t ticks) {
   for (uint64_t i = 0; i < ticks && !world_.runOver(); ++i) {
     (void)simulation_.step(input_);
+    // A choice is a pulse: made on one tick only.
+    for (sim::PlayerInput& player : input_.players) {
+      player.ui_action = 0;
+    }
     for (std::string& line : world_.takeLogicLog()) {
       log_.push_back(std::move(line));
     }
@@ -54,6 +59,21 @@ bool HostLogicTest::logged(std::string_view text) const {
   return std::ranges::any_of(log_, [text](const std::string& line) {
     return line.find(text) != std::string::npos;
   });
+}
+
+bool HostLogicTest::choose(uint8_t slot, std::string_view action) {
+  const auto found = std::ranges::find(actions_, action);
+  if (found == actions_.end() || slot >= input_.players.size()) {
+    return false;
+  }
+  input_.players[slot].ui_action =
+      static_cast<uint32_t>(found - actions_.begin()) + 1U;
+  return true;
+}
+
+std::string HostLogicTest::uiValue(std::string_view key) const {
+  const auto found = world_.ui().values.find(key);
+  return found != world_.ui().values.end() ? found->second : std::string{};
 }
 
 void HostLogicTest::record(const game::sdk::TestCheck& check) {

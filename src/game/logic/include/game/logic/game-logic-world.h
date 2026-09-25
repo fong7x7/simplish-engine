@@ -165,6 +165,17 @@ public:
   /// and `ACTOR_STEPPED` events: one each time a walker covers its feet's
   /// stride. `NONE` until asked.
   virtual void listenForSteps(LogicSteps steps) = 0;
+  /// Show the screen @p id — `content/ui/<id>.ui.json` — on top of those
+  /// shown; a name no screen has is warned of in the log (ADR-012).
+  /// Presentation: never state.
+  virtual void showScreen(std::string_view id) = 0;
+  /// Stop showing the screen @p id.
+  virtual void hideScreen(std::string_view id) = 0;
+  /// Whether the screen @p id is shown.
+  [[nodiscard]] virtual bool showing(std::string_view id) const = 0;
+  /// Set the value @p key the screens' text shows as `{key}`, and bars
+  /// read, to @p text.
+  virtual void setUiValue(std::string_view key, std::string_view text) = 0;
 
   GameLogicWorld(const GameLogicWorld&) = delete;
   GameLogicWorld& operator=(const GameLogicWorld&) = delete;

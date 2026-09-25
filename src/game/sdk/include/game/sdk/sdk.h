@@ -30,4 +30,5 @@
 #include <game/sdk/ring-spawn.h>          // IWYU pragma: export
 #include <game/sdk/schedule.h>            // IWYU pragma: export
 #include <game/sdk/ticks.h>               // IWYU pragma: export
+#include <game/sdk/ui.h>                  // IWYU pragma: export
 #include <game/sdk/weapon.h>              // IWYU pragma: export

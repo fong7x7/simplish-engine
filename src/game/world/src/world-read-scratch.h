@@ -13,6 +13,7 @@
 #include <game/logic/run-outcome.h>
 #include <game/world/logic-command.h>
 #include <game/world/world-cue.h>
+#include <game/world/world-ui.h>
 #include <string>
 #include <vector>
 
@@ -41,6 +42,8 @@ struct WorldReadScratch {
   std::vector<std::string> log{};
   /// Cues raised, never played.
   std::vector<WorldCue> cues{};
+  /// A copy of the screens shown, changed by nobody's reading.
+  WorldUi ui{};
 };
 
 }  // namespace eng::game

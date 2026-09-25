@@ -115,7 +115,8 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
     ai_rng_(setup.seed, AI_RNG_STREAM), logic_(logic),
     logic_rng_(setup.seed, LOGIC_RNG_STREAM),
     content_(actorCapacity(setup) > setup.actors.size() ? content
-                                                        : GameContent{}) {
+                                                        : GameContent{}),
+    ui_screens_(content.ui_screens), ui_actions_(content.ui_actions) {
   for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
     const CharacterDefinition& character =
         resolveCharacter(content, setup.characters[slot]);
@@ -133,6 +134,23 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
 void GameWorld::playerControl(const sim::TickContext& context) {
   cues_.clear();
   movePlayers(players_, context.input, obstacles_);
+  noteUiActions(context.input);
+}
+
+void GameWorld::noteUiActions(const sim::TickInput& input) {
+  for (uint32_t p = 0; logic_ != nullptr && p < players_.slots.size(); ++p) {
+    const uint8_t slot = players_.input_slot[p];
+    const uint32_t code =
+        slot < input.players.size() ? input.players[slot].ui_action : 0U;
+    if (code == 0 || code > ui_actions_.size()) {
+      continue;
+    }
+    logic_events_.note({.kind = LogicEventKind::UI_ACTION,
+                        .target = *logicTargetOf({CombatantKind::PLAYER,
+                                                  players_.slots.handleAt(p)}),
+                        .at = players_.position[p],
+                        .id = ui_actions_[code - 1]});
+  }
 }
 
 void GameWorld::enemyAi(const sim::TickContext& context) {
@@ -328,7 +346,7 @@ void GameWorld::addActor(const ActorSpawn& spawn) {
 std::unique_ptr<GameLogicWorld> GameWorld::readView(uint64_t tick) const {
   return std::make_unique<WorldReadView>(WorldReadSources{
       players_, actors_, brains_, actor_ids_, content_, grid_, obstacles_,
-      logic_events_.events(), tick, logic_rng_, outcome()});
+      logic_events_.events(), tick, logic_rng_, outcome(), ui_, ui_screens_});
 }
 
 std::string_view GameWorld::actorId(uint32_t index) const {
@@ -358,7 +376,7 @@ void GameWorld::runLogic(const sim::TickContext& context, LogicCall call) {
                        .events = logic_events_.events(),
                        .rng = logic_rng_,
                        .run = {logic_outcome_, logic_steps_},
-                       .output = {logic_log_, logic_cues_}});
+                       .output = {logic_log_, logic_cues_, ui_, ui_screens_}});
   callLogic(view, context.tick, call);
 }
 

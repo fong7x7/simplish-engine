@@ -41,6 +41,7 @@
 #include <game/world/logic-event-log.h>
 #include <game/world/walker-gait.h>
 #include <game/world/world-cue.h>
+#include <game/world/world-ui.h>
 #include <memory>
 #include <span>
 #include <string>
@@ -148,6 +149,10 @@ public:
   /// and effects presentation plays. Never state, never hashed.
   [[nodiscard]] std::vector<WorldCue> takeLogicCues();
 
+  /// The screens the game logic shows and the values they show
+  /// (ADR-012): presentation, never hashed.
+  [[nodiscard]] const WorldUi& ui() const { return ui_; }
+
   /// The players, for whatever draws them. Read-only: nothing outside the
   /// tick may change simulation state.
   [[nodiscard]] const PlayerPool& players() const { return players_; }
@@ -228,6 +233,8 @@ private:
                                       uint32_t index) const;
   /// Tell the logic of every revive and every player put out in @p changes.
   void notePlayerChanges(std::span<const PlayerChange> changes);
+  /// Tell the logic of every choice @p input makes on a screen.
+  void noteUiActions(const sim::TickInput& input);
   /// Tell the logic of every step taken this tick by whoever it listens
   /// to.
   void noteSteps();
@@ -334,6 +341,12 @@ private:
   /// The cues the game logic has raised since `takeLogicCues` last ran;
   /// not state.
   std::vector<WorldCue> logic_cues_;
+  /// The screens the game logic shows; not state.
+  WorldUi ui_;
+  /// The project's screens, by id.
+  std::vector<std::string> ui_screens_;
+  /// The project's actions, sorted: what `PlayerInput::ui_action` numbers.
+  std::vector<std::string> ui_actions_;
 };
 
 }  // namespace eng::game

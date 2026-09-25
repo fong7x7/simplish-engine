@@ -26,6 +26,7 @@
 #include <editor/shell/editor-sound-settings.h>
 #include <editor/shell/editor-sound-table.h>
 #include <editor/shell/editor-tool.h>
+#include <editor/shell/editor-ui-table.h>
 #include <editor/shell/editor-view-state.h>
 #include <editor/shell/editor-water-state.h>
 #include <engine/render-ground/ground-cell.h>
@@ -106,6 +107,10 @@ struct EditorShellState {
   /// The project's enemy archetypes, from `content/data/enemies.data.json`
   /// — read with the others. Nothing spawns them yet; the director will.
   EditorEnemyTable enemies;
+  /// The project's own game screens — menus and a HUD — from
+  /// `content/ui/*.ui.json` (docs/game/ui.md); read with the tables, and
+  /// written by `set_ui_screen`.
+  EditorUiTable ui;
   /// The project's own sounds, from `content/data/sounds.data.json`: which
   /// of the game's sound slots play one of `sound_files` instead of their
   /// built-in sound. Read with the other tables; written by the editor.

@@ -289,6 +289,39 @@ void WorldLogicView::listenForSteps(LogicSteps steps) {
   scene_.run.steps = steps;
 }
 
+void WorldLogicView::showScreen(std::string_view id) {
+  WorldUi& ui = scene_.output.ui;
+  if (std::ranges::find(scene_.output.screens, id) ==
+      scene_.output.screens.end()) {
+    log("ui: no screen called '" + std::string(id) + "' in content/ui/");
+    return;
+  }
+  std::erase(ui.open, id);
+  ui.open.emplace_back(id);
+  ++ui.revision;
+}
+
+void WorldLogicView::hideScreen(std::string_view id) {
+  WorldUi& ui = scene_.output.ui;
+  if (std::erase(ui.open, id) != 0) {
+    ++ui.revision;
+  }
+}
+
+bool WorldLogicView::showing(std::string_view id) const {
+  return std::ranges::find(scene_.output.ui.open, id) !=
+         scene_.output.ui.open.end();
+}
+
+void WorldLogicView::setUiValue(std::string_view key, std::string_view text) {
+  WorldUi& ui = scene_.output.ui;
+  const auto found = ui.values.find(key);
+  if (found == ui.values.end() || found->second != text) {
+    ui.values.insert_or_assign(std::string(key), std::string(text));
+    ++ui.revision;
+  }
+}
+
 void WorldLogicView::cue(const LogicCue& cue) {
   if (scene_.output.cues.size() < WORLD_LOGIC_CUES) {
     scene_.output.cues.push_back(

@@ -24,8 +24,11 @@ namespace {
   /// Change-mask bit for the buttons, after one bit per axis.
   constexpr uint8_t BUTTONS_BIT = 1U << AXIS_COUNT;
 
+  /// Change-mask bit for the screen choice, after the buttons.
+  constexpr uint8_t UI_ACTION_BIT = BUTTONS_BIT << 1U;
+
   /// Every bit a change mask may set.
-  constexpr uint8_t KNOWN_FIELDS = (BUTTONS_BIT << 1U) - 1U;
+  constexpr uint8_t KNOWN_FIELDS = (UI_ACTION_BIT << 1U) - 1U;
 
   /// Largest zigzag-encoded axis delta: from one end of int16 to the other.
   constexpr uint64_t MAX_AXIS_DELTA = 2U * 65535U;
@@ -68,6 +71,7 @@ namespace {
       mask |= old_axes[i] != new_axes[i] ? 1U << i : 0U;
     }
     mask |= from.buttons != to.buttons ? BUTTONS_BIT : 0U;
+    mask |= from.ui_action != to.ui_action ? UI_ACTION_BIT : 0U;
     return static_cast<uint8_t>(mask);
   }
 
@@ -84,6 +88,9 @@ namespace {
     }
     if ((mask & BUTTONS_BIT) != 0U) {
       out.varint(from.buttons ^ to.buttons);
+    }
+    if ((mask & UI_ACTION_BIT) != 0U) {
+      out.varint(to.ui_action);
     }
   }
 
@@ -238,15 +245,25 @@ namespace {
     return std::nullopt;
   }
 
-  Failure decodeButtons(ByteReader& in, uint8_t mask, uint32_t& buttons) {
-    if ((mask & BUTTONS_BIT) == 0U) {
+  /// A 32-bit field a change-mask bit flags: its XOR, or its new value.
+  struct FlaggedField {
+    /// The field's change-mask bit.
+    uint8_t bit = 0;
+    /// Whether it is written as the XOR of old and new, or as the new.
+    bool xors = false;
+  };
+
+  Failure decodeField(ByteReader& in, uint8_t mask, FlaggedField field,
+                      uint32_t& value) {
+    if ((mask & field.bit) == 0U) {
       return std::nullopt;
     }
-    const auto flipped = readVarint(in, UINT32_MAX);
-    if (!flipped) {
-      return flipped.error();
+    const auto read = readVarint(in, UINT32_MAX);
+    if (!read) {
+      return read.error();
     }
-    buttons ^= static_cast<uint32_t>(*flipped);
+    value = field.xors ? value ^ static_cast<uint32_t>(*read)
+                       : static_cast<uint32_t>(*read);
     return std::nullopt;
   }
 
@@ -276,7 +293,11 @@ namespace {
     if (const auto failure = decodeAxes(in, *mask, input)) {
       return failure;
     }
-    return decodeButtons(in, *mask, input.buttons);
+    if (const auto failure =
+            decodeField(in, *mask, {BUTTONS_BIT, true}, input.buttons)) {
+      return failure;
+    }
+    return decodeField(in, *mask, {UI_ACTION_BIT, false}, input.ui_action);
   }
 
   Failure decodeTick(ByteReader& in, uint8_t players, TickInput& input) {

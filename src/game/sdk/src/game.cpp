@@ -34,7 +34,8 @@ void Game::dispatch(GameLogicWorld& world, const LogicEvent& event) {
       &Game::onPlayerRevived,     &Game::onPlayerOut,
       &Game::onActorStateEntered, &Game::onActorNoticed,
       &Game::onActorAttacked,     &Game::onActorWindingUp,
-      &Game::onPlayerStepped,     &Game::onActorStepped};
+      &Game::onPlayerStepped,     &Game::onActorStepped,
+      &Game::onUiAction};
   static_assert(std::size(HOOKS) == LOGIC_EVENT_KIND_COUNT);
   (this->*HOOKS[static_cast<size_t>(event.kind)])(world, event);
 }
