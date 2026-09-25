@@ -12,6 +12,7 @@
 #include <engine/physics/box-broadphase.h>
 #include <engine/sim/entity-handle.h>
 #include <engine/sim/simulation-systems.h>
+#include <engine/sim/state-hasher.h>
 #include <engine/sim/tick-context.h>
 #include <engine/sim/tick-hash-builder.h>
 #include <engine/spatial/nav-grid.h>
@@ -20,6 +21,7 @@
 #include <game/actors/actor-note.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
+#include <game/actors/actor-tick-context.h>
 #include <game/actors/actor-workspace.h>
 #include <game/combat/combat-cue.h>
 #include <game/combat/combat-effects.h>
@@ -149,6 +151,12 @@ public:
   /// and effects presentation plays. Never state, never hashed.
   [[nodiscard]] std::vector<WorldCue> takeLogicCues();
 
+  /// Whether the game logic has the game paused.
+  [[nodiscard]] bool paused() const { return paused_ != 0; }
+
+  /// Ticks played unpaused so far: the clock gameplay runs on.
+  [[nodiscard]] uint64_t playTick() const { return play_tick_; }
+
   /// The screens the game logic shows and the values they show
   /// (ADR-012): presentation, never hashed.
   [[nodiscard]] const WorldUi& ui() const { return ui_; }
@@ -235,6 +243,13 @@ private:
   void notePlayerChanges(std::span<const PlayerChange> changes);
   /// Tell the logic of every choice @p input makes on a screen.
   void noteUiActions(const sim::TickInput& input);
+  /// The actors' view of @p context's tick, on the play clock.
+  [[nodiscard]] ActorTickContext actorContext(const sim::TickContext& context);
+  /// Fold the logic's own state, and what the world keeps for it, into
+  /// @p section.
+  void hashLogic(sim::StateHasher& section) const;
+  /// Tell the logic of every pause button @p input starts pressing.
+  void notePausePresses(const sim::TickInput& input);
   /// Tell the logic of every step taken this tick by whoever it listens
   /// to.
   void noteSteps();
@@ -308,6 +323,18 @@ private:
   RunOutcome logic_outcome_ = RunOutcome::PLAYING;
   /// 1 once the logic has been told the run is over.
   uint8_t logic_ended_ = 0;
+  /// 1 while the game logic has the game paused: from the tick after it
+  /// asks, gameplay stands still while input, choices and the logic run.
+  uint8_t paused_ = 0;
+  /// 1 for a tick begun paused: what its phases stand still by, so a
+  /// pause asked for mid-tick takes the whole next tick. Not state.
+  uint8_t frozen_ = 0;
+  /// Ticks played unpaused before this one: the clock gameplay runs on,
+  /// so a pause runs down no cooldown, grace or window.
+  uint64_t play_tick_ = 0;
+  /// Each input slot's buttons on the last tick, so a press is heard as
+  /// it starts rather than for as long as it is held.
+  std::array<uint32_t, sim::MAX_PLAYERS> held_buttons_{};
   /// Whose steps the logic hears.
   LogicSteps logic_steps_ = LogicSteps::NONE;
   /// Each player's gait, by their handle's slot; state while steps are

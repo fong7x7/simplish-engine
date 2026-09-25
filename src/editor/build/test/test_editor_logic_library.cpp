@@ -1,4 +1,5 @@
 #include "support/build-temp-dir.h"
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <editor/build/editor-build-commands.h>
@@ -61,7 +62,11 @@ eng::game::GameSetup setup() {
 /// give back everything the logic said.
 std::vector<std::string> playToTheEnd(const EditorLogicLibrary& library) {
   const eng::game::GameLogicInstance logic(library.factory());
-  eng::game::GameWorld world(setup(), {}, logic.get());
+  // The scaffold's screens, as a playtest's content would have them.
+  eng::game::GameContent content;
+  content.ui_screens = {"hud", "pause"};
+  content.ui_actions = {"give_up", "resume"};
+  eng::game::GameWorld world(setup(), content, logic.get());
   eng::sim::Simulation simulation(world, eng::sim::TickHashing::ON);
   while (!world.runOver() && simulation.nextTick() < 100000) {
     (void)simulation.step({});
@@ -130,6 +135,14 @@ void bakeCheck(const std::filesystem::path& root) {
   REQUIRE(writeProjectTextFile(
       check / EDITOR_DEPLOY_MANIFEST,
       serializeDeployManifest({"check", {"main"}, "main", true})));
+  // As the editor's bake does: the screens beside the level.
+  std::error_code ec;
+  std::filesystem::create_directories(check / "content", ec);
+  std::filesystem::copy(projectContentPath(root) / "ui",
+                        check / "content" / "ui",
+                        std::filesystem::copy_options::recursive |
+                            std::filesystem::copy_options::overwrite_existing,
+                        ec);
 }
 
 /// The logic build and its check, for the project at @p root.
@@ -171,9 +184,8 @@ TEST_CASE("a logic that runs cleanly passes its check, and its tests",
       readProjectTextFile(projectLogicCheckPath(dir.path()) /
                           LOGIC_TEST_RESULTS_FILE)
           .value_or(""));
-  REQUIRE(results.size() == 2);
-  CHECK(results[0].passed);
-  CHECK(results[1].passed);
+  REQUIRE(results.size() == 3);
+  CHECK(std::ranges::all_of(results, &EditorLogicTest::passed));
 }
 
 namespace {

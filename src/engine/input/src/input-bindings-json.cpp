@@ -19,7 +19,7 @@ namespace {
   /// Each `InputAction`'s name in the file, in enum order.
   constexpr std::array<std::string_view, INPUT_ACTION_COUNT> ACTION_NAMES = {
       "move_up", "move_down", "move_left", "move_right", "fire",
-      "aim_up",  "aim_down",  "aim_left",  "aim_right",
+      "aim_up",  "aim_down",  "aim_left",  "aim_right",  "pause",
   };
 
   /// Each `GamepadButton`'s name in the file, in enum order.

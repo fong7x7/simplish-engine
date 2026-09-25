@@ -23,6 +23,7 @@
 #include <game/sdk/every.h>               // IWYU pragma: export
 #include <game/sdk/game.h>                // IWYU pragma: export
 #include <game/sdk/logic-tests.h>         // IWYU pragma: export
+#include <game/sdk/pause.h>               // IWYU pragma: export
 #include <game/sdk/phase.h>               // IWYU pragma: export
 #include <game/sdk/player-input.h>        // IWYU pragma: export
 #include <game/sdk/player-queries.h>      // IWYU pragma: export

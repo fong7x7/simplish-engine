@@ -21,6 +21,7 @@ simplish_add_module(simplish-game-sdk
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/event-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/game.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-tests.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/pause.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/player-queries.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/random.cpp

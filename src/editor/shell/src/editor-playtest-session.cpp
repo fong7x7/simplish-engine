@@ -540,6 +540,8 @@ void EditorPlaytestSession::publishRun(EditorPlaytestState& state) const {
   state.run_over = world_->runOver();
   state.outcome = world_->outcome();
   state.logic = world_->hasLogic();
+  state.game_paused = world_->paused();
+  state.play_tick = world_->playTick();
   state.logic_log = logic_log_;
   state.logic_cues = logic_cues_;
 }

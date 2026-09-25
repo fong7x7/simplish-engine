@@ -175,3 +175,11 @@ TEST_CASE("fire presses past half a pull") {
       makePlayerInput(asking({InputAction::FIRE}, 0.6F), Vec2{}, MoveBasis{})
           .buttons == INPUT_BUTTON_FIRE);
 }
+
+TEST_CASE("pause held is its own button, beside fire") {
+  const auto input = makePlayerInput(
+      holding({InputAction::PAUSE, InputAction::FIRE}), Vec2{}, MoveBasis{});
+
+  REQUIRE(input.buttons ==
+          (eng::input::INPUT_BUTTON_PAUSE | INPUT_BUTTON_FIRE));
+}

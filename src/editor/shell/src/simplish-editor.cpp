@@ -2160,8 +2160,15 @@ bool SimplishEditor::onTick(float dt) {
   return !quit_requested_;
 }
 
+bool SimplishEditor::presentationFrozen() const {
+  return isPlaying() && (state_.playtest.clock == EditorPlaytestClock::PAUSED ||
+                         playtest_->gamePaused());
+}
+
 void SimplishEditor::tickPresentation(float dt) {
-  animation_clock_ += dt;
+  // Paused — by the editor's clock or the game's own logic — the scene
+  // holds still; its screens and the editor's chrome do not.
+  animation_clock_ += presentationFrozen() ? 0.0F : dt;
   tickEditEffects(dt);
   publishEffects();
   tickWater(dt);

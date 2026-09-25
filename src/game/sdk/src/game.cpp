@@ -9,10 +9,17 @@ void Game::start(GameLogicWorld& world) {
 }
 
 void Game::tick(GameLogicWorld& world) {
+  // Decided before the hooks, so the tick a menu resumes on is still a
+  // paused one: each play tick reaches onTick once, never twice.
+  const bool paused = world.paused();
   for (const LogicEvent& event : world.events()) {
     dispatch(world, event);
   }
-  onTick(world);
+  if (paused) {
+    onPausedTick(world);
+  } else {
+    onTick(world);
+  }
 }
 
 void Game::hashState(GameLogicHash& hash) const {
@@ -35,7 +42,7 @@ void Game::dispatch(GameLogicWorld& world, const LogicEvent& event) {
       &Game::onActorStateEntered, &Game::onActorNoticed,
       &Game::onActorAttacked,     &Game::onActorWindingUp,
       &Game::onPlayerStepped,     &Game::onActorStepped,
-      &Game::onUiAction};
+      &Game::onUiAction,          &Game::onPausePressed};
   static_assert(std::size(HOOKS) == LOGIC_EVENT_KIND_COUNT);
   (this->*HOOKS[static_cast<size_t>(event.kind)])(world, event);
 }

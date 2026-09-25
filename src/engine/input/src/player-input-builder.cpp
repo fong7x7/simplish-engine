@@ -105,7 +105,10 @@ sim::PlayerInput makePlayerInput(const HeldActions& held, Vec2 aim,
                                  const MoveBasis& basis) {
   const Vec2 move = toWorld(screenStick(held), basis);
   const bool fire = held.held(InputAction::FIRE);
-  return assemble(move, aim, fire ? INPUT_BUTTON_FIRE : 0U);
+  const bool pause = held.held(InputAction::PAUSE);
+  return assemble(move, aim,
+                  (fire ? INPUT_BUTTON_FIRE : 0U) |
+                      (pause ? INPUT_BUTTON_PAUSE : 0U));
 }
 
 sim::PlayerInput makePlayerInput(const ActionValues& values, Vec2 fallback_aim,
@@ -115,7 +118,10 @@ sim::PlayerInput makePlayerInput(const ActionValues& values, Vec2 fallback_aim,
   const bool aiming = stick_aim.x != 0.0F || stick_aim.y != 0.0F;
   const Vec2 aim = aiming ? toWorld(stick_aim, basis) : fallback_aim;
   const bool fire = values.pressed(InputAction::FIRE);
-  return assemble(move, aim, fire ? INPUT_BUTTON_FIRE : 0U);
+  const bool pause = values.pressed(InputAction::PAUSE);
+  return assemble(move, aim,
+                  (fire ? INPUT_BUTTON_FIRE : 0U) |
+                      (pause ? INPUT_BUTTON_PAUSE : 0U));
 }
 
 }  // namespace eng::input

@@ -29,7 +29,8 @@ namespace eng::game::sdk {
 ///   SIMPLISH_GAME_LOGIC(Arena)
 /// @endcode
 ///
-/// Hooks run in the order the events happened, then `onTick`.
+/// Hooks run in the order the events happened, then `onTick` — or, while
+/// the game is paused, `onPausedTick`.
 class Game : public GameLogic {
 public:
   void start(GameLogicWorld& world) final;
@@ -40,8 +41,13 @@ public:
 protected:
   /// Once, on tick 0, before anything else.
   virtual void onStart([[maybe_unused]] GameLogicWorld& world) {}
-  /// Every tick, after the last tick's events have had their hooks.
+  /// Every tick played, after the last tick's events have had their hooks.
+  /// Not while paused: time gameplay by `world.playTick()`, which stands
+  /// still then, and each value of it reaches here once.
   virtual void onTick([[maybe_unused]] GameLogicWorld& world) {}
+  /// Every tick the game is paused, in place of `onTick`: for what a
+  /// pause screen shows.
+  virtual void onPausedTick([[maybe_unused]] GameLogicWorld& world) {}
   /// An actor the logic spawned joined the run.
   virtual void onActorSpawned([[maybe_unused]] GameLogicWorld& world,
                               [[maybe_unused]] const LogicEvent& event) {}
@@ -89,6 +95,10 @@ protected:
   /// the action, `event.target` the player.
   virtual void onUiAction([[maybe_unused]] GameLogicWorld& world,
                           [[maybe_unused]] const LogicEvent& event) {}
+  /// A player pressed the pause button; `event.target` is who. Nothing
+  /// pauses unless the logic says so: `sdk::togglePause(world, "pause")`.
+  virtual void onPausePressed([[maybe_unused]] GameLogicWorld& world,
+                              [[maybe_unused]] const LogicEvent& event) {}
   /// Once, when the run is over — `world.outcome()` says how. Log the
   /// run's tally here; writes do nothing.
   virtual void onRunEnded([[maybe_unused]] GameLogicWorld& world) {}

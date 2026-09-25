@@ -25,7 +25,8 @@ inline constexpr const char* LOGIC_EXAMPLE_TESTS_FILE_NAME =
 [[nodiscard]] bool projectHasLogic(const std::filesystem::path& root);
 
 /// Give the project at @p root game logic to start from — a build file
-/// and a small example in `src/` — unless it has some. Also marks
+/// and a small example in `src/`, and the pause menu and HUD it shows in
+/// `content/ui/` unless those are there — unless it has some. Also marks
 /// `build/` as ignored, with a `.gitignore` of its own inside it, and
 /// writes the project's guide for agents when it has none.
 [[nodiscard]] EditorLogicScaffold
@@ -44,5 +45,11 @@ scaffoldProjectLogic(const std::filesystem::path& root);
 
 /// The scaffold's example logic tests.
 [[nodiscard]] std::string logicScaffoldTests();
+
+/// The scaffold's pause menu, `content/ui/pause.ui.json`.
+[[nodiscard]] std::string logicScaffoldPauseScreen();
+
+/// The scaffold's HUD, `content/ui/hud.ui.json`.
+[[nodiscard]] std::string logicScaffoldHudScreen();
 
 }  // namespace eng::editor

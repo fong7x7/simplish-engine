@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <game/sdk/game.h>
+#include <game/sdk/pause.h>
 #include <vector>
 
 using namespace eng::game;
@@ -90,4 +91,53 @@ TEST_CASE("a Game hears what actors do, and when the run ends") {
   CHECK(holds(logic.heard, "attacked"));
   CHECK(logic.heard.back() == "won");
   CHECK(std::ranges::count(logic.heard, std::string("won")) == 1);
+}
+
+namespace {
+
+/// Pauses at play tick 5 through togglePause, and plays on 20 ticks
+/// later; writes down every play tick onTick sees, and counts the paused
+/// ones.
+class Pauser final : public Game {
+public:
+  /// Every play tick `onTick` saw, in order.
+  std::vector<uint64_t> played;
+  /// Ticks spent in `onPausedTick`.
+  uint32_t paused_ticks = 0;
+
+protected:
+  void onTick(GameLogicWorld& world) override {
+    played.push_back(world.playTick());
+    if (world.playTick() == 5) {
+      (void)togglePause(world, "pause");
+    }
+  }
+  void onPausedTick(GameLogicWorld& world) override {
+    showing_ = showing_ && world.showing("pause");
+    if (++paused_ticks == 20) {
+      (void)togglePause(world, "pause");
+    }
+  }
+
+public:
+  /// Whether the pause screen was shown on every paused tick.
+  bool showing_ = true;
+};
+
+}  // namespace
+
+TEST_CASE("a Game ticks on play time, each play tick once, and not while "
+          "paused") {
+  Pauser logic;
+  GameContent content;
+  content.ui_screens = {"pause"};
+
+  test::runLogic(logic, 40, test::sdkArena(), content);
+
+  CHECK(logic.paused_ticks == 20);
+  CHECK(logic.showing_);
+  REQUIRE(logic.played.size() == 20);
+  for (uint64_t i = 0; i < logic.played.size(); ++i) {
+    CHECK(logic.played[i] == i);
+  }
 }

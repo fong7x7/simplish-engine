@@ -98,7 +98,7 @@ void SimplishEditor::tickWater(float seconds) {
   }
   // Paused, the water holds still with everything else, so a paused frame
   // can be looked at.
-  if (!isPlaying() || state_.playtest.clock != EditorPlaytestClock::PAUSED) {
+  if (!presentationFrozen()) {
     water_.advance(seconds);
   }
   throwSplashes();

@@ -82,3 +82,13 @@ TEST_CASE("a half-pushed stick walks at half speed") {
   REQUIRE(input.move_x == 0);
   REQUIRE(input.move_y == quantizeInputAxis(-0.5F));
 }
+
+TEST_CASE("a pad's Start is the pause button unless rebound") {
+  GamepadState pad;
+  pad.press(GamepadButton::START);
+  ActionValues values;
+
+  offerGamepad(values, pad, defaultGamepadBindings());
+
+  REQUIRE(values.pressed(InputAction::PAUSE));
+}

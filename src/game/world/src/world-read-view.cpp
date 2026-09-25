@@ -12,15 +12,14 @@ namespace {
             .actors = sources.actors,
             .brains = sources.brains,
             .actor_ids = sources.actor_ids,
-            .commands = scratch.commands,
-            .spawns = scratch.spawns,
-            .combat = scratch.combat,
+            .writes = {scratch.commands, scratch.spawns, scratch.combat},
             .content = sources.content,
             .grid = sources.grid,
             .obstacles = sources.obstacles,
             .events = sources.events,
             .rng = scratch.rng,
-            .run = {scratch.outcome, scratch.steps},
+            .run = {scratch.outcome, scratch.steps, scratch.paused,
+                    sources.play_tick},
             .output = {scratch.log, scratch.cues, scratch.ui, sources.screens}};
   }
 
@@ -30,6 +29,7 @@ namespace {
     scratch.context.tick = sources.tick;
     scratch.outcome = sources.outcome;
     scratch.ui = sources.ui;
+    scratch.paused = sources.paused;
     return scratch;
   }
 

@@ -7,6 +7,7 @@
 
 #include "world-logic-output.h"
 #include "world-logic-run.h"
+#include "world-logic-writes.h"
 
 #include <engine/core/pcg32.h>
 #include <engine/physics/collision-box.h>
@@ -40,12 +41,8 @@ struct WorldLogicScene {
   std::span<const ActorBrain> brains;
   /// The level's name for each actor, by its handle's slot.
   std::span<const std::string> actor_ids;
-  /// Where the logic's damage and healing are queued.
-  std::vector<LogicCommand>& commands;
-  /// Where the logic's spawns are queued.
-  std::vector<ActorSpawn>& spawns;
-  /// Where the logic's shots, blasts and hazard pools are queued.
-  CombatEffects& combat;
+  /// Where the logic's writes are queued: commands, spawns, combat.
+  WorldLogicWrites writes;
   /// The run's content: the enemy archetypes `spawnEnemy` names.
   const GameContent& content;
   /// Where actors can go: what line of sight and walkability are asked of.

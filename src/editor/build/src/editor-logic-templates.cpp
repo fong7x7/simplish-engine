@@ -60,7 +60,8 @@ constexpr sdk::Weapon RIFLE{.damage = 1, .refire_ticks = 8};
 
 /// Survive 90 seconds against a wave of chasers every 20, one more each
 /// wave, closing in on the arena — where the players started — from all
-/// round. Players fire a rifle, and slowly heal.
+/// round. Players fire a rifle, and slowly heal. A HUD shows the wave and
+/// the kills, and the pause button pauses.
 /// With an enemies table, a wave can be the project's own archetype:
 /// set `.enemy = "grunt"` on the ring.
 class SurviveTheWaves final : public sdk::Game {
@@ -72,24 +73,27 @@ protected:
     arena_ = sdk::playersCentre(world);
     world.log("Survive " + std::to_string(SURVIVE_TICKS / sdk::seconds(1)) +
               " s");
+    world.showScreen("hud");  // content/ui/hud.ui.json
+    sdk::setUiNumber(world, "kills", 0);
   }
 
   void onTick(GameLogicWorld& world) override {
     if (world.outcome() != RunOutcome::PLAYING) {
       return;
     }
-    if (WAVES.due(world.tick())) {
+    // Timed by play ticks, which stand still while the game is paused.
+    if (WAVES.due(world.playTick())) {
       sendWave(world);
     }
     for (const auto& player : sdk::playersUp(world)) {
       (void)sdk::fireWeapon(world, player, RIFLE, triggers_[player.target]);
     }
-    if (REGENERATE.due(world.tick())) {
+    if (REGENERATE.due(world.playTick())) {
       for (const auto& player : sdk::playersUp(world)) {
         world.heal(player.target, 1);
       }
     }
-    if (world.tick() + 1 >= SURVIVE_TICKS) {
+    if (world.playTick() + 1 >= SURVIVE_TICKS) {
       world.log("Survived " + std::to_string(waves_) + " waves, " +
                 std::to_string(kills_) + " kills");
       world.endRun(RunOutcome::WON);
@@ -100,7 +104,22 @@ protected:
     // A kill is the players' when one of them is behind it: a shot, or the
     // blast of something they killed.
     if (sdk::playerBehind(world, death)) {
-      ++kills_;
+      sdk::setUiNumber(world, "kills", ++kills_);
+    }
+  }
+
+  // The pause button — P, or a pad's Start — pauses and shows the pause
+  // menu (content/ui/pause.ui.json), or plays on. Paused, nothing moves
+  // and onTick waits, while the menu and its buttons go on.
+  void onPausePressed(GameLogicWorld& world, const LogicEvent&) override {
+    (void)sdk::togglePause(world, "pause");
+  }
+
+  void onUiAction(GameLogicWorld& world, const LogicEvent& choice) override {
+    if (sdk::chose(choice, "resume") && world.paused()) {
+      (void)sdk::togglePause(world, "pause");
+    } else if (sdk::chose(choice, "give_up")) {
+      world.endRun(RunOutcome::LOST);
     }
   }
 
@@ -122,6 +141,7 @@ private:
                 .actor = {.behavior = "chase", .id = "wave"}});
     world.log("Wave " + std::to_string(waves_) + ": " +
               std::to_string(spawned) + " chasers");
+    sdk::setUiNumber(world, "wave", waves_);
   }
 
   /// Where the players started: what the waves close in on.
@@ -171,9 +191,68 @@ SIMPLISH_LOGIC_TEST(the_rifle_kills_what_comes_from_ahead, "main") {
   test.expect(sdk::countActors(test.world(), {.id_prefix = "wave"}) < before,
               "a chaser fell to the rifle");
 }
+
+SIMPLISH_LOGIC_TEST(the_pause_button_stops_the_waves, "main") {
+  test.run(2);
+  test.hold(0, {.pause = true});
+  test.run(2);
+  test.hold(0, {});
+  test.expect(test.world().paused(), "the pause button paused the game");
+  test.expect(test.world().showing("pause"), "and showed the pause menu");
+  test.run(sdk::seconds(30));  // past when wave 2 would come
+  test.expect(test.uiValue("wave") == "1", "no wave came while paused");
+  test.expect(test.choose(0, "resume"), "resume is on the menu");
+  test.run(2);
+  test.expect(!test.world().paused(), "resume played on");
+}
 )";
 
+  /// The scaffold's pause menu.
+  constexpr std::string_view SCAFFOLD_PAUSE = R"json({
+  "schema": "simplish/ui_screen/1.0",
+  "layer": "menu",
+  "anchor": "center",
+  "root": {
+    "type": "panel", "width": 320, "padding": [20, 24], "gap": 12,
+    "fill": "#181c26f0", "radius": 8, "align": "center",
+    "children": [
+      {"type": "label", "text": "Paused", "id": "title"},
+      {"type": "label", "text": "Wave {wave} - {kills} kills"},
+      {"type": "button", "text": "Resume", "action": "resume", "id": "resume",
+       "min_width": 200},
+      {"type": "button", "text": "Give up", "action": "give_up",
+       "id": "give_up", "min_width": 200}
+    ]
+  }
+}
+)json";
+
+  /// The scaffold's HUD.
+  constexpr std::string_view SCAFFOLD_HUD = R"json({
+  "schema": "simplish/ui_screen/1.0",
+  "layer": "hud",
+  "anchor": "top_left",
+  "inset": 12,
+  "root": {
+    "type": "panel", "direction": "row", "gap": 16, "padding": [6, 12],
+    "fill": "#0b0d12b0", "radius": 4,
+    "children": [
+      {"type": "label", "text": "Wave {wave}", "id": "wave"},
+      {"type": "label", "text": "Kills {kills}", "id": "kills"}
+    ]
+  }
+}
+)json";
+
 }  // namespace
+
+std::string logicScaffoldPauseScreen() {
+  return std::string(SCAFFOLD_PAUSE);
+}
+
+std::string logicScaffoldHudScreen() {
+  return std::string(SCAFFOLD_HUD);
+}
 
 std::string logicScaffoldTests() { return std::string(SCAFFOLD_TESTS); }
 

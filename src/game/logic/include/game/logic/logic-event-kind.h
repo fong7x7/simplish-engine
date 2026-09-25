@@ -49,11 +49,15 @@ enum class LogicEventKind : uint8_t {
   /// A player chose an action on one of the game's screens — a button —
   /// on the tick before; `id` is the action (ADR-012).
   UI_ACTION,
+  /// A player started pressing the pause button — bound to P and a pad's
+  /// Start unless changed — on the tick before. Heard paused or not: the
+  /// logic decides what it does (`sdk::togglePause`).
+  PAUSE_PRESSED,
 };
 
 /// How many kinds of event there are: whatever hands each kind to its own
 /// handler checks it has one for every kind against this.
 inline constexpr uint8_t LOGIC_EVENT_KIND_COUNT =
-    static_cast<uint8_t>(LogicEventKind::UI_ACTION) + 1;
+    static_cast<uint8_t>(LogicEventKind::PAUSE_PRESSED) + 1;
 
 }  // namespace eng::game

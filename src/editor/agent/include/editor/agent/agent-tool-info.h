@@ -461,6 +461,9 @@ inline constexpr AgentParam AGENT_PARAMS_SEND_INPUT[] = {
     {"fire", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
      "Whether fire is held. Defaults to false. What firing does is the "
      "project's game logic's: the scaffold's rifle shoots along the aim."},
+    {"pause", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "Whether pause is held; false by default. The logic hears a press as "
+     "PAUSE_PRESSED; get_playtest's game_paused says if it paused."},
     {"ticks", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
      "Ticks to hold this for, 1 to 3600 (60 is a second). Defaults to 1."},
 };

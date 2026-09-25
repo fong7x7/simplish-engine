@@ -4,7 +4,7 @@
 namespace eng::game::sdk {
 
 bool firing(const GameLogicWorld& world, const LogicPlayer& player) {
-  return player.status == LogicPlayerStatus::UP &&
+  return !world.paused() && player.status == LogicPlayerStatus::UP &&
          player.slot < world.input().players.size() &&
          (world.input().players[player.slot].buttons &
           input::INPUT_BUTTON_FIRE) != 0;

@@ -3,6 +3,7 @@
 #include "world-read-view.h"
 
 #include <algorithm>
+#include <engine/input/input-action.h>
 #include <game/actors/actor-system.h>
 #include <game/actors/actor-tick-context.h>
 #include <game/combat/combat-system.h>
@@ -133,8 +134,31 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
 
 void GameWorld::playerControl(const sim::TickContext& context) {
   cues_.clear();
-  movePlayers(players_, context.input, obstacles_);
+  frozen_ = paused_;
+  if (frozen_ == 0) {
+    movePlayers(players_, context.input, obstacles_);
+  }
   noteUiActions(context.input);
+  notePausePresses(context.input);
+}
+
+void GameWorld::notePausePresses(const sim::TickInput& input) {
+  for (uint32_t p = 0; logic_ != nullptr && p < players_.slots.size(); ++p) {
+    const uint8_t slot = players_.input_slot[p];
+    if (slot >= input.players.size()) {
+      continue;
+    }
+    const uint32_t buttons = input.players[slot].buttons;
+    const uint32_t started = buttons & ~held_buttons_[slot];
+    held_buttons_[slot] = buttons;
+    if ((started & input::INPUT_BUTTON_PAUSE) != 0U) {
+      logic_events_.note(
+          {.kind = LogicEventKind::PAUSE_PRESSED,
+           .target = *logicTargetOf(
+               {CombatantKind::PLAYER, players_.slots.handleAt(p)}),
+           .at = players_.position[p]});
+    }
+  }
 }
 
 void GameWorld::noteUiActions(const sim::TickInput& input) {
@@ -153,19 +177,26 @@ void GameWorld::noteUiActions(const sim::TickInput& input) {
   }
 }
 
+ActorTickContext GameWorld::actorContext(const sim::TickContext& context) {
+  return {.tick = play_tick_,
+          .input = context.input,
+          .players = players_,
+          .grid = grid_,
+          .obstacles = obstacles_,
+          .broadphase = broadphase_,
+          .brains = brains_,
+          .routes = routes_,
+          .flow = flow_,
+          .effects = effects_,
+          .notes = actor_notes_,
+          .rng = ai_rng_};
+}
+
 void GameWorld::enemyAi(const sim::TickContext& context) {
-  const ActorTickContext view{.tick = context.tick,
-                              .input = context.input,
-                              .players = players_,
-                              .grid = grid_,
-                              .obstacles = obstacles_,
-                              .broadphase = broadphase_,
-                              .brains = brains_,
-                              .routes = routes_,
-                              .flow = flow_,
-                              .effects = effects_,
-                              .notes = actor_notes_,
-                              .rng = ai_rng_};
+  if (frozen_ != 0) {
+    return;
+  }
+  const ActorTickContext view = actorContext(context);
   stepActors(actors_, view, workspace_);
   noteActorEvents();
   noteSteps();
@@ -268,20 +299,28 @@ void GameWorld::notePlayerChanges(std::span<const PlayerChange> changes) {
 }
 
 void GameWorld::weaponFire([[maybe_unused]] const sim::TickContext& context) {
+  if (frozen_ != 0) {
+    return;
+  }
   spawnCombatEffects(projectiles_, hazards_, effects_, cues_);
   effects_.shots.clear();
   effects_.hazards.clear();
 }
 
-void GameWorld::projectiles(const sim::TickContext& context) {
-  const CombatScene scene = combatScene(context.tick);
+void GameWorld::projectiles([[maybe_unused]] const sim::TickContext& context) {
+  if (frozen_ != 0) {
+    return;
+  }
+  const CombatScene scene = combatScene(play_tick_);
   stepProjectiles(projectiles_, scene);
   stepHazards(hazards_, scene);
 }
 
-void GameWorld::damage(const sim::TickContext& context) {
-  resolveDamage(context.tick);
-  notePlayerChanges(updateDownedPlayers(players_, context.tick));
+void GameWorld::damage([[maybe_unused]] const sim::TickContext& context) {
+  if (frozen_ == 0) {
+    resolveDamage(play_tick_);
+    notePlayerChanges(updateDownedPlayers(players_, play_tick_));
+  }
   clearCombatEffects(effects_);
 }
 
@@ -304,7 +343,7 @@ void GameWorld::director(const sim::TickContext& context) {
     return;
   }
   runLogic(context, LogicCall::TICK);
-  applyLogicWrites(context.tick);
+  applyLogicWrites(play_tick_);
 }
 
 void GameWorld::applyLogicWrites(uint64_t tick) {
@@ -344,9 +383,10 @@ void GameWorld::addActor(const ActorSpawn& spawn) {
 }
 
 std::unique_ptr<GameLogicWorld> GameWorld::readView(uint64_t tick) const {
-  return std::make_unique<WorldReadView>(WorldReadSources{
-      players_, actors_, brains_, actor_ids_, content_, grid_, obstacles_,
-      logic_events_.events(), tick, logic_rng_, outcome(), ui_, ui_screens_});
+  return std::make_unique<WorldReadView>(
+      WorldReadSources{players_, actors_, brains_, actor_ids_, content_, grid_,
+                       obstacles_, logic_events_.events(), tick, logic_rng_,
+                       outcome(), ui_, ui_screens_, paused_, play_tick_});
 }
 
 std::string_view GameWorld::actorId(uint32_t index) const {
@@ -362,21 +402,20 @@ bool GameWorld::actorSpawned(uint32_t index) const {
 }
 
 void GameWorld::runLogic(const sim::TickContext& context, LogicCall call) {
-  WorldLogicView view({.context = context,
-                       .players = players_,
-                       .actors = actors_,
-                       .brains = brains_,
-                       .actor_ids = actor_ids_,
-                       .commands = logic_commands_,
-                       .spawns = logic_spawns_,
-                       .combat = logic_effects_,
-                       .content = content_,
-                       .grid = grid_,
-                       .obstacles = obstacles_,
-                       .events = logic_events_.events(),
-                       .rng = logic_rng_,
-                       .run = {logic_outcome_, logic_steps_},
-                       .output = {logic_log_, logic_cues_, ui_, ui_screens_}});
+  WorldLogicView view(
+      {.context = context,
+       .players = players_,
+       .actors = actors_,
+       .brains = brains_,
+       .actor_ids = actor_ids_,
+       .writes = {logic_commands_, logic_spawns_, logic_effects_},
+       .content = content_,
+       .grid = grid_,
+       .obstacles = obstacles_,
+       .events = logic_events_.events(),
+       .rng = logic_rng_,
+       .run = {logic_outcome_, logic_steps_, paused_, play_tick_},
+       .output = {logic_log_, logic_cues_, ui_, ui_screens_}});
   callLogic(view, context.tick, call);
 }
 
@@ -505,6 +544,7 @@ void GameWorld::compaction(const sim::TickContext& context) {
   compactActors(actors_);
   compactProjectiles(projectiles_);
   compactHazards(hazards_);
+  play_tick_ += frozen_ == 0 ? 1U : 0U;
 }
 
 void GameWorld::hashState(sim::TickHashBuilder& builder) const {
@@ -515,15 +555,21 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
   hashHazards(hazards_, builder.section("hazards"));
   builder.section("ai_rng").add(ai_rng_.state());
   if (logic_ != nullptr) {
-    sim::StateHasher& section = builder.section("logic");
-    section.add(logic_outcome_);
-    section.add(logic_ended_);
-    hashGaits(section);
-    section.add(logic_rng_.state());
-    logic_events_.hashInto(section);
-    WorldLogicHash hash(section);
-    logic_->hashState(hash);
+    hashLogic(builder.section("logic"));
   }
+}
+
+void GameWorld::hashLogic(sim::StateHasher& section) const {
+  section.add(logic_outcome_);
+  section.add(logic_ended_);
+  section.add(paused_);
+  section.add(play_tick_);
+  section.addSpan(std::span<const uint32_t>(held_buttons_));
+  hashGaits(section);
+  section.add(logic_rng_.state());
+  logic_events_.hashInto(section);
+  WorldLogicHash hash(section);
+  logic_->hashState(hash);
 }
 
 CombatScene GameWorld::combatScene(uint64_t tick) {

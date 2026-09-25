@@ -573,6 +573,9 @@ private:
   void initCharacterSelect(GuiWidgetTree& tree);
 
   // -- Controls screen (simplish-editor-controls.cpp) ------------------------
+  /// Whether the scene holds still: playing, and paused by the editor's
+  /// clock or by the game's own logic.
+  [[nodiscard]] bool presentationFrozen() const;
   /// Move the clips, and the edit-time effects, on by @p dt seconds.
   void tickPresentation(float dt);
   /// Build the Controls screen, hidden, over the viewport.
