@@ -358,6 +358,51 @@ void SimplishEditor::initRoot(GuiWidgetTree& tree) {
     // panels, and an opaque root would paint over the scene pass.
     panel->fill_color = GuiColor{0, 0, 0, 0};
     panel->debug_name = "editor-root";
+    // A column, top to bottom: title bar, menu bar, toolbar, the work row
+    // and the asset browser. The default LayoutStyle is already a
+    // stretching column; see layoutChrome.
+  }
+}
+
+void SimplishEditor::initWorkRow(GuiWidgetTree& tree) {
+  // The row between the toolbar and the asset browser: the stage, then the
+  // properties panel. A zero basis means it takes only what the fixed
+  // strips leave, and shrinks to nothing before the asset browser gives
+  // up any of its height on a very short window.
+  work_row_ = tree.createWidget(GuiWidgetType::PANEL, root_panel_);
+  if (auto* row = dynamic_cast<GuiPanel*>(tree.findWidget(work_row_))) {
+    row->fill_color = GuiColor{0, 0, 0, 0};
+    row->debug_name = "editor-work-row";
+    row->tree_layout.direction = FlexDirection::ROW;
+    row->tree_layout.flex_grow = 1.0f;
+    row->tree_layout.flex_basis = 0.0f;
+  }
+  // The viewport and the screens laid over it.
+  stage_panel_ = tree.createWidget(GuiWidgetType::PANEL, work_row_);
+  if (auto* stage = dynamic_cast<GuiPanel*>(tree.findWidget(stage_panel_))) {
+    stage->fill_color = GuiColor{0, 0, 0, 0};
+    stage->debug_name = "editor-stage";
+    stage->tree_layout.flex_grow = 1.0f;
+    stage->tree_layout.flex_basis = 0.0f;
+  }
+}
+
+void SimplishEditor::coverStage(GuiWidgetTree& tree, GuiWidgetId overlay) {
+  // Absolute, inset zero on every side: the overlay fills the stage, which
+  // is the viewport's rect, and takes no room from it. Hidden ones are
+  // placed too, so showing one needs no relayout.
+  if (auto* widget = tree.findWidget(overlay)) {
+    widget->tree_layout.position = PositionMode::ABSOLUTE;
+    widget->tree_layout.abs_right = 0.0f;
+    widget->tree_layout.abs_bottom = 0.0f;
+  }
+}
+
+void SimplishEditor::fixStripHeight(GuiWidgetTree& tree, GuiWidgetId id,
+                                    float height) {
+  if (auto* widget = tree.findWidget(id)) {
+    widget->tree_layout.height = height;
+    widget->tree_layout.flex_shrink = 0.0f;
   }
 }
 
@@ -368,12 +413,25 @@ void SimplishEditor::initTitleBar(GuiWidgetTree& tree) {
     panel->border_color = THEME_BORDER;
     panel->border_width = 1.0f;
     panel->debug_name = "editor-title-bar";
+    // A row with the label centred up and down, TITLE_INSET in from the
+    // left.
+    panel->tree_layout.direction = FlexDirection::ROW;
+    panel->tree_layout.align_items = Align::CENTER;
+    panel->tree_layout.padding.left = TITLE_INSET;
   }
+  fixStripHeight(tree, title_panel_, TITLE_BAR_HEIGHT);
+  initTitleLabel(tree);
+}
+
+void SimplishEditor::initTitleLabel(GuiWidgetTree& tree) {
   title_label_ = tree.createWidget(GuiWidgetType::TEXT, title_panel_);
   if (auto* label = dynamic_cast<GuiLabel*>(tree.findWidget(title_label_))) {
     label->color = THEME_TEXT;
     label->align = GuiLabelAlign::LEFT;
     label->text = title_text_;
+    // The rest of the bar, so a longer title after a rename still fits
+    // without a relayout.
+    label->tree_layout.flex_grow = 1.0f;
   }
 }
 
@@ -391,6 +449,7 @@ void SimplishEditor::initMenuBar(GuiWidgetTree& tree) {
     openLevel(id, EditorLevelUnsaved::REFUSE);
   };
   menu_bar_id_ = tree.insertExternalWidget(std::move(menu_bar), root_panel_);
+  fixStripHeight(tree, menu_bar_id_, MENU_BAR_HEIGHT);
   if (auto* bar =
           dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
     bar->init(tree);
@@ -414,8 +473,9 @@ void SimplishEditor::initPropertiesPanel(GuiWidgetTree& tree) {
   panel->on_choice_changed = [this](EditorChoiceKind kind, size_t index) {
     applyChoiceEdit(kind, index);
   };
-  properties_panel_id_ =
-      tree.insertExternalWidget(std::move(panel), root_panel_);
+  // Beside the stage; its width, which is nothing without a selection, is
+  // set by layoutChrome.
+  properties_panel_id_ = tree.insertExternalWidget(std::move(panel), work_row_);
 }
 
 void SimplishEditor::initToolbar(GuiWidgetTree& tree) {
@@ -427,6 +487,7 @@ void SimplishEditor::initToolbar(GuiWidgetTree& tree) {
     togglePlaytest();
   };
   toolbar_id_ = tree.insertExternalWidget(std::move(toolbar), root_panel_);
+  fixStripHeight(tree, toolbar_id_, TOOLBAR_HEIGHT);
   if (auto* bar =
           dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
     bar->init(tree);
@@ -435,6 +496,18 @@ void SimplishEditor::initToolbar(GuiWidgetTree& tree) {
 
 void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   initToolbar(tree);
+  initWorkRow(tree);
+  initViewport(tree);
+  initPropertiesPanel(tree);
+  initAssetPanel(tree);
+  // Last in the stage, so they draw over the viewport and are hit before
+  // it.
+  initCharacterSelect(tree);
+  initControls(tree);
+  initSound(tree);
+}
+
+void SimplishEditor::initViewport(GuiWidgetTree& tree) {
   auto viewport = std::make_unique<EditorViewportWidget>();
   viewport->on_placement_picked = [this](int marker) {
     selectMarker(marker);
@@ -442,13 +515,10 @@ void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
   viewport->on_paint = [this](EditorStrokePhase phase, WorldPoint point) {
     paintStroke(phase, point);
   };
-  viewport_id_ = tree.insertExternalWidget(std::move(viewport), root_panel_);
-  initPropertiesPanel(tree);
-  initAssetPanel(tree);
-  // Last, so it draws over and is hit before everything it covers.
-  initCharacterSelect(tree);
-  initControls(tree);
-  initSound(tree);
+  viewport_id_ = tree.insertExternalWidget(std::move(viewport), stage_panel_);
+  if (auto* widget = tree.findWidget(viewport_id_)) {
+    widget->tree_layout.flex_grow = 1.0f;
+  }
 }
 
 void SimplishEditor::initCharacterSelect(GuiWidgetTree& tree) {
@@ -463,7 +533,8 @@ void SimplishEditor::initCharacterSelect(GuiWidgetTree& tree) {
     closeCharacterSelect();
   };
   character_select_id_ =
-      tree.insertExternalWidget(std::move(select), root_panel_);
+      tree.insertExternalWidget(std::move(select), stage_panel_);
+  coverStage(tree, character_select_id_);
 }
 
 EditorViewportWidget* SimplishEditor::viewportWidget() {
@@ -493,76 +564,28 @@ float SimplishEditor::assetBrowserHeight() {
 
 void SimplishEditor::layoutChrome() {
   GuiWidgetTree& tree = guiWidgetTree();
-  const Rect window = makeRect(0.0f, 0.0f, static_cast<float>(guiLayoutWidth()),
-                               static_cast<float>(guiLayoutHeight()));
-  // The root has to cover the window: hit testing starts there and stops
-  // dead if the cursor is outside it.
-  if (auto* panel = tree.findWidget(root_panel_)) {
-    panel->rect = window;
-  }
-  layoutTitleBar(tree, window);
-  layoutWorkArea(tree, window);
+  sizePanels(tree);
+  // The root covers the window — hit testing starts there and stops dead if
+  // the cursor is outside it — and the flex layout places everything under
+  // it from the styles set at init and in sizePanels.
+  tree.computeLayout(makeRect(0.0f, 0.0f, static_cast<float>(guiLayoutWidth()),
+                              static_cast<float>(guiLayoutHeight())),
+                     guiDrawContext());
   laid_out_width_ = guiLayoutWidth();
   laid_out_height_ = guiLayoutHeight();
   laid_out_panel_height_ = assetBrowserHeight();
   laid_out_properties_width_ = propertiesPanelWidth();
 }
 
-void SimplishEditor::layoutTitleBar(GuiWidgetTree& tree, const Rect& window) {
-  if (auto* panel = tree.findWidget(title_panel_)) {
-    panel->rect = makeRect(0.0f, 0.0f, window.w, TITLE_BAR_HEIGHT);
-  }
-  if (auto* label = tree.findWidget(title_label_)) {
-    label->rect = makeRect(TITLE_INSET, TITLE_BAR_HEIGHT * 0.5f - 7.0f,
-                           window.w - TITLE_INSET, TITLE_BAR_HEIGHT);
-  }
-}
-
-void SimplishEditor::layoutWorkArea(GuiWidgetTree& tree, const Rect& window) {
-  if (auto* bar =
-          dynamic_cast<EditorMenuBarWidget*>(tree.findWidget(menu_bar_id_))) {
-    bar->layout(tree,
-                makeRect(0.0f, TITLE_BAR_HEIGHT, window.w, MENU_BAR_HEIGHT),
-                window);
-  }
-  const float toolbar_top = TITLE_BAR_HEIGHT + MENU_BAR_HEIGHT;
-  if (auto* bar =
-          dynamic_cast<EditorToolbarWidget*>(tree.findWidget(toolbar_id_))) {
-    bar->layout(tree, makeRect(0.0f, toolbar_top, window.w, TOOLBAR_HEIGHT));
-  }
-  layoutViewportAndAssets(tree, window, toolbar_top + TOOLBAR_HEIGHT);
-}
-
-void SimplishEditor::layoutViewportAndAssets(GuiWidgetTree& tree,
-                                             const Rect& window, float top) {
-  // The asset browser takes the bottom; the viewport gets what is left,
-  // which may be nothing at all on a very short window. Folding the browser
-  // hands most of that back.
-  const float panel_top = std::max(top, window.h - assetBrowserHeight());
-  // The properties panel takes the right of what is left, and only while
-  // something is selected; the viewport gets the rest.
-  const float properties_w = std::min(propertiesPanelWidth(), window.w);
-  const float viewport_w = window.w - properties_w;
-  if (auto* viewport = tree.findWidget(viewport_id_)) {
-    viewport->rect = makeRect(0.0f, top, viewport_w, panel_top - top);
+void SimplishEditor::sizePanels(GuiWidgetTree& tree) {
+  // The asset browser keeps its height until the work row above it is gone,
+  // then shrinks: the row has a zero basis, so it is the browser that
+  // overflows. The properties panel gives way to the stage the same way.
+  if (auto* panel = tree.findWidget(asset_panel_id_)) {
+    panel->tree_layout.height = assetBrowserHeight();
   }
   if (auto* panel = tree.findWidget(properties_panel_id_)) {
-    panel->rect = makeRect(viewport_w, top, properties_w, panel_top - top);
-  }
-  if (auto* panel = tree.findWidget(asset_panel_id_)) {
-    panel->rect = makeRect(0.0f, panel_top, window.w, window.h - panel_top);
-  }
-  layoutOverlays(tree, makeRect(0.0f, top, viewport_w, panel_top - top));
-}
-
-void SimplishEditor::layoutOverlays(GuiWidgetTree& tree, const Rect& viewport) {
-  // Over the viewport and nothing else: the selector is about the level
-  // being played, the Controls screen about playing it, and the panels
-  // around them stay where they are.
-  for (const GuiWidgetId id : {character_select_id_, controls_id_, sound_id_}) {
-    if (auto* overlay = tree.findWidget(id)) {
-      overlay->rect = viewport;
-    }
+    panel->tree_layout.width = propertiesPanelWidth();
   }
 }
 
@@ -2664,7 +2687,7 @@ void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   for (GuiWidgetId* id :
        {&controls_id_, &sound_id_, &character_select_id_, &asset_panel_id_,
         &properties_panel_id_, &menu_bar_id_, &toolbar_id_, &viewport_id_,
-        &title_panel_, &root_panel_}) {
+        &stage_panel_, &work_row_, &title_panel_, &root_panel_}) {
     tree.destroyWidget(*id);
     *id = GUI_WIDGET_ID_INVALID;
   }

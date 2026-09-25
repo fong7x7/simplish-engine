@@ -104,11 +104,18 @@ public:
   /// Return the number of direct children.
   size_t childCount(GuiWidgetId id) const;
 
-  /// Run measure + arrange; viewport is the screen rect.
+  /// Lay the tree out in @p viewport, the screen rect: measure every
+  /// widget bottom-up, then arrange from the root, which takes the whole
+  /// viewport. Text is measured with @p ctx's font.
+  void computeLayout(const Rect& viewport, const GuiDrawContext& ctx);
+
+  /// `computeLayout` with no font: text measures at a fixed width a
+  /// character, as it does when drawn without one.
   void computeLayout(const Rect& viewport);
 
-  /// Measure a single subtree bottom-up (post-order).
-  void measureWidget(GuiWidgetId id);
+  /// Measure a single subtree bottom-up (post-order), setting each
+  /// widget's `tree_measured`.
+  void measureWidget(GuiWidgetId id, const GuiDrawContext& ctx);
 
   /// Arrange a single subtree top-down within the available rect.
   void arrangeWidget(GuiWidgetId id, const Rect& available);

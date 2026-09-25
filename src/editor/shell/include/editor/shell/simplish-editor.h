@@ -526,10 +526,24 @@ private:
   void initRoot(GuiWidgetTree& tree);
   /// Create the title bar panel and its label.
   void initTitleBar(GuiWidgetTree& tree);
+  /// Create the title bar's label, filling the bar after its inset.
+  void initTitleLabel(GuiWidgetTree& tree);
   /// Create the menu bar and wire its commands back to this editor.
   void initMenuBar(GuiWidgetTree& tree);
-  /// Create the toolbar and the viewport.
+  /// Create the toolbar, the work row with its stage and properties panel,
+  /// the asset browser, and the screens laid over the stage.
   void initWorkArea(GuiWidgetTree& tree);
+  /// Create the row between the toolbar and the asset browser, and the
+  /// stage in it that holds the viewport.
+  void initWorkRow(GuiWidgetTree& tree);
+  /// Create the viewport, filling the stage, and wire its picks and paint
+  /// strokes back to this editor.
+  void initViewport(GuiWidgetTree& tree);
+  /// Lay @p overlay over the whole stage, out of its flow.
+  static void coverStage(GuiWidgetTree& tree, GuiWidgetId overlay);
+  /// Make @p id a strip of the root column @p height tall that never
+  /// shrinks.
+  static void fixStripHeight(GuiWidgetTree& tree, GuiWidgetId id, float height);
   /// Create the asset browser and wire its drops back to this editor.
   void initAssetPanel(GuiWidgetTree& tree);
   /// Create the properties panel and wire its edits back to this editor.
@@ -539,9 +553,6 @@ private:
   void initCharacterSelect(GuiWidgetTree& tree);
 
   // -- Controls screen (simplish-editor-controls.cpp) ------------------------
-  /// Lay the screens that cover the viewport — the character selector and
-  /// the Controls screen — over @p viewport.
-  void layoutOverlays(GuiWidgetTree& tree, const Rect& viewport);
   /// Move the clips, and the edit-time effects, on by @p dt seconds.
   void tickPresentation(float dt);
   /// Build the Controls screen, hidden, over the viewport.
@@ -1222,15 +1233,12 @@ private:
   [[nodiscard]] float propertiesPanelWidth();
   /// Height the asset browser wants, which shrinks when it is folded away.
   [[nodiscard]] float assetBrowserHeight();
-  /// Position the chrome for the current window size.
+  /// Lay the chrome out for the current window size: the tree's flex
+  /// layout, from the styles set at init and the panels' current sizes.
   void layoutChrome();
-  /// Place the title bar and its label across @p window.
-  void layoutTitleBar(GuiWidgetTree& tree, const Rect& window);
-  /// Place the viewport and the asset strip below @p top.
-  void layoutViewportAndAssets(GuiWidgetTree& tree, const Rect& window,
-                               float top);
-  /// Place the menu bar, toolbar, and viewport down @p window.
-  void layoutWorkArea(GuiWidgetTree& tree, const Rect& window);
+  /// Give the asset browser and the properties panel the size each wants
+  /// now — folded, or with nothing selected, they want less.
+  void sizePanels(GuiWidgetTree& tree);
   /// Push project name and viewport status into the toolbar.
   void refreshToolbar();
   /// Apply the open project to the window title, menu bar, and toolbar.
@@ -1300,6 +1308,11 @@ private:
   GuiWidgetId title_panel_ = GUI_WIDGET_ID_INVALID;
   /// Title text.
   GuiWidgetId title_label_ = GUI_WIDGET_ID_INVALID;
+  /// The row between the toolbar and the asset browser: stage, then
+  /// properties panel.
+  GuiWidgetId work_row_ = GUI_WIDGET_ID_INVALID;
+  /// The viewport's place in the work row; the overlays cover it.
+  GuiWidgetId stage_panel_ = GUI_WIDGET_ID_INVALID;
   /// Menu bar widget id in the tree (owned by the tree).
   GuiWidgetId menu_bar_id_ = GUI_WIDGET_ID_INVALID;
   /// Toolbar widget id in the tree (owned by the tree).

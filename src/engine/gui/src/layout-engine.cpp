@@ -1,3 +1,5 @@
+#include "flex-layout.h"
+
 #include <algorithm>
 #include <cmath>
 #include <engine/gui/gui-rect.h>
@@ -35,24 +37,30 @@ namespace {
 
 }  // namespace
 
-void GuiWidgetTree::computeLayout(const Rect& viewport) {
+void GuiWidgetTree::computeLayout(const Rect& viewport,
+                                  const GuiDrawContext& ctx) {
   if (root_id == GUI_WIDGET_ID_INVALID) {
     return;
   }
-  measureWidget(root_id);
+  measureWidget(root_id, ctx);
   arrangeWidget(root_id, viewport);
   clearDirtyFlags();
 }
 
+void GuiWidgetTree::computeLayout(const Rect& viewport) {
+  computeLayout(viewport, GuiDrawContext{});
+}
+
 // NOLINTNEXTLINE(misc-no-recursion) -- tree traversal requires recursion
-void GuiWidgetTree::measureWidget(GuiWidgetId id) {
+void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx) {
   auto* w = findWidget(id);
   if (w == nullptr) {
     return;
   }
   for (auto child : w->children) {
-    measureWidget(child);
+    measureWidget(child, ctx);
   }
+  w->tree_measured = measureBorderBox(*this, *w, ctx);
 }
 
 void GuiWidgetTree::arrangeWidget(GuiWidgetId id, const Rect& available) {

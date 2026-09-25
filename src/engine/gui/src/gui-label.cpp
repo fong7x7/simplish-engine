@@ -12,6 +12,10 @@ std::unique_ptr<GuiWidget> GuiLabel::clone() const {
 /// Half multiplier for computing center coordinate.
 constexpr float HALF = 0.5f;
 
+LayoutSize GuiLabel::measureContent(const GuiDrawContext& ctx) const {
+  return {ctx.measureText(text), ctx.textLineHeight()};
+}
+
 void GuiLabel::render(const GuiDrawContext& ctx) const {
   const bool use_shared = hasSharedStyle();
   auto c = GuiColor::applyOpacity(use_shared ? ui_style->text : color, opacity);

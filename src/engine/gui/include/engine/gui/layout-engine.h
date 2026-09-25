@@ -1,7 +1,10 @@
 #pragma once
 
 /// @file layout-engine.h
-/// @brief Flex-style measure/arrange, scroll state, layout styles for widgets.
+/// @brief The style a widget is laid out by: CSS flexbox, in logical pixels.
+/// `GuiWidgetTree::computeLayout` measures every widget bottom-up and then
+/// places each container's children by it; `technical/layout-engine.md`
+/// has the algorithm.
 /// @par Threading Main thread only.
 
 #include "gui-rect.h"
@@ -12,32 +15,57 @@
 
 namespace eng {
 
-// Forward declaration required to break circular dependency:
-// gui-widget-tree.h depends on gui-widget.h which depends on layout-engine.h
-
+/// The axis a container lays its children along — its main axis.
 enum class FlexDirection : uint8_t {
+  /// Left to right.
   ROW,
+  /// Top to bottom.
   COLUMN,
 };
 
+/// Whether children that overflow the main axis start a new line.
 enum class FlexWrap : uint8_t {
+  /// One line, shrinking children to fit.
   NO_WRAP,
+  /// As many lines as it takes.
   WRAP,
 };
 
+/// Where free space goes — along the main axis for `justify_content`,
+/// across it for `align_items`, `align_self` and `align_content`.
 enum class Align : uint8_t {
+  /// Packed at the start.
   START,
+  /// Centred.
   CENTER,
+  /// Packed at the end.
   END,
+  /// Filling the line (cross axis only; as START along the main axis).
   STRETCH,
+  /// First and last at the edges, the rest spread evenly between.
   SPACE_BETWEEN,
+  /// Equal space round each: half as much at the edges as between.
+  SPACE_AROUND,
+  /// Equal space between each and at the edges.
+  SPACE_EVENLY,
+  /// `align_self` only: take the parent's `align_items`.
+  AUTO,
 };
 
+/// Whether a widget takes part in its parent's flow.
 enum class PositionMode : uint8_t {
+  /// Placed in flow by the parent's flex layout.
   RELATIVE,
+  /// Out of flow, placed by the `abs_*` insets from the parent's edges.
   ABSOLUTE,
+  /// Out of flow and never placed: its rect is set by hand, or by another
+  /// widget — a menu bar placing its dropdowns below itself, say. The
+  /// layout leaves it, and its children, alone.
+  MANUAL,
 };
 
+/// How a widget is sized and placed. Sizes are border-box: `width` and
+/// `height` include the padding, never the margin.
 struct LayoutStyle {
   /// Primary axis direction for flex layout.
   FlexDirection direction = FlexDirection::COLUMN;
@@ -49,19 +77,22 @@ struct LayoutStyle {
   Align align_content = Align::START;
   /// Main-axis alignment for child items.
   Align justify_content = Align::START;
-  /// Override for this item's cross-axis alignment within its parent.
-  Align align_self = Align::START;
+  /// Override for this item's cross-axis alignment within its parent;
+  /// AUTO uses the parent's `align_items`.
+  Align align_self = Align::AUTO;
 
   /// Flex grow factor for distributing extra space.
   float flex_grow = 0.0f;
   /// Flex shrink factor for overflow reduction.
   float flex_shrink = 1.0f;
-  /// Flex basis size (-1 = auto, uses min content).
+  /// Main-axis size before growing or shrinking (-1 = auto: the explicit
+  /// size, else the measured one).
   float flex_basis = -1.0f;
 
-  /// Inner padding on all four edges.
+  /// Space inside the edges, round the children or content.
   Edges padding;
-  /// Outer margin on all four edges.
+  /// Space outside the edges, kept clear of siblings and the parent's
+  /// content edge. Adds to `gap`; margins never collapse.
   Edges margin;
 
   /// Explicit width in pixels (-1 = auto).
@@ -77,17 +108,25 @@ struct LayoutStyle {
   /// Maximum height constraint in pixels (-1 = unconstrained).
   float max_height = -1.0f;
 
-  /// Gap between flex items in pixels.
+  /// Space between adjacent children, and between wrapped lines.
   float gap = 0.0f;
 
   /// Positioning mode (relative or absolute).
   PositionMode position = PositionMode::RELATIVE;
-  /// Absolute X position when position mode is absolute.
+  /// ABSOLUTE: distance from the parent's left edge to the left margin.
   float abs_x = 0.0f;
-  /// Absolute Y position when position mode is absolute.
+  /// ABSOLUTE: distance from the parent's top edge to the top margin.
   float abs_y = 0.0f;
+  /// ABSOLUTE: distance from the parent's right edge to the right margin
+  /// (-1 = unset). With an auto `width` it stretches the widget from
+  /// `abs_x` to here; with an explicit one it anchors the right edge.
+  float abs_right = -1.0f;
+  /// ABSOLUTE: distance from the parent's bottom edge to the bottom margin
+  /// (-1 = unset), as `abs_right` is to the right.
+  float abs_bottom = -1.0f;
 
-  /// Enable horizontal scrolling for this container.
+  /// Enable horizontal scrolling for this container. Not read by the
+  /// layout: a scrolling list is a `GuiScrollPanel`.
   bool scroll_x = false;
   /// Enable vertical scrolling for this container.
   bool scroll_y = false;

@@ -39,8 +39,25 @@ constexpr eng::Rect BAR_RECT{0.0f, 28.0f, 1280.0f, TOOLBAR_HEIGHT};
 
 TEST_CASE("the toolbar creates one button per tool") {
   ToolbarFixture fx;
-  // A button per tool, the play button, and the two labels.
-  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 3);
+  // A button per tool, the play button, the two labels, and the spacer
+  // that pushes the status label right.
+  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 4);
+}
+
+TEST_CASE("the toolbar's flex row puts the status label at its right end") {
+  ToolbarFixture fx;
+  fx.bar()->layout(fx.tree, BAR_RECT);
+  const eng::GuiWidget* status = nullptr;
+  for (const eng::GuiWidgetId id :
+       fx.tree.findWidget(fx.toolbar_id)->children) {
+    status = fx.tree.findWidget(id);
+  }
+  REQUIRE(status != nullptr);
+  // The last child, SIDE_PADDING (10) in from the bar's right edge, and
+  // centred up and down in it.
+  REQUIRE(status->rect.x + status->rect.w == Approx(BAR_RECT.w - 10.0f));
+  REQUIRE(status->rect.y + status->rect.h * 0.5f ==
+          Approx(BAR_RECT.y + BAR_RECT.h * 0.5f));
 }
 
 TEST_CASE("the toolbar starts on the select tool") {

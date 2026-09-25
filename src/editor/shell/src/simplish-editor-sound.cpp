@@ -83,7 +83,8 @@ void SimplishEditor::initSound(GuiWidgetTree& tree) {
   sound->on_level_picked = [this](size_t row, float level) {
     setSoundLevel(row, level);
   };
-  sound_id_ = tree.insertExternalWidget(std::move(sound), root_panel_);
+  sound_id_ = tree.insertExternalWidget(std::move(sound), stage_panel_);
+  coverStage(tree, sound_id_);
 }
 
 EditorSoundWidget* SimplishEditor::soundWidget() {

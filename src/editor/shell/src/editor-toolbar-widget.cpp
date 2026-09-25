@@ -1,6 +1,7 @@
 #include <editor/shell/editor-toolbar-widget.h>
 #include <engine/gui/gui-button.h>
 #include <engine/gui/gui-color.h>
+#include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-label.h>
 #include <engine/gui/gui-theme-constants.h>
 #include <utility>
@@ -15,7 +16,7 @@ namespace {
   constexpr float SIDE_PADDING = 10.0f;
   constexpr float PROJECT_LABEL_WIDTH = 220.0f;
   constexpr float STATUS_LABEL_WIDTH = 260.0f;
-  /// Space between the last tool and the play button, so the button reads
+  /// Margin before the play button, on top of the gap, so the button reads
   /// as a separate thing rather than a sixth tool.
   constexpr float PLAY_BUTTON_GAP = 16.0f;
 
@@ -27,6 +28,14 @@ namespace {
     return {THEME_BTN, THEME_TEXT, THEME_BTN_HOVER, THEME_BTN_RADIUS};
   }
 
+  /// Give @p widget a fixed @p width and @p height (-1 for its measured
+  /// one) that the row never shrinks.
+  void fixSize(GuiWidget& widget, float width, float height) {
+    widget.tree_layout.width = width;
+    widget.tree_layout.height = height;
+    widget.tree_layout.flex_shrink = 0.0f;
+  }
+
 }  // namespace
 
 EditorToolbarWidget::EditorToolbarWidget() {
@@ -35,6 +44,12 @@ EditorToolbarWidget::EditorToolbarWidget() {
   fill_color = THEME_PANEL;
   border_color = THEME_BORDER;
   border_width = 1.0f;
+  // One row, centred up and down: project name, the tools, Play, a spacer
+  // that takes whatever is left, and the status line at the right.
+  tree_layout.direction = FlexDirection::ROW;
+  tree_layout.align_items = Align::CENTER;
+  tree_layout.padding = {0.0f, SIDE_PADDING, 0.0f, SIDE_PADDING};
+  tree_layout.gap = BUTTON_GAP;
 }
 
 std::unique_ptr<GuiWidget> EditorToolbarWidget::clone() const {
@@ -56,16 +71,31 @@ void EditorToolbarWidget::wireChildren(GuiWidgetTree& tree) {
     label->color = THEME_TEXT;
     label->align = GuiLabelAlign::LEFT;
     label->text = project_name_;
+    fixSize(*label, PROJECT_LABEL_WIDTH, -1.0f);
   }
 
   wireToolButtons(tree);
   wirePlayButton(tree);
+  wireSpacer(tree);
+  wireStatusLabel(tree);
+}
 
+void EditorToolbarWidget::wireStatusLabel(GuiWidgetTree& tree) {
   status_label_ = tree.createWidget(GuiWidgetType::TEXT, bar_panel_);
   if (auto* label = dynamic_cast<GuiLabel*>(tree.findWidget(status_label_))) {
     label->color = THEME_DIM;
     label->align = GuiLabelAlign::LEFT;
     label->text = status_text_;
+    // The one thing in the row that gives way on a narrow window.
+    label->tree_layout.width = STATUS_LABEL_WIDTH;
+  }
+}
+
+void EditorToolbarWidget::wireSpacer(GuiWidgetTree& tree) {
+  spacer_ = tree.createWidget(GuiWidgetType::PANEL, bar_panel_);
+  if (auto* spacer = dynamic_cast<GuiPanel*>(tree.findWidget(spacer_))) {
+    spacer->fill_color = GuiColor{0, 0, 0, 0};
+    spacer->tree_layout.flex_grow = 1.0f;
   }
 }
 
@@ -76,6 +106,7 @@ void EditorToolbarWidget::wireToolButtons(GuiWidgetTree& tree) {
     if (auto* button = dynamic_cast<GuiButton*>(tree.findWidget(id))) {
       button->label = editorToolLabel(tool);
       button->debug_name = std::string(editorToolLabel(tool));
+      fixSize(*button, BUTTON_WIDTH, BUTTON_HEIGHT);
       button->onClick([this, tool](const GuiMouseEvent&) {
         active_tool_ = tool;
         if (on_tool_selected) {
@@ -92,6 +123,9 @@ void EditorToolbarWidget::wirePlayButton(GuiWidgetTree& tree) {
   if (auto* button = dynamic_cast<GuiButton*>(tree.findWidget(play_button_))) {
     button->label = "Play";
     button->debug_name = "play";
+    fixSize(*button, BUTTON_WIDTH, BUTTON_HEIGHT);
+    // Set apart, so it reads as a separate thing rather than another tool.
+    button->tree_layout.margin.left = PLAY_BUTTON_GAP;
     button->onClick([this](const GuiMouseEvent&) {
       if (on_play_toggled) {
         on_play_toggled();
@@ -100,47 +134,13 @@ void EditorToolbarWidget::wirePlayButton(GuiWidgetTree& tree) {
   }
 }
 
-void EditorToolbarWidget::layout(GuiWidgetTree& tree, const Rect& bar_rect) {
+void EditorToolbarWidget::layout(GuiWidgetTree& tree,
+                                 const Rect& bar_rect) const {
   if (bar_panel_ == GUI_WIDGET_ID_INVALID) {
     return;
   }
-  rect = bar_rect;
-
-  const float text_y = bar_rect.y + (bar_rect.h * 0.5f) - 7.0f;
-
-  if (auto* label = tree.findWidget(project_label_)) {
-    label->rect = makeRect(bar_rect.x + SIDE_PADDING, text_y,
-                           PROJECT_LABEL_WIDTH, BUTTON_HEIGHT);
-  }
-
-  layoutButtons(tree, bar_rect);
-
-  if (auto* label = tree.findWidget(status_label_)) {
-    const float status_x =
-        bar_rect.x + bar_rect.w - STATUS_LABEL_WIDTH - SIDE_PADDING;
-    label->rect = makeRect(status_x, text_y, STATUS_LABEL_WIDTH, BUTTON_HEIGHT);
-  }
-}
-
-void EditorToolbarWidget::layoutButtons(GuiWidgetTree& tree,
-                                        const Rect& bar_rect) {
-  float cursor_x = bar_rect.x + SIDE_PADDING + PROJECT_LABEL_WIDTH;
-  const float button_y = bar_rect.y + (bar_rect.h - BUTTON_HEIGHT) * 0.5f;
-  for (GuiWidgetId id : tool_buttons_) {
-    if (auto* button = tree.findWidget(id)) {
-      button->rect = makeRect(cursor_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
-    }
-    cursor_x += BUTTON_WIDTH + BUTTON_GAP;
-  }
-  if (auto* button = tree.findWidget(play_button_)) {
-    button->rect = makeRect(cursor_x + PLAY_BUTTON_GAP, button_y, BUTTON_WIDTH,
-                            BUTTON_HEIGHT);
-  }
-}
-
-void EditorToolbarWidget::arrangeChildren(GuiWidgetTree& tree,
-                                          const Rect& available) {
-  layout(tree, available);
+  tree.measureWidget(bar_panel_, GuiDrawContext{});
+  tree.arrangeWidget(bar_panel_, bar_rect);
 }
 
 void EditorToolbarWidget::tick(GuiWidgetTree& tree) {
@@ -191,6 +191,8 @@ void EditorToolbarWidget::shutdown(GuiWidgetTree& tree) {
   play_button_ = GUI_WIDGET_ID_INVALID;
   tree.destroyWidget(project_label_);
   tree.destroyWidget(status_label_);
+  tree.destroyWidget(spacer_);
+  spacer_ = GUI_WIDGET_ID_INVALID;
   project_label_ = GUI_WIDGET_ID_INVALID;
   status_label_ = GUI_WIDGET_ID_INVALID;
   bar_panel_ = GUI_WIDGET_ID_INVALID;

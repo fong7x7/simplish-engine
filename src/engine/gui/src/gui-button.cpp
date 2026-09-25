@@ -14,6 +14,10 @@ std::unique_ptr<GuiWidget> GuiButton::clone() const {
   return std::make_unique<GuiButton>(*this);
 }
 
+LayoutSize GuiButton::measureContent(const GuiDrawContext& ctx) const {
+  return {ctx.measureText(label), ctx.textLineHeight()};
+}
+
 void GuiButton::render(const GuiDrawContext& ctx) const {
   const bool use_shared = hasSharedStyle();
   auto bg = use_shared ? (hovered ? ui_style->btn_bg_hover : ui_style->btn_bg)

@@ -60,13 +60,19 @@ Unlike immediate-mode systems, the GUI maintains a persistent widget tree. Widge
 
 ### 4.2 Layout Engine
 
-A **flexbox-style layout engine** computes widget positions and sizes. Supports:
+A **CSS flexbox layout engine** computes widget positions and sizes; the
+editor's chrome is laid out by it. How to use it, with recipes:
+[technical/layout-engine.md](technical/layout-engine.md). Supports:
 
 - Row and column flex containers with wrap
-- Alignment (start, center, end, stretch, space-between)
-- Padding, margin, min/max size constraints
-- Scrollable containers with inertial scrolling and scroll bars
-- Absolute positioning for overlays and tooltips
+- Grow, shrink and basis, resolved as CSS does, within min/max limits
+- Alignment: start, center, end, stretch, space-between, space-around,
+  space-evenly, per container and per child
+- Border-box sizing with padding, margins and gaps; widgets measure their
+  natural size (a label's text) bottom-up
+- Absolute positioning by insets for overlays, badges and tooltips, and a
+  manual mode for widgets another widget places
+- Scrollable lists (`GuiScrollPanel`) with scroll bars
 
 ### 4.3 Text Pipeline
 

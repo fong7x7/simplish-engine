@@ -16,6 +16,7 @@
 #include "gui-widget-id.h"
 #include "gui-widget-type.h"
 #include "layout-engine.h"
+#include "layout-size.h"
 
 #include <functional>
 #include <optional>
@@ -61,12 +62,18 @@ public:
   /// Does not mutate component state; output goes through `ctx`.
   virtual void render(const GuiDrawContext& ctx) const = 0;
 
+  /// The size this widget's own content needs — its text, say — without
+  /// padding or children. The measure pass adds the padding and takes the
+  /// larger of this and what the children need. Default: nothing.
+  [[nodiscard]] virtual LayoutSize
+  measureContent(const GuiDrawContext& ctx) const;
+
   /// Arrange this widget's direct children given its own rect. Called by
   /// `GuiWidgetTree::arrangeWidget` after this widget's rect is set.
-  /// Default implementation distributes children uniformly in a column
-  /// (preserves the pre-existing tree arrange behaviour). Override to
-  /// implement custom layout strategies — e.g. `GuiDockspaceWidget` reserves
-  /// edge regions and assigns each child its computed region rect.
+  /// The default lays them out by flexbox, from this widget's
+  /// `tree_layout` and theirs (`layout-engine.h`). Override to implement
+  /// custom layout strategies — e.g. `GuiDockspaceWidget` reserves edge
+  /// regions and assigns each child its computed region rect.
   virtual void arrangeChildren(GuiWidgetTree& tree, const Rect& available);
 
   /// Subscribes to mouse button being pressed on this component.
@@ -200,6 +207,9 @@ public:
   GuiWidgetType widget_type = GuiWidgetType::CUSTOM;
   /// Flex and sizing when participating in tree layout.
   LayoutStyle tree_layout{};
+  /// Border-box size from the last measure pass: the explicit size, or the
+  /// content's plus padding, within the min and max. Margins not included.
+  LayoutSize tree_measured{};
   /// Paint and hit-test order among siblings; higher draws later (on top).
   int32_t z_index = 0;
   /// Optional debug label for editors and tests.

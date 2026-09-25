@@ -58,6 +58,11 @@ public:
   /// Render this text input field.
   void render(const GuiDrawContext& ctx) const override;
 
+  /// One line high, and no width of its own: a field is as wide as its
+  /// layout makes it.
+  [[nodiscard]] LayoutSize
+  measureContent(const GuiDrawContext& ctx) const override;
+
   /// Get the current text content.
   [[nodiscard]] std::string_view text() const;
 

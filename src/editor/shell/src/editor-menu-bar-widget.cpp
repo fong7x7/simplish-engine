@@ -202,6 +202,10 @@ void EditorMenuBarWidget::wireMenu(GuiWidgetTree& tree, size_t index) {
   // hit testing never descends into a child outside its parent's rect.
   menus_[index].dropdown =
       tree.insertExternalWidget(std::make_unique<GuiDropdown>(), parent_id);
+  // Placed by layout(), not by the parent's flex layout.
+  if (auto* dropdown = tree.findWidget(menus_[index].dropdown)) {
+    dropdown->tree_layout.position = PositionMode::MANUAL;
+  }
   wireDropdown(tree, index);
 }
 
@@ -256,6 +260,8 @@ void EditorMenuBarWidget::wireScrim(GuiWidgetTree& tree) {
     return;
   }
   panel->debug_name = "editor-menu-scrim";
+  // Covers the window, which layout() knows and the parent's flow does not.
+  panel->tree_layout.position = PositionMode::MANUAL;
   // Fully transparent: it exists to catch the click that dismisses a menu,
   // not to dim the editor behind it.
   panel->fill_color = GuiColor{0, 0, 0, 0};
@@ -484,7 +490,10 @@ void EditorMenuBarWidget::layout(GuiWidgetTree& tree, const Rect& bar_rect,
 
 void EditorMenuBarWidget::arrangeChildren(GuiWidgetTree& tree,
                                           const Rect& available) {
-  layout(tree, available, available);
+  // The scrim covers the whole window: the root's rect, which the tree
+  // arranges before anything under it.
+  const GuiWidget* root = tree.findWidget(tree.root_id);
+  layout(tree, available, root != nullptr ? root->rect : available);
 }
 
 void EditorMenuBarWidget::requestMenu(int index) {

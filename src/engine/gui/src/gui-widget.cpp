@@ -1,23 +1,11 @@
 #include "engine/gui/gui-widget.h"
 
 #include "engine/gui/gui-widget-tree.h"
+#include "flex-layout.h"
 
 #include <cstddef>
 
 namespace eng {
-
-namespace {
-
-  /// Compute the rect for a child at `index` in a uniform column layout of
-  /// `child_count` slices inside `available`.
-  Rect uniformColumnSlice(const Rect& available, size_t child_count,
-                          size_t index) {
-    float child_h = available.h / static_cast<float>(child_count);
-    return {available.x, available.y + child_h * static_cast<float>(index),
-            available.w, child_h};
-  }
-
-}  // namespace
 
 void GuiWidget::resetTransientState() {
   hovered = false;
@@ -203,17 +191,12 @@ bool GuiWidget::isAnimating() const {
   return animator_.hasActiveAnimations();
 }
 
+LayoutSize GuiWidget::measureContent(const GuiDrawContext& /*ctx*/) const {
+  return {};
+}
+
 void GuiWidget::arrangeChildren(GuiWidgetTree& tree, const Rect& available) {
-  if (children.empty()) {
-    return;
-  }
-  for (size_t i = 0; i < children.size(); ++i) {
-    auto* child = tree.findWidget(children[i]);
-    if (child == nullptr) {
-      continue;
-    }
-    child->rect = uniformColumnSlice(available, children.size(), i);
-  }
+  arrangeFlexChildren(tree, *this, available);
 }
 
 }  // namespace eng

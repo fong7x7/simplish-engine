@@ -22,7 +22,8 @@
 //     string_view, so the backing store must outlive the frame
 //
 // Integration Points:
-//   - SimplishEditor: owns this widget, drives layout() and tick()
+//   - SimplishEditor: owns this widget, lays it out with the rest of the
+//     chrome (GuiWidgetTree::computeLayout), and drives tick()
 
 #include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-tool.h>
@@ -52,12 +53,10 @@ public:
   /// Create the toolbar panel, project label, tool buttons, and status label.
   void init(GuiWidgetTree& tree);
 
-  /// Position the toolbar and its children within @p bar_rect.
-  void layout(GuiWidgetTree& tree, const Rect& bar_rect);
-
-  /// Route the tree's arrange pass to layout() so the default column
-  /// arrangement does not slice the row into vertical strips.
-  void arrangeChildren(GuiWidgetTree& tree, const Rect& available) override;
+  /// Lay the toolbar out on its own in @p bar_rect, text measured without
+  /// a font. Inside the editor the tree's `computeLayout` does this; the
+  /// toolbar is a flex row, styled in its constructor and `init`.
+  void layout(GuiWidgetTree& tree, const Rect& bar_rect) const;
 
   /// Refresh label text and active-tool highlighting.
   void tick(GuiWidgetTree& tree);
@@ -92,10 +91,12 @@ private:
   void wireChildren(GuiWidgetTree& tree);
   /// Apply active/inactive styling to each tool button.
   void styleButtons(GuiWidgetTree& tree);
+  /// Create the status label at the right end of the row.
+  void wireStatusLabel(GuiWidgetTree& tree);
+  /// Create the empty, growing panel that pushes the status label right.
+  void wireSpacer(GuiWidgetTree& tree);
   /// Create one button per tool.
   void wireToolButtons(GuiWidgetTree& tree);
-  /// Place the tool buttons and, after them, the play button.
-  void layoutButtons(GuiWidgetTree& tree, const Rect& bar_rect);
   /// Create the play button at the end of the tool row.
   void wirePlayButton(GuiWidgetTree& tree);
   /// Label and light the play button for the current mode.
@@ -107,6 +108,8 @@ private:
   GuiWidgetId project_label_ = GUI_WIDGET_ID_INVALID;
   /// Status label, right-aligned.
   GuiWidgetId status_label_ = GUI_WIDGET_ID_INVALID;
+  /// Empty panel before the status label that grows to push it right.
+  GuiWidgetId spacer_ = GUI_WIDGET_ID_INVALID;
   /// One button per entry in EDITOR_TOOLS, in the same order.
   std::vector<GuiWidgetId> tool_buttons_{};
   /// The Play / Stop button, after the tools.

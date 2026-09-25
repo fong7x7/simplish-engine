@@ -23,6 +23,10 @@ public:
   /// Render this button (fill + centered label).
   void render(const GuiDrawContext& ctx) const override;
 
+  /// The label's width, one line high; padding makes the rest.
+  [[nodiscard]] LayoutSize
+  measureContent(const GuiDrawContext& ctx) const override;
+
   /// Text displayed on the button.
   std::string_view label{};
   /// Visual styling.

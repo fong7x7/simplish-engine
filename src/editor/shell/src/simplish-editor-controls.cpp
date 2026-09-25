@@ -44,7 +44,8 @@ void SimplishEditor::initControls(GuiWidgetTree& tree) {
       screen->close();
     }
   };
-  controls_id_ = tree.insertExternalWidget(std::move(controls), root_panel_);
+  controls_id_ = tree.insertExternalWidget(std::move(controls), stage_panel_);
+  coverStage(tree, controls_id_);
 }
 
 EditorControlsWidget* SimplishEditor::controlsWidget() {

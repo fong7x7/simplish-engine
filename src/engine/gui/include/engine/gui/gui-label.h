@@ -29,6 +29,10 @@ public:
   /// Render this label.
   void render(const GuiDrawContext& ctx) const override;
 
+  /// The text's width, one line high.
+  [[nodiscard]] LayoutSize
+  measureContent(const GuiDrawContext& ctx) const override;
+
   /// Text string to render.
   std::string_view text{};
   /// Text color.

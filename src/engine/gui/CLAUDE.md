@@ -44,6 +44,15 @@ root — gitignored artifacts, not fixtures to commit.
 
 ## Notes
 
+- Layout is CSS flexbox on `tree_layout` (`layout-engine.h`); run by
+  `GuiWidgetTree::computeLayout`. Style widgets and let it place them —
+  do not compute rects by hand in new code. Recipes, the style reference
+  and the differences from CSS are in
+  [technical/layout-engine.md](../../../docs/engine/gui/technical/layout-engine.md).
+  A widget with a natural size overrides `measureContent`; one with its
+  own placement rule overrides `arrangeChildren` and calls
+  `tree.arrangeWidget` on each child; one placed by another widget is
+  `PositionMode::MANUAL`.
 - Widgets subclassing the external-widget path are inserted with
   `tree.insertExternalWidget(std::make_unique<T>(), parent)`, then `init(tree)`.
 - Theme tokens go through the scope stack in `gui-theme.cpp`; do not hardcode

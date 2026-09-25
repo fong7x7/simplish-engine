@@ -92,8 +92,9 @@ public:
   /// Position the bar in @p bar_rect and the scrim over @p window.
   void layout(GuiWidgetTree& tree, const Rect& bar_rect, const Rect& window);
 
-  /// Route the tree's arrange pass to layout() so the default column
-  /// arrangement does not slice the row into vertical strips.
+  /// Route the tree's arrange pass to layout(), with the tree root's rect
+  /// as the window: the dropdowns and scrim are the root's children, out
+  /// of its flow (`PositionMode::MANUAL`), and placed here.
   void arrangeChildren(GuiWidgetTree& tree, const Rect& available) override;
 
   /// Rebuild dirty menus and follow the cursor across titles.

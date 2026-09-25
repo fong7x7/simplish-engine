@@ -1,214 +1,332 @@
 # Simplish — Layout Engine: Technical Approach
 
 **Parent document:** [Technical approaches index](README.md)
-**Requirements:** [gui.md SS4.2](../gui.md)
-**Library:** engine
-**Date:** 2026-03-11
+**Requirements:** [gui.md §4.2](../gui.md#42-layout-engine)
+**Library:** engine (`src/engine/gui/`)
+**Date:** 2026-09-25 (rewritten when the flexbox pass shipped)
+
+The GUI lays widgets out by **CSS flexbox**, in logical pixels. Every widget
+carries a `LayoutStyle` (`tree_layout`); `GuiWidgetTree::computeLayout`
+measures the tree bottom-up and places it top-down. If you know CSS
+flexbox, you already know how this behaves. §3 is the reference, §4 has
+recipes to copy, and §8 lists the differences from CSS.
+
+| File | What is in it |
+|---|---|
+| `include/engine/gui/layout-engine.h` | `LayoutStyle` and its enums: `FlexDirection`, `FlexWrap`, `Align`, `PositionMode` |
+| `include/engine/gui/layout-size.h` | `LayoutSize`, what the measure pass produces |
+| `include/engine/gui/gui-widget.h` | `tree_layout`, `tree_measured`, `measureContent`, `arrangeChildren` |
+| `include/engine/gui/gui-widget-tree.h` | `computeLayout`, `measureWidget`, `arrangeWidget` |
+| `src/flex-layout.{h,cpp}` | The algorithm (private) |
+| `src/layout-engine.cpp` | The two passes, and the scroll-state helpers |
+| `test/test_gui_flex_layout.cpp` | One test per behaviour; the executable spec |
 
 ---
 
-## 1. Requirements Summary
+## 1. The model in one screen
 
-| ID | Requirement | Source |
-|----|-------------|--------|
-| R1 | Row and column flex containers with wrap | gui.md SS4.2 |
-| R2 | Alignment: start, center, end, stretch, space-between | gui.md SS4.2 |
-| R3 | Padding, margin, min/max size constraints | gui.md SS4.2 |
-| R4 | Scrollable containers with inertial scrolling and scroll bars | gui.md SS4.2 |
-| R5 | Absolute positioning for overlays and tooltips | gui.md SS4.2 |
-| R6 | Partial re-layout when only a subtree changes (dirty flag driven) | gui.md SS4.1 |
-| R7 | < 1 ms CPU for in-game HUD layout | gui.md SS7 |
-
----
-
-## 2. Layout Style
-
-Every widget carries a `LayoutStyle` struct that describes how the layout engine should size and position it:
-
-```cpp
-enum class FlexDirection : uint8_t {
-  kRow, kColumn,
-};
-
-enum class FlexWrap : uint8_t {
-  kNoWrap, kWrap,
-};
-
-enum class Align : uint8_t {
-  kStart, kCenter, kEnd, kStretch, kSpaceBetween,
-};
-
-enum class PositionMode : uint8_t {
-  kRelative,  // participates in flex flow
-  kAbsolute,  // positioned relative to parent, removed from flow
-};
-
-struct Edges {
-  float top = 0.0f;
-  float right = 0.0f;
-  float bottom = 0.0f;
-  float left = 0.0f;
-};
-
-struct LayoutStyle {
-  FlexDirection direction = FlexDirection::kColumn;
-  FlexWrap wrap = FlexWrap::kNoWrap;
-  Align align_items = Align::kStretch;
-  Align align_content = Align::kStart;
-  Align justify_content = Align::kStart;
-  Align align_self = Align::kStart;  // per-child override
-
-  float flex_grow = 0.0f;
-  float flex_shrink = 1.0f;
-  float flex_basis = -1.0f;  // -1 = auto (use min content)
-
-  Edges padding;
-  Edges margin;
-
-  float width = -1.0f;      // -1 = auto
-  float height = -1.0f;
-  float min_width = 0.0f;
-  float min_height = 0.0f;
-  float max_width = -1.0f;  // -1 = unconstrained
-  float max_height = -1.0f;
-
-  float gap = 0.0f;         // spacing between children
-
-  PositionMode position = PositionMode::kRelative;
-  float abs_x = 0.0f;       // used when position == kAbsolute
-  float abs_y = 0.0f;
-
-  bool scroll_x = false;    // enable horizontal scrolling
-  bool scroll_y = false;    // enable vertical scrolling
-};
+```
+ margin (outside; keeps siblings away — adds to the parent's gap)
+┌──────────────────────────────────────────┐
+│ border box = widget.rect                 │  width/height, min/max,
+│   padding (inside)                       │  tree_measured — all
+│  ┌────────────────────────────────────┐  │  border-box sizes
+│  │ content box: where children go    │  │
+│  └────────────────────────────────────┘  │
+└──────────────────────────────────────────┘
 ```
 
----
+- **Sizes are border-box.** `width: 100` with `padding.left: 10` is 100
+  wide, of which 90 is content. It is `box-sizing: border-box`, the way
+  every modern stylesheet sets it.
+- **A widget's `rect` is its border box.** Margins are never inside it.
+- **`-1` means auto** for `width`, `height`, `max_*`, `flex_basis`,
+  `abs_right` and `abs_bottom`.
+- **Defaults match a CSS `display: flex; flex-direction: column`
+  container**: children stack top to bottom, stretched across, no grow,
+  shrink 1.
 
-## 3. Computed Layout
-
-The layout pass fills a `Rect` on each widget representing the final screen-space position and size:
+## 2. The two passes
 
 ```cpp
-struct Rect {
-  float x = 0.0f;
-  float y = 0.0f;
-  float w = 0.0f;
-  float h = 0.0f;
-};
-
-struct ScrollState {
-  float offset_x = 0.0f;
-  float offset_y = 0.0f;
-  float content_w = 0.0f;   // total content size (may exceed widget rect)
-  float content_h = 0.0f;
-  float velocity_x = 0.0f;  // for inertial scrolling
-  float velocity_y = 0.0f;
-};
+tree.computeLayout(window_rect, draw_context);  // measure, then arrange
 ```
 
----
+1. **Measure** (post-order). Each widget's `tree_measured` is set to its
+   *natural* border-box size:
+   - an explicit `width` / `height` wins on its axis;
+   - otherwise it is the larger of **its own content** (`measureContent`:
+     a label's text, one line high) and **its in-flow children** (end to
+     end along its main axis with gaps and their margins, and the thickest
+     across), **plus its padding**;
+   - then clamped to `min_*` / `max_*`.
+2. **Arrange** (pre-order). The root is given the whole viewport. Each
+   widget's `arrangeChildren` places its children inside its content box,
+   calling `tree.arrangeWidget(child, rect)` on each, which sets
+   `child.rect` and recurses. The default `arrangeChildren` is the flex
+   algorithm (§5).
 
-## 4. Layout Algorithm
+The `GuiDrawContext` is what text is measured with. Pass the real one
+(`RenderedGameClient::guiDrawContext()`); the one-argument
+`computeLayout(viewport)` measures text at a fixed 8 px a character and
+14 px a line, which is enough for tests.
 
-The algorithm runs in two passes, driven by the dirty flags on the widget tree:
+**When to run it.** `computeLayout` always lays out the whole tree, so run
+it when something it depends on changes: window size, a panel folding, a
+widget shown or hidden in flow, or a size you set. Do not run it every
+frame on a large tree. The editor keeps the inputs from the last pass and
+compares them (`SimplishEditor::chromeNeedsLayout`).
 
-### 4.1 Measure Pass (post-order, bottom-up)
+Changing `visible` on an in-flow widget changes the flow, so relayout.
+Absolute children are placed even while hidden, so showing an overlay needs
+no relayout.
 
-1. For **leaf widgets** (Text, Button label, Image): compute intrinsic/min content size from text metrics or fixed dimensions.
-2. For **container widgets**: sum children's measured sizes along the main axis; take the max along the cross axis. Apply min/max constraints.
-3. Widgets with `flex_basis >= 0` use that as their initial main-axis size instead of intrinsic size.
-4. **Absolute** children are excluded from the parent's measure.
+## 3. `LayoutStyle` reference
 
-### 4.2 Arrange Pass (pre-order, top-down)
+### On a container (how it lays out its children)
 
-1. Start at the root with the viewport rect as the available space.
-2. Subtract parent padding from available space.
-3. Distribute remaining space along the main axis:
-   - Sum flex_grow values of children with grow > 0.
-   - Remaining space = available - sum of measured sizes - gaps.
-   - Each growing child receives `(remaining * child.flex_grow / total_grow)`.
-   - If total measured exceeds available: shrink proportionally using flex_shrink.
-4. Position children sequentially along the main axis, inserting `gap` between siblings.
-5. **Cross-axis alignment**: apply `align_items` (or per-child `align_self`) to position each child on the cross axis.
-6. **Wrapping** (FlexWrap::kWrap): when the main-axis cursor exceeds available space, start a new line. `align_content` controls spacing between lines.
-7. **Justify**: `justify_content` distributes remaining main-axis space (start, center, end, space-between).
-8. **Absolute children**: positioned relative to parent origin using `abs_x` / `abs_y`; skip flex flow.
-9. **Scroll containers**: arrange children as if space is unlimited along the scroll axis. Record `content_w` / `content_h` in ScrollState. Clip rendering to widget rect.
+| Field | Default | Meaning |
+|---|---|---|
+| `direction` | `COLUMN` | Main axis: `ROW` (left→right) or `COLUMN` (top→bottom) |
+| `wrap` | `NO_WRAP` | `WRAP` starts a new line when the next child would overflow |
+| `justify_content` | `START` | Free space along the main axis: `START`, `CENTER`, `END`, `SPACE_BETWEEN`, `SPACE_AROUND`, `SPACE_EVENLY` (`STRETCH` acts as `START`) |
+| `align_items` | `STRETCH` | Each child across its line: `START`, `CENTER`, `END`, `STRETCH` |
+| `align_content` | `START` | Wrapped lines across the container: any `Align`; `STRETCH` shares the space among lines |
+| `gap` | `0` | Between adjacent children *and* between wrapped lines |
+| `padding` | `0` | Inset of the content box |
 
-### 4.3 Dirty-Flag Optimisation
+### On a child (how it sits in its parent)
 
-- Only subtrees with `dirty == true` are re-measured and re-arranged.
-- `markDirty()` propagates up to the root so ancestors can re-distribute space.
-- After the arrange pass, `clearDirtyFlags()` resets all flags.
+| Field | Default | Meaning |
+|---|---|---|
+| `width`, `height` | `-1` | Explicit border-box size; `-1` measures it |
+| `min_width`, `min_height` | `0` | Never smaller; wins over max |
+| `max_width`, `max_height` | `-1` | Never larger |
+| `flex_grow` | `0` | Share of the free space on its line, in proportion to siblings |
+| `flex_shrink` | `1` | Share of an overflow, weighted by `flex_shrink × base size`; `0` never shrinks |
+| `flex_basis` | `-1` | Main size before growing or shrinking; `-1` is the explicit size, else the measured one. **`0` with `flex_grow` means "take only leftover space"** |
+| `align_self` | `AUTO` | Overrides the parent's `align_items` for this child |
+| `margin` | `0` | Space outside; adds to `gap`, never collapses |
+| `position` | `RELATIVE` | `RELATIVE`: in flow. `ABSOLUTE`: out of flow, placed by insets. `MANUAL`: out of flow and never placed (§6) |
+| `abs_x`, `abs_y` | `0` | `ABSOLUTE`: distance from the parent's left/top edge to the margin |
+| `abs_right`, `abs_bottom` | `-1` | `ABSOLUTE`: distance from the right/bottom edge. With an auto size, stretches from `abs_x`/`abs_y` to here. With an explicit size, anchors to that edge |
 
----
+`scroll_x` / `scroll_y` are not read by the layout. A scrolling list is a
+`GuiScrollPanel` (§6).
 
-## 5. Scroll Containers
+## 4. Recipes
 
-Widgets with `scroll_x` or `scroll_y` enabled become scroll containers:
+Every recipe below is an ordinary tree built with `createWidget` or
+`insertExternalWidget`, then `computeLayout`. Each mechanism a recipe
+uses has a test in `test_gui_flex_layout.cpp`. Recipes 4.1, 4.3 and 4.7
+run in the editor today.
 
-1. **Content overflow** -- children are laid out in unlimited space along the scroll axis; the total content size is stored in `ScrollState`.
-2. **Scroll offset** -- applied as a translation during rendering; children outside the visible rect are culled.
-3. **Inertial scrolling** -- on mouse-up or touch-up, the last velocity is preserved and decays exponentially each frame (`velocity *= 0.92`). Clamped to content bounds.
-4. **Scroll bars** -- rendered as overlay quads; visibility controlled by theme (auto-hide after 1 s idle, or always visible).
-5. **Mouse wheel** -- adds a fixed delta (theme-configurable, default 48 px per tick) to the scroll offset.
-6. **Gamepad** -- d-pad or right stick scrolls the focused scroll container.
+### 4.1 App frame: fixed bars, a growing middle, a fixed footer
 
----
+```cpp
+// root: default column, stretched across the window
+auto strip = [&](GuiWidgetId id, float h) {
+  auto& s = tree.findWidget(id)->tree_layout;
+  s.height = h;
+  s.flex_shrink = 0.0f;       // bars never give way on a short window
+};
+strip(title, 28.0f);
+strip(toolbar, 36.0f);
 
-## 6. Public Interface (`engine/gui/layout-engine.h`)
+auto& middle = tree.findWidget(work_row)->tree_layout;
+middle.direction = FlexDirection::ROW;
+middle.flex_grow = 1.0f;
+middle.flex_basis = 0.0f;     // only what the bars and footer leave
 
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| computeLayout | `void computeLayout(GuiWidgetTree&, const Rect& viewport)` | Run measure + arrange on dirty subtrees |
-| measureWidget | `void measureWidget(GuiWidgetTree&, GuiWidgetId)` | Measure a single subtree (post-order) |
-| arrangeWidget | `void arrangeWidget(GuiWidgetTree&, GuiWidgetId, const Rect& available)` | Arrange a single subtree (pre-order) |
-| updateScroll | `void updateScroll(ScrollState&, float dt)` | Tick inertial scroll decay |
-| scrollBy | `void scrollBy(ScrollState&, float dx, float dy)` | Apply scroll delta with clamping |
+tree.findWidget(footer)->tree_layout.height = 160.0f;  // shrinks last
+```
 
----
+This is the editor's chrome: `SimplishEditor::initChrome` and
+`layoutChrome` in `src/editor/shell/src/simplish-editor.cpp`. Because the
+middle row has a zero basis, a short window empties it first. The footer
+starts shrinking only when there is no middle left.
 
-## 7. Error Strategy
+### 4.2 Sidebar and main area
 
-| Situation | Handling |
-|-----------|----------|
-| Negative width/height after constraints | Clamped to 0 |
-| flex_grow sum is 0 but space remains | Space left at end (start-aligned) |
-| Deeply nested tree (>50 levels) | Layout completes; logged at debug level |
-| NaN/Inf in style values | Treated as 0; logged at warning level |
+```cpp
+// in a ROW
+tree.findWidget(sidebar)->tree_layout.width = 240.0f;   // shrink 1: gives way
+auto& main = tree.findWidget(content)->tree_layout;
+main.flex_grow = 1.0f;
+main.flex_basis = 0.0f;
+main.padding = {16.0f, 16.0f, 16.0f, 16.0f};
+```
 
----
+A sidebar whose width is `0` when it has nothing to show (the editor's
+properties panel) simply takes no room. Set its width and relayout.
 
-## 8. Edge Cases
+### 4.3 Toolbar: items on the left, one item pushed to the right
 
-- A widget with both fixed `width` and `flex_grow > 0`: fixed width takes precedence; flex_grow is ignored.
-- A scroll container inside a scroll container: each manages its own ScrollState independently.
-- An absolute child with negative coordinates: rendered outside parent bounds but clipped by parent's scissor rect.
-- Empty container (no children): sized by padding + min constraints only.
+```cpp
+bar.direction = FlexDirection::ROW;
+bar.align_items = Align::CENTER;             // vertically centred
+bar.padding = {0.0f, 10.0f, 0.0f, 10.0f};
+bar.gap = 4.0f;
+// ... buttons: width 72, height 24, flex_shrink 0 ...
+play.margin.left = 16.0f;                    // extra space before one item
+spacer.flex_grow = 1.0f;                     // an empty GuiPanel with a
+                                             // transparent fill
+status.width = 260.0f;                       // shrink 1: the one that gives
+```
 
----
+There are no `auto` margins (§8), so a growing spacer does the pushing.
+Pick one item to give way on narrow windows (here the status text) and set
+`flex_shrink = 0` on the rest. See `EditorToolbarWidget`.
 
-## 9. Module Decomposition
+### 4.4 Button that sizes to its label
 
-| File | Responsibility | Est. Lines |
-|------|---------------|------------|
-| `engine/gui/layout-engine.h` | LayoutStyle, Rect, ScrollState, Edges, enums, public functions | ~130 |
-| `engine/gui/layout-engine.cpp` | Measure/arrange algorithm, scroll update, clamping | ~350 |
+```cpp
+auto* ok = dynamic_cast<GuiButton*>(tree.findWidget(
+    tree.createWidget(GuiWidgetType::BUTTON, row)));
+ok->label = "Save changes";
+ok->tree_layout.padding = {6.0f, 14.0f, 6.0f, 14.0f};
+ok->tree_layout.min_width = 80.0f;
+```
 
----
+`GuiButton` and `GuiLabel` measure their text. Padding adds on top, so
+this is the CSS `padding: 6px 14px` button. In a `COLUMN` with the default
+`STRETCH` it would span the column; give the column
+`align_items = Align::START` (or the button `align_self`) to keep it at
+its natural width.
 
-## 10. Review Log
+### 4.5 Centred dialog
 
-### Iteration 1
-**Checklist results:** 10/11 pass, 1 fail
-**Gaps identified:**
-- Missing specification for how the dirty-flag optimisation interacts with scroll offset changes (R6 partial re-layout was described but scrolling does not set the layout dirty flag, which could skip re-clamping of scroll bounds)
+```cpp
+auto& scrim = tree.findWidget(backdrop)->tree_layout;
+scrim.position = PositionMode::ABSOLUTE;     // covers the parent
+scrim.abs_right = 0.0f;
+scrim.abs_bottom = 0.0f;
+scrim.justify_content = Align::CENTER;       // a column: centres up/down
+scrim.align_items = Align::CENTER;           // and across
 
-### Iteration 2
-**Checklist results:** 11/11 pass
-**Changes made:**
-- Clarified in section 4.3 that scroll offset changes mark only `render_dirty` (not layout dirty), and scroll bounds are re-clamped in `updateScroll` without triggering a full layout pass
+auto& box = tree.findWidget(dialog)->tree_layout;
+box.width = 420.0f;
+box.padding = {20.0f, 24.0f, 20.0f, 24.0f};
+box.gap = 12.0f;                              // title, body, button row
+```
 
-### Final
-**All checklist items pass.** Approach finalised.
+The dialog's height comes from its contents.
+
+### 4.6 Card grid that wraps
+
+```cpp
+grid.direction = FlexDirection::ROW;
+grid.wrap = FlexWrap::WRAP;
+grid.gap = 12.0f;
+grid.align_items = Align::START;
+// each card
+card.width = 180.0f;
+card.flex_shrink = 0.0f;
+```
+
+For cards that stretch to fill each row, give them `flex_grow = 1` and a
+`min_width` instead of a fixed width. A line's height is its tallest card's.
+
+### 4.7 Overlay covering a widget, and a corner badge
+
+```cpp
+// overlay: fills its parent, takes no space from its siblings
+overlay.position = PositionMode::ABSOLUTE;
+overlay.abs_right = 0.0f;
+overlay.abs_bottom = 0.0f;
+
+// badge: 20×20, 6 px in from the top-right corner
+badge.position = PositionMode::ABSOLUTE;
+badge.width = badge.height = 20.0f;
+badge.abs_y = 6.0f;
+badge.abs_right = 6.0f;
+```
+
+The editor lays its playtest screens (character select, Controls, Sound)
+over the viewport this way. They are absolute children of the "stage"
+panel that holds the viewport; see `SimplishEditor::coverStage`.
+
+## 5. The arrange algorithm
+
+For one container, in `arrangeFlexChildren`:
+
+1. **Content box.** The border box less the padding.
+2. **Collect** the visible `RELATIVE` children. The base size of each is
+   its `flex_basis`, or else its measured main size, clamped to its
+   min/max.
+3. **Break lines** (`WRAP` only). A child starts a new line when
+   `used + gap + its outer size` would pass the content width.
+4. **Resolve flexible lengths** per line, as CSS §9.7 does. Free space is
+   the room minus gaps, margins and base sizes. If positive, unfrozen
+   children grow by `flex_grow`. A sum of grow factors below 1 hands out
+   only that fraction. If negative, they shrink by `flex_shrink × base`.
+   A child its min or max holds back is frozen there, and the rest are
+   re-shared, until every child is frozen.
+5. **Line cross sizes.** One `NO_WRAP` line is the whole content box.
+   Wrapped lines are as thick as their thickest child. `align_content`
+   then offsets or stretches them.
+6. **Place.** `justify_content` spreads what is left along the main axis
+   (negative free space overflows past the end for `START` and
+   `SPACE_BETWEEN`, and both ways for `CENTER`). Each child's cross
+   position comes from `align_self` or `align_items`. `STRETCH` fills the
+   line less the margins, unless the child has an explicit cross size.
+7. **Absolute children** are placed by their insets against the
+   container's *border* box (the padding does not apply, as in CSS).
+
+## 6. Widgets that lay out their own children
+
+Most widgets need nothing: the default `arrangeChildren` is the flex
+layout. There are three ways to do something else:
+
+| You want | Do this | Example |
+|---|---|---|
+| A leaf with a natural size (text, an image, a glyph) | Override `measureContent(ctx)`. Return the content size **without** padding | `GuiLabel`, `GuiButton`, `GuiTextInput` |
+| A container with its own placement rule | Override `arrangeChildren(tree, available)`. Call `tree.arrangeWidget(child, rect)` on each child so its subtree is laid out too. Setting `child->rect` alone does not recurse | `GuiScrollPanel` (a scrolling stack), `GuiDockspaceWidget`, `EditorMenuBarWidget` |
+| A widget placed by some other widget, outside its parent's flow | `tree_layout.position = PositionMode::MANUAL`. The layout neither moves it nor recurses into it | The menu bar's dropdowns and scrim: children of the editor's root, positioned by `EditorMenuBarWidget::layout` |
+
+A widget can be laid out on its own, outside `computeLayout`, with
+`tree.measureWidget(id, ctx)` followed by `tree.arrangeWidget(id, rect)`.
+`EditorToolbarWidget::layout` does this for its tests.
+
+`GuiScrollPanel` keeps its own stacking rule. Its children are placed at
+`tree_layout.height` (or `width` sideways), or `item_size`, and are
+flex-laid-out inside that slot.
+
+## 7. Testing a layout
+
+Build the tree in a Catch2 fixture, lay it out, and assert on `rect`. No
+window or GPU is needed:
+
+```cpp
+GuiWidgetTree tree;
+const GuiWidgetId root =
+    tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
+tree.findWidget(root)->tree_layout.direction = FlexDirection::ROW;
+const GuiWidgetId a = tree.createWidget(GuiWidgetType::PANEL, root);
+tree.findWidget(a)->tree_layout.flex_grow = 1.0f;
+tree.computeLayout({0.0f, 0.0f, 400.0f, 300.0f});
+REQUIRE(tree.findWidget(a)->rect.w == 400.0f);
+```
+
+`test_gui_flex_layout.cpp` has the `FlexFixture` helper. For how it looks,
+render through `GuiSoftwareRasterizer` as the editor's `*_capture` tests
+do, and open the PNG.
+
+## 8. Differences from CSS
+
+| CSS | Here |
+|---|---|
+| `min-width: auto` (items will not shrink below their content) | `min_width` defaults to `0`. Set it yourself where text must not be squeezed |
+| `margin: auto` | Not supported. Use a `flex_grow` spacer (§4.3) or `justify_content` |
+| Percent and `em` units | Pixels only |
+| `row-reverse`, `column-reverse`, `order` | Not supported. Order children in the tree |
+| Separate `row-gap` / `column-gap` | One `gap` for both |
+| Text that wraps to the width it is given | Labels measure one line. Wrapped text (`GuiTextArea`) needs an explicit height |
+| `overflow: scroll` on any box | Use `GuiScrollPanel` |
+| Baseline alignment | Not supported |
+
+Other behaviour to know about:
+- There is no partial relayout. `tree_dirty` is cleared by
+  `computeLayout` but not yet used to skip clean subtrees.
+- Positions are not pixel-snapped. Fractional rects are possible with
+  `CENTER` and `SPACE_*`.

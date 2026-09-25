@@ -98,6 +98,8 @@ Phase 1 finalisation is unblocked.
 
 A first attempt at editor migration was made and reverted after surfacing blocking integration issues. Captured here for the next attempt.
 
+> **Resolved 2026-09-25.** Both blockers are gone. The default `arrangeChildren` is now the flexbox layout, and it recurses through `tree.arrangeWidget`. The editor's chrome is laid out by `tree.computeLayout` ([layout-engine.md §4.1](technical/layout-engine.md#41-app-frame-fixed-bars-a-growing-middle-a-fixed-footer)). Panels with their own placement rule override `arrangeChildren` (option (a) below). Widgets another widget places are `PositionMode::MANUAL`. What follows is kept as history.
+
 ### What failed
 
 The editor shell's chrome panels (menu bar, right panel, asset browser, status bar) each provide their own `widget->layout(tree, rect)` method that internally positions their child widgets (e.g. menu bar lays out dropdown buttons horizontally). In the pre-migration world, `tree.computeLayout` was never called per frame — `tickEditor` manually invoked each panel's `.layout(tree, rect)` with a hand-computed outer rect.

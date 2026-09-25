@@ -19,7 +19,7 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 |---|---|---|
 | [widgets.md](technical/widgets.md) | Widget base type, lifecycle, and the built-in widget set | `gui-widget.cpp`, `gui-button.cpp`, `gui-label.cpp`, `gui-panel.cpp`, `gui-dropdown.cpp`, `gui-slider.cpp`, `gui-scroll-panel.cpp`, `gui-text-input.cpp`, `gui-text-area.cpp`, `gui-image.cpp`, `gui-viewport.cpp` |
 | [gui-widget-tree.md](technical/gui-widget-tree.md) | Tree ownership, IDs, traversal, dirty propagation | `gui-widget-tree.cpp` |
-| [layout-engine.md](technical/layout-engine.md) | Flexbox-style layout, constraints, scroll containers | `layout-engine.cpp` |
+| [layout-engine.md](technical/layout-engine.md) | CSS flexbox layout: padding, margins, gaps, grow/shrink, wrap, alignment, absolute insets, natural sizes — with recipes | `flex-layout.cpp`, `layout-engine.cpp` |
 | [renderer.md](technical/renderer.md) | Quad batching, scissor stack, draw-command emission | `gui-renderer.cpp`, `gui-draw-context.cpp` |
 | [text-pipeline.md](technical/text-pipeline.md) | FreeType glyph rasterisation, font atlas, shaping, line breaking | `text-pipeline.cpp`, `shaped-run.cpp`, `gui-font-discovery.cpp` |
 | [rhi-text-draw-path.md](technical/rhi-text-draw-path.md) | How text reaches the RHI | `gui-renderer.cpp` |
