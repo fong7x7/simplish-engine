@@ -51,6 +51,12 @@ public:
   /// fixed order. A logic with no state of its own needs nothing here.
   virtual void hashState([[maybe_unused]] GameLogicHash& hash) const {}
 
+  /// Once, at the end of the tick the run ended on — won, lost, whoever
+  /// ended it — with `world.outcome()` saying how. The last call a run
+  /// makes: the tick after is never played, so its writes do nothing, but
+  /// what it logs is heard. Its events are the last tick's, not this one's.
+  virtual void end([[maybe_unused]] GameLogicWorld& world) {}
+
   GameLogic(const GameLogic&) = delete;
   GameLogic& operator=(const GameLogic&) = delete;
   GameLogic(GameLogic&&) = delete;

@@ -155,6 +155,8 @@ The flow fields are the section `flow`, hashed by what determines them — each 
 
 The projectiles and hazard pools are the sections `projectiles` and `hazards`, every field of each. The effects buffer is empty between ticks and is not state; nor is the combat workspace the world lists who can be hurt in; nor are the combat cues — a shot fired, a shot landing, a blast — that the world lists for presentation each tick and no phase reads back ([fx.md §2](../engine/fx.md#2-cues-how-the-simulation-says-what-happened)).
 
+**Notes.** As the passes run, each actor that enters a state, takes a new target, or attacks appends an `ActorNote` to `ActorTickContext::notes`, in pass-then-dense order. The world turns them into the game logic's `ACTOR_STATE_ENTERED`, `ACTOR_NOTICED` and `ACTOR_ATTACKED` events ([logic.md](logic.md)) and empties the list within the tick, so the notes are not state; the events they become are, in the `logic` section.
+
 `ActorIntent`, the candidate list, the neighbour grid and the path finder's scratch are recomputed each tick before they are read and are not hashed.
 
 ---

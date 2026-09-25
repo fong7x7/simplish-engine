@@ -16,6 +16,7 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-flow-fields.h>
+#include <game/actors/actor-note.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-workspace.h>
@@ -30,8 +31,10 @@
 #include <game/logic/game-logic-world.h>
 #include <game/logic/game-logic.h>
 #include <game/logic/run-outcome.h>
+#include <game/player/player-change.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
+#include <game/world/logic-call.h>
 #include <game/world/logic-command.h>
 #include <game/world/logic-event-log.h>
 #include <memory>
@@ -196,10 +199,25 @@ private:
   /// Apply every hit in the effects buffer and every blast they set off,
   /// in order, until neither leaves anything to do.
   void resolveDamage(uint64_t tick);
-  /// Run the game logic's part of @p context's tick.
-  void runLogic(const sim::TickContext& context);
-  /// Call the game logic with @p view on @p tick: `start` first on tick 0.
-  void callLogic(GameLogicWorld& view, uint64_t tick);
+  /// Call the game logic in @p context's tick, as @p call says.
+  void runLogic(const sim::TickContext& context, LogicCall call);
+  /// Call the game logic with @p view on @p tick as @p call says: `start`
+  /// first on tick 0, then `tick`; or `end`.
+  void callLogic(GameLogicWorld& view, uint64_t tick, LogicCall call);
+  /// When the run is over and the logic has not heard so, call its `end`,
+  /// and drop whatever it asked for there.
+  void endLogic(const sim::TickContext& context);
+  /// Tell the logic what the actor passes noted, and empty the notes.
+  void noteActorEvents();
+  /// What game logic hears of @p note, about the actor at dense index
+  /// @p index.
+  [[nodiscard]] LogicEvent actorEvent(const ActorNote& note,
+                                      uint32_t index) const;
+  /// Tell the logic of every revive and every player put out in @p changes.
+  void notePlayerChanges(std::span<const PlayerChange> changes);
+  /// Put the actor at dense index @p index in state @p state for the logic,
+  /// telling it so.
+  void enterLogicState(uint32_t index, uint8_t state, uint64_t tick);
   /// Apply one of the game logic's queued writes.
   void applyLogicCommand(const LogicCommand& command, uint64_t tick);
   /// Apply one of the game logic's writes to an actor — a move, a removal,
@@ -243,6 +261,8 @@ private:
   HazardPool hazards_;
   /// What this tick's attacks asked for; empty between ticks.
   CombatEffects effects_;
+  /// What the actor passes noted this tick; empty between ticks.
+  std::vector<ActorNote> actor_notes_;
   /// What the last tick's combat did, for presentation; not state.
   std::vector<CombatCue> cues_;
   /// Who can be hurt this tick, and scratch to find them with; not state.
@@ -257,6 +277,8 @@ private:
   Pcg32 logic_rng_;
   /// How the game logic has ended the run; `PLAYING` until it does.
   RunOutcome logic_outcome_ = RunOutcome::PLAYING;
+  /// 1 once the logic has been told the run is over.
+  uint8_t logic_ended_ = 0;
   /// What the logic asked for this tick; empty between ticks.
   std::vector<LogicCommand> logic_commands_;
   /// The actors the logic asked for this tick; empty between ticks.

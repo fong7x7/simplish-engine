@@ -179,10 +179,10 @@ TEST_CASE("game logic hears the actors it spawned, and players hurt and "
   run(simulation, 60);
 
   // In the order they happened: the logic's damage is applied before what
-  // it spawns.
-  CHECK(seen == std::vector<LogicEventKind>{LogicEventKind::PLAYER_HURT,
-                                            LogicEventKind::ACTOR_SPAWNED,
-                                            LogicEventKind::PLAYER_DOWNED});
+  // it spawns, and a player down alone is out on the next tick.
+  CHECK(seen == std::vector<LogicEventKind>{
+                    LogicEventKind::PLAYER_HURT, LogicEventKind::ACTOR_SPAWNED,
+                    LogicEventKind::PLAYER_DOWNED, LogicEventKind::PLAYER_OUT});
 }
 
 TEST_CASE("game logic moves players and actors") {

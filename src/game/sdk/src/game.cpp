@@ -19,15 +19,21 @@ void Game::hashState(GameLogicHash& hash) const {
   onHash(hash);
 }
 
+void Game::end(GameLogicWorld& world) {
+  onRunEnded(world);
+}
+
 void Game::dispatch(GameLogicWorld& world, const LogicEvent& event) {
   // In `LogicEventKind` order; the assertion catches a kind added without
   // a hook.
   using Hook = void (Game::*)(GameLogicWorld&, const LogicEvent&);
   static constexpr Hook HOOKS[] = {
-      &Game::onActorSpawned, &Game::onActorHurt,  &Game::onActorDied,
-      &Game::onActorRemoved, &Game::onPlayerHurt, &Game::onPlayerDowned};
+      &Game::onActorSpawned,  &Game::onActorHurt,    &Game::onActorDied,
+      &Game::onActorRemoved,  &Game::onPlayerHurt,   &Game::onPlayerDowned,
+      &Game::onPlayerRevived, &Game::onPlayerOut,    &Game::onActorStateEntered,
+      &Game::onActorNoticed,  &Game::onActorAttacked};
   static_assert(std::size(HOOKS) ==
-                static_cast<size_t>(LogicEventKind::PLAYER_DOWNED) + 1);
+                static_cast<size_t>(LogicEventKind::ACTOR_ATTACKED) + 1);
   (this->*HOOKS[static_cast<size_t>(event.kind)])(world, event);
 }
 

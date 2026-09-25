@@ -12,9 +12,11 @@
 #include <engine/sim/state-hasher.h>
 #include <engine/sim/tick-input.h>
 #include <game/content/character-definition.h>
+#include <game/player/player-change.h>
 #include <game/player/player-pool.h>
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace eng::game {
 
@@ -84,8 +86,9 @@ void healPlayer(PlayerPool& pool, uint32_t index, uint16_t amount);
 /// §4.1 step 6's end: revive every downed player a teammate who is up has
 /// stood by long enough, and put out of the run every one down past the
 /// window — or down with no teammate up to revive them (Game §3.3: solo
-/// death ends the run).
-void updateDownedPlayers(PlayerPool& pool, uint64_t tick);
+/// death ends the run). Each revive and each player put out, in dense
+/// order.
+std::vector<PlayerChange> updateDownedPlayers(PlayerPool& pool, uint64_t tick);
 
 /// §4.1 step 8: destroy the players marked for it.
 void compactPlayers(PlayerPool& pool);

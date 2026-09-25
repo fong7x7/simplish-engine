@@ -23,7 +23,8 @@ namespace eng::game {
 /// Carried from one tick to the next, so it is state, and hashed.
 class LogicEventLog {
 public:
-  /// Note @p event — copying its name, which need live only for the call.
+  /// Note @p event — copying its name and state, which need live only for
+  /// the call.
   void note(const LogicEvent& event);
   /// Make the tick's events the ones `events` gives, and start gathering
   /// the next tick's. Last thing a tick does with the log.
@@ -38,10 +39,14 @@ private:
   std::vector<LogicEvent> events_;
   /// The names `events_` view.
   std::vector<std::string> ids_;
+  /// The state ids `events_` view.
+  std::vector<std::string> states_;
   /// This tick's events so far; their ids are in `pending_ids_`.
   std::vector<LogicEvent> pending_;
   /// Each pending event's name.
   std::vector<std::string> pending_ids_;
+  /// Each pending event's state id.
+  std::vector<std::string> pending_states_;
 };
 
 }  // namespace eng::game

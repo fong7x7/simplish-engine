@@ -120,6 +120,7 @@ GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
   }
   spawnActors(setup, content);
   reserveEffects(effects_, actorCapacity(setup));
+  actor_notes_.reserve(actorCapacity(setup));
   cues_.reserve(cueRoom(actorCapacity(setup)));
 }
 
@@ -139,8 +140,55 @@ void GameWorld::enemyAi(const sim::TickContext& context) {
                               .routes = routes_,
                               .flow = flow_,
                               .effects = effects_,
+                              .notes = actor_notes_,
                               .rng = ai_rng_};
   stepActors(actors_, view, workspace_);
+  noteActorEvents();
+}
+
+void GameWorld::noteActorEvents() {
+  for (const ActorNote& note : actor_notes_) {
+    const auto index = actors_.slots.denseIndex(note.actor);
+    if (logic_ != nullptr && index) {
+      logic_events_.note(actorEvent(note, *index));
+    }
+  }
+  actor_notes_.clear();
+}
+
+LogicEvent GameWorld::actorEvent(const ActorNote& note, uint32_t index) const {
+  // In `ActorNoteKind` order.
+  static constexpr LogicEventKind KINDS[] = {
+      LogicEventKind::ACTOR_STATE_ENTERED, LogicEventKind::ACTOR_NOTICED,
+      LogicEventKind::ACTOR_ATTACKED};
+  const bool entered = note.kind == ActorNoteKind::STATE_ENTERED;
+  return {.kind = KINDS[static_cast<size_t>(note.kind)],
+          .target = {LogicTargetKind::ACTOR, note.actor.index,
+                     note.actor.generation},
+          .at = actors_.position[index],
+          .id = actor_ids_[note.actor.index],
+          .other = logicTargetOf(note.other),
+          .state = entered ? std::string_view(brains_[actors_.brain[index]]
+                                                  .behavior.states[note.state]
+                                                  .id)
+                           : std::string_view{}};
+}
+
+void GameWorld::notePlayerChanges(std::span<const PlayerChange> changes) {
+  for (const PlayerChange& change : changes) {
+    const auto index = players_.slots.denseIndex(change.player);
+    if (logic_ == nullptr || !index) {
+      continue;
+    }
+    logic_events_.note(
+        {.kind = change.kind == PlayerChangeKind::REVIVED
+                     ? LogicEventKind::PLAYER_REVIVED
+                     : LogicEventKind::PLAYER_OUT,
+         .target = *logicTargetOf({CombatantKind::PLAYER, change.player}),
+         .at = players_.position[*index],
+         .by = change.by ? logicTargetOf({CombatantKind::PLAYER, *change.by})
+                         : std::nullopt});
+  }
 }
 
 void GameWorld::weaponFire([[maybe_unused]] const sim::TickContext& context) {
@@ -157,7 +205,7 @@ void GameWorld::projectiles(const sim::TickContext& context) {
 
 void GameWorld::damage(const sim::TickContext& context) {
   resolveDamage(context.tick);
-  updateDownedPlayers(players_, context.tick);
+  notePlayerChanges(updateDownedPlayers(players_, context.tick));
   clearCombatEffects(effects_);
 }
 
@@ -179,7 +227,7 @@ void GameWorld::director(const sim::TickContext& context) {
   if (logic_ == nullptr) {
     return;
   }
-  runLogic(context);
+  runLogic(context, LogicCall::TICK);
   applyLogicWrites(context.tick);
 }
 
@@ -236,7 +284,7 @@ bool GameWorld::actorSpawned(uint32_t index) const {
   return actor_spawned_[actors_.slots.handleAt(index).index] != 0;
 }
 
-void GameWorld::runLogic(const sim::TickContext& context) {
+void GameWorld::runLogic(const sim::TickContext& context, LogicCall call) {
   WorldLogicView view({.context = context,
                        .players = players_,
                        .actors = actors_,
@@ -252,10 +300,14 @@ void GameWorld::runLogic(const sim::TickContext& context) {
                        .rng = logic_rng_,
                        .outcome = logic_outcome_,
                        .log = logic_log_});
-  callLogic(view, context.tick);
+  callLogic(view, context.tick, call);
 }
 
-void GameWorld::callLogic(GameLogicWorld& view, uint64_t tick) {
+void GameWorld::callLogic(GameLogicWorld& view, uint64_t tick, LogicCall call) {
+  if (call == LogicCall::END) {
+    logic_->end(view);
+    return;
+  }
   if (tick == 0) {
     logic_->start(view);
   }
@@ -289,12 +341,20 @@ void GameWorld::applyActorCommand(const LogicCommand& command, uint32_t index,
                         actor_ids_[command.target.index]});
     removeActor(actors_, index);
   } else if (command.kind == LogicCommandKind::SET_STATE) {
-    actors_.state[index] = command.state;
-    actors_.state_since[index] = tick;
-    actors_.has_goal[index] = 0;
+    enterLogicState(index, command.state, tick);
   } else if (command.kind == LogicCommandKind::SET_FACTION) {
     actors_.faction[index] = command.faction;
   }
+}
+
+void GameWorld::enterLogicState(uint32_t index, uint8_t state, uint64_t tick) {
+  actors_.state[index] = state;
+  actors_.state_since[index] = tick;
+  actors_.has_goal[index] = 0;
+  logic_events_.note(actorEvent({.kind = ActorNoteKind::STATE_ENTERED,
+                                 .actor = actors_.slots.handleAt(index),
+                                 .state = state},
+                                index));
 }
 
 void GameWorld::moveTo(const LogicTarget& target, Vec3 at) {
@@ -343,9 +403,21 @@ std::vector<std::string> GameWorld::takeLogicLog() {
   return lines;
 }
 
-void GameWorld::compaction([[maybe_unused]] const sim::TickContext& context) {
+void GameWorld::endLogic(const sim::TickContext& context) {
+  if (logic_ended_ != 0 || !runOver()) {
+    return;
+  }
+  logic_ended_ = 1;
+  runLogic(context, LogicCall::END);
+  logic_commands_.clear();
+  logic_spawns_.clear();
+  clearCombatEffects(logic_effects_);
+}
+
+void GameWorld::compaction(const sim::TickContext& context) {
   if (logic_ != nullptr) {
     logic_events_.publish();
+    endLogic(context);
   }
   compactPlayers(players_);
   compactActors(actors_);
@@ -363,6 +435,7 @@ void GameWorld::hashState(sim::TickHashBuilder& builder) const {
   if (logic_ != nullptr) {
     sim::StateHasher& section = builder.section("logic");
     section.add(logic_outcome_);
+    section.add(logic_ended_);
     section.add(logic_rng_.state());
     logic_events_.hashInto(section);
     WorldLogicHash hash(section);

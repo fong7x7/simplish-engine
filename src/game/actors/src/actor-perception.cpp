@@ -173,13 +173,33 @@ namespace {
     a.pool.remembers_target[a.i] = 0;
   }
 
+  /// @p who as combat names them.
+  CombatantRef refOf(const ActorRef& a, const ActorTickContext& context,
+                     const ActorCandidate& who) {
+    return {who.kind, who.kind == CombatantKind::PLAYER
+                          ? context.players.slots.handleAt(who.index)
+                          : a.pool.slots.handleAt(who.index)};
+  }
+
+  /// Note that actor @p a noticed @p who, when they are not whom it had in
+  /// mind already.
+  void noteNoticed(const ActorRef& a, const ActorTickContext& context,
+                   const CombatantRef& who) {
+    if (a.pool.remembers_target[a.i] == 0 ||
+        a.pool.target_kind[a.i] != who.kind ||
+        a.pool.target[a.i] != who.handle) {
+      context.notes.push_back(
+          {ActorNoteKind::NOTICED, a.pool.slots.handleAt(a.i), who});
+    }
+  }
+
   /// Actor @p a takes note of whom it perceived.
   void remember(const ActorRef& a, const ActorTickContext& context,
                 const Sighting& sighting) {
     const ActorCandidate& who = sighting.who;
-    a.pool.target[a.i] = who.kind == CombatantKind::PLAYER
-                             ? context.players.slots.handleAt(who.index)
-                             : a.pool.slots.handleAt(who.index);
+    const CombatantRef ref = refOf(a, context, who);
+    noteNoticed(a, context, ref);
+    a.pool.target[a.i] = ref.handle;
     a.pool.target_kind[a.i] = who.kind;
     a.pool.last_seen[a.i] = whereIs(a, context, who);
     a.pool.last_seen_tick[a.i] = context.tick;

@@ -60,9 +60,23 @@ namespace {
            context.tick >= a.pool.attack_ready_tick[a.i];
   }
 
-  /// Start actor @p a's attack's cooldown.
+  /// Whom actor @p a has in mind: its target, or nobody.
+  CombatantRef targetOf(const ActorRef& a) {
+    return a.pool.remembers_target[a.i] != 0
+               ? CombatantRef{a.pool.target_kind[a.i], a.pool.target[a.i]}
+               : NO_COMBATANT;
+  }
+
+  /// Note that actor @p a attacked, at whomever it has in mind.
+  void noteAttack(const ActorRef& a, const ActorTickContext& context) {
+    context.notes.push_back(
+        {ActorNoteKind::ATTACKED, a.pool.slots.handleAt(a.i), targetOf(a)});
+  }
+
+  /// Note that actor @p a attacked, and start its attack's cooldown.
   void coolDown(const ActorRef& a, const ActorTickContext& context,
                 const BehaviorAttack& attack) {
+    noteAttack(a, context);
     a.pool.attack_ready_tick[a.i] = context.tick + attack.cooldown_ticks;
   }
 
@@ -142,6 +156,7 @@ namespace {
                 const BehaviorAttack& attack) {
     a.pool.death_blast_radius[a.i] = attack.radius;
     a.pool.death_blast_damage[a.i] = attack.damage;
+    noteAttack(a, context);
     context.effects.damage.push_back({self(a),
                                       std::numeric_limits<uint16_t>::max(),
                                       self(a), DamageCause::ATTACK});

@@ -15,6 +15,7 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-flow-fields.h>
+#include <game/actors/actor-note.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-spawn.h>
@@ -66,6 +67,8 @@ public:
   ActorFlowFields flow;
   /// What the actors' attacks did, since a test last cleared it.
   CombatEffects effects;
+  /// What the actors did, since a test last cleared it.
+  std::vector<ActorNote> notes;
   /// The brains added actors run.
   std::vector<ActorBrain> brains;
   /// The routes added actors patrol.

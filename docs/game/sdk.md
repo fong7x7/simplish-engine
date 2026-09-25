@@ -77,7 +77,13 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onActorRemoved(world, event)` | The logic took an actor out without its dying |
 | `onPlayerHurt(world, event)` | A player was hurt, and is still up |
 | `onPlayerDowned(world, event)` | A player went down |
+| `onPlayerRevived(world, event)` | A downed player is up again; `event.by` is the teammate who stood by them |
+| `onPlayerOut(world, event)` | A downed player's window ran out, or nobody was left to revive them |
+| `onActorStateEntered(world, event)` | An actor went into another state of its behavior — by its own exits or the logic's `setActorState`; `event.state` is the state's id |
+| `onActorNoticed(world, event)` | An actor took someone new as its target; `event.other` is whom |
+| `onActorAttacked(world, event)` | An actor struck, fired, spat or blew itself up; `event.other` is whom it had in mind |
 | `onTick(world)` | Every tick, after the hooks above |
+| `onRunEnded(world)` | Once, at the end of the tick the run ended on; `world.outcome()` says how. The tick after is never played, so writes do nothing — log the tally here |
 | `onHash(hash)` | Fold every member a later tick decides anything by into the tick hash |
 
 Events are the last tick's, in the order they happened; the world's `events()` gives the same list to a logic that is not a `Game`. Every hit that takes health is an event of its own, carrying the `amount` it took, its `cause` — `ATTACK`, `SHOT`, `BLAST`, `HAZARD` or `LOGIC` — and `by`, who is credited (§7):
