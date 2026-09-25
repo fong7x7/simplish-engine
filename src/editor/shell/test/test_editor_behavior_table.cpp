@@ -173,7 +173,7 @@ TEST_CASE("an attacking state reads its attack under its action's keys") {
   const EditorBehaviorTable read = parseEditorBehaviorTable(table(R"([
     {"id": "brute", "states": [
       {"id": "bite", "do": "melee", "damage": 2, "reach": 0.5,
-       "cooldown_ticks": 30,
+       "cooldown_ticks": 30, "windup_ticks": 12,
        "exits": [{"when": "health_below", "permille": 300, "to": "shoot"}]},
       {"id": "shoot", "do": "fire", "count": 5, "spread_degrees": 40,
        "projectile_speed": 12,
@@ -187,6 +187,7 @@ TEST_CASE("an attacking state reads its attack under its action's keys") {
   REQUIRE(states[0].attack.damage == 2);
   REQUIRE(states[0].attack.reach_tiles == 0.5F);
   REQUIRE(states[0].attack.cooldown_ticks == 30);
+  REQUIRE(states[0].attack.windup_ticks == 12);
   REQUIRE(states[0].exits[0].when == game::BehaviorCondition::HEALTH_BELOW);
   REQUIRE(states[1].attack.count == 5);
   REQUIRE(states[1].attack.speed == 12.0F);

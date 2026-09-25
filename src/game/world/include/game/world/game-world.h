@@ -5,6 +5,7 @@
 /// @par Threading
 /// Main-thread-only.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <engine/core/pcg32.h>
@@ -16,6 +17,7 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-flow-fields.h>
+#include <game/actors/actor-note.h>
 #include <game/actors/actor-pool.h>
 #include <game/actors/actor-route.h>
 #include <game/actors/actor-workspace.h>
@@ -29,11 +31,16 @@
 #include <game/content/game-content.h>
 #include <game/logic/game-logic-world.h>
 #include <game/logic/game-logic.h>
+#include <game/logic/logic-steps.h>
 #include <game/logic/run-outcome.h>
+#include <game/player/player-change.h>
 #include <game/player/player-pool.h>
 #include <game/world/game-setup.h>
+#include <game/world/logic-call.h>
 #include <game/world/logic-command.h>
 #include <game/world/logic-event-log.h>
+#include <game/world/walker-gait.h>
+#include <game/world/world-cue.h>
 #include <memory>
 #include <span>
 #include <string>
@@ -55,6 +62,10 @@ inline constexpr uint64_t LOGIC_RNG_STREAM = 2;
 /// Most lines a world keeps of what its game logic said before whoever
 /// runs it takes them; past it, a line is dropped rather than grown into.
 inline constexpr size_t WORLD_LOGIC_LOG_LINES = 256;
+
+/// The most cues the game logic's raised are kept for until someone takes
+/// them; any past it are dropped.
+inline constexpr size_t WORLD_LOGIC_CUES = 256;
 
 /// Everything the game simulates, and the phases that simulate it — the
 /// `SimulationSystems` a `sim::Simulation` steps.
@@ -132,6 +143,11 @@ public:
   /// Presentation: never state, never hashed.
   [[nodiscard]] std::vector<std::string> takeLogicLog();
 
+  /// Every cue the game logic has raised since the last call, in order,
+  /// handed over — at most `WORLD_LOGIC_CUES` between calls: the sounds
+  /// and effects presentation plays. Never state, never hashed.
+  [[nodiscard]] std::vector<WorldCue> takeLogicCues();
+
   /// The players, for whatever draws them. Read-only: nothing outside the
   /// tick may change simulation state.
   [[nodiscard]] const PlayerPool& players() const { return players_; }
@@ -183,6 +199,10 @@ private:
   void listBodies();
   /// Apply one hit.
   void applyHit(const DamageEvent& hit, uint64_t tick);
+  /// Apply @p hit to the player at dense index @p index, telling the logic.
+  void hitPlayer(const DamageEvent& hit, uint32_t index, uint64_t tick);
+  /// Apply @p hit to the actor at dense index @p index, telling the logic.
+  void hitActor(const DamageEvent& hit, uint32_t index, uint64_t tick);
   /// Give the actor at dense index @p index the route @p points, when
   /// there is one.
   void assignRoute(uint32_t index, const std::vector<Vec2>& points);
@@ -192,10 +212,34 @@ private:
   /// Apply every hit in the effects buffer and every blast they set off,
   /// in order, until neither leaves anything to do.
   void resolveDamage(uint64_t tick);
-  /// Run the game logic's part of @p context's tick.
-  void runLogic(const sim::TickContext& context);
-  /// Call the game logic with @p view on @p tick: `start` first on tick 0.
-  void callLogic(GameLogicWorld& view, uint64_t tick);
+  /// Call the game logic in @p context's tick, as @p call says.
+  void runLogic(const sim::TickContext& context, LogicCall call);
+  /// Call the game logic with @p view on @p tick as @p call says: `start`
+  /// first on tick 0, then `tick`; or `end`.
+  void callLogic(GameLogicWorld& view, uint64_t tick, LogicCall call);
+  /// When the run is over and the logic has not heard so, call its `end`,
+  /// and drop whatever it asked for there.
+  void endLogic(const sim::TickContext& context);
+  /// Tell the logic what the actor passes noted, and empty the notes.
+  void noteActorEvents();
+  /// What game logic hears of @p note, about the actor at dense index
+  /// @p index.
+  [[nodiscard]] LogicEvent actorEvent(const ActorNote& note,
+                                      uint32_t index) const;
+  /// Tell the logic of every revive and every player put out in @p changes.
+  void notePlayerChanges(std::span<const PlayerChange> changes);
+  /// Tell the logic of every step taken this tick by whoever it listens
+  /// to.
+  void noteSteps();
+  /// Tell the logic of the players' steps this tick.
+  void notePlayerSteps();
+  /// Tell the logic of the actors' steps this tick.
+  void noteActorSteps();
+  /// Fold the gaits of everyone the logic hears step into @p hasher.
+  void hashGaits(sim::StateHasher& hasher) const;
+  /// Put the actor at dense index @p index in state @p state for the logic,
+  /// telling it so.
+  void enterLogicState(uint32_t index, uint8_t state, uint64_t tick);
   /// Apply one of the game logic's queued writes.
   void applyLogicCommand(const LogicCommand& command, uint64_t tick);
   /// Apply one of the game logic's writes to an actor — a move, a removal,
@@ -239,6 +283,8 @@ private:
   HazardPool hazards_;
   /// What this tick's attacks asked for; empty between ticks.
   CombatEffects effects_;
+  /// What the actor passes noted this tick; empty between ticks.
+  std::vector<ActorNote> actor_notes_;
   /// What the last tick's combat did, for presentation; not state.
   std::vector<CombatCue> cues_;
   /// Who can be hurt this tick, and scratch to find them with; not state.
@@ -253,6 +299,16 @@ private:
   Pcg32 logic_rng_;
   /// How the game logic has ended the run; `PLAYING` until it does.
   RunOutcome logic_outcome_ = RunOutcome::PLAYING;
+  /// 1 once the logic has been told the run is over.
+  uint8_t logic_ended_ = 0;
+  /// Whose steps the logic hears.
+  LogicSteps logic_steps_ = LogicSteps::NONE;
+  /// Each player's gait, by their handle's slot; state while steps are
+  /// heard.
+  std::array<WalkerGait, PLAYER_POOL_CAPACITY> player_gaits_{};
+  /// Each actor's gait, by its handle's slot; state while everyone's steps
+  /// are heard.
+  std::vector<WalkerGait> actor_gaits_;
   /// What the logic asked for this tick; empty between ticks.
   std::vector<LogicCommand> logic_commands_;
   /// The actors the logic asked for this tick; empty between ticks.
@@ -269,18 +325,15 @@ private:
   std::vector<uint8_t> actor_spawned_;
   /// What happened last tick, for the game logic; kept only with one.
   LogicEventLog logic_events_;
-  /// Who last hurt each actor, by its handle's slot: what the logic's
-  /// events credit. Only the live are state.
-  std::vector<CombatantRef> actor_hurt_by_;
-  /// Who last hurt each player, by their handle's slot.
-  std::vector<CombatantRef> player_hurt_by_ =
-      std::vector<CombatantRef>(PLAYER_POOL_CAPACITY, NO_COMBATANT);
   /// The run's content, kept only when actors can be spawned mid-run: the
   /// behaviors and archetypes they name. Empty otherwise.
   GameContent content_;
   /// What the game logic has said since `takeLogicLog` last ran; not
   /// state.
   std::vector<std::string> logic_log_;
+  /// The cues the game logic has raised since `takeLogicCues` last ran;
+  /// not state.
+  std::vector<WorldCue> logic_cues_;
 };
 
 }  // namespace eng::game

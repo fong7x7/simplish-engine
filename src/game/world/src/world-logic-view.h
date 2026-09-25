@@ -59,6 +59,8 @@ public:
   void spawnHazard(const LogicHazard& hazard) override;
   [[nodiscard]] uint32_t random(uint32_t bound) override;
   void log(std::string_view message) override;
+  void cue(const LogicCue& cue) override;
+  void listenForSteps(LogicSteps steps) override;
 
 private:
   /// The dense index of the actor @p target names, if it is one still in

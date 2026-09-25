@@ -17,10 +17,10 @@ namespace {
   }
 
   /// Hit everyone @p area reaches — standing in it, their edge within its
-  /// radius — that @p catches says to, for its damage each.
+  /// radius — that @p catches says to, for its damage each, as @p cause.
   template <typename Catches>
   void hitWithin(const CombatScene& scene, const BlastEvent& area,
-                 Catches catches) {
+                 Catches catches, DamageCause cause) {
     const CombatWorkspace& workspace = scene.workspace;
     const float query = area.radius + workspace.largest_radius;
     workspace.grid.forEachNear(area.at, query, [&](uint32_t b) {
@@ -28,7 +28,8 @@ namespace {
       const float reach = area.radius + body.radius;
       if (catches(body) &&
           Vec2::distanceSquared(body.at, area.at) <= reach * reach) {
-        scene.effects.damage.push_back({body.who, area.damage, creditOf(area)});
+        scene.effects.damage.push_back(
+            {body.who, area.damage, creditOf(area), cause});
       }
     });
   }
@@ -39,9 +40,12 @@ namespace {
       const Faction side = hazards.side[i];
       const BlastEvent pool{hazards.position[i], hazards.radius[i],
                             hazards.damage[i], NO_COMBATANT, hazards.source[i]};
-      hitWithin(scene, pool, [side](const CombatBody& body) {
-        return factionsOppose(side, body.side);
-      });
+      hitWithin(
+          scene, pool,
+          [side](const CombatBody& body) {
+            return factionsOppose(side, body.side);
+          },
+          DamageCause::HAZARD);
     }
     ++hazards.age[i];
     if (--hazards.ticks_left[i] == 0) {
@@ -63,9 +67,12 @@ void resolveBlasts(const CombatScene& scene) {
   // Only hits are appended here; the blasts a death sets off come when the
   // damage phase applies these hits, and it resolves them in turn.
   for (const BlastEvent& blast : scene.effects.blasts) {
-    hitWithin(scene, blast, [&blast](const CombatBody& body) {
-      return !same(body.who, blast.source);
-    });
+    hitWithin(
+        scene, blast,
+        [&blast](const CombatBody& body) {
+          return !same(body.who, blast.source);
+        },
+        DamageCause::BLAST);
     cueCombat(scene.cues, {CombatCueKind::BLAST,
                            {blast.at.x, blast.at.y, 0.0F},
                            {},

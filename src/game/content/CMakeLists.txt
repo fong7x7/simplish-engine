@@ -13,6 +13,7 @@ simplish_add_module(simplish-game-content
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/character-lookup.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/enemy-lookup.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/footstep-names.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/step-set-stride.cpp
     DEPENDENCIES simplish-engine-core
 )
 

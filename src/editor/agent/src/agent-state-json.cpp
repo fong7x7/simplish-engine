@@ -693,11 +693,27 @@ std::string agentSpritesJson(const EditorShellState& state) {
 
 namespace {
 
-  /// How the run stands, and what the project's game logic has said.
+  /// The cues the project's game logic last raised.
+  json logicCuesJson(const EditorPlaytestState& playtest) {
+    json cues = json::array();
+    for (const game::WorldCue& cue : playtest.logic_cues) {
+      cues.push_back(
+          {{"tick", cue.tick},
+           {"at", {cue.at.x, cue.at.y, cue.at.z}},
+           {"sound", cue.sound},
+           {"effect", cue.effect},
+           {"everywhere", cue.reach == game::LogicCueReach::EVERYWHERE}});
+    }
+    return cues;
+  }
+
+  /// How the run stands, and what the project's game logic has said and
+  /// cued.
   json playtestLogicJson(const EditorPlaytestState& playtest) {
     return {{"outcome", agentRunOutcomeName(playtest.outcome)},
             {"logic", playtest.logic},
-            {"logic_log", playtest.logic_log}};
+            {"logic_log", playtest.logic_log},
+            {"logic_cues", logicCuesJson(playtest)}};
   }
 
 }  // namespace

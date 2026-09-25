@@ -52,4 +52,13 @@ loadEditorEventSounds(audio::AudioClipBank& bank,
 [[nodiscard]] std::optional<audio::AudioClipId>
 findEditorEventClip(const audio::AudioClipBank& bank, std::string_view sound);
 
+/// Whether @p sound can be played from @p bank: a slot, or a file under
+/// @p assets_dir — loaded into the bank now, as `loadEditorEventSounds`
+/// names it, when it is not there yet. What a game logic's cue names is
+/// found this way, since no table lists it ahead of time. A path leaving
+/// the assets folder is never read.
+[[nodiscard]] bool loadEditorEventSound(audio::AudioClipBank& bank,
+                                        const std::filesystem::path& assets_dir,
+                                        std::string_view sound);
+
 }  // namespace eng::editor

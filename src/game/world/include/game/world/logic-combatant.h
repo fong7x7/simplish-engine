@@ -6,6 +6,8 @@
 /// Pure functions.
 
 #include <game/combat/combatant-ref.h>
+#include <game/combat/damage-cause.h>
+#include <game/logic/logic-damage-cause.h>
 #include <game/logic/logic-target.h>
 #include <optional>
 
@@ -17,5 +19,8 @@ namespace eng::game {
 /// @p target as combat names it; `NO_COMBATANT` for nothing.
 [[nodiscard]] CombatantRef
 combatantOf(const std::optional<LogicTarget>& target);
+
+/// @p cause as game logic hears it.
+[[nodiscard]] LogicDamageCause logicCauseOf(DamageCause cause);
 
 }  // namespace eng::game

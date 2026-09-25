@@ -444,6 +444,9 @@ void SimplishEditor::hearPlaytest() {
   for (const game::FootstepCue& step : playtest_->takeHeardSteps()) {
     (void)audio().play(game::footstepSound(step, footstep_sounds_));
   }
+  for (const game::WorldCue& cue : playtest_->takeLogicCues()) {
+    playLogicCue(cue);
+  }
 }
 
 audio::AudioListener SimplishEditor::playtestListener() {

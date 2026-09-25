@@ -3,9 +3,12 @@
 /// @file logic-event.h
 /// @brief One thing that happened in the last tick, as game logic hears it.
 /// @par Threading
-/// A value type; its id is a view valid until the logic's `tick` returns.
+/// A value type; its id and state are views valid until the logic's
+/// `tick` returns.
 
+#include <cstdint>
 #include <engine/math/vec3.h>
+#include <game/logic/logic-damage-cause.h>
 #include <game/logic/logic-event-kind.h>
 #include <game/logic/logic-target.h>
 #include <optional>
@@ -32,6 +35,17 @@ struct LogicEvent {
   /// Empty when nobody is to be credited. They may be gone by now; ask
   /// `playerOf` or `actorOf`.
   std::optional<LogicTarget> by{};
+  /// For a hurt, a death or a downing: the health it took — no more than
+  /// was left. Zero otherwise.
+  uint16_t amount = 0;
+  /// For a hurt, a death or a downing: what kind of thing did it.
+  LogicDamageCause cause = LogicDamageCause::NONE;
+  /// For `ACTOR_NOTICED`, whom it noticed; for `ACTOR_ATTACKED`, whom it
+  /// attacked at. They may be gone by now.
+  std::optional<LogicTarget> other{};
+  /// For `ACTOR_STATE_ENTERED`, the id of the state entered — as
+  /// `setActorState` takes it.
+  std::string_view state{};
 };
 
 }  // namespace eng::game

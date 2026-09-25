@@ -8,7 +8,7 @@ A project's game logic is C++ in the project's `src/` folder. It is written agai
 | Layer | Package | What it is |
 |---|---|---|
 | **The world** | `game/logic` — `eng::game` | `GameLogicWorld`: everything the engine lets logic read and change, as an interface the host implements. Versioned: `GAME_LOGIC_API_VERSION` |
-| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, entity queries, per-entity data, timers and phases, spawn patterns, dice |
+| **The SDK** | `game/sdk` — `eng::game::sdk` | What makes that pleasant: a `Game` base with event hooks, event and entity queries, the logic's own events and schedule, per-entity data, timers and phases, spawn patterns, dice |
 
 Include one header — `<game/sdk/sdk.h>` — and both are there. The SDK calls the world through `GameLogicWorld` and nothing else, so its sources are compiled into the project's own library for a playtest (`cmake/SimplishGameLogic.cmake` does it) and linked with the engine for a deploy; a project links nothing itself.
 
@@ -77,10 +77,113 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onActorRemoved(world, event)` | The logic took an actor out without its dying |
 | `onPlayerHurt(world, event)` | A player was hurt, and is still up |
 | `onPlayerDowned(world, event)` | A player went down |
+| `onPlayerRevived(world, event)` | A downed player is up again; `event.by` is the teammate who stood by them |
+| `onPlayerOut(world, event)` | A downed player's window ran out, or nobody was left to revive them |
+| `onActorStateEntered(world, event)` | An actor went into another state of its behavior — by its own exits or the logic's `setActorState`; `event.state` is the state's id |
+| `onActorNoticed(world, event)` | An actor took someone new as its target; `event.other` is whom |
+| `onActorAttacked(world, event)` | An actor struck, fired, spat or blew itself up; `event.other` is whom it had in mind |
+| `onActorWindingUp(world, event)` | An actor began an attack that winds up; it lands its state's `windup_ticks` later, if it still can |
+| `onPlayerStepped(world, event)`, `onActorStepped(world, event)` | A foot came down — heard once `world.listenForSteps(LogicSteps::PLAYERS)` or `EVERYONE` asks |
 | `onTick(world)` | Every tick, after the hooks above |
+| `onRunEnded(world)` | Once, at the end of the tick the run ended on; `world.outcome()` says how. The tick after is never played, so writes do nothing — log the tally here |
 | `onHash(hash)` | Fold every member a later tick decides anything by into the tick hash |
 
-Events are the last tick's, in the order they happened; the world's `events()` gives the same list to a logic that is not a `Game`.
+Events are the last tick's, in the order they happened; the world's `events()` gives the same list to a logic that is not a `Game`. Every hit that takes health is an event of its own, carrying the `amount` it took, its `cause` — `ATTACK`, `SHOT`, `BLAST`, `HAZARD` or `LOGIC` — and `by`, who is credited (§7):
+
+```cpp
+void onActorHurt(GameLogicWorld& world, const LogicEvent& hit) override {
+  if (hit.cause == LogicDamageCause::BLAST) {
+    blast_damage_ += hit.amount;
+  }
+}
+```
+
+### Moments smaller than a hit
+
+The low-level moments a game hangs rules on come from the simulation, in ticks — never from animation, which is presentation and may differ from machine to machine:
+
+```cpp
+void onStart(GameLogicWorld& world) override {
+  world.listenForSteps(LogicSteps::PLAYERS);   // PLAYER_STEPPED from now on
+}
+void onPlayerStepped(GameLogicWorld& world, const LogicEvent& step) override {
+  // Loud boots wake what is near.
+  for (const auto& sleeper : sdk::actorsWithin(world, step.at, 4.0F, {})) {
+    (void)world.setActorState(sleeper.target, "hunt");
+  }
+}
+void onActorWindingUp(GameLogicWorld& world, const LogicEvent& swing) override {
+  world.cue({.at = swing.at, .effect = "muzzle_sparks"});  // telegraph it
+}
+```
+
+A step comes each time a walker covers its feet's stride; a wind-up is an attacking state's `windup_ticks` ([actors.md §3](actors.md#3-behaviors)), heard as it begins, with `ACTOR_ATTACKED` as it lands.
+
+### Asking the tick's events
+
+Hooks hear events one at a time; queries ask of them all at once (`event-queries.h`), through an `EventFilter` — by `kind`, `target`, actor `id` or `id_prefix`, `by`, `cause` or `state`, each empty field letting every event through:
+
+| Call | Gives |
+|---|---|
+| `findEvents(world, filter)` | The last tick's events passing it, in order |
+| `countEvents(world, filter)`, `heard(world, filter)` | How many, and whether any |
+| `totalAmount(world, filter)` | The health they took, summed |
+
+```cpp
+// Damage player 1 dealt last tick, and whether the boss took a blast.
+const uint32_t dealt = sdk::totalAmount(world, {.by = player.target});
+const bool rocked = sdk::heard(world, {.kind = LogicEventKind::ACTOR_HURT,
+                                       .id = "boss",
+                                       .cause = LogicDamageCause::BLAST});
+```
+
+### Events of your own
+
+`sdk::Events<T>` is a queue of the logic's own events of type `T`, so one part of a logic can say what happened and every part that cares hears it, without the parts calling each other. `subscribe` a handler once — in the constructor or `onStart` — `emit` anywhere, and `dispatch(world)` where the logic's events are to be heard: each event in the order emitted, to each handler in the order subscribed, and one a handler emits in the same dispatch.
+
+```cpp
+struct WaveStarted { uint32_t wave; };
+sdk::Events<WaveStarted> waves_;
+
+void onStart(GameLogicWorld&) override {
+  waves_.subscribe([this](GameLogicWorld& world, const WaveStarted& e) {
+    spawnWave(world, e.wave);
+  });
+  waves_.subscribe([](GameLogicWorld& world, const WaveStarted&) {
+    world.log("Here they come");
+  });
+}
+void onTick(GameLogicWorld& world) override {
+  if (WAVES.due(world.tick())) {
+    waves_.emit({++wave_});
+  }
+  waves_.dispatch(world);
+}
+void onHash(GameLogicHash& hash) const override { waves_.hashInto(hash); }
+```
+
+Events not yet heard are state: `hashInto` folds them in, so `T` must be something `GameLogicHash::add` takes. Handlers are not.
+
+### Later
+
+`sdk::Schedule<T>` holds values for a tick to come — `at(tick, value)`, `after(world, ticks, value)` — and `runDue(world, run)` hands each whose tick has come to `run(world, value)`, by tick and then in the order added; a value added for now while running comes out in the same call. `cancel(drop)` drops those `drop(value)` says to, `nextTick()` says when the next is due, `hashInto` folds it all in. Where `Every` and `Cooldown` are checked each tick, a schedule is told once:
+
+```cpp
+struct Collapse { LogicTarget bridge; };
+sdk::Schedule<Collapse> later_;
+
+void onActorDied(GameLogicWorld& world, const LogicEvent& death) override {
+  if (death.id == "lever") {
+    later_.after(world, sdk::seconds(3), {findActor(world, "bridge")->target});
+  }
+}
+void onTick(GameLogicWorld& world) override {
+  later_.runDue(world, [](GameLogicWorld& w, const Collapse& c) {
+    w.damage(c.bridge, 999);
+  });
+}
+void onHash(GameLogicHash& hash) const override { later_.hashInto(hash); }
+```
 
 ---
 
@@ -195,6 +298,15 @@ void onHash(GameLogicHash& hash) const override { triggers_.hashInto(hash); }
 ```
 
 Every shot fired, landed, and blast set off is cued like an actor's, so it flashes and is heard.
+
+**Cues of the logic's own.** `world.cue(...)` plays a sound and shows an effect — a horn as a wave comes, smoke where a wall came down — with nothing fired and nothing hurt. It is presentation: the tick never reads it back, and it is never hashed.
+
+```cpp
+world.cue({.at = gate->position,
+           .sound = "sounds/horn.wav",          // a file under assets/, or a slot
+           .effect = "smoke",                   // a preset, or combat.blast
+           .reach = LogicCueReach::EVERYWHERE}); // heard alike anywhere
+```
 
 **Who did it.** Every hurt, death and downing names who is behind it in `event.by`: the player or actor that struck, fired or spilled the pool; for a blast's hits, whoever killed the one that went off — so a player who shoots an exploding actor is credited with what the explosion kills. `fireWeapon` credits the player firing; `fireShot`, `blast` and `spawnHazard` credit their `shooter` or `by`; `damage(target, n, by)` credits `by`. `sdk::playerBehind(world, event)` gives the credited player, when it was one:
 

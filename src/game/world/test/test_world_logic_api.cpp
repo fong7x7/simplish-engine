@@ -11,6 +11,7 @@ using eng::game::GameLogic;
 using eng::game::GameLogicWorld;
 using eng::game::GameSetup;
 using eng::game::GameWorld;
+using eng::game::LogicDamageCause;
 using eng::game::LogicEventKind;
 using eng::sim::Simulation;
 using eng::sim::TickHashing;
@@ -177,9 +178,11 @@ TEST_CASE("game logic hears the actors it spawned, and players hurt and "
 
   run(simulation, 60);
 
-  CHECK(seen == std::vector<LogicEventKind>{LogicEventKind::ACTOR_SPAWNED,
-                                            LogicEventKind::PLAYER_HURT,
-                                            LogicEventKind::PLAYER_DOWNED});
+  // In the order they happened: the logic's damage is applied before what
+  // it spawns, and a player down alone is out on the next tick.
+  CHECK(seen == std::vector<LogicEventKind>{
+                    LogicEventKind::PLAYER_HURT, LogicEventKind::ACTOR_SPAWNED,
+                    LogicEventKind::PLAYER_DOWNED, LogicEventKind::PLAYER_OUT});
 }
 
 TEST_CASE("game logic moves players and actors") {
@@ -350,6 +353,8 @@ TEST_CASE("a death is credited to the player whose shot killed") {
 
   REQUIRE(deaths.size() == 1);
   CHECK(deaths[0].by == player);
+  // The shot does 9; the boss had 5 to lose.
+  CHECK((deaths[0].cause == LogicDamageCause::SHOT && deaths[0].amount == 5));
 }
 
 TEST_CASE("a blast's hits are credited to whoever killed the one that went "
@@ -370,7 +375,7 @@ TEST_CASE("a blast's hits are credited to whoever killed the one that went "
   run(simulation, 2);
 
   REQUIRE(hurts.size() == 1);
-  CHECK(hurts[0].id == "minion");
+  CHECK((hurts[0].id == "minion" && hurts[0].cause == LogicDamageCause::BLAST));
   CHECK(hurts[0].by == player);
 }
 
@@ -392,6 +397,7 @@ TEST_CASE("a player bitten is told who bit them") {
 
   REQUIRE_FALSE(hurts.empty());
   CHECK(hurts[0].by == biter);
+  CHECK(hurts[0].cause == LogicDamageCause::ATTACK);
 }
 
 TEST_CASE("damage the logic credits nobody is credited to nobody") {
@@ -410,6 +416,39 @@ TEST_CASE("damage the logic credits nobody is credited to nobody") {
 
   REQUIRE(hurts.size() == 1);
   CHECK_FALSE(hurts[0].by.has_value());
+  CHECK(hurts[0].cause == LogicDamageCause::LOGIC);
+}
+
+namespace {
+
+/// On tick 0, hit the first actor four times for 2 each.
+void hitFourTimes(GameLogicWorld& world) {
+  for (int hit = 0; world.tick() == 0 && hit < 4; ++hit) {
+    world.damage(world.actor(0).target, 2);
+  }
+}
+
+}  // namespace
+
+TEST_CASE("every hit is heard, however many land in one tick") {
+  std::vector<eng::game::LogicEvent> heard;
+  Scripted logic([&](GameLogicWorld& world) {
+    hitFourTimes(world);
+    heard.insert(heard.end(), world.events().begin(), world.events().end());
+  });
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 2);
+
+  // The boss has 5: two hurts of 2, then a death taking the 1 left, and
+  // nothing for the hit on the dead.
+  REQUIRE(heard.size() == 3);
+  CHECK(heard[0].kind == LogicEventKind::ACTOR_HURT);
+  CHECK(heard[1].amount == 2);
+  CHECK(heard[2].kind == LogicEventKind::ACTOR_DIED);
+  CHECK(heard[2].amount == 1);
+  CHECK(heard[2].id == "boss");
 }
 
 TEST_CASE("a read view shows the world between ticks, and changes nothing") {

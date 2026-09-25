@@ -13,6 +13,7 @@
 #include <editor/shell/editor-playtest-player.h>
 #include <editor/shell/editor-scripted-input.h>
 #include <game/logic/run-outcome.h>
+#include <game/world/world-cue.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -58,6 +59,9 @@ struct EditorPlaytestState {
   /// The last lines the game logic said, oldest first; at most
   /// `EDITOR_LOGIC_LOG_LINES`.
   std::vector<std::string> logic_log;
+  /// The last cues the game logic raised, oldest first; at most
+  /// `EDITOR_LOGIC_CUES`.
+  std::vector<game::WorldCue> logic_cues;
   /// Input queued for player 1, oldest first. While any is queued it runs
   /// in place of the keyboard, one tick at a time.
   std::vector<EditorScriptedInput> scripted;

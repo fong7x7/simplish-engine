@@ -25,10 +25,15 @@ namespace {
   }
 
   /// Put actor @p a in state @p next, starting it afresh: no goal, no path,
-  /// and nothing from how the last state's movement went.
-  void enterState(const ActorRef& a, uint8_t next, uint64_t tick) {
+  /// and nothing from how the last state's movement went. Noted.
+  void enterState(const ActorRef& a, const ActorTickContext& context,
+                  uint8_t next) {
+    context.notes.push_back({.kind = ActorNoteKind::STATE_ENTERED,
+                             .actor = a.pool.slots.handleAt(a.i),
+                             .state = next});
     a.pool.state[a.i] = next;
-    a.pool.state_since[a.i] = tick;
+    a.pool.state_since[a.i] = context.tick;
+    a.pool.attack_lands_tick[a.i] = ACTOR_NOT_WINDING;
     a.pool.has_goal[a.i] = 0;
     a.pool.arrived[a.i] = 0;
     a.pool.blocked[a.i] = 0;
@@ -47,7 +52,7 @@ void decideActor(const ActorRef& a, const ActorTickContext& context,
     next = firstExit(a, context, workspace, stateOf(a, context).exits);
   }
   if (next) {
-    enterState(a, *next, context.tick);
+    enterState(a, context, *next);
   }
 }
 

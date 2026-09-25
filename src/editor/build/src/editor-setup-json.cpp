@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <editor/build/editor-setup-json.h>
 #include <game/content/behavior-names.h>
+#include <game/content/footstep-names.h>
 #include <nlohmann/json.hpp>
 
 namespace eng::editor {
@@ -56,11 +57,16 @@ namespace {
     return found != object.end() ? *found : none;
   }
 
-  json writeActor(const game::ActorSpawn& actor) {
+  /// @p actor's route, as points.
+  json writeRoute(const game::ActorSpawn& actor) {
     json route = json::array();
     for (const Vec2& point : actor.route) {
       route.push_back(vec2(point));
     }
+    return route;
+  }
+
+  json writeActor(const game::ActorSpawn& actor) {
     return {{"id", actor.id},
             {"at", vec3(actor.at)},
             {"yaw_degrees", actor.yaw_degrees},
@@ -68,18 +74,21 @@ namespace {
             {"faction", game::factionName(actor.faction)},
             {"radius", actor.radius},
             {"height", actor.height},
-            {"route", route},
+            {"route", writeRoute(actor)},
             {"health", actor.health},
             {"death_blast_radius", actor.death_blast_radius},
             {"death_blast_damage", actor.death_blast_damage},
+            {"footsteps", game::stepSetWord(actor.footsteps)},
             {"model", actor.model}};
   }
 
-  /// @p entry's health and death blast, into @p actor.
+  /// @p entry's health, death blast and feet, into @p actor.
   void readActorHealth(const json& entry, game::ActorSpawn& actor) {
     actor.health = number(entry, "health", game::ACTOR_DEFAULT_HEALTH);
     actor.death_blast_radius = number(entry, "death_blast_radius", 0.0F);
     actor.death_blast_damage = number(entry, "death_blast_damage", uint16_t{0});
+    actor.footsteps = game::stepSetNamed(text(entry, "footsteps"))
+                          .value_or(game::StepSet::DEFAULT);
   }
 
   game::ActorSpawn readActor(const json& entry) {

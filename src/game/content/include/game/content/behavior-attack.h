@@ -19,6 +19,11 @@ struct BehaviorAttack {
   uint16_t damage = 0;
   /// Ticks between one attack and the next.
   uint32_t cooldown_ticks = 0;
+  /// Ticks an attack takes to land once begun — the swing before the hit,
+  /// the fuse before the blast. 0 lands at once. The attack lands only if
+  /// it still can when they have run, so a wind-up can be dodged; one that
+  /// cannot has missed, and cools down all the same.
+  uint32_t windup_ticks = 0;
   /// How far past touching a melee or a charge reaches, in tiles.
   float reach_tiles = 0.0F;
   /// Projectiles in one volley.

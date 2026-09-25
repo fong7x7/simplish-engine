@@ -13,10 +13,12 @@
 #include <engine/spatial/nav-grid.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-flow-fields.h>
+#include <game/actors/actor-note.h>
 #include <game/actors/actor-route.h>
 #include <game/combat/combat-effects.h>
 #include <game/player/player-pool.h>
 #include <span>
+#include <vector>
 
 namespace eng::game {
 
@@ -46,6 +48,9 @@ struct ActorTickContext {
   /// Where attacks put what they do, for later phases of the tick to carry
   /// out.
   CombatEffects& effects;
+  /// Where the passes note what actors did — entered a state, noticed
+  /// someone, attacked — as they do it.
+  std::vector<ActorNote>& notes;
   /// The simulation's AI stream: wander spots and `chance` draws. Drawn
   /// from in dense order, so every peer draws the same numbers for the
   /// same actors.

@@ -18,7 +18,7 @@ namespace eng::game {
 /// called through a table of functions laid out differently from the one
 /// it was compiled for. Bump it in the same change as any edit to a header
 /// under `game/logic/` that a module compiles against.
-inline constexpr uint32_t GAME_LOGIC_API_VERSION = 5;
+inline constexpr uint32_t GAME_LOGIC_API_VERSION = 9;
 
 /// The exported name of the function reporting a module's API version.
 inline constexpr std::string_view GAME_LOGIC_VERSION_SYMBOL =

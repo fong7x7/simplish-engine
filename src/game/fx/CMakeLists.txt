@@ -21,6 +21,7 @@ simplish_add_module(simplish-game-fx
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/footstep-sounds.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/footstep-surfaces.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/footstep-tracker.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/named-fx-effect.cpp
     DEPENDENCIES simplish-engine-audio
                  simplish-engine-input
                  simplish-engine-math
@@ -38,6 +39,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_footstep_sounds.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_footstep_surfaces.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_footstep_tracker.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_named_fx_effect.cpp
         DEPENDENCIES simplish-game-fx
     )
 endif()

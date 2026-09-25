@@ -178,9 +178,11 @@
 #include <game/content/faction.h>
 #include <game/fx/combat-sounds.h>
 #include <game/fx/footstep-sounds.h>
+#include <game/world/world-cue.h>
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -461,7 +463,7 @@ private:
   /// Centre the viewport on player 1, where the frame draws them.
   void followPlayer();
   /// Move the ears to player 1 and play every cue the last ticks left
-  /// worth hearing.
+  /// worth hearing, and every sound the game logic cued.
   void hearPlaytest();
   /// Where the playtest is heard from: player 1, where the frame draws
   /// them, with the screen's right as the viewport's camera turns it.
@@ -1078,6 +1080,12 @@ private:
   /// Play the sound @p hit names where it happened; false when there is no
   /// such sound, or no voice would take it.
   bool playEventSound(const EditorEventHit& hit);
+  /// Play the sound the game logic's @p cue names, from where it reaches;
+  /// warn, once a name, of one there is no such sound for.
+  void playLogicCue(const game::WorldCue& cue);
+  /// Warn, the first time only, that the game logic cued @p sound and
+  /// there is no such sound.
+  void warnUnheardCue(const std::string& sound);
   /// Save whichever of the project's editable tables — sounds, animation
   /// events — have changed since last saved.
   void tickTables();
@@ -1468,6 +1476,9 @@ private:
   game::CombatSoundClips combat_sounds_{};
   /// The clip each step set plays on each surface, in the audio bank.
   game::FootstepSoundClips footstep_sounds_{};
+  /// The sounds game logic has cued that there were none of, each warned
+  /// of once.
+  std::set<std::string> unheard_cue_sounds_{};
   /// When the last frame of play ran, for the playtest's clock.
   std::chrono::steady_clock::time_point playtest_frame_{};
   /// How far the last frame of play got between its two newest ticks,

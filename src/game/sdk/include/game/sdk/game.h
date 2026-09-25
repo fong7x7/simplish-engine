@@ -35,6 +35,7 @@ public:
   void start(GameLogicWorld& world) final;
   void tick(GameLogicWorld& world) final;
   void hashState(GameLogicHash& hash) const final;
+  void end(GameLogicWorld& world) final;
 
 protected:
   /// Once, on tick 0, before anything else.
@@ -59,6 +60,34 @@ protected:
   /// A player went down.
   virtual void onPlayerDowned([[maybe_unused]] GameLogicWorld& world,
                               [[maybe_unused]] const LogicEvent& event) {}
+  /// A downed player was brought back up; `event.by` is who did it.
+  virtual void onPlayerRevived([[maybe_unused]] GameLogicWorld& world,
+                               [[maybe_unused]] const LogicEvent& event) {}
+  /// A downed player is out of the run.
+  virtual void onPlayerOut([[maybe_unused]] GameLogicWorld& world,
+                           [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor went into another state; `event.state` is its id.
+  virtual void onActorStateEntered([[maybe_unused]] GameLogicWorld& world,
+                                   [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor took someone new as its target; `event.other` is whom.
+  virtual void onActorNoticed([[maybe_unused]] GameLogicWorld& world,
+                              [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor attacked; `event.other` is whom it had in mind.
+  virtual void onActorAttacked([[maybe_unused]] GameLogicWorld& world,
+                               [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor began an attack that winds up; it lands, if it still can,
+  /// its behavior's `windup_ticks` later.
+  virtual void onActorWindingUp([[maybe_unused]] GameLogicWorld& world,
+                                [[maybe_unused]] const LogicEvent& event) {}
+  /// A player's foot came down; heard while listening for steps.
+  virtual void onPlayerStepped([[maybe_unused]] GameLogicWorld& world,
+                               [[maybe_unused]] const LogicEvent& event) {}
+  /// An actor's foot came down; heard while listening for everyone's.
+  virtual void onActorStepped([[maybe_unused]] GameLogicWorld& world,
+                              [[maybe_unused]] const LogicEvent& event) {}
+  /// Once, when the run is over — `world.outcome()` says how. Log the
+  /// run's tally here; writes do nothing.
+  virtual void onRunEnded([[maybe_unused]] GameLogicWorld& world) {}
   /// Fold every member a later tick decides anything by into @p hash.
   virtual void onHash([[maybe_unused]] GameLogicHash& hash) const {}
 

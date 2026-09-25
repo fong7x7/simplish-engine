@@ -16,6 +16,7 @@
 #include <game/fx/combat-rumble.h>
 #include <game/fx/combat-sounds.h>
 #include <game/fx/footstep-sounds.h>
+#include <game/fx/named-fx-effect.h>
 #include <game/world/stand-in-input.h>
 #include <span>
 #include <system_error>
@@ -254,6 +255,40 @@ void EditorPlaytestSession::step(const sim::PlayerInput& live,
   playCues();
   feelTick(health_before);
   keepLogicLog();
+  keepLogicCues();
+}
+
+void EditorPlaytestSession::keepLogicCues() {
+  for (game::WorldCue& cue : world_->takeLogicCues()) {
+    showLogicCue(cue);
+    if (!cue.sound.empty() &&
+        heard_logic_cues_.size() < EDITOR_PLAYTEST_HEARD_CUES) {
+      heard_logic_cues_.push_back(cue);
+    }
+    logic_cues_.push_back(std::move(cue));
+  }
+  if (logic_cues_.size() > EDITOR_LOGIC_CUES) {
+    logic_cues_.erase(logic_cues_.begin(),
+                      logic_cues_.end() -
+                          static_cast<std::ptrdiff_t>(EDITOR_LOGIC_CUES));
+  }
+}
+
+void EditorPlaytestSession::showLogicCue(const game::WorldCue& cue) {
+  if (cue.effect.empty()) {
+    return;
+  }
+  if (const auto effect = game::findNamedFxEffect(cue.effect)) {
+    playFxEffect(fx_, *effect, {cue.at, {0.0F, 0.0F, 1.0F}, cue.scale});
+  } else if (unshown_cue_effects_.insert(cue.effect).second) {
+    LOG_WARN("logic", "cue: no effect called '" + cue.effect +
+                          "': name an effect preset, or combat.blast and "
+                          "the like");
+  }
+}
+
+std::vector<game::WorldCue> EditorPlaytestSession::takeLogicCues() {
+  return std::exchange(heard_logic_cues_, {});
 }
 
 void EditorPlaytestSession::keepLogicLog() {
@@ -505,6 +540,7 @@ void EditorPlaytestSession::publishRun(EditorPlaytestState& state) const {
   state.outcome = world_->outcome();
   state.logic = world_->hasLogic();
   state.logic_log = logic_log_;
+  state.logic_cues = logic_cues_;
 }
 
 void EditorPlaytestSession::publishActors(EditorPlaytestState& state) const {

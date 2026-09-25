@@ -12,11 +12,13 @@
 #include <game/content/faction.h>
 #include <game/logic/logic-actor.h>
 #include <game/logic/logic-blast.h>
+#include <game/logic/logic-cue.h>
 #include <game/logic/logic-event.h>
 #include <game/logic/logic-hazard.h>
 #include <game/logic/logic-player.h>
 #include <game/logic/logic-shot.h>
 #include <game/logic/logic-spawn.h>
+#include <game/logic/logic-steps.h>
 #include <game/logic/logic-target.h>
 #include <game/logic/run-outcome.h>
 #include <optional>
@@ -154,6 +156,15 @@ public:
   /// Say @p message where whoever is running the game reads its log — the
   /// editor's, or the deployed game's output. Presentation: never state.
   virtual void log(std::string_view message) = 0;
+  /// Have a sound played or an effect shown — a horn as a wave comes, smoke
+  /// where a door blew — where whoever presents the game can: the editor's
+  /// playtest does; the headless deployed game drops it. Presentation:
+  /// never state, and nothing a tick reads.
+  virtual void cue(const LogicCue& cue) = 0;
+  /// Hear the steps of @p steps from the next tick on, as `PLAYER_STEPPED`
+  /// and `ACTOR_STEPPED` events: one each time a walker covers its feet's
+  /// stride. `NONE` until asked.
+  virtual void listenForSteps(LogicSteps steps) = 0;
 
   GameLogicWorld(const GameLogicWorld&) = delete;
   GameLogicWorld& operator=(const GameLogicWorld&) = delete;

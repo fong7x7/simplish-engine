@@ -91,6 +91,8 @@ A behavior is a state machine written as data ([ADR-009](../decisions/ADR-009-ac
 | `spit` | stands, and lobs a hazard pool where its target was seen each cooldown | `radius` 1, `duration_ticks` 300, `damage` 1 a bite, `cooldown_ticks` 150 |
 | `detonate` | blows up at once, hurting everyone within the radius — every side — and dies | `radius` 2, `damage` 2 |
 
+**Wind-ups.** Any attacking state may take `windup_ticks` (default 0): the attack begins the first tick it could go off, and lands that many ticks later — the swing before the bite, the fuse before the blast — only if it still can then: its target seen, and for `melee` and `charge` still in reach. One that cannot has missed, and cools down as if it had landed, so a telegraphed attack can be dodged. Leaving the state abandons it. Game logic hears `ACTOR_WINDING_UP` as it begins and `ACTOR_ATTACKED` as it lands ([logic.md](logic.md)) — the moments of an attack gameplay can time by, where a clip's moments are presentation's ([animation.md §4.5](../engine/animation.md#45-events-moments-of-a-clip)).
+
 | Condition | Holds when |
 |---|---|
 | `always` | always |
@@ -154,6 +156,8 @@ The AI stream's state is its own section, `ai_rng`. It is drawn from only in den
 The flow fields are the section `flow`, hashed by what determines them — each field's goal, clearance and whether it is complete, and the builder's goal and how many cells it has expanded — not cell by cell: a field is a pure function of the grid, its goal and its clearance.
 
 The projectiles and hazard pools are the sections `projectiles` and `hazards`, every field of each. The effects buffer is empty between ticks and is not state; nor is the combat workspace the world lists who can be hurt in; nor are the combat cues — a shot fired, a shot landing, a blast — that the world lists for presentation each tick and no phase reads back ([fx.md §2](../engine/fx.md#2-cues-how-the-simulation-says-what-happened)).
+
+**Notes.** As the passes run, each actor that enters a state, takes a new target, or attacks appends an `ActorNote` to `ActorTickContext::notes`, in pass-then-dense order. The world turns them into the game logic's `ACTOR_STATE_ENTERED`, `ACTOR_NOTICED` and `ACTOR_ATTACKED` events ([logic.md](logic.md)) and empties the list within the tick, so the notes are not state; the events they become are, in the `logic` section.
 
 `ActorIntent`, the candidate list, the neighbour grid and the path finder's scratch are recomputed each tick before they are read and are not hashed.
 

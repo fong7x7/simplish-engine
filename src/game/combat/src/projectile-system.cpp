@@ -95,9 +95,9 @@ namespace {
   void landAt(ProjectilePool& projectiles, uint32_t i, const CombatScene& scene,
               const Landing& landing) {
     if (landing.kind == CombatCueKind::SHOT_HIT_BODY) {
-      scene.effects.damage.push_back({scene.workspace.bodies[landing.body].who,
-                                      projectiles.damage[i],
-                                      projectiles.source[i]});
+      scene.effects.damage.push_back(
+          {scene.workspace.bodies[landing.body].who, projectiles.damage[i],
+           projectiles.source[i], DamageCause::SHOT});
     }
     cueCombat(scene.cues, {landing.kind,
                            {landing.at.x, landing.at.y, PROJECTILE_Z_TILES},

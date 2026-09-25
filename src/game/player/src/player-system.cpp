@@ -58,8 +58,8 @@ namespace {
     hasher.addSpan(std::span<const uint8_t>(pool.out).first(live));
   }
 
-  /// Whether a teammate who is up stands within reach of player @p i.
-  bool teammateBeside(const PlayerPool& pool, uint32_t i) {
+  /// The first teammate who is up within reach of player @p i, if any.
+  std::optional<uint32_t> teammateBeside(const PlayerPool& pool, uint32_t i) {
     constexpr float REACH =
         PLAYER_REVIVE_REACH_TILES * PLAYER_REVIVE_REACH_TILES;
     const Vec2 at{pool.position[i].x, pool.position[i].y};
@@ -67,10 +67,10 @@ namespace {
       const Vec2 other{pool.position[j].x, pool.position[j].y};
       if (j != i && playerIsUp(pool, j) &&
           Vec2::distanceSquared(at, other) <= REACH) {
-        return true;
+        return j;
       }
     }
-    return false;
+    return std::nullopt;
   }
 
   /// Whether any player but @p i is up to revive them.
@@ -92,17 +92,25 @@ namespace {
   }
 
   /// One downed player's tick: a teammate by them revives them, and the
-  /// window running out — or nobody left to come — puts them out.
-  void updateOne(PlayerPool& pool, uint32_t i, uint64_t tick) {
-    pool.revive_ticks[i] =
-        teammateBeside(pool, i) ? pool.revive_ticks[i] + 1 : 0;
+  /// window running out — or nobody left to come — puts them out. What
+  /// became of them, if anything did.
+  std::optional<PlayerChange> updateOne(PlayerPool& pool, uint32_t i,
+                                        uint64_t tick) {
+    const std::optional<uint32_t> beside = teammateBeside(pool, i);
+    pool.revive_ticks[i] = beside ? pool.revive_ticks[i] + 1 : 0;
+    const sim::EntityHandle who = pool.slots.handleAt(i);
     if (pool.revive_ticks[i] >= PLAYER_REVIVE_TICKS) {
       revive(pool, i, tick);
-    } else if (tick - pool.downed_since[i] >= PLAYER_DOWNED_WINDOW_TICKS ||
-               !anyTeammateUp(pool, i)) {
+      return PlayerChange{PlayerChangeKind::REVIVED, who,
+                          pool.slots.handleAt(*beside)};
+    }
+    if (tick - pool.downed_since[i] >= PLAYER_DOWNED_WINDOW_TICKS ||
+        !anyTeammateUp(pool, i)) {
       pool.downed[i] = 0;
       pool.out[i] = 1;
+      return PlayerChange{PlayerChangeKind::OUT, who};
     }
+    return std::nullopt;
   }
 
 }  // namespace
@@ -133,12 +141,17 @@ void healPlayer(PlayerPool& pool, uint32_t index, uint16_t amount) {
   pool.health[index] += std::min(amount, room);
 }
 
-void updateDownedPlayers(PlayerPool& pool, uint64_t tick) {
+std::vector<PlayerChange> updateDownedPlayers(PlayerPool& pool, uint64_t tick) {
+  std::vector<PlayerChange> changes;
   for (uint32_t i = 0; i < pool.slots.size(); ++i) {
-    if (pool.downed[i] != 0) {
-      updateOne(pool, i, tick);
+    if (pool.downed[i] == 0) {
+      continue;
+    }
+    if (const auto change = updateOne(pool, i, tick)) {
+      changes.push_back(*change);
     }
   }
+  return changes;
 }
 
 std::optional<sim::EntityHandle>

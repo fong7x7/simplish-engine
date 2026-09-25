@@ -20,8 +20,8 @@ namespace {
             .obstacles = sources.obstacles,
             .events = sources.events,
             .rng = scratch.rng,
-            .outcome = scratch.outcome,
-            .log = scratch.log};
+            .run = {scratch.outcome, scratch.steps},
+            .output = {scratch.log, scratch.cues}};
   }
 
   /// The scratch a view of @p sources starts with.

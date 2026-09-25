@@ -60,9 +60,45 @@ namespace {
            context.tick >= a.pool.attack_ready_tick[a.i];
   }
 
-  /// Start actor @p a's attack's cooldown.
+  /// Whom actor @p a has in mind: its target, or nobody.
+  CombatantRef targetOf(const ActorRef& a) {
+    return a.pool.remembers_target[a.i] != 0
+               ? CombatantRef{a.pool.target_kind[a.i], a.pool.target[a.i]}
+               : NO_COMBATANT;
+  }
+
+  /// Note that actor @p a attacked, at whomever it has in mind.
+  void noteAttack(const ActorRef& a, const ActorTickContext& context) {
+    context.notes.push_back(
+        {ActorNoteKind::ATTACKED, a.pool.slots.handleAt(a.i), targetOf(a)});
+  }
+
+  /// Whether actor @p a's attack goes off now: at once, for one with no
+  /// wind-up; for one with, once the wind-up it began — and noted — the
+  /// first tick it could go off has run.
+  bool goesOff(const ActorRef& a, const ActorTickContext& context,
+               const BehaviorAttack& attack) {
+    uint64_t& lands = a.pool.attack_lands_tick[a.i];
+    if (attack.windup_ticks == 0) {
+      return true;
+    }
+    if (lands == ACTOR_NOT_WINDING) {
+      lands = context.tick + attack.windup_ticks;
+      context.notes.push_back(
+          {ActorNoteKind::WINDING_UP, a.pool.slots.handleAt(a.i), targetOf(a)});
+      return false;
+    }
+    if (context.tick < lands) {
+      return false;
+    }
+    lands = ACTOR_NOT_WINDING;
+    return true;
+  }
+
+  /// Note that actor @p a attacked, and start its attack's cooldown.
   void coolDown(const ActorRef& a, const ActorTickContext& context,
                 const BehaviorAttack& attack) {
+    noteAttack(a, context);
     a.pool.attack_ready_tick[a.i] = context.tick + attack.cooldown_ticks;
   }
 
@@ -75,8 +111,10 @@ namespace {
     }
     const float reach = a.pool.radius[a.i] + body->radius + attack.reach_tiles;
     if (Vec2::distanceSquared(flat(a.pool.position[a.i]), body->at) <=
-        reach * reach) {
-      context.effects.damage.push_back({body->who, attack.damage, self(a)});
+            reach * reach &&
+        goesOff(a, context, attack)) {
+      context.effects.damage.push_back(
+          {body->who, attack.damage, self(a), DamageCause::ATTACK});
       coolDown(a, context, attack);
     }
   }
@@ -107,7 +145,8 @@ namespace {
   /// the target.
   void fire(const ActorRef& a, const ActorTickContext& context,
             const BehaviorAttack& attack) {
-    if (attack.count == 0 || !canStrike(a, context)) {
+    if (attack.count == 0 || !canStrike(a, context) ||
+        !goesOff(a, context, attack)) {
       return;
     }
     const Vec2 aim = aimOf(a);
@@ -126,7 +165,7 @@ namespace {
   /// A lobbed pool, landing where the target was seen.
   void spit(const ActorRef& a, const ActorTickContext& context,
             const BehaviorAttack& attack) {
-    if (!canStrike(a, context)) {
+    if (!canStrike(a, context) || !goesOff(a, context, attack)) {
       return;
     }
     context.effects.hazards.push_back({a.pool.last_seen[a.i], attack.radius,
@@ -139,10 +178,27 @@ namespace {
   /// dies.
   void detonate(const ActorRef& a, const ActorTickContext& context,
                 const BehaviorAttack& attack) {
+    if (!goesOff(a, context, attack)) {
+      return;
+    }
     a.pool.death_blast_radius[a.i] = attack.radius;
     a.pool.death_blast_damage[a.i] = attack.damage;
-    context.effects.damage.push_back(
-        {self(a), std::numeric_limits<uint16_t>::max(), self(a)});
+    noteAttack(a, context);
+    context.effects.damage.push_back({self(a),
+                                      std::numeric_limits<uint16_t>::max(),
+                                      self(a), DamageCause::ATTACK});
+  }
+
+  /// A wind-up of actor @p a's that has run without its attack going off —
+  /// its target out of reach or out of sight when it came to land — has
+  /// missed: it ends, and the attack cools down as if it had landed.
+  void missIfRunOut(const ActorRef& a, const ActorTickContext& context,
+                    const BehaviorAttack& attack) {
+    uint64_t& lands = a.pool.attack_lands_tick[a.i];
+    if (lands != ACTOR_NOT_WINDING && context.tick >= lands) {
+      lands = ACTOR_NOT_WINDING;
+      a.pool.attack_ready_tick[a.i] = context.tick + attack.cooldown_ticks;
+    }
   }
 
   /// Each action's attack, in enumerator order; null for those that do
@@ -160,6 +216,7 @@ void attackActor(const ActorRef& a, const ActorTickContext& context) {
   const AttackFn attack = ATTACKS[static_cast<size_t>(state.action)];
   if (attack != nullptr) {
     attack(a, context, state.attack);
+    missIfRunOut(a, context, state.attack);
   }
 }
 
