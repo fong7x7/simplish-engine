@@ -126,6 +126,11 @@ enum class EditorPropertyField : uint8_t {
   LIT,
   /// How much of the ground under it a body of water hides, 0 to 1.
   OPACITY,
+  /// Which way a body of water flows, in degrees anticlockwise from east.
+  FLOW_DIRECTION,
+  /// How fast a body of water flows, 0 for standing to 1 for
+  /// `WATER_MAX_FLOW_SPEED`.
+  FLOW_SPEED,
 };
 
 /// Every field there is, in the enum's own order.
@@ -159,7 +164,8 @@ inline constexpr EditorPropertyField EDITOR_ALL_PROPERTY_FIELDS[] = {
     EditorPropertyField::ROWS,        EditorPropertyField::FRAMES,
     EditorPropertyField::FPS,         EditorPropertyField::SPIN,
     EditorPropertyField::TEXTURED,    EditorPropertyField::LIT,
-    EditorPropertyField::OPACITY,
+    EditorPropertyField::OPACITY,     EditorPropertyField::FLOW_DIRECTION,
+    EditorPropertyField::FLOW_SPEED,
 };
 
 /// What the panel lists for a placed asset, in the order it lists them.

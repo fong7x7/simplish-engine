@@ -24,6 +24,13 @@ AgentResult runAgentGetWater(EditorShellState& state,
 AgentResult runAgentSetWaterFidelity(EditorShellState& state,
                                      const nlohmann::json& params);
 
+/// `set_water_effects`: switch any of the water's reflections, refraction,
+/// contact foam and caustics on or off, as the View menu's rows do; the
+/// rest are left as they are. Refused, changing nothing, when a switch is
+/// not a boolean.
+AgentResult runAgentSetWaterEffects(EditorShellState& state,
+                                    const nlohmann::json& params);
+
 /// `set_water_depth`: make the water in a rectangle of cells, or in the
 /// selected body of water, one depth, as one undoable edit.
 AgentResult runAgentSetWaterDepth(EditorShellState& state,

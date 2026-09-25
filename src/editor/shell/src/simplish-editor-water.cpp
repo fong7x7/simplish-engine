@@ -5,12 +5,16 @@
 // flat water.
 
 #include <cmath>
+#include <editor/shell/editor-actor-placement.h>
 #include <editor/shell/editor-graphics-file.h>
 #include <editor/shell/editor-menu-bar-widget.h>
+#include <editor/shell/editor-placement-transform.h>
 #include <editor/shell/editor-shell-selection.h>
 #include <editor/shell/editor-water-depth-choices.h>
 #include <editor/shell/editor-water-ops.h>
 #include <editor/shell/simplish-editor.h>
+#include <engine/render-fx/fx-world.h>
+#include <engine/render-water/water-splash.h>
 #include <engine/render-water/water-surface-mesh.h>
 #include <string>
 #include <utility>
@@ -29,6 +33,14 @@ void SimplishEditor::setWaterFidelity(WaterFidelity fidelity) {
   showStatusMessage("Water: " + std::string(waterFidelityWord(fidelity)));
 }
 
+void SimplishEditor::toggleWaterEffect(WaterEffect effect) {
+  bool& on = state_.graphics.water_effects.on[waterEffectIndex(effect)];
+  on = !on;
+  ++state_.graphics.revision;
+  showStatusMessage("Water " + std::string(waterEffectWord(effect)) +
+                    (on ? ": on" : ": off"));
+}
+
 void SimplishEditor::tickGraphics() {
   if (saved_graphics_revision_ == state_.graphics.revision) {
     return;
@@ -36,6 +48,7 @@ void SimplishEditor::tickGraphics() {
   if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
           guiWidgetTree().findWidget(menu_bar_id_))) {
     menu->setWaterFidelity(state_.graphics.water);
+    menu->setWaterEffects(state_.graphics.water_effects);
   }
   // The first frame only applies what was read; there is nothing new to
   // write back.
@@ -58,8 +71,25 @@ std::vector<Vec2> SimplishEditor::waderPositions() const {
   return waders;
 }
 
+std::vector<WaterObstacle> SimplishEditor::waterObstacles() const {
+  static const EditorAsset missing{};
+  std::vector<WaterObstacle> obstacles;
+  for (const EditorPlacement& placement : state_.document.placements) {
+    const EditorAsset& asset = placement.asset < state_.assets.size()
+                                   ? state_.assets[placement.asset]
+                                   : missing;
+    const PlacementBounds box = placementWorldBounds(asset, placement);
+    if (!isEditorActor(placement) && box.min.z < WATER_SURFACE_HEIGHT &&
+        box.max.z > WATER_SURFACE_HEIGHT) {
+      obstacles.push_back({{box.min.x, box.min.y}, {box.max.x, box.max.y}});
+    }
+  }
+  return obstacles;
+}
+
 void SimplishEditor::tickWater(float seconds) {
-  water_.reshape(state_.document.water, state_.graphics.water);
+  water_.reshape(state_.document.water, state_.graphics.water,
+                 waterObstacles());
   if (isPlaying()) {
     water_.splash(playtest_->takeCues());
     water_.wade(waderPositions());
@@ -71,7 +101,17 @@ void SimplishEditor::tickWater(float seconds) {
   if (!isPlaying() || state_.playtest.clock != EditorPlaytestClock::PAUSED) {
     water_.advance(seconds);
   }
+  throwSplashes();
   water_.publish(state_.water);
+}
+
+void SimplishEditor::throwSplashes() {
+  for (const EditorWaterSplash& splash : water_.takeSplashes()) {
+    playFxEffect(activeEffects(), waterSplashEffect(),
+                 {{splash.at.x, splash.at.y, WATER_SURFACE_HEIGHT},
+                  {0.0f, 0.0f, 1.0f},
+                  splash.scale});
+  }
 }
 
 void SimplishEditor::refreshWater() {
@@ -83,6 +123,7 @@ void SimplishEditor::refreshWater() {
     drawn_water_shape_ = water_.shapeCount();
     (void)water_renderer_.setSurface(*device,
                                      makeWaterSurfaceMesh(water_.layer()));
+    (void)water_renderer_.setShape(*device, water_.field());
   }
   (void)water_renderer_.setField(*device, water_.field());
 }
@@ -94,7 +135,9 @@ void SimplishEditor::drawWater(RhiCommandList& cmd,
   params.view_projection = scene.view_projection;
   params.viewport = scene.viewport;
   params.scissor = scene.scissor;
+  params.depth = sceneDepthTarget();
   params.fidelity = water_.fidelity();
+  params.effects = state_.graphics.water_effects;
   params.seconds = water_.seconds();
   // Lit as the meshes around it are, cel-banded with them.
   params.lights = scene.lights;

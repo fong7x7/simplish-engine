@@ -520,6 +520,12 @@ inline constexpr AgentParam AGENT_PARAMS_PAINT_WATER[] = {
      "\"#rrggbb\" for water laid where it was dry; defaults to blue-green."},
     {"opacity", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
      "0 (clear) to 1 (opaque), for water laid where it was dry."},
+    {"flow_direction", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "Which way water laid where it was dry flows, in degrees "
+     "anticlockwise from east. Defaults to 0."},
+    {"flow_speed", AgentParamType::NUMBER, AgentParamNeed::OPTIONAL,
+     "How fast it flows, 0 (standing) to 1 (1.5 tiles a second). Defaults "
+     "to 0."},
     {"dry", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
      "true takes the water off instead, as the Dry card does."},
 };
@@ -530,6 +536,20 @@ inline constexpr AgentParam AGENT_PARAMS_SET_WATER_FIDELITY[] = {
      "flat — a still surface, nothing simulated; low — a rippling surface "
      "simulated at 4 samples a tile; or high — 8 samples a tile, with wind "
      "waves, light in the shallows and foam on the crests."},
+};
+
+/// `set_water_effects` switches any of the water's effects.
+inline constexpr AgentParam AGENT_PARAMS_SET_WATER_EFFECTS[] = {
+    {"reflections", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "The scene mirrored in the water. Omitted, kept."},
+    {"refraction", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "The ground seen through the water bent by its ripples. Omitted, "
+     "kept."},
+    {"contact", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "Foam rings and shadows at the foot of whatever stands in the water. "
+     "Omitted, kept."},
+    {"caustics", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "Light the waves focus on the ground under them. Omitted, kept."},
 };
 
 /// `set_volume` sets any of the volumes, and the mute.
@@ -1173,9 +1193,13 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "when the water is too wide for the budget, 2 at flat, which moves "
      "nothing; wet_samples and water_tiles, how much of it there "
      "is; energy, how much it is moving, 0 when still — drizzle keeps open "
-     "water slightly above it; and pushes, how many times a step through "
+     "water slightly above it; pushes, how many times a step through "
      "it, a shot landing in it or a blast over it has pushed it since the "
-     "editor opened. Everything but fidelity is the frame before the call.",
+     "editor opened; splashes, how many splashes of spray it has thrown up "
+     "since then — every fidelity splashes; and obstacles, how many "
+     "placements stand in it for its ripples to go round; and effects, "
+     "which of reflections, refraction, contact and caustics are drawn. "
+     "Everything but fidelity and effects is the frame before the call.",
      AgentToolEffect::READ,
      {}},
     {AgentTool::SET_WATER_FIDELITY, "set_water_fidelity",
@@ -1185,6 +1209,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "history, and allowed while playing. Refused, changing nothing, on a "
      "word that names no fidelity. Answers as get_water does.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_WATER_FIDELITY},
+    {AgentTool::SET_WATER_EFFECTS, "set_water_effects",
+     "Switch the water's costlier effects on or off, whatever the fidelity, "
+     "as the View menu's Water Reflections, Refraction, Contact Foam and "
+     "Caustics rows do: each one off is skipped, not merely hidden. Any not "
+     "named are left as they are. The user's setting, saved to the graphics "
+     "file at once, not part of the level's undo history, and allowed while "
+     "playing. Refused, changing nothing, when one is not true or false. "
+     "Answers as get_water does, its effects among the rest.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_WATER_EFFECTS},
     {AgentTool::SET_WATER_DEPTH, "set_water_depth",
      "Make water a depth — from a puddle a boot splashes through to a lake "
      "nobody sees the bottom of — in a rectangle of cells or in the "
@@ -1201,11 +1234,13 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "top of whatever terrain is there, which stays under it and shows "
      "through as far as the water is clear — or take it off again with dry, "
      "as the Dry card does. Water laid over water changes only its depth, "
-     "keeping its colour and opacity; water laid on dry cells takes the "
-     "call's colour and opacity. Set a whole body's colour and opacity "
-     "afterwards by selecting it (select, target \"water\") and calling "
-     "set_property with color_r, color_g, color_b or opacity. One undoable "
-     "edit; refused while playing. Answers with how many cells changed.",
+     "keeping its colour, opacity and flow; water laid on dry cells takes "
+     "the call's colour, opacity and flow — a pond stands, a river runs its "
+     "flow_direction at its flow_speed, carrying its ripples and foam. Set "
+     "a whole body's afterwards by selecting it (select, target \"water\") "
+     "and calling set_property with color_r, color_g, color_b, opacity, "
+     "flow_direction or flow_speed. One undoable edit; refused while "
+     "playing. Answers with how many cells changed.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PAINT_WATER},
 };
 

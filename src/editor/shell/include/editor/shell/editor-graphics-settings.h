@@ -5,6 +5,7 @@
 /// @par Threading Main-thread only.
 
 #include <cstdint>
+#include <engine/render-water/water-effects.h>
 #include <engine/render-water/water-fidelity.h>
 #include <filesystem>
 
@@ -18,6 +19,9 @@ namespace eng::editor {
 struct EditorGraphicsSettings {
   /// How painted water is drawn.
   WaterFidelity water = WATER_DEFAULT_FIDELITY;
+  /// Which of the water's costlier effects are drawn, whatever the
+  /// fidelity: reflections, refraction, contact foam, caustics.
+  WaterEffects water_effects{};
   /// The file they are kept in; empty when there is nowhere to keep them.
   std::filesystem::path file;
   /// Bumped on every change; the editor applies and saves when it moves on

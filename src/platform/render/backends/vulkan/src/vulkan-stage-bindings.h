@@ -23,8 +23,8 @@ namespace eng::render {
 struct VulkanStageBindings {
   /// Range bound at each uniform binding; a null buffer means unset.
   std::array<VkDescriptorBufferInfo, VULKAN_UNIFORM_BINDING_COUNT> uniforms{};
-  /// View bound at the texture binding; null means unset.
-  VkImageView texture = VK_NULL_HANDLE;
+  /// View bound at each fragment texture slot; null means unset.
+  std::array<VkImageView, VULKAN_FRAGMENT_TEXTURE_COUNT> textures{};
   /// Whether anything has changed since the set was last pushed.
   bool dirty = true;
 };

@@ -69,6 +69,7 @@ public:
   // --- Copy commands ---
   void copyBuffer(const RhiCopyBufferParams& params) override;
   void copyTextureToBuffer(RhiTextureHandle src, RhiBufferHandle dst) override;
+  void copyTexture(RhiTextureHandle src, RhiTextureHandle dst) override;
 
   // --- Barriers ---
   void textureBarrier(RhiTextureHandle texture, RhiTextureLayout old_layout,

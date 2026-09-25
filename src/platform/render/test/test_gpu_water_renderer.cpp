@@ -1,9 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 // The water surface on whichever GPU backend the build selected: a pond
-// filling the target, drawn in a scene pass over a cleared colour — the
-// ground under the water, as far as the test is concerned — and against a
-// cleared depth, and read back. Skips where the machine has no device, or
+// filling the target, drawn as the editor draws it — a scene pass cleared
+// to a colour, the ground under the water as far as the test is concerned,
+// and to a depth; a copy of it; and the water over it in the pass after —
+// and read back. Skips where the machine has no device, or
 // the backend has no built-in water pipeline.
 
 #include "support/gpu_test_context.h"
@@ -63,6 +64,26 @@ RhiTextureHandle createDepth(RhiDevice& device) {
   return device.createTexture(desc);
 }
 
+/// A pool of default water @p half cells each way from the middle.
+WaterLayer poolOf(int32_t half) {
+  WaterLayer layer;
+  for (int32_t y = -half; y < half; ++y) {
+    for (int32_t x = -half; x < half; ++x) {
+      setWaterCell(layer, {x, y}, {.depth = 16});
+    }
+  }
+  return layer;
+}
+
+/// The texel on the middle row @p tiles east of the middle, looking down.
+std::array<int, 4> texelEastOf(const std::vector<uint8_t>& texels,
+                               float tiles) {
+  const auto x = static_cast<uint32_t>(
+      (tiles / static_cast<float>(POND_HALF) * 0.5f + 0.5f) *
+      static_cast<float>(GPU_TEST_SIZE));
+  return texelAt(texels, x, GPU_TEST_SIZE / 2);
+}
+
 /// The pond: every cell from −4 to 3 on both axes the same @p water.
 WaterLayer pond(const WaterCell& water) {
   WaterLayer layer;
@@ -115,6 +136,12 @@ struct PondDraw {
   float scene_depth = 1.0f;
   /// The lights it is lit by.
   std::span<const MeshLight> lights = SIDE_LIGHTS;
+  /// Which of the switchable effects it is drawn with.
+  WaterEffects effects{};
+  /// The colour target, made by `renderPond`.
+  RhiTextureHandle target = RHI_TEXTURE_INVALID;
+  /// The scene's depth, made by `renderPond`.
+  RhiTextureHandle depth = RHI_TEXTURE_INVALID;
 };
 
 /// A draw of the pond as @p draw says, over the whole target.
@@ -126,6 +153,7 @@ WaterRenderer::DrawParams drawParams(const PondDraw& draw) {
   params.scissor = {0, 0, GPU_TEST_SIZE, GPU_TEST_SIZE};
   params.fidelity = draw.fidelity;
   params.lights = draw.lights;
+  params.effects = draw.effects;
   params.seconds = 1.25f;
   return params;
 }
@@ -146,25 +174,55 @@ void beginScenePass(RhiCommandList& cmd, RhiTextureHandle& target,
   cmd.beginRenderPass(scene);
 }
 
-/// Draw the pond over @p field into a scene pass, as @p draw says, and read
-/// the target back.
-std::vector<uint8_t> renderPond(const GpuTestContext& ctx,
-                                const WaterField& field, const PondDraw& draw) {
+/// Open the pass over the scene: its colour kept, no depth attached.
+void beginOverlayPass(RhiCommandList& cmd, RhiTextureHandle& target) {
+  RhiRenderPassBeginInfo over{};
+  over.color_targets = &target;
+  over.color_target_count = 1;
+  over.color_load_op = RhiLoadOp::LOAD;
+  cmd.beginRenderPass(over);
+}
+
+/// The scene pass, its copy, and the pond over it, as @p draw says.
+void recordPond(RhiDevice& device, RhiCommandList& cmd, WaterRenderer& water,
+                const PondDraw& draw) {
+  RhiTextureHandle target = draw.target;
+  beginScenePass(cmd, target, draw.depth, draw.scene_depth);
+  cmd.endRenderPass();
+  REQUIRE(water.captureScene(
+      device, cmd,
+      {target, GPU_TEST_SIZE, GPU_TEST_SIZE, RhiFormat::BGR_A8_SRGB}));
+  beginOverlayPass(cmd, target);
+  WaterRenderer::DrawParams params = drawParams(draw);
+  params.depth = draw.depth;
+  water.draw(cmd, params);
+  cmd.endRenderPass();
+}
+
+/// Draw @p layer's water over @p field as @p draw says, and read the target
+/// back.
+std::vector<uint8_t> renderLayer(const GpuTestContext& ctx,
+                                 const WaterLayer& layer,
+                                 const WaterField& field, PondDraw draw) {
   RhiDevice& device = *ctx.device();
   WaterRenderer water;
   REQUIRE(water.init(device));
-  REQUIRE(water.setSurface(device, makeWaterSurfaceMesh(pond(draw.water))));
+  REQUIRE(water.setSurface(device, makeWaterSurfaceMesh(layer)));
   REQUIRE(water.setField(device, field));
-  RhiTextureHandle target = ctx.createColorTarget();
-  const RhiTextureHandle depth = createDepth(device);
+  draw.target = ctx.createColorTarget();
+  draw.depth = createDepth(device);
   std::vector<uint8_t> texels =
-      ctx.renderAndRead(target, [&](RhiCommandList& cmd) {
-        beginScenePass(cmd, target, depth, draw.scene_depth);
-        water.draw(cmd, drawParams(draw));
-        cmd.endRenderPass();
+      ctx.renderAndRead(draw.target, [&](RhiCommandList& cmd) {
+        recordPond(device, cmd, water, draw);
       });
   water.shutdown(device);
   return texels;
+}
+
+/// Draw the pond over @p field as @p draw says, and read the target back.
+std::vector<uint8_t> renderPond(const GpuTestContext& ctx,
+                                const WaterField& field, const PondDraw& draw) {
+  return renderLayer(ctx, pond(draw.water), field, draw);
 }
 
 /// A still field over a pond of @p water at @p samples_per_tile.
@@ -222,9 +280,9 @@ std::array<int, 4> groundGrey(const GpuTestContext& ctx) {
 
 }  // namespace
 
-// Req: docs/engine/water.md — the surface is drawn in the scene pass,
-// tested against its depth: open water shows its colour, and anything
-// nearer than the surface hides it.
+// Req: docs/engine/water.md — the surface is drawn over the scene, tested
+// against its depth: open water shows its colour, and anything nearer than
+// the surface hides it.
 TEST_CASE("WaterRenderer on the GPU: open water shows, and depth hides it",
           "[gpu][water]") {
   GpuTestContext ctx;
@@ -325,4 +383,54 @@ TEST_CASE("WaterRenderer on the GPU: a red light reddens the water",
   const auto red = middleOf(renderStill(ctx, {.water = murky, .lights = lit}));
   CHECK(red[2] > plain[2] + 20);
   CHECK(std::abs(red[0] - plain[0]) < 12);
+}
+
+// Req: docs/engine/water.md §4 — the ground the water wets, beside it, is
+// darker than the dry ground further off.
+TEST_CASE("WaterRenderer on the GPU: wet ground beside the water is darker",
+          "[gpu][water]") {
+  GpuTestContext ctx;
+  if (!hasWaterPipeline(ctx.device())) {
+    SKIP("no GPU device with a built-in water pipeline");
+  }
+  // A pool two tiles square in the middle: the pixel a twentieth of a tile
+  // past its east edge is wet, the one a tile and a half past it dry.
+  const WaterLayer pool = poolOf(1);
+  WaterField field;
+  resetWaterField(field, pool, 8);
+  const auto texels = renderLayer(ctx, pool, field, {});
+  const auto wet = texelEastOf(texels, 1.05f);
+  const auto dry = texelEastOf(texels, 2.5f);
+  CHECK(wet[1] + 3 < dry[1]);
+}
+
+// Req: docs/engine/water.md §4 — running water draws differently from the
+// same water standing: its surface runs with it and streaks.
+TEST_CASE("WaterRenderer on the GPU: running water draws differently",
+          "[gpu][water]") {
+  GpuTestContext ctx;
+  if (!hasWaterPipeline(ctx.device())) {
+    SKIP("no GPU device with a built-in water pipeline");
+  }
+  WaterCell river = waterOf(1.0f, 110);
+  river.flow_speed = 255;
+  const PondDraw standing{.fidelity = WaterFidelity::HIGH};
+  const PondDraw running{.water = river, .fidelity = WaterFidelity::HIGH};
+  CHECK(differenceOverMiddle(renderStill(ctx, standing),
+                             renderStill(ctx, running)) > 2000);
+}
+
+// Req: docs/engine/water.md §5 — an effect switched off is not drawn: clear
+// water over the ground loses the light its waves focus on it.
+TEST_CASE("WaterRenderer on the GPU: switching caustics off changes the water",
+          "[gpu][water]") {
+  GpuTestContext ctx;
+  if (!hasWaterPipeline(ctx.device())) {
+    SKIP("no GPU device with a built-in water pipeline");
+  }
+  PondDraw lit{.water = waterOf(0.5f, 0), .fidelity = WaterFidelity::HIGH};
+  PondDraw unlit = lit;
+  unlit.effects.on[waterEffectIndex(WaterEffect::CAUSTICS)] = false;
+  CHECK(differenceOverMiddle(renderStill(ctx, lit), renderStill(ctx, unlit)) >
+        2000);
 }

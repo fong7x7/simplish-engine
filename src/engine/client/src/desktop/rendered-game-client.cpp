@@ -238,6 +238,7 @@ void RenderedGameClient::recordLayeredFrame(RhiCommandList& cmd,
   beginScenePass(cmd, device, depth);
   recordScene(cmd);
   cmd.endRenderPass();
+  recordSceneCapture(cmd);
 
   beginGuiPass(cmd, device, RhiLoadOp::LOAD);
   recordSceneOverlay(cmd);

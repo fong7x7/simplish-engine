@@ -264,6 +264,7 @@ namespace {
       runAgentPlaySound,
       runAgentGetWater,
       runAgentSetWaterFidelity,
+      runAgentSetWaterEffects,
       runAgentSetWaterDepth,
       runAgentPaintWater,
   };

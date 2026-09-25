@@ -8,6 +8,7 @@
 #include "dx12-root-signature.h"
 #include "dx12-texture-lookup.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <d3d12.h>
@@ -46,6 +47,16 @@ namespace {
     loc.PlacedFootprint.Footprint.Depth = 1;
     loc.PlacedFootprint.Footprint.RowPitch = dx12AlignRowPitch(width * 4);
     return loc;
+  }
+
+  /// The region two textures share, from their corner.
+  D3D12_BOX sharedBox(const D3D12_RESOURCE_DESC& a,
+                      const D3D12_RESOURCE_DESC& b) {
+    D3D12_BOX box{};
+    box.right = static_cast<UINT>((std::min)(a.Width, b.Width));
+    box.bottom = (std::min)(a.Height, b.Height);
+    box.back = 1;
+    return box;
   }
 
   D3D12_RESOURCE_BARRIER buildUavBarrier(ID3D12Resource* resource) {
@@ -236,7 +247,8 @@ void Dx12CommandList::setFragmentStageBytes(const void* data, size_t size,
 void Dx12CommandList::bindFragmentTexture(RhiTextureHandle texture,
                                           uint32_t slot) {
   auto* tex = impl_.textures.lookup(texture);
-  if (slot != 0 || !graphics_root_bound_) {
+  const uint32_t root_param = dx12PixelSrvRootParam(slot);
+  if (root_param == DX12_ROOT_PARAM_NONE || !graphics_root_bound_) {
     return;
   }
   uint32_t srv = impl_.null_srv_index;
@@ -245,7 +257,7 @@ void Dx12CommandList::bindFragmentTexture(RhiTextureHandle texture,
                           D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     srv = tex->srv_index;
   }
-  cmd_list_->SetGraphicsRootDescriptorTable(DX12_ROOT_PARAM_PIXEL_SRV_TABLE,
+  cmd_list_->SetGraphicsRootDescriptorTable(root_param,
                                             impl_.srvGpuHandle(srv));
 }
 
@@ -373,6 +385,21 @@ void Dx12CommandList::copyTextureToBuffer(RhiTextureHandle src,
   auto src_loc = buildSubresourceCopyLoc(resource);
   auto dst_loc = buildFootprintCopyLoc(buf->resource, desc);
   cmd_list_->CopyTextureRegion(&dst_loc, 0, 0, 0, &src_loc, nullptr);
+}
+
+void Dx12CommandList::copyTexture(RhiTextureHandle src, RhiTextureHandle dst) {
+  auto* from = dx12TextureResource(impl_, src);
+  auto* to = dx12TextureResource(impl_, dst);
+  if (from == nullptr || to == nullptr) {
+    return;
+  }
+  dx12TransitionTexture(cmd_list_, impl_, src,
+                        D3D12_RESOURCE_STATE_COPY_SOURCE);
+  dx12TransitionTexture(cmd_list_, impl_, dst, D3D12_RESOURCE_STATE_COPY_DEST);
+  const D3D12_BOX box = sharedBox(from->GetDesc(), to->GetDesc());
+  auto src_loc = buildSubresourceCopyLoc(from);
+  auto dst_loc = buildSubresourceCopyLoc(to);
+  cmd_list_->CopyTextureRegion(&dst_loc, 0, 0, 0, &src_loc, &box);
 }
 
 // ---------------------------------------------------------------------------

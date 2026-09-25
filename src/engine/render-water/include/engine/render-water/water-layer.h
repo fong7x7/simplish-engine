@@ -4,6 +4,7 @@
 /// @brief Water painted over a level's ground: its own layer, cell by cell.
 /// @par Threading Main-thread-only (owns heap storage).
 
+#include <engine/math/vec2.h>
 #include <engine/render-ground/ground-cell.h>
 #include <engine/render-ground/ground-grid.h>
 #include <engine/render-ground/ground-rect.h>
@@ -16,7 +17,7 @@ namespace eng {
 /// whatever water lies over it, and shows through as far as the water is
 /// clear.
 ///
-/// Five grids of bytes over the same cells, one per field of `WaterCell`,
+/// Seven grids of bytes over the same cells, one per field of `WaterCell`,
 /// each growing to hold whatever is painted as a `GroundGrid` does. A cell
 /// is water where `depth` is not zero; the others are read only there.
 struct WaterLayer {
@@ -30,6 +31,10 @@ struct WaterLayer {
   GroundGrid blue;
   /// Each cell's opacity, 0 to 255.
   GroundGrid opacity;
+  /// Which way each cell flows, in 256ths of a turn from east.
+  GroundGrid flow_heading;
+  /// How fast each cell flows, in 255ths of `WATER_MAX_FLOW_SPEED`.
+  GroundGrid flow_speed;
 
   /// Two layers are equal when every grid is.
   bool operator==(const WaterLayer&) const = default;
@@ -41,6 +46,9 @@ struct WaterLayer {
 /// Lay @p water on @p cell — or dry it, when its depth is 0, which clears
 /// every byte. Returns whether anything changed.
 bool setWaterCell(WaterLayer& layer, GroundCell cell, const WaterCell& water);
+
+/// Which way and how fast @p water flows, in tiles a second.
+[[nodiscard]] Vec2 waterCellFlow(const WaterCell& water);
 
 /// The smallest rectangle holding every cell of water; empty when dry.
 [[nodiscard]] GroundRect waterLayerBounds(const WaterLayer& layer);

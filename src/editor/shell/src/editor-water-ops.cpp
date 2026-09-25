@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <editor/shell/editor-property-ops.h>
 #include <editor/shell/editor-water-ops.h>
 #include <engine/render-ground/ground-region.h>
 #include <utility>
@@ -25,9 +26,22 @@ namespace {
         return &water.blue;
       case EditorPropertyField::OPACITY:
         return &water.opacity;
+      case EditorPropertyField::FLOW_DIRECTION:
+        return &water.flow_heading;
+      case EditorPropertyField::FLOW_SPEED:
+        return &water.flow_speed;
       default:
         return nullptr;
     }
+  }
+
+  /// @p byte of @p field as the panel shows it.
+  float shownAs(EditorPropertyField field, uint8_t byte) {
+    if (field != EditorPropertyField::FLOW_DIRECTION) {
+      return static_cast<float>(byte) / 255.0f;
+    }
+    return normalizeEditorPropertyValue(field, static_cast<float>(byte) *
+                                                   (360.0f / 256.0f));
   }
 
   /// Change @p cell's water by @p change when there is water on it; false
@@ -122,7 +136,7 @@ bool setEditorWaterValue(WaterLayer& layer, std::span<const GroundCell> cells,
     changed = changeWet(layer, cell,
                         [&](WaterCell& water) {
                           if (uint8_t* byte = channelOf(water, field)) {
-                            *byte = toByte(value);
+                            *byte = editorWaterByte(field, value);
                           }
                         }) ||
               changed;
@@ -130,10 +144,20 @@ bool setEditorWaterValue(WaterLayer& layer, std::span<const GroundCell> cells,
   return changed;
 }
 
+uint8_t editorWaterByte(EditorPropertyField field, float value) {
+  // Degrees are 256ths of a turn; everything else 0 to 1 is 255ths.
+  if (field != EditorPropertyField::FLOW_DIRECTION) {
+    return toByte(value);
+  }
+  const float turns = normalizeEditorPropertyValue(field, value) / 360.0f;
+  const long step = std::lround(turns * 256.0f);
+  return static_cast<uint8_t>(((step % 256) + 256) % 256);
+}
+
 float editorWaterValue(const WaterCell& water, EditorPropertyField field) {
   WaterCell copy = water;
   const uint8_t* byte = channelOf(copy, field);
-  return byte != nullptr ? static_cast<float>(*byte) / 255.0f : 0.0f;
+  return byte != nullptr ? shownAs(field, *byte) : 0.0f;
 }
 
 std::vector<GroundCell> connectedWaterCells(const WaterLayer& layer,

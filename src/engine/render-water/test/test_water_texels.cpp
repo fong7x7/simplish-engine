@@ -41,10 +41,26 @@ TEST_CASE("still water packs as level, unsloped texels",
   CHECK(deep[0] == 128);
   CHECK(deep[1] == 128);
   CHECK(deep[2] == 128);
-  CHECK(deep[3] == 255);
-  CHECK(texelNear(field, texels, {-0.5f, 4.0f})[3] == 0);
-  CHECK(texelNear(field, texels, {0.1f, 4.0f})[3] > 0);
-  CHECK(texelNear(field, texels, {0.1f, 4.0f})[3] < 255);
+  CHECK(deep[3] == 0);
+}
+
+TEST_CASE("the still texels hold the shore, no flow, and open water",
+          "[render-water][texels]") {
+  const WaterField field = pondField(8, 4);
+  std::vector<uint8_t> texels;
+  writeWaterStillTexels(field, texels);
+  REQUIRE(texels.size() == field.level.size() * WATER_TEXEL_BYTES);
+  const uint8_t* deep = texelNear(field, texels, {4.0f, 4.0f});
+  CHECK(deep[0] == 255);
+  CHECK(deep[1] == 128);
+  CHECK(deep[2] == 128);
+  CHECK(deep[3] == 0);
+  CHECK(texelNear(field, texels, {-0.5f, 4.0f})[0] == 0);
+  // The dry ring: wet beside the water, dry a tile out.
+  CHECK(texelNear(field, texels, {-0.1f, 4.0f})[3] < 128);
+  CHECK(texelNear(field, texels, {-0.9f, 4.0f})[3] == 255);
+  CHECK(texelNear(field, texels, {0.1f, 4.0f})[0] > 0);
+  CHECK(texelNear(field, texels, {0.1f, 4.0f})[0] < 255);
 }
 
 TEST_CASE("a hollow slopes up away from its middle on both axes",

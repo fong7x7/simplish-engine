@@ -176,3 +176,39 @@ TEST_CASE("a step on water sounds like water, whatever is under it") {
   CHECK(surfaces.ground.at({5, 0}) ==
         static_cast<uint8_t>(game::FootstepSurface::SAND));
 }
+
+// Req: docs/engine/water.md §6 — a body of water flows the way its Flow
+// Direction row says, in degrees, at its Flow Speed, 0 to 1.
+TEST_CASE("a body's flow is set in degrees and as a fraction of the fastest") {
+  EditorDocument document = lakeDocument();
+  CHECK(setEditorWaterValue(document.water, LAKE_CELLS,
+                            EditorPropertyField::FLOW_DIRECTION, 90.0f));
+  CHECK(setEditorWaterValue(document.water, LAKE_CELLS,
+                            EditorPropertyField::FLOW_SPEED, 0.5f));
+  const WaterCell river = waterCellAt(document.water, {2, 0});
+  CHECK(river.flow_heading == 64);
+  CHECK(river.flow_speed == 128);
+  CHECK(editorWaterValue(river, EditorPropertyField::FLOW_DIRECTION) == 90.0f);
+  CHECK(editorWaterByte(EditorPropertyField::FLOW_DIRECTION, -90.0f) == 192);
+  CHECK(editorWaterByte(EditorPropertyField::FLOW_DIRECTION, 540.0f) == 128);
+  CHECK(editorWaterValue(waterCellAt(document.water, {0, 0}),
+                         EditorPropertyField::FLOW_DIRECTION) == 90.0f);
+}
+
+TEST_CASE("a level keeps its water's flow, and reads a file without any") {
+  EditorDocument document = lakeDocument();
+  setEditorWaterValue(document.water, LAKE_CELLS,
+                      EditorPropertyField::FLOW_SPEED, 1.0f);
+  const std::string text = serializeEditorLevel(document, {}, "r");
+  const std::optional<EditorLevelLoad> load = parseEditorLevel(text, {});
+  REQUIRE(load.has_value());
+  CHECK(waterCellAt(load->document.water, {1, 0}).flow_speed == 255);
+  nlohmann::json older = nlohmann::json::parse(text);
+  older["content"]["layers"]["water"].erase("flow_heading");
+  older["content"]["layers"]["water"].erase("flow_speed");
+  const std::optional<EditorLevelLoad> still =
+      parseEditorLevel(older.dump(), {});
+  REQUIRE(still.has_value());
+  CHECK(waterCellAt(still->document.water, {1, 0}).flow_speed == 0);
+  CHECK(waterCellAt(still->document.water, {1, 0}).depth == LAKE.depth);
+}

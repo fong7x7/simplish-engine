@@ -134,6 +134,8 @@ inline constexpr EditorPropertyTraits EDITOR_PROPERTY_TRAITS[] = {
     {"Textured", EditorPropertyKind::TOGGLE},
     {"Lit", EditorPropertyKind::TOGGLE},
     {"Opacity", EditorPropertyKind::SHADE},
+    {"Flow Direction", EditorPropertyKind::ANGLE},
+    {"Flow Speed", EditorPropertyKind::SHADE},
 };
 
 static_assert(std::size(EDITOR_PROPERTY_TRAITS) ==

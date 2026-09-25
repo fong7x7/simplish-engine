@@ -30,6 +30,11 @@ struct EditorWaterState {
   /// a blast landing in it — since the editor opened. Drizzle is not
   /// counted.
   uint64_t pushes = 0;
+  /// How many splashes it has thrown up — a shot or a blast landing in
+  /// it, a wader's feet — since the editor opened.
+  uint64_t splashes = 0;
+  /// How many placements stand in it for its ripples to go round.
+  uint32_t obstacles = 0;
 };
 
 }  // namespace eng::editor

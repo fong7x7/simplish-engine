@@ -75,12 +75,31 @@ TEST_CASE("set_water_fidelity refuses a word that names no fidelity") {
 TEST_CASE("the View menu's water rows can be run by name") {
   EditorShellState state;
   for (const std::string_view name :
-       {"set_water_flat", "set_water_low", "set_water_high"}) {
+       {"set_water_flat", "set_water_low", "set_water_high",
+        "toggle_water_reflections", "toggle_water_refraction",
+        "toggle_water_contact", "toggle_water_caustics"}) {
     const AgentResult result =
         runAgentTool(state, "run_command", json{{"command", name}}.dump());
     INFO(name << " said " << result.json);
     CHECK(result.status == AgentStatus::OK);
   }
+}
+
+// Req: docs/engine/water.md §5 — an agent switches the water's costlier
+// effects as the View menu's rows do, leaving the ones it does not name.
+TEST_CASE("set_water_effects switches the effects it names and no others") {
+  EditorShellState state;
+  const uint64_t before = state.graphics.revision;
+  const json out = call(state, "set_water_effects",
+                        R"({"reflections": false, "caustics": false})");
+  CHECK(out["effects"]["reflections"] == false);
+  CHECK(out["effects"]["refraction"] == true);
+  CHECK(out["effects"]["caustics"] == false);
+  CHECK(state.graphics.revision == before + 1);
+  CHECK(call(state, "get_water", "{}")["effects"]["contact"] == true);
+  CHECK(runAgentTool(state, "set_water_effects", R"({"contact": "off"})")
+            .status == AgentStatus::BAD_PARAMS);
+  CHECK(waterEffectOn(state.graphics.water_effects, WaterEffect::CONTACT));
 }
 
 namespace {
@@ -196,4 +215,31 @@ TEST_CASE("get_water names every depth") {
   REQUIRE(water["depths"].size() == EDITOR_WATER_DEPTH_COUNT);
   CHECK(water["depths"][0]["depth"] == "puddle");
   CHECK(water["depths"][3]["tiles"] == 3.0);
+}
+
+// Req: docs/engine/water.md §6 — an agent lays running water, and turns a
+// body's flow as the panel's Flow rows do.
+TEST_CASE("paint_water lays a river") {
+  EditorShellState state = withPond();
+  CHECK(call(state, "paint_water",
+             R"({"x": 4, "y": 0, "flow_direction": 90, "flow_speed": 1})")
+            ["changed"] == 1);
+  const WaterCell river = waterCellAt(state.document.water, {4, 0});
+  CHECK(river.flow_heading == 64);
+  CHECK(river.flow_speed == 255);
+  CHECK(
+      runAgentTool(state, "paint_water", R"({"x": 5, "y": 0, "flow_speed": 3})")
+          .status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("set_property turns a selected body's flow") {
+  EditorShellState state = withPond();
+  call(state, "select", R"({"target": "water", "x": 0, "y": 0})");
+  const json turned = call(
+      state, "set_property",
+      R"({"target": "selection", "field": "flow_direction", "value": 180})");
+  CHECK(turned["fields"]["flow_direction"] == -180.0);
+  CHECK(call(state, "set_property",
+             R"({"target": "selection", "field": "flow_speed", "value": 0.5})")
+            ["fields"]["flow_speed"] == static_cast<double>(128.0f / 255.0f));
 }

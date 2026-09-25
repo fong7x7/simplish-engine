@@ -159,6 +159,8 @@ enum class AgentTool : uint8_t {
   GET_WATER,
   /// Draw water flat, low or high.
   SET_WATER_FIDELITY,
+  /// Switch the water's costlier effects on or off.
+  SET_WATER_EFFECTS,
   /// Make the water in a rectangle, or in the selected area, one depth.
   SET_WATER_DEPTH,
   /// Lay water over a rectangle of the ground, or dry it.
@@ -236,6 +238,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::PLAY_SOUND,
     AgentTool::GET_WATER,
     AgentTool::SET_WATER_FIDELITY,
+    AgentTool::SET_WATER_EFFECTS,
     AgentTool::SET_WATER_DEPTH,
     AgentTool::PAINT_WATER,
 };

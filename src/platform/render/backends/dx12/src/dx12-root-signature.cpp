@@ -27,11 +27,11 @@ namespace {
     return param;
   }
 
-  D3D12_DESCRIPTOR_RANGE makeSingleSrvRange() {
+  D3D12_DESCRIPTOR_RANGE makeSingleSrvRange(UINT shader_register) {
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range.NumDescriptors = 1;
-    range.BaseShaderRegister = 0;
+    range.BaseShaderRegister = shader_register;
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
     return range;
@@ -63,9 +63,21 @@ namespace {
             makeLinearSampler(D3D12_TEXTURE_ADDRESS_MODE_WRAP, 1)};
   }
 
+  /// One single-texture range per pixel texture slot, at `t<slot>`.
+  using SrvRanges =
+      std::array<D3D12_DESCRIPTOR_RANGE, DX12_PIXEL_TEXTURE_COUNT>;
+
+  SrvRanges makeSrvRanges() {
+    SrvRanges ranges{};
+    for (UINT slot = 0; slot < DX12_PIXEL_TEXTURE_COUNT; ++slot) {
+      ranges[slot] = makeSingleSrvRange(slot);
+    }
+    return ranges;
+  }
+
   void fillGraphicsParams(
       std::array<D3D12_ROOT_PARAMETER, DX12_GRAPHICS_ROOT_PARAM_COUNT>& params,
-      const D3D12_DESCRIPTOR_RANGE& srv_range) {
+      const SrvRanges& srv_ranges) {
     params[DX12_ROOT_PARAM_VERTEX_CBV0] =
         makeCbvParam(0, D3D12_SHADER_VISIBILITY_VERTEX);
     params[DX12_ROOT_PARAM_VERTEX_CBV1] =
@@ -74,9 +86,11 @@ namespace {
         makeCbvParam(0, D3D12_SHADER_VISIBILITY_PIXEL);
     params[DX12_ROOT_PARAM_PIXEL_CBV1] =
         makeCbvParam(1, D3D12_SHADER_VISIBILITY_PIXEL);
-    params[DX12_ROOT_PARAM_PIXEL_SRV_TABLE] = makeSrvTableParam(srv_range);
     params[DX12_ROOT_PARAM_VERTEX_CBV2] =
         makeCbvParam(2, D3D12_SHADER_VISIBILITY_VERTEX);
+    for (uint32_t slot = 0; slot < DX12_PIXEL_TEXTURE_COUNT; ++slot) {
+      params[dx12PixelSrvRootParam(slot)] = makeSrvTableParam(srv_ranges[slot]);
+    }
   }
 
   /// Serialise and create; releases the blobs either way. Null on failure.
@@ -102,9 +116,9 @@ namespace {
 }  // namespace
 
 ID3D12RootSignature* createDx12GraphicsRootSignature(ID3D12Device5* device) {
-  const D3D12_DESCRIPTOR_RANGE srv_range = makeSingleSrvRange();
+  const SrvRanges srv_ranges = makeSrvRanges();
   std::array<D3D12_ROOT_PARAMETER, DX12_GRAPHICS_ROOT_PARAM_COUNT> params{};
-  fillGraphicsParams(params, srv_range);
+  fillGraphicsParams(params, srv_ranges);
   const std::array<D3D12_STATIC_SAMPLER_DESC, 2> samplers =
       makeStaticSamplers();
 

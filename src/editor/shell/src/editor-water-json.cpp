@@ -25,21 +25,29 @@ namespace {
   /// stacking drew there.
   constexpr std::string_view LEGACY_BED = "sand";
 
+  /// How many grids a water layer has.
+  constexpr size_t CHANNEL_COUNT = 7;
+
   /// A water layer's grids by the keys a file writes them under, in the
   /// order `WaterLayer` holds them.
-  constexpr std::array<const char*, 5> CHANNEL_KEYS{"depth", "red", "green",
-                                                    "blue", "opacity"};
+  constexpr std::array<const char*, CHANNEL_COUNT> CHANNEL_KEYS{
+      "depth", "red", "green", "blue", "opacity", "flow_heading", "flow_speed"};
+
+  /// How many of them every file has: the flow came later, and a file
+  /// without it holds standing water.
+  constexpr size_t REQUIRED_CHANNELS = 5;
 
   /// @p layer's grids in `CHANNEL_KEYS`' order.
-  std::array<const GroundGrid*, 5> channelsOf(const WaterLayer& layer) {
-    return {&layer.depth, &layer.red, &layer.green, &layer.blue,
-            &layer.opacity};
+  std::array<const GroundGrid*, CHANNEL_COUNT>
+  channelsOf(const WaterLayer& layer) {
+    return {&layer.depth,   &layer.red,          &layer.green,     &layer.blue,
+            &layer.opacity, &layer.flow_heading, &layer.flow_speed};
   }
 
   /// The same, to write into.
-  std::array<GroundGrid*, 5> channelsOf(WaterLayer& layer) {
-    return {&layer.depth, &layer.red, &layer.green, &layer.blue,
-            &layer.opacity};
+  std::array<GroundGrid*, CHANNEL_COUNT> channelsOf(WaterLayer& layer) {
+    return {&layer.depth,   &layer.red,          &layer.green,     &layer.blue,
+            &layer.opacity, &layer.flow_heading, &layer.flow_speed};
   }
 
   /// @p grid over @p bounds as `[value, run_length]` pairs.
@@ -107,9 +115,16 @@ namespace {
     return map;
   }
 
-  /// One grid of a water layer from the runs under @p key, or nothing.
-  std::optional<GroundGrid> readChannel(const json& layer, const char* key,
+  /// One grid of a water layer from the runs under @p key, or nothing —
+  /// or, for one a file may leave out, zero over @p bounds when it does.
+  std::optional<GroundGrid> readChannel(const json& layer, size_t channel,
                                         GroundRect bounds) {
+    const char* key = CHANNEL_KEYS[channel];
+    if (channel >= REQUIRED_CHANNELS && !layer.contains(key)) {
+      const std::vector<GroundRun> still{
+          {0, static_cast<uint32_t>(bounds.width * bounds.height)}};
+      return decodeGroundRuns(bounds, still);
+    }
     const auto runs = readPairs(layer.value(key, json()), identityMap());
     return runs ? decodeGroundRuns(bounds, *runs) : std::nullopt;
   }
@@ -123,10 +138,9 @@ namespace {
       return std::nullopt;
     }
     WaterLayer water;
-    const std::array<GroundGrid*, 5> channels = channelsOf(water);
+    const std::array<GroundGrid*, CHANNEL_COUNT> channels = channelsOf(water);
     for (size_t i = 0; i < channels.size(); ++i) {
-      std::optional<GroundGrid> grid =
-          readChannel(layer, CHANNEL_KEYS[i], *bounds);
+      std::optional<GroundGrid> grid = readChannel(layer, i, *bounds);
       if (!grid) {
         return std::nullopt;
       }
@@ -216,7 +230,8 @@ void writeEditorWater(const WaterLayer& water, json& content) {
                {"height", bounds.height}}},
              {"encoding", RLE},
              {"step", WATER_DEPTH_STEP}};
-  const std::array<const GroundGrid*, 5> channels = channelsOf(water);
+  const std::array<const GroundGrid*, CHANNEL_COUNT> channels =
+      channelsOf(water);
   for (size_t i = 0; i < channels.size(); ++i) {
     layer[CHANNEL_KEYS[i]] = runsJson(*channels[i], bounds);
   }

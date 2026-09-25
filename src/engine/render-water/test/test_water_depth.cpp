@@ -76,3 +76,24 @@ TEST_CASE("a dry corner lowers depth without darkening the colour",
   CHECK(waterSampleAt(corners, {-1.0f, -1.0f}).depth == 0.0f);
   CHECK(waterSampleAt(corners, {9.0f, 9.0f}).depth == 0.0f);
 }
+
+// Req: docs/engine/water.md §2 — flow blends between tiles as the rest of
+// the water does: a river turning a corner turns across the tile between.
+TEST_CASE("flow blends across the tile between two currents",
+          "[render-water][depth]") {
+  WaterLayer layer;
+  const uint8_t quarter_turn = 64;
+  setWaterCell(layer, {0, 0}, {.depth = 16, .flow_speed = 255});
+  setWaterCell(layer, {1, 0},
+               {.depth = 16, .flow_heading = quarter_turn, .flow_speed = 255});
+  const WaterCorners corners = makeWaterCorners(layer, {0, 0, 2, 1});
+  const Vec2 east = waterSampleAt(corners, {0.25f, 0.5f}).flow;
+  const Vec2 north = waterSampleAt(corners, {1.75f, 0.5f}).flow;
+  const Vec2 between = waterSampleAt(corners, {1.0f, 0.5f}).flow;
+  CHECK(east.x > east.y);
+  CHECK(north.y > north.x);
+  CHECK(between.x == Approx(between.y).margin(1e-4f));
+  CHECK(waterCellFlow(
+            {.depth = 16, .flow_heading = quarter_turn, .flow_speed = 255})
+            .y == Approx(WATER_MAX_FLOW_SPEED));
+}

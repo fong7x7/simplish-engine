@@ -30,6 +30,7 @@
 #include "gl-cmd-bind-vertex-buffer.h"
 #include "gl-cmd-copy-buffer.h"
 #include "gl-cmd-copy-texture-to-buffer.h"
+#include "gl-cmd-copy-texture.h"
 #include "gl-cmd-dispatch.h"
 #include "gl-cmd-draw-indexed.h"
 #include "gl-cmd-draw.h"
@@ -52,7 +53,8 @@ using GlCommand =
                  GlCmdSetFragmentStageBytes, GlCmdBindFragmentTexture,
                  GlCmdBindDescriptorSet, GlCmdSetViewport, GlCmdSetScissor,
                  GlCmdDraw, GlCmdDrawIndexed, GlCmdDispatch, GlCmdCopyBuffer,
-                 GlCmdCopyTextureToBuffer, GlCmdTextureBarrier>;
+                 GlCmdCopyTextureToBuffer, GlCmdCopyTexture,
+                 GlCmdTextureBarrier>;
 
 }  // namespace eng::render
 

@@ -101,12 +101,27 @@ enum class EditorMenuCommand : uint8_t {
   /// Draw water as a simulated, rippling surface, finely, with wind waves,
   /// light in the shallows and foam on the crests.
   SET_WATER_HIGH,
+  /// Switch the scene's reflection in water on or off.
+  TOGGLE_WATER_REFLECTIONS,
+  /// Switch the ground seen through water being bent by it on or off.
+  TOGGLE_WATER_REFRACTION,
+  /// Switch foam rings at the foot of what stands in water on or off.
+  TOGGLE_WATER_CONTACT,
+  /// Switch the light water focuses on the ground under it on or off.
+  TOGGLE_WATER_CAUSTICS,
 };
 
 /// The water rows, indexed by the fidelity each sets.
 inline constexpr EditorMenuCommand EDITOR_WATER_COMMANDS[] = {
     EditorMenuCommand::SET_WATER_FLAT, EditorMenuCommand::SET_WATER_LOW,
     EditorMenuCommand::SET_WATER_HIGH};
+
+/// The water effect rows, indexed as `WATER_EFFECT_LIST` is.
+inline constexpr EditorMenuCommand EDITOR_WATER_EFFECT_COMMANDS[] = {
+    EditorMenuCommand::TOGGLE_WATER_REFLECTIONS,
+    EditorMenuCommand::TOGGLE_WATER_REFRACTION,
+    EditorMenuCommand::TOGGLE_WATER_CONTACT,
+    EditorMenuCommand::TOGGLE_WATER_CAUSTICS};
 
 /// The stand-in rows, indexed by how many stand-ins each plays with.
 inline constexpr EditorMenuCommand EDITOR_STAND_IN_COMMANDS[] = {
@@ -181,6 +196,10 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SET_WATER_FLAT, "Water: Flat", ""},
     {EditorMenuCommand::SET_WATER_LOW, "Water: Low", ""},
     {EditorMenuCommand::SET_WATER_HIGH, "Water: High", ""},
+    {EditorMenuCommand::TOGGLE_WATER_REFLECTIONS, "Water Reflections", ""},
+    {EditorMenuCommand::TOGGLE_WATER_REFRACTION, "Water Refraction", ""},
+    {EditorMenuCommand::TOGGLE_WATER_CONTACT, "Water Contact Foam", ""},
+    {EditorMenuCommand::TOGGLE_WATER_CAUSTICS, "Water Caustics", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is
@@ -200,6 +219,18 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
   for (int index = 0; index < 3; ++index) {
     if (EDITOR_WATER_COMMANDS[index] == command) {
       return index;
+    }
+  }
+  return -1;
+}
+
+/// The water effect @p command switches — its index in
+/// `WATER_EFFECT_LIST` — or -1 for a command that is not an effect row.
+[[nodiscard]] constexpr int editorWaterEffectOf(EditorMenuCommand command) {
+  for (size_t index = 0; index < std::size(EDITOR_WATER_EFFECT_COMMANDS);
+       ++index) {
+    if (EDITOR_WATER_EFFECT_COMMANDS[index] == command) {
+      return static_cast<int>(index);
     }
   }
   return -1;

@@ -18,12 +18,14 @@ simplish_add_module(simplish-engine-render-water
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/water-field.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/water-layer.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/water-renderer.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/water-splash.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/water-surface-mesh.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/water-texels.cpp
     DEPENDENCIES simplish-engine-core
                  simplish-engine-math
                  simplish-engine-render
                  simplish-engine-render-mesh
+                 simplish-engine-render-fx
                  simplish-engine-render-ground
 )
 

@@ -12,6 +12,8 @@
 #include <engine/render-ground/ground-grid.h>
 #include <engine/render-water/water-depth.h>
 #include <engine/render-water/water-layer.h>
+#include <engine/render-water/water-obstacle.h>
+#include <span>
 #include <vector>
 
 namespace eng {
@@ -58,9 +60,38 @@ inline constexpr uint32_t WATER_MAX_STEPS_PER_FRAME = 4;
 /// one sample a tile is left flat.
 inline constexpr uint32_t WATER_MAX_SAMPLES = 512U * 512U;
 
+/// The most samples a field of flowing water holds: every step carries its
+/// level, speed and foam downstream too, about as much again as the rest
+/// of the step, so it has half the budget and a wide river is simulated a
+/// step coarser than a lake as wide.
+inline constexpr uint32_t WATER_MAX_FLOWING_SAMPLES = WATER_MAX_SAMPLES / 2;
+
 /// How far from the shore, in tiles, the water is deep: the shore distance
 /// every sample carries stops counting there.
 inline constexpr float WATER_SHORE_TILES = WATER_BANK_MAX_TILES;
+
+/// How far from the water, in tiles, the ground it has wet is darkened:
+/// the wet band every dry sample carries its distance to the water for.
+inline constexpr float WATER_WET_TILES = 0.35f;
+
+/// How far from a bank, in tiles, flowing water is slowed by it: the flow
+/// grows from nothing at the bank to its full speed this far out.
+inline constexpr float WATER_FLOW_BANK_TILES = 0.5f;
+
+/// How long foam lingers: what is left of it after this many seconds is
+/// `1/e` of what there was.
+inline constexpr float WATER_FOAM_SECONDS = 1.4f;
+
+/// How much foam a push throws for each tile it sinks the water, past
+/// `WATER_FOAM_CALM_DEPTH`, and a crest for each tile it rises past
+/// `WATER_FOAM_CREST`: a wake leaves a trail of it and a blast a sheet.
+inline constexpr float WATER_FOAM_PER_DEPTH = 12.0f;
+
+/// The deepest push that throws no foam: a drop of drizzle's.
+inline constexpr float WATER_FOAM_CALM_DEPTH = 0.015f;
+
+/// How high a crest rises, in tiles, before it breaks into foam.
+inline constexpr float WATER_FOAM_CREST = 0.04f;
 
 /// Drops of drizzle that land a second on each tile of water, so open water
 /// is never glass even when nothing is moving through it.
@@ -108,6 +139,35 @@ struct WaterField {
   /// How far each sample is from the nearest dry one, in tiles, up to
   /// `WATER_SHORE_TILES`; zero when it is dry itself.
   std::vector<float> shore;
+  /// How far each dry sample is from the nearest wet one, in tiles, up to
+  /// `WATER_WET_TILES`; zero when it is wet itself.
+  std::vector<float> land;
+  /// How much foam is on each sample, from 0 for none to 1: thrown by
+  /// pushes and breaking crests, and thinning over `WATER_FOAM_SECONDS`.
+  std::vector<float> foam;
+  /// Which way and how fast each sample flows, in tiles a second, along x
+  /// and along y: its cells' flow blended between corners and slowed
+  /// towards the bank. Zero on a dry sample.
+  std::vector<float> flow_x;
+  /// Along y, as `flow_x`.
+  std::vector<float> flow_y;
+  /// Whether any sample flows, which is when a step carries the ripples
+  /// and the foam downstream.
+  bool flowing = false;
+  /// Every sample that flows, by where it is in the arrays.
+  std::vector<uint32_t> carried;
+  /// For each of `carried`, the sample south-west of where its water was a
+  /// step ago — worked out once, since the flow does not change until the
+  /// field is shaped anew.
+  std::vector<uint32_t> carried_from;
+  /// For each of `carried`, how far east of that sample, and how far north,
+  /// its water was, 0 to 1.
+  std::vector<float> carried_x;
+  /// North, as `carried_x`.
+  std::vector<float> carried_y;
+  /// Room for the carried level, speed and foam of every flowing sample,
+  /// three to a sample, kept so a step does not allocate.
+  std::vector<float> scratch;
   /// How many samples are wet.
   uint32_t wet_count = 0;
   /// Seconds handed to `stepWaterField` that no step has taken yet.
@@ -120,10 +180,12 @@ struct WaterField {
 
 /// Shape @p field over every cell of @p layer's water, as deep as it says,
 /// at @p samples_per_tile — or fewer, when that would pass
-/// `WATER_MAX_SAMPLES`. Every sample starts still. Zero samples a tile, or
-/// no water, leaves the field empty.
+/// `WATER_MAX_SAMPLES` — dry under each of @p obstacles, which the water
+/// goes round as it goes round a shore. Every sample starts still. Zero
+/// samples a tile, or no water, leaves the field empty.
 void resetWaterField(WaterField& field, const WaterLayer& layer,
-                     uint32_t samples_per_tile);
+                     uint32_t samples_per_tile,
+                     std::span<const WaterObstacle> obstacles = {});
 
 /// Advance @p field by @p seconds of the frame's clock, in fixed steps of
 /// `WATER_STEP_SECONDS`, with drizzle falling as it goes.

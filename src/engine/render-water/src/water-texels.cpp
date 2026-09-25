@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 #include <engine/render-water/water-texels.h>
 #include <utility>
 
@@ -18,28 +19,63 @@ namespace {
     return static_cast<uint8_t>(0.5f + 255.0f * std::clamp(value, 0.0f, 1.0f));
   }
 
-  /// @p field's level at (@p x, @p y), held at the edge.
-  float heldLevel(const WaterField& field, int64_t x, int64_t y) {
-    const auto cx = std::clamp<int64_t>(x, 0, field.width - 1);
-    const auto cy = std::clamp<int64_t>(y, 0, field.height - 1);
-    return field
-        .level[static_cast<size_t>(cy) * field.width + static_cast<size_t>(cx)];
+  /// Four bytes as the one little-endian word a texel is, so a texel is
+  /// one store rather than four.
+  uint32_t packed(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8U) |
+           (static_cast<uint32_t>(b) << 16U) |
+           (static_cast<uint32_t>(a) << 24U);
   }
 
-  /// One texel for sample (@p x, @p y), written at @p out.
-  void writeTexel(const WaterField& field, int64_t x, int64_t y, uint8_t* out) {
-    // Central differences over two samples, in tiles of rise per tile.
+  /// A row of the field and the rows either side of it, held at the edge.
+  struct Rows {
+    /// The row itself.
+    const float* here = nullptr;
+    /// The row to its south, or itself on the first row.
+    const float* south = nullptr;
+    /// The row to its north, or itself on the last row.
+    const float* north = nullptr;
+  };
+
+  /// Row @p y of @p field's level, and its neighbours.
+  Rows rowsAt(const WaterField& field, uint32_t y) {
+    const float* here =
+        field.level.data() + static_cast<size_t>(y) * field.width;
+    return {here, y > 0 ? here - field.width : here,
+            y + 1 < field.height ? here + field.width : here};
+  }
+
+  /// Row @p y of @p field's motion into @p out, a texel a sample: central
+  /// differences over two samples, in tiles of rise per tile.
+  void writeRow(const WaterField& field, uint32_t y, uint32_t* out) {
+    const Rows rows = rowsAt(field, y);
     const float per_tile = 0.5f * static_cast<float>(field.samples_per_tile);
-    const float slope_x =
-        (heldLevel(field, x + 1, y) - heldLevel(field, x - 1, y)) * per_tile;
-    const float slope_y =
-        (heldLevel(field, x, y + 1) - heldLevel(field, x, y - 1)) * per_tile;
-    const size_t i =
-        static_cast<size_t>(y) * field.width + static_cast<size_t>(x);
-    out[0] = signedUnorm(slope_x / WATER_SLOPE_RANGE);
-    out[1] = signedUnorm(slope_y / WATER_SLOPE_RANGE);
-    out[2] = signedUnorm(field.level[i] / WATER_LEVEL_RANGE);
-    out[3] = unorm(field.shore[i] / WATER_SHORE_TILES);
+    const float* foam =
+        field.foam.data() + static_cast<size_t>(y) * field.width;
+    for (uint32_t x = 0; x < field.width; ++x) {
+      const float west = rows.here[x > 0 ? x - 1 : x];
+      const float east = rows.here[x + 1 < field.width ? x + 1 : x];
+      out[x] =
+          packed(signedUnorm((east - west) * per_tile / WATER_SLOPE_RANGE),
+                 signedUnorm((rows.north[x] - rows.south[x]) * per_tile /
+                             WATER_SLOPE_RANGE),
+                 signedUnorm(rows.here[x] / WATER_LEVEL_RANGE), unorm(foam[x]));
+    }
+  }
+
+  /// @p field's texels, one a sample, each written by @p write.
+  template <typename Write>
+  void writeEach(const WaterField& field, std::vector<uint8_t>& texels,
+                 Write write) {
+    texels.resize(static_cast<size_t>(field.width) * field.height *
+                  WATER_TEXEL_BYTES);
+    for (int64_t y = 0; std::cmp_less(y, field.height); ++y) {
+      for (int64_t x = 0; std::cmp_less(x, field.width); ++x) {
+        const size_t i =
+            static_cast<size_t>(y) * field.width + static_cast<size_t>(x);
+        write(x, y, texels.data() + i * WATER_TEXEL_BYTES);
+      }
+    }
   }
 
 }  // namespace
@@ -47,13 +83,27 @@ namespace {
 void writeWaterTexels(const WaterField& field, std::vector<uint8_t>& texels) {
   texels.resize(static_cast<size_t>(field.width) * field.height *
                 WATER_TEXEL_BYTES);
-  for (int64_t y = 0; std::cmp_less(y, field.height); ++y) {
-    for (int64_t x = 0; std::cmp_less(x, field.width); ++x) {
-      const size_t i =
-          static_cast<size_t>(y) * field.width + static_cast<size_t>(x);
-      writeTexel(field, x, y, texels.data() + i * WATER_TEXEL_BYTES);
-    }
+  // A row at a time into a word-aligned row of its own, copied out whole:
+  // one store a texel, and none of them near the level being read.
+  std::vector<uint32_t> row(field.width);
+  for (uint32_t y = 0; y < field.height; ++y) {
+    writeRow(field, y, row.data());
+    std::memcpy(texels.data() +
+                    static_cast<size_t>(y) * field.width * WATER_TEXEL_BYTES,
+                row.data(), row.size() * sizeof(uint32_t));
   }
+}
+
+void writeWaterStillTexels(const WaterField& field,
+                           std::vector<uint8_t>& texels) {
+  writeEach(field, texels, [&](int64_t x, int64_t y, uint8_t* out) {
+    const size_t i =
+        static_cast<size_t>(y) * field.width + static_cast<size_t>(x);
+    out[0] = unorm(field.shore[i] / WATER_SHORE_TILES);
+    out[1] = signedUnorm(field.flow_x[i] / WATER_MAX_FLOW_SPEED);
+    out[2] = signedUnorm(field.flow_y[i] / WATER_MAX_FLOW_SPEED);
+    out[3] = unorm(field.land[i] / WATER_WET_TILES);
+  });
 }
 
 }  // namespace eng

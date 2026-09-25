@@ -14,6 +14,52 @@ namespace {
   /// The key the water's fidelity is kept under.
   constexpr const char* WATER_KEY = "water";
 
+  /// The key the water's effects are kept under.
+  constexpr const char* EFFECTS_KEY = "water_effects";
+
+  /// One effect's switch from @p entry, the value under its word, into
+  /// @p effects; a line in @p problems when it is not a boolean.
+  void readEffect(const json& entry, WaterEffect effect, WaterEffects& effects,
+                  std::vector<std::string>& problems) {
+    if (!entry.is_boolean()) {
+      problems.emplace_back(std::string(EFFECTS_KEY) + "." +
+                            std::string(waterEffectWord(effect)) +
+                            " must be true or false");
+      return;
+    }
+    effects.on[waterEffectIndex(effect)] = entry.get<bool>();
+  }
+
+  /// The water's effects @p file's entry switches, over all of them on,
+  /// with why in @p problems for each it gets wrong.
+  WaterEffects readEffects(const json& file,
+                           std::vector<std::string>& problems) {
+    WaterEffects effects{};
+    const json entry = file.value(EFFECTS_KEY, json::object());
+    if (!entry.is_object()) {
+      problems.emplace_back(std::string(EFFECTS_KEY) + " must be an object");
+      return effects;
+    }
+    for (const auto& [word, value] : entry.items()) {
+      if (const std::optional<WaterEffect> effect = waterEffectNamed(word)) {
+        readEffect(value, *effect, effects, problems);
+      } else {
+        problems.emplace_back(std::string(EFFECTS_KEY) + " has no " + word);
+      }
+    }
+    return effects;
+  }
+
+  /// @p effects as the file holds them: every effect's word and switch.
+  json effectsJson(const WaterEffects& effects) {
+    json out = json::object();
+    for (const WaterEffect effect : WATER_EFFECT_LIST) {
+      out[std::string(waterEffectWord(effect))] =
+          waterEffectOn(effects, effect);
+    }
+    return out;
+  }
+
   /// The fidelity @p file's water entry names, or nothing — with why in
   /// @p problems — when it names none.
   std::optional<WaterFidelity> readWater(const json& file,
@@ -42,6 +88,7 @@ EditorGraphicsSettings parseEditorGraphics(const std::string& text,
     return settings;
   }
   settings.water = readWater(file, problems).value_or(settings.water);
+  settings.water_effects = readEffects(file, problems);
   return settings;
 }
 
@@ -63,7 +110,8 @@ namespace {
 }  // namespace
 
 std::string writeEditorGraphics(const EditorGraphicsSettings& settings) {
-  const json file{{WATER_KEY, waterFidelityWord(settings.water)}};
+  const json file{{WATER_KEY, waterFidelityWord(settings.water)},
+                  {EFFECTS_KEY, effectsJson(settings.water_effects)}};
   return file.dump(2) + "\n";
 }
 

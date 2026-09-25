@@ -107,6 +107,7 @@ public:
   RhiTextureHandle backbufferTexture() const override;
   uint32_t backbufferWidth() const override;
   uint32_t backbufferHeight() const override;
+  RhiFormat backbufferFormat() const override;
   void resizeSwapchain(uint32_t width, uint32_t height) override;
 
   // --- Frame management ---

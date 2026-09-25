@@ -50,6 +50,10 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::SET_WATER_FLAT,
     EditorMenuCommand::SET_WATER_LOW,
     EditorMenuCommand::SET_WATER_HIGH,
+    EditorMenuCommand::TOGGLE_WATER_REFLECTIONS,
+    EditorMenuCommand::TOGGLE_WATER_REFRACTION,
+    EditorMenuCommand::TOGGLE_WATER_CONTACT,
+    EditorMenuCommand::TOGGLE_WATER_CAUSTICS,
 };
 
 /// Whether @p command names work that exists at all.

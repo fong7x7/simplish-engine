@@ -1845,7 +1845,8 @@ RhiTextureHandle SimplishEditor::sceneDepthTarget() {
   if (device == nullptr ||
       (state_.document.placements.empty() && state_.document.emitters.empty() &&
        state_.document.sprites.empty() && state_.document.ground.empty() &&
-       !isPlaying() && characterFigures().empty())) {
+       state_.document.water.depth.empty() && !isPlaying() &&
+       characterFigures().empty())) {
     return RHI_TEXTURE_INVALID;
   }
   return mesh_renderer_.depthTarget(*device, backbufferWidth(),
@@ -1932,9 +1933,19 @@ void SimplishEditor::recordScene(RhiCommandList& cmd) {
   // Same pass and depth as the static meshes, so a character walking
   // behind a crate is hidden by it, and the outline pass lines them both.
   skinned_renderer_.draw(cmd, skinnedDrawParams(*viewport));
-  // After every opaque mesh, since it is blended over what they left and
-  // tested against their depth.
-  drawWater(cmd, *viewport);
+}
+
+void SimplishEditor::recordSceneCapture(RhiCommandList& cmd) {
+  RhiDevice* device = rhiDevice();
+  if (device == nullptr || !water_renderer_.drawable()) {
+    return;
+  }
+  // The water sees the scene through a copy of it, taken before anything
+  // is drawn over it.
+  (void)water_renderer_.captureScene(*device, cmd,
+                                     {device->backbufferTexture(),
+                                      backbufferWidth(), backbufferHeight(),
+                                      device->backbufferFormat()});
 }
 
 FxRenderer::DrawParams
@@ -1977,6 +1988,9 @@ void SimplishEditor::recordSceneOverlay(RhiCommandList& cmd) {
   if (viewport == nullptr) {
     return;
   }
+  // First, since it replaces the scene where it lies, which the outline
+  // and the effects go over.
+  drawWater(cmd, *viewport);
   if (sceneStyle().outline_width > 0.0f) {
     outline_renderer_.draw(cmd, outlineDrawParams(*viewport));
   }
@@ -2260,6 +2274,8 @@ bool SimplishEditor::runSettingsCommand(EditorMenuCommand command) {
     importSound();
   } else if (const int water = editorWaterFidelityOf(command); water >= 0) {
     setWaterFidelity(WATER_FIDELITIES[water]);
+  } else if (const int effect = editorWaterEffectOf(command); effect >= 0) {
+    toggleWaterEffect(WATER_EFFECT_LIST[effect]);
   } else {
     return false;
   }

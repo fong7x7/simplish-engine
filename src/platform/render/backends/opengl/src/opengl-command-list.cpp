@@ -101,6 +101,11 @@ void OpenGlCommandList::copyBuffer(const RhiCopyBufferParams& params) {
   commands_.emplace_back(GlCmdCopyBuffer{params});
 }
 
+void OpenGlCommandList::copyTexture(RhiTextureHandle src,
+                                    RhiTextureHandle dst) {
+  commands_.emplace_back(GlCmdCopyTexture{src, dst});
+}
+
 void OpenGlCommandList::copyTextureToBuffer(RhiTextureHandle src,
                                             RhiBufferHandle dst) {
   commands_.emplace_back(GlCmdCopyTextureToBuffer{src, dst});

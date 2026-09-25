@@ -13,7 +13,8 @@ namespace eng::editor {
 
 /// The graphics settings @p text holds, over the defaults, with a line
 /// for every entry it gets wrong in @p problems. The file is one object:
-/// `{"water": "high"}`.
+/// `{"water": "high", "water_effects": {"reflections": true, ...}}`, every
+/// effect `WATER_EFFECT_WORDS` names a boolean, and one left out on.
 [[nodiscard]] EditorGraphicsSettings
 parseEditorGraphics(const std::string& text,
                     std::vector<std::string>& problems);

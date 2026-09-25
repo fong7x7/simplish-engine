@@ -56,13 +56,21 @@ namespace {
     b[4] = makeBinding(VULKAN_BINDING_FRAGMENT_UBO1, UBO, FS);
   }
 
+  /// One sampled image per fragment texture slot: slot 0 at binding 5, the
+  /// rest after the samplers.
+  void fillTextureBindings(SharedBindings& b) {
+    for (uint32_t slot = 0; slot < VULKAN_FRAGMENT_TEXTURE_COUNT; ++slot) {
+      const uint32_t binding = vulkanFragmentTextureBinding(slot);
+      b[binding] = makeBinding(binding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                               VK_SHADER_STAGE_FRAGMENT_BIT);
+    }
+  }
+
   VkDescriptorSetLayout createSetLayout(VkDevice device,
                                         const VulkanSharedLayout& l) {
     SharedBindings b{};
     fillUniformBindings(b);
-    b[5] = makeBinding(VULKAN_BINDING_FRAGMENT_TEXTURE,
-                       VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                       VK_SHADER_STAGE_FRAGMENT_BIT);
+    fillTextureBindings(b);
     b[6] = makeSamplerBinding(VULKAN_BINDING_CLAMP_SAMPLER, &l.clamp_sampler);
     b[7] = makeSamplerBinding(VULKAN_BINDING_REPEAT_SAMPLER, &l.repeat_sampler);
     VkDescriptorSetLayoutCreateInfo info{};
