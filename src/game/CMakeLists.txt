@@ -22,6 +22,7 @@ add_subdirectory(logic)
 add_subdirectory(world)
 add_subdirectory(sdk)
 add_subdirectory(fx)
+add_subdirectory(ui)
 
 simplish_add_library(simplish-game
     TYPE    STATIC
@@ -33,6 +34,7 @@ simplish_add_library(simplish-game
             simplish-game-world
             simplish-game-sdk
             simplish-game-fx
+            simplish-game-ui
 )
 
 target_link_libraries(simplish-game PUBLIC simplish-engine)
