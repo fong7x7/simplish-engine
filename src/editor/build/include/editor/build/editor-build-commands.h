@@ -7,6 +7,7 @@
 #include <editor/build/editor-build-command.h>
 #include <editor/build/editor-toolchain.h>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,14 @@ namespace eng::editor {
 [[nodiscard]] std::vector<EditorBuildCommand>
 logicBuildCommands(const std::filesystem::path& root,
                    const EditorToolchain& tools);
+
+/// Run the library the logic build made, in `simplish-logic-check`'s own
+/// process, on the content baked into `projectLogicCheckPath`, for
+/// `LOGIC_CHECK_TICKS`: a crash, an error or a hang there fails the build
+/// rather than the editor. Nothing when @p tools has no checker.
+[[nodiscard]] std::optional<EditorBuildCommand>
+logicCheckCommand(const std::filesystem::path& root,
+                  const EditorToolchain& tools);
 
 /// Configure the engine with the project at @p root's logic linked in, in
 /// Release, and build the deployed game's executable: what Build ▸ Deploy

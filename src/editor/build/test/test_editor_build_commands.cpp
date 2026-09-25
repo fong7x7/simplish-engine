@@ -59,3 +59,15 @@ TEST_CASE("both builds name their configuration, for multi-config "
   REQUIRE(has(logic[1], "Debug"));
   REQUIRE(has(deploy[1], "Release"));
 }
+
+TEST_CASE("the logic check runs the new library on the check's content") {
+  EditorToolchain with = tools();
+  with.logic_check = "/bin/simplish-logic-check";
+
+  const auto check = logicCheckCommand("/games/dig", with);
+
+  REQUIRE(check.has_value());
+  REQUIRE(check->words.front() == "/bin/simplish-logic-check");
+  REQUIRE(has(*check, "/games/dig/build/logic/check"));
+  REQUIRE_FALSE(logicCheckCommand("/games/dig", tools()).has_value());
+}

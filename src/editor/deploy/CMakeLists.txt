@@ -10,6 +10,7 @@
 simplish_add_module(simplish-editor-deploy
     INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES     ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-game.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-check.cpp
     DEPENDENCIES simplish-editor-build
                  simplish-editor-shell
                  simplish-game-logic

@@ -33,6 +33,10 @@ struct EditorToolchain {
   /// The engine's source tree: where `cmake/SimplishGameLogic.cmake` and
   /// the headers a project's logic includes are.
   std::filesystem::path engine_root;
+  /// `simplish-logic-check`, which runs a freshly built library in a
+  /// process of its own before the editor loads it; empty when this
+  /// editor was built without it.
+  std::filesystem::path logic_check{};
 };
 
 /// The toolchain the editor was built with. `SIMPLISH_ENGINE_ROOT` in the

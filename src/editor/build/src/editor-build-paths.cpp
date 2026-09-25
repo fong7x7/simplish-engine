@@ -49,6 +49,11 @@ std::filesystem::path projectLogicLoadPath(const std::filesystem::path& root,
 }
 
 std::filesystem::path
+projectLogicCheckPath(const std::filesystem::path& root) {
+  return projectLogicBuildPath(root) / "check";
+}
+
+std::filesystem::path
 projectDeployBuildPath(const std::filesystem::path& root) {
   return projectBuildPath(root) / "deploy-cmake";
 }

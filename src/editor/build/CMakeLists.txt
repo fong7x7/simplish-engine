@@ -38,6 +38,8 @@ target_compile_definitions(simplish-editor-build PRIVATE
     SIMPLISH_MAKE_PROGRAM="${CMAKE_MAKE_PROGRAM}"
     SIMPLISH_CXX_COMPILER="${CMAKE_CXX_COMPILER}"
 )
+# SIMPLISH_LOGIC_CHECK, the path of simplish-logic-check, is defined by
+# src/bin/logic-check, which is configured after this package.
 
 file(GLOB _build_tests "${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp")
 if(ENGINE_BUILD_TESTS AND _build_tests)
@@ -50,4 +52,9 @@ if(ENGINE_BUILD_TESTS AND _build_tests)
     # toolchain and loads it; it needs to know where the engine is.
     target_compile_definitions(simplish-editor-build-tests PRIVATE
         SIMPLISH_TEST_ENGINE_ROOT="${CMAKE_SOURCE_DIR}")
+    # The checked-build tests run the checker src/bin/logic-check makes.
+    if(ENGINE_BUILD_EDITOR)
+        set_property(GLOBAL APPEND PROPERTY SIMPLISH_NEEDS_LOGIC_CHECK
+                     simplish-editor-build-tests)
+    endif()
 endif()

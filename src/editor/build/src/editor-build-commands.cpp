@@ -51,6 +51,18 @@ logicBuildCommands(const std::filesystem::path& root,
           {{tools.cmake, "--build", build.string(), "--config", "Debug"}}};
 }
 
+std::optional<EditorBuildCommand>
+logicCheckCommand(const std::filesystem::path& root,
+                  const EditorToolchain& tools) {
+  if (tools.logic_check.empty()) {
+    return std::nullopt;
+  }
+  return EditorBuildCommand{{tools.logic_check.string(), "--library",
+                             projectLogicLibraryPath(root).string(),
+                             "--content", projectLogicCheckPath(root).string(),
+                             "--ticks", std::to_string(LOGIC_CHECK_TICKS)}};
+}
+
 std::vector<EditorBuildCommand>
 deployBuildCommands(const std::filesystem::path& root,
                     const EditorToolchain& tools) {

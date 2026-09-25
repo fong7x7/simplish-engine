@@ -323,6 +323,10 @@ private:
   /// Build the open project's game logic in the background — scaffolding
   /// it first when it has none — for the next playtest to run.
   void buildGameLogic();
+  /// Bake the open level — as it is now, unsaved edits and all — and the
+  /// data tables into the logic check's folder, for the check that runs a
+  /// new build in a process of its own. False when it could not be written.
+  bool bakeLogicCheck();
   /// Bake the open project's levels and content into its deploy folder,
   /// then build the deployed game in the background.
   void deployGame();

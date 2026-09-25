@@ -39,6 +39,15 @@ projectLogicLibraryPath(const std::filesystem::path& root);
 [[nodiscard]] std::filesystem::path
 projectLogicLoadPath(const std::filesystem::path& root, uint32_t generation);
 
+/// Where the logic check runs from (`<root>/build/logic/check`): the open
+/// level baked as a deployed game's content, and the copy of the library
+/// the check loads.
+[[nodiscard]] std::filesystem::path
+projectLogicCheckPath(const std::filesystem::path& root);
+
+/// Ticks the logic check runs a new build for: ten seconds of play.
+inline constexpr uint64_t LOGIC_CHECK_TICKS = 600;
+
 /// Where the engine is configured and built for a deploy
 /// (`<root>/build/deploy-cmake`).
 [[nodiscard]] std::filesystem::path

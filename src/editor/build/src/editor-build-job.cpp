@@ -5,6 +5,10 @@
 #include <system_error>
 #include <utility>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 namespace eng::editor {
 
 namespace {
@@ -19,6 +23,27 @@ namespace {
       out << ' ' << word;
     }
     out << '\n';
+  }
+
+  /// The exit code in what `std::system` returned: on POSIX a wait
+  /// status, from which the code is taken; on Windows the code itself.
+  int exitCode(int status) {
+#ifdef _WIN32
+    return status;
+#else
+    return WIFEXITED(status) ? WEXITSTATUS(status) : status;
+#endif
+  }
+
+  /// Append to @p log that @p command failed with @p status, in words a
+  /// person — and `buildErrorLines` — reads as an error. The shell reports
+  /// a program killed by a signal as 128 plus the signal: 139 is a crash.
+  void reportFailure(const std::filesystem::path& log,
+                     const EditorBuildCommand& command, int status) {
+    const int code = exitCode(status);
+    std::ofstream out(log, std::ios::app);
+    out << "error: " << command.words.front() << " failed (exit code "
+        << code << (code > 128 ? ": it crashed" : "") << ")\n";
   }
 
   /// @p status as the atomic holds it.
@@ -36,7 +61,9 @@ namespace {
       // The one thread that runs a build's commands, each word of which
       // shellLine has quoted; running a command line is the point.
       // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c,bugprone-command-processor)
-      if (std::system(shellLine(command, log).c_str()) != 0) {
+      const int exit = std::system(shellLine(command, log).c_str());
+      if (exit != 0) {
+        reportFailure(log, command, exit);
         status->store(stored(EditorBuildStatus::FAILED));
         return;
       }

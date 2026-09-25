@@ -84,7 +84,7 @@ Developers and AI agents need to write that logic **in the game project the edit
 
 - **The editor and the logic must share a compiler and standard library.** The version check catches a module built against other headers, not one built by another compiler against the same ones, which would load and then misbehave. The editor always builds the module itself, with its own toolchain, which is why this holds in practice; a hand-built one has to use the same compiler.
 - **C++ in the tick can break determinism in ways the engine cannot catch** — a `std::unordered_map` iterated, a clock read, an address hashed. The rules are documented and the hash will show the divergence, but only after it happens.
-- **A crash in the logic is a crash of the editor.** There is no sandbox; the library runs in-process.
+- **A crash in the logic is a crash of the editor.** There is no sandbox; the library runs in-process. `simplish-logic-check` narrows it: every build is first run for ten seconds of the open level in a process of its own, and one that crashes or hangs there is never loaded. A crash that needs longer play still takes the editor with it.
 - **The deployed game is headless today.** `simplish-game` runs the simulation with the project's rules and stand-in players — the dedicated-host and CI shape of Engine §5 — because the rendered client (`bin/client`, render-iso) is not written. It reads the data tables with the editor's readers until ADR-007's generator exists, so it links the editor library.
 - **`GAME_LOGIC_API_VERSION` has to be bumped by hand** when a header under `game/logic/` changes shape.
 

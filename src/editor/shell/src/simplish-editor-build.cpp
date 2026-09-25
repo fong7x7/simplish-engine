@@ -117,10 +117,34 @@ void SimplishEditor::buildGameLogic() {
   // else a build could mean.
   (void)scaffoldProjectLogic(root);
   refreshLogicState();
-  if (startBuild(EditorBuildKind::LOGIC,
-                 logicBuildCommands(root, editorToolchain()))) {
+  const EditorToolchain tools = editorToolchain();
+  std::vector<EditorBuildCommand> commands = logicBuildCommands(root, tools);
+  // The new library runs in a process of its own before this one loads it.
+  if (const auto check = logicCheckCommand(root, tools);
+      check && bakeLogicCheck()) {
+    commands.push_back(*check);
+  }
+  if (startBuild(EditorBuildKind::LOGIC, std::move(commands))) {
     showStatusMessage("Building game logic…");
   }
+}
+
+bool SimplishEditor::bakeLogicCheck() {
+  const std::filesystem::path check =
+      projectLogicCheckPath(state_.project.root);
+  std::error_code ec;
+  std::filesystem::remove_all(check, ec);
+  game::GameSetup setup = makeEditorPlaytestSetup(
+      state_.document, state_.assets, playtestFallback());
+  setup.actor_capacity = game::GAME_LOGIC_ACTOR_CAPACITY;
+  return writeProjectTextFile(
+             check / EDITOR_DEPLOY_LEVELS_DIR /
+                 ("check" + std::string(EDITOR_SETUP_FILE_SUFFIX)),
+             serializeGameSetup(setup)) &&
+         copyDataTables(state_.project.root, check) &&
+         writeProjectTextFile(
+             check / EDITOR_DEPLOY_MANIFEST,
+             serializeDeployManifest({"check", {"check"}, "check", true}));
 }
 
 void SimplishEditor::deployGame() {

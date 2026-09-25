@@ -139,6 +139,8 @@ Everything else — reading props and the navigation grid, cueing effects and so
 
 **Build Game Logic** runs `cmake -S <project>/src -B build/logic -DSIMPLISH_ROOT=<engine>` and `cmake --build`. Standalone, `SimplishGameLogic.cmake` reads the engine's own platform and compiler settings, so the module is compiled with exactly the engine's flags — determinism flags included — and with the CMake, generator and compiler the editor itself was built with ([editor-toolchain.h](../../src/editor/build/include/editor/build/editor-toolchain.h)): C++ vtables only agree between libraries one compiler laid out. `SIMPLISH_ENGINE_ROOT` in the environment points an editor moved away from its checkout at the engine tree.
 
+**The check.** Before the editor loads a new library, `simplish-logic-check` — built beside the editor — runs it in a process of its own: the open level as it stands, unsaved edits included, baked into `build/logic/check/`, played by a stand-in for ten seconds (`LOGIC_CHECK_TICKS`). A crash there, an error, or a check still running after 30 s — a loop that never ends — fails the build, with the reason in `get_build`'s `errors`, and the editor never loads that library. It catches what the logic does at the start of a run; a crash that needs later play still reaches the editor, whose process the logic shares.
+
 The editor copies the library into `loaded/` before opening it — so the next build can overwrite it, and so the platform never hands back a cached image — checks the three exports and `GAME_LOGIC_API_VERSION`, and keeps it for the **next** playtest. A running playtest keeps the library it started with; it closes when that playtest stops. Opening a project loads the library it last built, if there is one.
 
 **Deploy Game**:

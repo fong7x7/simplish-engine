@@ -8,6 +8,10 @@
 #include <editor/build/editor-logic-library-load.h>
 #include <editor/build/editor-logic-source.h>
 #include <editor/build/editor-toolchain.h>
+#include <editor/build/editor-deploy-manifest.h>
+#include <editor/build/editor-setup-json.h>
+#include <editor/project/project-paths.h>
+#include <editor/project/project-text-file.h>
 #include <engine/sim/simulation.h>
 #include <game/logic/game-logic-instance.h>
 #include <game/world/game-world.h>
@@ -17,14 +21,21 @@ using namespace eng::editor;
 
 namespace {
 
-/// Build the logic of the project at @p root with the editor's own
-/// toolchain, and say how it went.
-EditorBuildStatus buildLogic(const std::filesystem::path& root) {
+/// The editor's own toolchain, pointed at this checkout.
+EditorToolchain testTools() {
   EditorToolchain tools = editorToolchain();
   tools.engine_root = SIMPLISH_TEST_ENGINE_ROOT;
+  return tools;
+}
+
+/// Build the logic of the project at @p root with the editor's own
+/// toolchain — and check it, when @p commands says so — and say how it
+/// went.
+EditorBuildStatus buildLogic(const std::filesystem::path& root,
+                             std::vector<EditorBuildCommand> commands) {
   EditorBuildJob job;
   const auto log = projectBuildLogPath(root, EditorBuildKind::LOGIC);
-  (void)job.start(logicBuildCommands(root, tools), log);
+  (void)job.start(std::move(commands), log);
   while (job.status() == EditorBuildStatus::RUNNING) {
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
@@ -75,7 +86,8 @@ TEST_CASE("the scaffold builds with the editor's toolchain, loads, and "
           "[toolchain]") {
   const test::BuildTempDir dir("scaffold-build");
   REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
-  REQUIRE(buildLogic(dir.path()) == EditorBuildStatus::SUCCEEDED);
+  REQUIRE(buildLogic(dir.path(), logicBuildCommands(dir.path(), testTools())) ==
+          EditorBuildStatus::SUCCEEDED);
   REQUIRE_FALSE(projectLogicStale(dir.path()));
 
   const EditorLogicLibraryLoad load = loadEditorLogicLibrary(
@@ -86,4 +98,71 @@ TEST_CASE("the scaffold builds with the editor's toolchain, loads, and "
   REQUIRE(log.size() >= 2);
   REQUIRE(log[0] == "Survive 90 s");
   REQUIRE(log[1] == "Wave 1");
+}
+
+namespace {
+
+/// A logic that crashes on its fifth tick.
+constexpr std::string_view CRASHING_LOGIC = R"(
+#include <game/logic/game-logic-entry.h>
+#include <game/logic/game-logic.h>
+namespace {
+class Crashes final : public eng::game::GameLogic {
+public:
+  void tick(eng::game::GameLogicWorld& world) override {
+    if (world.tick() == 5) {
+      volatile int* nowhere = nullptr;
+      *nowhere = 1;
+    }
+  }
+};
+}  // namespace
+SIMPLISH_GAME_LOGIC(Crashes)
+)";
+
+/// Lay the check's content out for the project at @p root: setup() as its
+/// one level.
+void bakeCheck(const std::filesystem::path& root) {
+  const auto check = projectLogicCheckPath(root);
+  REQUIRE(writeProjectTextFile(check / "levels" / "check.setup.json",
+                               serializeGameSetup(setup())));
+  REQUIRE(writeProjectTextFile(
+      check / EDITOR_DEPLOY_MANIFEST,
+      serializeDeployManifest({"check", {"check"}, "check", true})));
+}
+
+/// The logic build and its check, for the project at @p root.
+std::vector<EditorBuildCommand> checkedBuild(const std::filesystem::path& root) {
+  std::vector<EditorBuildCommand> commands =
+      logicBuildCommands(root, testTools());
+  commands.push_back(logicCheckCommand(root, testTools()).value());
+  return commands;
+}
+
+}  // namespace
+
+TEST_CASE("a logic that crashes fails its check, and the build with it",
+          "[toolchain]") {
+  const test::BuildTempDir dir("crashing-logic");
+  REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
+  REQUIRE(writeProjectTextFile(projectSourcePath(dir.path()) /
+                                   LOGIC_EXAMPLE_FILE_NAME,
+                               CRASHING_LOGIC));
+  bakeCheck(dir.path());
+
+  REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
+          EditorBuildStatus::FAILED);
+  const auto lines =
+      readLogLines(projectBuildLogPath(dir.path(), EditorBuildKind::LOGIC));
+  REQUIRE(buildErrorLines(lines, 5).back().find("crashed") !=
+          std::string::npos);
+}
+
+TEST_CASE("a logic that runs cleanly passes its check", "[toolchain]") {
+  const test::BuildTempDir dir("checked-logic");
+  REQUIRE(scaffoldProjectLogic(dir.path()) == EditorLogicScaffold::CREATED);
+  bakeCheck(dir.path());
+
+  REQUIRE(buildLogic(dir.path(), checkedBuild(dir.path())) ==
+          EditorBuildStatus::SUCCEEDED);
 }
