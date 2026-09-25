@@ -41,7 +41,8 @@ bool fireWeapon(GameLogicWorld& world, const LogicPlayer& player,
     world.fireShot({.from = muzzle,
                     .direction = turned(player.aim, pelletDegrees(weapon, k)),
                     .speed = weapon.speed,
-                    .damage = weapon.damage});
+                    .damage = weapon.damage,
+                    .shooter = player.target});
   }
   cooldown.start(world.tick(), weapon.refire_ticks);
   return true;

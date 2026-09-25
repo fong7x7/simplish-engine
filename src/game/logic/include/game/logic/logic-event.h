@@ -8,6 +8,7 @@
 #include <engine/math/vec3.h>
 #include <game/logic/logic-event-kind.h>
 #include <game/logic/logic-target.h>
+#include <optional>
 #include <string_view>
 
 namespace eng::game {
@@ -25,6 +26,12 @@ struct LogicEvent {
   /// The actor's name — the level's, or the logic's — or empty for a
   /// player or an actor given none.
   std::string_view id{};
+  /// Who did it, for a hurt, a death or a downing: the player or actor
+  /// that struck, fired, spilled the pool, or killed whoever went off in
+  /// the blast — or whom the logic named when it did the damage itself.
+  /// Empty when nobody is to be credited. They may be gone by now; ask
+  /// `playerOf` or `actorOf`.
+  std::optional<LogicTarget> by{};
 };
 
 }  // namespace eng::game

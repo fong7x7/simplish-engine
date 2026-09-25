@@ -14,6 +14,11 @@ namespace eng::game {
 
 namespace {
 
+  /// Actor @p a, as combat names who did something.
+  CombatantRef self(const ActorRef& a) {
+    return {CombatantKind::ACTOR, a.pool.slots.handleAt(a.i)};
+  }
+
   /// One attacking action's strike, shot, pool or blast.
   using AttackFn = void (*)(const ActorRef&, const ActorTickContext&,
                             const BehaviorAttack&);
@@ -71,7 +76,7 @@ namespace {
     const float reach = a.pool.radius[a.i] + body->radius + attack.reach_tiles;
     if (Vec2::distanceSquared(flat(a.pool.position[a.i]), body->at) <=
         reach * reach) {
-      context.effects.damage.push_back({body->who, attack.damage});
+      context.effects.damage.push_back({body->who, attack.damage, self(a)});
       coolDown(a, context, attack);
     }
   }
@@ -95,7 +100,7 @@ namespace {
     const float edge = a.pool.radius[a.i] + PROJECTILE_RADIUS_TILES;
     const float step = attack.speed / static_cast<float>(TICK_RATE_HZ);
     return {flat(a.pool.position[a.i]) + way * edge, way * step, attack.damage,
-            a.pool.faction[a.i]};
+            a.pool.faction[a.i], self(a)};
   }
 
   /// A volley: `count` shots fanned evenly across the spread, centred on
@@ -126,7 +131,7 @@ namespace {
     }
     context.effects.hazards.push_back({a.pool.last_seen[a.i], attack.radius,
                                        attack.damage, attack.duration_ticks,
-                                       a.pool.faction[a.i]});
+                                       a.pool.faction[a.i], self(a)});
     coolDown(a, context, attack);
   }
 
@@ -137,8 +142,7 @@ namespace {
     a.pool.death_blast_radius[a.i] = attack.radius;
     a.pool.death_blast_damage[a.i] = attack.damage;
     context.effects.damage.push_back(
-        {{CombatantKind::ACTOR, a.pool.slots.handleAt(a.i)},
-         std::numeric_limits<uint16_t>::max()});
+        {self(a), std::numeric_limits<uint16_t>::max(), self(a)});
   }
 
   /// Each action's attack, in enumerator order; null for those that do

@@ -164,6 +164,8 @@ public:
   [[nodiscard]] std::span<const CombatCue> combatCues() const { return cues_; }
 
 private:
+  /// Give every per-slot list of the actors room for @p capacity.
+  void sizeActorSlots(uint32_t capacity);
   /// Spawn one actor per spawn of @p setup, compiling the brains they run.
   void spawnActors(const GameSetup& setup, const GameContent& content);
   /// This tick's view of the world for the combat phases, with everyone
@@ -260,6 +262,12 @@ private:
   std::vector<uint8_t> actor_spawned_;
   /// What happened last tick, for the game logic; kept only with one.
   LogicEventLog logic_events_;
+  /// Who last hurt each actor, by its handle's slot: what the logic's
+  /// events credit. Only the live are state.
+  std::vector<CombatantRef> actor_hurt_by_;
+  /// Who last hurt each player, by their handle's slot.
+  std::vector<CombatantRef> player_hurt_by_ =
+      std::vector<CombatantRef>(PLAYER_POOL_CAPACITY, NO_COMBATANT);
   /// The run's content, kept only when actors can be spawned mid-run: the
   /// behaviors and archetypes they name. Empty otherwise.
   GameContent content_;

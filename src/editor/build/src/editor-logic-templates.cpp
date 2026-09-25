@@ -95,9 +95,12 @@ protected:
     }
   }
 
-  void onActorDied([[maybe_unused]] GameLogicWorld& world,
-                   [[maybe_unused]] const LogicEvent& death) override {
-    ++kills_;
+  void onActorDied(GameLogicWorld& world, const LogicEvent& death) override {
+    // A kill is the players' when one of them is behind it: a shot, or the
+    // blast of something they killed.
+    if (sdk::playerBehind(world, death)) {
+      ++kills_;
+    }
   }
 
   void onHash(GameLogicHash& hash) const override {
@@ -124,7 +127,7 @@ private:
   eng::Vec3 arena_{};
   /// Waves sent so far.
   uint32_t waves_ = 0;
-  /// Actors killed so far.
+  /// Actors the players have killed so far.
   uint32_t kills_ = 0;
   /// When each player's rifle can fire again.
   sdk::EntityData<sdk::Cooldown> triggers_;

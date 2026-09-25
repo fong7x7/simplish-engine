@@ -96,9 +96,14 @@ public:
   [[nodiscard]] virtual physics::CollisionBox
   obstacle(uint32_t index) const = 0;
 
-  /// Take @p amount health segments from @p target. Nothing, when it is
-  /// gone.
-  virtual void damage(LogicTarget target, uint16_t amount) = 0;
+  /// Take @p amount health segments from @p target, crediting @p by —
+  /// who is behind it, when anyone is. Nothing, when the target is gone.
+  virtual void damage(LogicTarget target, uint16_t amount,
+                      std::optional<LogicTarget> by) = 0;
+  /// Take @p amount health segments from @p target, crediting nobody.
+  void damage(LogicTarget target, uint16_t amount) {
+    damage(target, amount, std::nullopt);
+  }
   /// Give @p target back @p amount health segments, up to a full bar. A
   /// player who is down or out is not healed: reviving is a teammate's.
   virtual void heal(LogicTarget target, uint16_t amount) = 0;

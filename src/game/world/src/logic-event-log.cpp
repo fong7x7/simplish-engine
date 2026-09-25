@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <game/player/player-system.h>
+#include <game/world/logic-combatant.h>
 #include <game/world/logic-event-log.h>
 
 namespace eng::game {
@@ -14,7 +15,7 @@ namespace {
 }  // namespace
 
 void LogicEventLog::note(const LogicEvent& event) {
-  pending_.push_back({event.kind, event.target, event.at, {}});
+  pending_.push_back({event.kind, event.target, event.at, {}, event.by});
   pending_ids_.emplace_back(event.id);
 }
 
@@ -23,8 +24,7 @@ void LogicEventLog::noteRemoved(sim::EntityHandle handle) {
 }
 
 void LogicEventLog::noteActors(const ActorPool& actors,
-                               std::span<const std::string> actor_ids,
-                               uint64_t tick) {
+                               const LogicSlotNotes& notes, uint64_t tick) {
   for (uint32_t i = 0; i < actors.slots.size(); ++i) {
     const sim::EntityHandle handle = actors.slots.handleAt(i);
     const bool dead = actors.health[i] == 0;
@@ -34,22 +34,26 @@ void LogicEventLog::noteActors(const ActorPool& actors,
     }
     note({dead ? LogicEventKind::ACTOR_DIED : LogicEventKind::ACTOR_HURT,
           targetOf(LogicTargetKind::ACTOR, handle), actors.position[i],
-          handle.index < actor_ids.size() ? actor_ids[handle.index] : ""});
+          notes.actor_ids[handle.index],
+          logicTargetOf(notes.actor_hurt_by[handle.index])});
   }
 }
 
-void LogicEventLog::notePlayers(const PlayerPool& players, uint64_t tick) {
+void LogicEventLog::notePlayers(const PlayerPool& players,
+                                const LogicSlotNotes& notes, uint64_t tick) {
   for (uint32_t i = 0; i < players.slots.size(); ++i) {
     const bool downed =
         players.downed[i] != 0 && players.downed_since[i] == tick;
     const bool hurt = playerIsUp(players, i) &&
                       players.hurt_until[i] == tick + PLAYER_HURT_GRACE_TICKS;
+    const sim::EntityHandle handle = players.slots.handleAt(i);
     if (downed || hurt) {
       note(
           {downed ? LogicEventKind::PLAYER_DOWNED : LogicEventKind::PLAYER_HURT,
-           targetOf(LogicTargetKind::PLAYER, players.slots.handleAt(i)),
+           targetOf(LogicTargetKind::PLAYER, handle),
            players.position[i],
-           {}});
+           {},
+           logicTargetOf(notes.player_hurt_by[handle.index])});
     }
   }
 }
@@ -72,6 +76,7 @@ void LogicEventLog::hashInto(sim::StateHasher& hasher) const {
     hasher.add(event.target.index);
     hasher.add(event.target.generation);
     hasher.add(event.at);
+    hashCombatantRef(combatantOf(event.by), hasher);
   }
 }
 

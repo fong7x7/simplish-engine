@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <engine/math/vec2.h>
+#include <game/combat/combatant-ref.h>
 #include <game/content/faction.h>
 
 namespace eng::game {
@@ -23,6 +24,8 @@ struct ShotRequest {
   uint16_t damage = 0;
   /// The side that fired it.
   Faction side = Faction::HOSTILE;
+  /// Who fired it: credited with what it hits.
+  CombatantRef source = NO_COMBATANT;
 };
 
 }  // namespace eng::game

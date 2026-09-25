@@ -20,6 +20,9 @@ struct DamageEvent {
   CombatantRef target{};
   /// Segments to take away.
   uint16_t amount = 0;
+  /// Who is to be credited with it: the attacker, the shooter, whoever
+  /// set off the blast or spilled the pool; `NO_COMBATANT` for nobody.
+  CombatantRef source = NO_COMBATANT;
 };
 
 }  // namespace eng::game

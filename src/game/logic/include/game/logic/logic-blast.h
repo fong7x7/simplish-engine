@@ -7,6 +7,8 @@
 
 #include <cstdint>
 #include <engine/math/vec3.h>
+#include <game/logic/logic-target.h>
+#include <optional>
 
 namespace eng::game {
 
@@ -20,6 +22,9 @@ struct LogicBlast {
   float radius = 2.0F;
   /// Health segments it takes from everyone it reaches.
   uint16_t damage = 1;
+  /// Who set it off: credited with its hits. It spares nobody, them
+  /// included. Empty for nobody.
+  std::optional<LogicTarget> by{};
 };
 
 }  // namespace eng::game

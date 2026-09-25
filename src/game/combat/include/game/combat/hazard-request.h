@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <engine/math/vec2.h>
+#include <game/combat/combatant-ref.h>
 #include <game/content/faction.h>
 
 namespace eng::game {
@@ -25,6 +26,8 @@ struct HazardRequest {
   uint32_t ticks = 0;
   /// The side that lobbed it.
   Faction side = Faction::HOSTILE;
+  /// Who spilled it: credited with its bites.
+  CombatantRef source = NO_COMBATANT;
 };
 
 }  // namespace eng::game

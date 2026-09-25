@@ -10,6 +10,7 @@
 simplish_add_module(simplish-game-world
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/game-world.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-combatant.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-event-log.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/stand-in-input.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/world-logic-view.cpp

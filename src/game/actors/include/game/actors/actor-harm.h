@@ -6,6 +6,7 @@
 /// A value type.
 
 #include <cstdint>
+#include <game/combat/combatant-ref.h>
 
 namespace eng::game {
 
@@ -16,6 +17,8 @@ struct ActorHarm {
   /// The tick it happens on, which the actor remembers as when it was
   /// last hurt.
   uint64_t tick = 0;
+  /// Who hurt it: credited with its blast, should it die in one.
+  CombatantRef source = NO_COMBATANT;
 };
 
 }  // namespace eng::game

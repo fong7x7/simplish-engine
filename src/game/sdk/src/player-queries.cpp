@@ -28,6 +28,11 @@ std::optional<LogicPlayer> nearestPlayer(const GameLogicWorld& world, Vec3 at) {
   return nearest;
 }
 
+std::optional<LogicPlayer> playerBehind(const GameLogicWorld& world,
+                                        const LogicEvent& event) {
+  return event.by ? world.playerOf(*event.by) : std::nullopt;
+}
+
 Vec3 playersCentre(const GameLogicWorld& world) {
   const std::vector<LogicPlayer> up = playersUp(world);
   if (up.empty()) {

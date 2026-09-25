@@ -7,11 +7,13 @@ namespace eng::game {
 
 ProjectilePool::ProjectilePool(uint32_t capacity)
   : slots(capacity), position(capacity), velocity(capacity),
-    ticks_left(capacity), damage(capacity), side(capacity) {}
+    ticks_left(capacity), damage(capacity), side(capacity),
+    source(capacity, NO_COMBATANT) {}
 
 HazardPool::HazardPool(uint32_t capacity)
   : slots(capacity), position(capacity), radius(capacity), ticks_left(capacity),
-    age(capacity), damage(capacity), side(capacity) {}
+    age(capacity), damage(capacity), side(capacity),
+    source(capacity, NO_COMBATANT) {}
 
 void clearCombatEffects(CombatEffects& effects) {
   effects.damage.clear();
@@ -37,6 +39,11 @@ void indexCombatBodies(CombatWorkspace& workspace) {
     workspace.largest_radius = std::max(workspace.largest_radius, body.radius);
   }
   workspace.grid.rebuild(workspace.points);
+}
+
+void hashCombatantRef(const CombatantRef& ref, sim::StateHasher& hasher) {
+  hasher.add(ref.kind);
+  hasher.add(ref.handle);
 }
 
 }  // namespace eng::game

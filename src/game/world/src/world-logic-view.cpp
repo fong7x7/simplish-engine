@@ -9,16 +9,13 @@
 #include <game/content/enemy-lookup.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
+#include <game/world/logic-combatant.h>
 #include <string>
 
 namespace eng::game {
 
 namespace {
 
-  /// The source of a blast nobody set off: a handle no entity ever has, so
-  /// the blast spares nobody.
-  constexpr CombatantRef NO_SOURCE{CombatantKind::ACTOR,
-                                   {UINT32_MAX, UINT32_MAX}};
 
   /// @p handle as game logic names an entity of pool @p kind.
   LogicTarget targetOf(LogicTargetKind kind, sim::EntityHandle handle) {
@@ -151,9 +148,12 @@ physics::CollisionBox WorldLogicView::obstacle(uint32_t index) const {
                                          : physics::CollisionBox{};
 }
 
-void WorldLogicView::damage(LogicTarget target, uint16_t amount) {
-  scene_.commands.push_back(
-      {.kind = LogicCommandKind::DAMAGE, .target = target, .amount = amount});
+void WorldLogicView::damage(LogicTarget target, uint16_t amount,
+                            std::optional<LogicTarget> by) {
+  scene_.commands.push_back({.kind = LogicCommandKind::DAMAGE,
+                             .target = target,
+                             .amount = amount,
+                             .by = by});
 }
 
 void WorldLogicView::heal(LogicTarget target, uint16_t amount) {
@@ -245,12 +245,16 @@ void WorldLogicView::fireShot(const LogicShot& shot) {
   scene_.combat.shots.push_back({{shot.from.x, shot.from.y},
                                  Vec2::normalize(shot.direction) * step,
                                  shot.damage,
-                                 shot.side});
+                                 shot.side,
+                                 combatantOf(shot.shooter)});
 }
 
 void WorldLogicView::blast(const LogicBlast& blast) {
-  scene_.combat.blasts.push_back(
-      {{blast.at.x, blast.at.y}, blast.radius, blast.damage, NO_SOURCE});
+  scene_.combat.blasts.push_back({{blast.at.x, blast.at.y},
+                                  blast.radius,
+                                  blast.damage,
+                                  NO_COMBATANT,
+                                  combatantOf(blast.by)});
 }
 
 void WorldLogicView::spawnHazard(const LogicHazard& hazard) {
@@ -258,7 +262,8 @@ void WorldLogicView::spawnHazard(const LogicHazard& hazard) {
                                    hazard.radius,
                                    hazard.damage,
                                    hazard.ticks,
-                                   hazard.side});
+                                   hazard.side,
+                                   combatantOf(hazard.by)});
 }
 
 uint32_t WorldLogicView::random(uint32_t bound) {

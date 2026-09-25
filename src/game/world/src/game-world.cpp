@@ -9,6 +9,7 @@
 #include <game/content/character-lookup.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
+#include <game/world/logic-combatant.h>
 #include <game/world/world-nav-grid.h>
 
 namespace eng::game {
@@ -248,7 +249,10 @@ void GameWorld::applyLogicCommand(const LogicCommand& command, uint64_t tick) {
   if (command.kind == LogicCommandKind::HEAL) {
     heal(target, command.amount);
   } else if (command.kind == LogicCommandKind::DAMAGE) {
-    applyHit({{combatantKindOf(target), handle}, command.amount}, tick);
+    applyHit({{combatantKindOf(target), handle},
+              command.amount,
+              combatantOf(command.by)},
+             tick);
   } else if (command.kind == LogicCommandKind::MOVE) {
     moveTo(target, command.at);
   } else if (const auto i = actors_.slots.denseIndex(handle);
@@ -322,8 +326,9 @@ std::vector<std::string> GameWorld::takeLogicLog() {
 
 void GameWorld::compaction(const sim::TickContext& context) {
   if (logic_ != nullptr) {
-    logic_events_.noteActors(actors_, actor_ids_, context.tick);
-    logic_events_.notePlayers(players_, context.tick);
+    const LogicSlotNotes notes{actor_ids_, actor_hurt_by_, player_hurt_by_};
+    logic_events_.noteActors(actors_, notes, context.tick);
+    logic_events_.notePlayers(players_, notes, context.tick);
     logic_events_.publish();
   }
   compactPlayers(players_);
@@ -362,13 +367,29 @@ void GameWorld::listBodies() {
 }
 
 void GameWorld::applyHit(const DamageEvent& hit, uint64_t tick) {
+  const uint32_t slot = hit.target.handle.index;
   if (hit.target.kind == CombatantKind::PLAYER) {
     if (const auto p = players_.slots.denseIndex(hit.target.handle)) {
+      const uint16_t before = players_.health[*p];
       hurtPlayer(players_, *p, hit.amount, tick);
+      if (players_.health[*p] < before) {
+        player_hurt_by_[slot] = hit.source;
+      }
     }
   } else if (const auto i = actors_.slots.denseIndex(hit.target.handle)) {
-    hurtActor(actors_, *i, {hit.amount, tick}, effects_);
+    const uint16_t before = actors_.health[*i];
+    hurtActor(actors_, *i, {hit.amount, tick, hit.source}, effects_);
+    if (actors_.health[*i] < before) {
+      actor_hurt_by_[slot] = hit.source;
+    }
   }
+}
+
+void GameWorld::sizeActorSlots(uint32_t capacity) {
+  actor_ids_.resize(capacity);
+  actor_models_.resize(capacity);
+  actor_spawned_.resize(capacity);
+  actor_hurt_by_.resize(capacity, NO_COMBATANT);
 }
 
 void GameWorld::spawnActors(const GameSetup& setup,
@@ -376,9 +397,7 @@ void GameWorld::spawnActors(const GameSetup& setup,
   brains_.reserve(setup.actors.size());
   routes_.reserve(setup.actors.size());
   actor_handles_.reserve(setup.actors.size());
-  actor_ids_.resize(actorCapacity(setup));
-  actor_models_.resize(actorCapacity(setup));
-  actor_spawned_.resize(actorCapacity(setup));
+  sizeActorSlots(actorCapacity(setup));
   for (const ActorSpawn& spawn : setup.actors) {
     const uint16_t brain = brainIndex(resolveBehavior(content, spawn.behavior));
     const auto handle = spawnActor(actors_, spawn, brain, brains_[brain]);

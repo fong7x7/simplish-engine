@@ -11,6 +11,11 @@ namespace {
     return a.kind == b.kind && a.handle == b.handle;
   }
 
+  /// Who @p area's hits are credited to: its credit, or else its source.
+  CombatantRef creditOf(const BlastEvent& area) {
+    return same(area.credit, NO_COMBATANT) ? area.source : area.credit;
+  }
+
   /// Hit everyone @p area reaches — standing in it, their edge within its
   /// radius — that @p catches says to, for its damage each.
   template <typename Catches>
@@ -23,7 +28,7 @@ namespace {
       const float reach = area.radius + body.radius;
       if (catches(body) &&
           Vec2::distanceSquared(body.at, area.at) <= reach * reach) {
-        scene.effects.damage.push_back({body.who, area.damage});
+        scene.effects.damage.push_back({body.who, area.damage, creditOf(area)});
       }
     });
   }
@@ -32,8 +37,8 @@ namespace {
   void stepOne(HazardPool& hazards, uint32_t i, const CombatScene& scene) {
     if (hazards.age[i] % HAZARD_BITE_INTERVAL_TICKS == 0) {
       const Faction side = hazards.side[i];
-      const BlastEvent pool{
-          hazards.position[i], hazards.radius[i], hazards.damage[i], {}};
+      const BlastEvent pool{hazards.position[i], hazards.radius[i],
+                            hazards.damage[i], NO_COMBATANT, hazards.source[i]};
       hitWithin(scene, pool, [side](const CombatBody& body) {
         return factionsOppose(side, body.side);
       });
@@ -78,6 +83,7 @@ void compactHazards(HazardPool& hazards) {
   sim::applySlotMoves(moves, hazards.age);
   sim::applySlotMoves(moves, hazards.damage);
   sim::applySlotMoves(moves, hazards.side);
+  sim::applySlotMoves(moves, hazards.source);
 }
 
 void hashHazards(const HazardPool& hazards, sim::StateHasher& hasher) {
@@ -89,6 +95,9 @@ void hashHazards(const HazardPool& hazards, sim::StateHasher& hasher) {
   hasher.addSpan(std::span<const uint32_t>(hazards.age).first(n));
   hasher.addSpan(std::span<const uint16_t>(hazards.damage).first(n));
   hasher.addSpan(std::span<const Faction>(hazards.side).first(n));
+  for (uint32_t i = 0; i < n; ++i) {
+    hashCombatantRef(hazards.source[i], hasher);
+  }
 }
 
 }  // namespace eng::game

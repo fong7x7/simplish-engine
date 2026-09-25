@@ -10,6 +10,7 @@
 #include <game/content/faction.h>
 #include <game/logic/logic-target.h>
 #include <game/world/logic-command-kind.h>
+#include <optional>
 
 namespace eng::game {
 
@@ -29,6 +30,8 @@ struct LogicCommand {
   uint8_t state = 0;
   /// Which side, for `SET_FACTION`.
   Faction faction = Faction::HOSTILE;
+  /// Who is credited, for `DAMAGE`; nobody when empty.
+  std::optional<LogicTarget> by{};
 };
 
 }  // namespace eng::game

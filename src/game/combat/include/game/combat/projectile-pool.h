@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <engine/math/vec2.h>
 #include <engine/sim/entity-slots.h>
+#include <game/combat/combatant-ref.h>
 #include <game/content/faction.h>
 #include <vector>
 
@@ -35,6 +36,8 @@ struct ProjectilePool {
   std::vector<uint16_t> damage;
   /// The side that fired each: it hurts only the other.
   std::vector<Faction> side;
+  /// Who each came from: credited with what it hurts.
+  std::vector<CombatantRef> source;
 };
 
 }  // namespace eng::game

@@ -171,9 +171,11 @@ namespace {
     hasher.addSpan(live(pool.route_reverse, n));
   }
 
-  /// The actor at dense index @p index dies: marked for destruction, going
-  /// off in its blast, if it has one.
-  void die(ActorPool& pool, uint32_t index, CombatEffects& effects) {
+  /// The actor at dense index @p index dies at @p killer's hand: marked
+  /// for destruction, going off in its blast, if it has one — whose hits
+  /// are credited to @p killer.
+  void die(ActorPool& pool, uint32_t index, CombatEffects& effects,
+           const CombatantRef& killer) {
     const sim::EntityHandle handle = pool.slots.handleAt(index);
     (void)pool.slots.destroy(handle);
     if (pool.death_blast_radius[index] > 0.0F) {
@@ -181,7 +183,8 @@ namespace {
       effects.blasts.push_back({{at.x, at.y},
                                 pool.death_blast_radius[index],
                                 pool.death_blast_damage[index],
-                                {CombatantKind::ACTOR, handle}});
+                                {CombatantKind::ACTOR, handle},
+                                killer});
     }
   }
 
@@ -246,7 +249,7 @@ void hurtActor(ActorPool& pool, uint32_t index, ActorHarm harm,
   pool.health[index] -= std::min(harm.amount, pool.health[index]);
   pool.damaged_tick[index] = harm.tick;
   if (pool.health[index] == 0) {
-    die(pool, index, effects);
+    die(pool, index, effects, harm.source);
   }
 }
 

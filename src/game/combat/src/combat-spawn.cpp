@@ -17,6 +17,7 @@ namespace {
     projectiles.ticks_left[i] = PROJECTILE_FLIGHT_TICKS;
     projectiles.damage[i] = shot.damage;
     projectiles.side[i] = shot.side;
+    projectiles.source[i] = shot.source;
     return true;
   }
 
@@ -41,6 +42,7 @@ namespace {
     hazards.age[i] = 0;
     hazards.damage[i] = request.damage;
     hazards.side[i] = request.side;
+    hazards.source[i] = request.source;
   }
 
 }  // namespace

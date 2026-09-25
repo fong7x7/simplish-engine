@@ -14,6 +14,7 @@
 #include <game/logic/logic-event.h>
 #include <game/logic/logic-target.h>
 #include <game/player/player-pool.h>
+#include <game/world/logic-slot-notes.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -36,12 +37,14 @@ public:
   /// end of the tick does not report it dead.
   void noteRemoved(sim::EntityHandle handle);
   /// At the end of @p tick, before compaction: note every actor hurt or
-  /// killed on it, named by @p actor_ids, by slot. The removed are not
+  /// killed on it, named and credited as @p notes say. The removed are not
   /// reported dead.
-  void noteActors(const ActorPool& actors,
-                  std::span<const std::string> actor_ids, uint64_t tick);
-  /// At the end of @p tick: note every player hurt or downed on it.
-  void notePlayers(const PlayerPool& players, uint64_t tick);
+  void noteActors(const ActorPool& actors, const LogicSlotNotes& notes,
+                  uint64_t tick);
+  /// At the end of @p tick: note every player hurt or downed on it,
+  /// credited as @p notes say.
+  void notePlayers(const PlayerPool& players, const LogicSlotNotes& notes,
+                   uint64_t tick);
   /// Make the tick's events the ones `events` gives, and start gathering
   /// the next tick's. Last thing a tick does with the log.
   void publish();

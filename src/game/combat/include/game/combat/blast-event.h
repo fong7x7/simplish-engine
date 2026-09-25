@@ -22,7 +22,10 @@ struct BlastEvent {
   /// Segments everyone it reaches loses.
   uint16_t damage = 0;
   /// Whoever went off, whom it spares.
-  CombatantRef source{};
+  CombatantRef source = NO_COMBATANT;
+  /// Who is credited with its hits: whoever killed the one that went off,
+  /// or set it off. `NO_COMBATANT` credits `source`.
+  CombatantRef credit = NO_COMBATANT;
 };
 
 }  // namespace eng::game

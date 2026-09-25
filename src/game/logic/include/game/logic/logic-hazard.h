@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
+#include <game/logic/logic-target.h>
+#include <optional>
 
 namespace eng::game {
 
@@ -25,6 +27,8 @@ struct LogicHazard {
   uint32_t ticks = 300;
   /// Whose it is: it bites only the other side.
   Faction side = Faction::FRIENDLY;
+  /// Who spilled it: credited with its bites. Empty for nobody.
+  std::optional<LogicTarget> by{};
 };
 
 }  // namespace eng::game

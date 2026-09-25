@@ -95,8 +95,9 @@ namespace {
   void landAt(ProjectilePool& projectiles, uint32_t i, const CombatScene& scene,
               const Landing& landing) {
     if (landing.kind == CombatCueKind::SHOT_HIT_BODY) {
-      scene.effects.damage.push_back(
-          {scene.workspace.bodies[landing.body].who, projectiles.damage[i]});
+      scene.effects.damage.push_back({scene.workspace.bodies[landing.body].who,
+                                      projectiles.damage[i],
+                                      projectiles.source[i]});
     }
     cueCombat(scene.cues, {landing.kind,
                            {landing.at.x, landing.at.y, PROJECTILE_Z_TILES},
@@ -139,6 +140,7 @@ void compactProjectiles(ProjectilePool& projectiles) {
   sim::applySlotMoves(moves, projectiles.ticks_left);
   sim::applySlotMoves(moves, projectiles.damage);
   sim::applySlotMoves(moves, projectiles.side);
+  sim::applySlotMoves(moves, projectiles.source);
 }
 
 void hashProjectiles(const ProjectilePool& projectiles,
@@ -150,6 +152,9 @@ void hashProjectiles(const ProjectilePool& projectiles,
   hasher.addSpan(std::span<const uint32_t>(projectiles.ticks_left).first(n));
   hasher.addSpan(std::span<const uint16_t>(projectiles.damage).first(n));
   hasher.addSpan(std::span<const Faction>(projectiles.side).first(n));
+  for (uint32_t i = 0; i < n; ++i) {
+    hashCombatantRef(projectiles.source[i], hasher);
+  }
 }
 
 }  // namespace eng::game

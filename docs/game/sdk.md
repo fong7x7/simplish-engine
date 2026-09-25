@@ -196,6 +196,18 @@ void onHash(GameLogicHash& hash) const override { triggers_.hashInto(hash); }
 
 Every shot fired, landed, and blast set off is cued like an actor's, so it flashes and is heard.
 
+**Who did it.** Every hurt, death and downing names who is behind it in `event.by`: the player or actor that struck, fired or spilled the pool; for a blast's hits, whoever killed the one that went off — so a player who shoots an exploding actor is credited with what the explosion kills. `fireWeapon` credits the player firing; `fireShot`, `blast` and `spawnHazard` credit their `shooter` or `by`; `damage(target, n, by)` credits `by`. `sdk::playerBehind(world, event)` gives the credited player, when it was one:
+
+```cpp
+sdk::EntityData<uint32_t> kills_;   // by player
+
+void onActorDied(GameLogicWorld& world, const LogicEvent& death) override {
+  if (const auto killer = sdk::playerBehind(world, death)) {
+    kills_[killer->target] += 1;
+  }
+}
+```
+
 ---
 
 ## 8. Dice

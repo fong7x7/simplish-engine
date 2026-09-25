@@ -2,7 +2,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <game/sdk/entity-data.h>
+#include <game/sdk/game.h>
 #include <game/sdk/player-input.h>
+#include <game/sdk/player-queries.h>
 #include <game/sdk/weapon.h>
 
 using namespace eng::game;
@@ -58,4 +60,39 @@ TEST_CASE("a weapon fires nothing while fire is not held") {
 
   CHECK_FALSE(rifle.held);
   CHECK(rifle.pulls == 0);
+}
+
+namespace {
+
+/// Fires a rifle for player 1, and counts the kills credited to a player.
+class Scorer final : public Game {
+public:
+  /// Kills credited to player 1.
+  int kills = 0;
+
+protected:
+  void onTick(GameLogicWorld& world) override {
+    (void)eng::game::sdk::fireWeapon(world, world.player(0), {.damage = 9},
+                                     cooldown_);
+  }
+  void onActorDied(GameLogicWorld& world, const LogicEvent& death) override {
+    if (const auto killer = playerBehind(world, death)) {
+      kills += killer->slot == 0 ? 1 : 0;
+    }
+  }
+
+private:
+  /// When the rifle can fire again.
+  Cooldown cooldown_{};
+};
+
+}  // namespace
+
+TEST_CASE("a kill by a player's weapon is credited to that player") {
+  Scorer scorer;
+
+  (void)test::runLogicFiring(scorer, 30);
+
+  // grunt_a, then grunt_b behind it: both in the line of fire.
+  CHECK(scorer.kills == 2);
 }

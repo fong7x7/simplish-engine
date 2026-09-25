@@ -41,7 +41,9 @@ public:
   [[nodiscard]] bool walkable(Vec3 at) const override;
   [[nodiscard]] uint32_t obstacleCount() const override;
   [[nodiscard]] physics::CollisionBox obstacle(uint32_t index) const override;
-  void damage(LogicTarget target, uint16_t amount) override;
+  using GameLogicWorld::damage;
+  void damage(LogicTarget target, uint16_t amount,
+              std::optional<LogicTarget> by) override;
   void heal(LogicTarget target, uint16_t amount) override;
   void endRun(RunOutcome outcome) override;
   bool spawnEnemy(std::string_view archetype, Vec3 at,

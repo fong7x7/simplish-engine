@@ -9,6 +9,8 @@
 #include <engine/math/vec2.h>
 #include <engine/math/vec3.h>
 #include <game/content/faction.h>
+#include <game/logic/logic-target.h>
+#include <optional>
 
 namespace eng::game {
 
@@ -29,6 +31,8 @@ struct LogicShot {
   /// Whose shot it is: it strikes only the other side. Players are
   /// friendly, so a player's shot is `FRIENDLY`.
   Faction side = Faction::FRIENDLY;
+  /// Who fired it: credited with what it hits. Empty for nobody.
+  std::optional<LogicTarget> shooter{};
 };
 
 }  // namespace eng::game

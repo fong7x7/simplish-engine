@@ -38,8 +38,8 @@ struct Weapon {
 };
 
 /// Fire @p weapon for @p player when they hold fire and @p cooldown is
-/// ready — from the edge of them, along their aim, on the players' side —
-/// and start @p cooldown. Whether it fired.
+/// ready — from the edge of them, along their aim, on the players' side,
+/// credited to them — and start @p cooldown. Whether it fired.
 bool fireWeapon(GameLogicWorld& world, const LogicPlayer& player,
                 const Weapon& weapon, Cooldown& cooldown);
 

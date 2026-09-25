@@ -94,7 +94,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
-This is `GameLogicWorld`, API version 4 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+This is `GameLogicWorld`, API version 5 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
 
 | Read | |
 |---|---|
@@ -104,13 +104,13 @@ This is `GameLogicWorld`, API version 4 — what the engine lets logic read and 
 | `actorCount()`, `actor(i)` | The level's id for it (the prop it was placed as), position, facing, faction, health, the state of its behavior it is in, and a `target` |
 | `outcome()` | Playing, won or lost |
 | `actorOf(target)`, `playerOf(target)` | The entity a kept target names now, or nothing when it is gone |
-| `events()` | What happened in the last tick, in order: actors spawned, hurt, killed and removed; players hurt and downed. A dead actor's event carries where it fell and its name |
+| `events()` | What happened in the last tick, in order: actors spawned, hurt, killed and removed; players hurt and downed. A dead actor's event carries where it fell and its name; a hurt, death or downing carries `by`, who is credited — the striker, shooter or spiller, or for a blast whoever killed the one that went off |
 | `lineOfSight(from, to)`, `walkable(at)` | Asked of the navigation grid, for an actor of the default size; false outside it |
 | `obstacleCount()`, `obstacle(i)` | The level's solid props, as boxes |
 
 | Write | |
 |---|---|
-| `damage(target, amount)` | Queued; applied as a hit |
+| `damage(target, amount[, by])` | Queued; applied as a hit, credited to `by` when given |
 | `heal(target, amount)` | Queued; up to a full bar |
 | `endRun(outcome)` | The first ending stands |
 | `moveTo(target, at)` | Queued; teleports a player or an actor, which forgets its path |

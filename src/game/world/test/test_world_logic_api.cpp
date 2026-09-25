@@ -300,3 +300,114 @@ TEST_CASE("a hazard pool the logic leaves bites the other side in it") {
 
   CHECK(world.actors().health[0] < 5);
 }
+
+namespace {
+
+/// Every event of @p kind the logic heard, gathered into @p heard.
+std::function<void(GameLogicWorld&)>
+recordEvents(LogicEventKind kind, std::vector<eng::game::LogicEvent>& heard) {
+  return [kind, &heard](GameLogicWorld& world) {
+    for (const auto& event : world.events()) {
+      if (event.kind == kind) {
+        heard.push_back(event);
+      }
+    }
+  };
+}
+
+/// `arena()` with the boss down to one segment and a hostile `minion` at
+/// (7.5, 1.5), in reach of the boss's death blast.
+GameSetup chainArena() {
+  GameSetup setup = arena();
+  setup.actors[0].health = 1;
+  eng::game::ActorSpawn minion;
+  minion.at = {7.5F, 1.5F, 0.0F};
+  minion.behavior = "idle";
+  minion.id = "minion";
+  setup.actors.push_back(minion);
+  return setup;
+}
+
+}  // namespace
+
+TEST_CASE("a death is credited to the player whose shot killed") {
+  std::vector<eng::game::LogicEvent> deaths;
+  const auto record = recordEvents(LogicEventKind::ACTOR_DIED, deaths);
+  eng::game::LogicTarget player{};
+  Scripted logic([&](GameLogicWorld& world) {
+    player = world.player(0).target;
+    if (world.tick() == 0) {
+      world.fireShot({.from = {5.0F, 1.5F, 0.0F},
+                      .damage = 9,
+                      .shooter = world.player(0).target});
+    }
+    record(world);
+  });
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 20);
+
+  REQUIRE(deaths.size() == 1);
+  CHECK(deaths[0].by == player);
+}
+
+TEST_CASE("a blast's hits are credited to whoever killed the one that went "
+          "off") {
+  std::vector<eng::game::LogicEvent> hurts;
+  const auto record = recordEvents(LogicEventKind::ACTOR_HURT, hurts);
+  eng::game::LogicTarget player{};
+  Scripted logic([&](GameLogicWorld& world) {
+    player = world.player(0).target;
+    if (world.tick() == 0) {
+      world.damage(world.actor(0).target, 1, world.player(0).target);
+    }
+    record(world);
+  });
+  GameWorld world(chainArena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 2);
+
+  REQUIRE(hurts.size() == 1);
+  CHECK(hurts[0].id == "minion");
+  CHECK(hurts[0].by == player);
+}
+
+TEST_CASE("a player bitten is told who bit them") {
+  std::vector<eng::game::LogicEvent> hurts;
+  const auto record = recordEvents(LogicEventKind::PLAYER_HURT, hurts);
+  GameSetup setup = arena();
+  setup.actors[0].at = {2.1F, 1.5F, 0.0F};
+  setup.actors[0].behavior = "chase";
+  eng::game::LogicTarget biter{};
+  Scripted logic([&](GameLogicWorld& world) {
+    biter = world.actor(0).target;
+    record(world);
+  });
+  GameWorld world(setup, {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 60);
+
+  REQUIRE_FALSE(hurts.empty());
+  CHECK(hurts[0].by == biter);
+}
+
+TEST_CASE("damage the logic credits nobody is credited to nobody") {
+  std::vector<eng::game::LogicEvent> hurts;
+  const auto record = recordEvents(LogicEventKind::ACTOR_HURT, hurts);
+  Scripted logic([&](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      world.damage(world.actor(0).target, 1);
+    }
+    record(world);
+  });
+  GameWorld world(arena(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  run(simulation, 2);
+
+  REQUIRE(hurts.size() == 1);
+  CHECK_FALSE(hurts[0].by.has_value());
+}
