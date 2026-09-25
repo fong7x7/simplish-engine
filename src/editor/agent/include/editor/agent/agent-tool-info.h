@@ -1038,7 +1038,8 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "(sounds: the nearest few of each kind a tick); whether the run is "
      "over (no player up, or the game logic ended it) and its outcome "
      "(playing, won or lost); whether the project's game logic runs (logic) "
-     "and the last lines it said (logic_log); the "
+     "and the last lines it said (logic_log) — actors the logic spawned "
+     "are listed after the level's, marked spawned; the "
      "latest tick hash, how many ticks the frame clock has dropped, and "
      "how many ticks of queued input are left. Poll it after "
      "start_playtest or send_input to watch the game run.",

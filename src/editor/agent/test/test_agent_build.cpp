@@ -99,3 +99,16 @@ TEST_CASE("get_playtest reports the game logic and how the run stands") {
   CHECK(playtest["outcome"] == "won");
   CHECK(playtest["logic_log"] == json::array({"Cleared"}));
 }
+
+TEST_CASE("get_playtest marks the actors the logic spawned") {
+  EditorShellState state;
+  EditorPlaytestActor imp;
+  imp.id = "imp";
+  imp.spawned = true;
+  state.playtest.actors.push_back(imp);
+
+  const json actor = call(state, "get_playtest", "{}")["actors"][0];
+
+  CHECK(actor["id"] == "imp");
+  CHECK(actor["spawned"] == true);
+}

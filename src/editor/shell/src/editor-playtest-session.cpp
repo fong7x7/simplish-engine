@@ -509,20 +509,40 @@ void EditorPlaytestSession::publishRun(EditorPlaytestState& state) const {
 
 void EditorPlaytestSession::publishActors(EditorPlaytestState& state) const {
   state.actors.clear();
+  // The level's actors in its order, then the logic's in dense order.
   for (size_t actor = 0; actor < actorCount(); ++actor) {
     if (const std::optional<uint32_t> index = actorIndex(actor)) {
-      state.actors.push_back(actorReport(actor, *index));
+      state.actors.push_back(actorReport(
+          actor < actor_ids_.size() ? actor_ids_[actor] : "", *index));
     }
+  }
+  for (const uint32_t index : spawnedActors()) {
+    state.actors.push_back(actorReport(world_->actorId(index), index));
+    state.actors.back().spawned = true;
   }
 }
 
-EditorPlaytestActor EditorPlaytestSession::actorReport(size_t actor,
+std::vector<uint32_t> EditorPlaytestSession::spawnedActors() const {
+  std::vector<uint32_t> spawned;
+  for (uint32_t i = 0; i < world_->actors().slots.size(); ++i) {
+    if (world_->actorSpawned(i)) {
+      spawned.push_back(i);
+    }
+  }
+  return spawned;
+}
+
+std::string_view EditorPlaytestSession::actorModel(uint32_t index) const {
+  return world_->actorModel(index);
+}
+
+EditorPlaytestActor EditorPlaytestSession::actorReport(std::string_view id,
                                                        uint32_t index) const {
   const game::ActorPool& pool = world_->actors();
   const Vec3& at = pool.position[index];
   const game::ActorPath& path = pool.path[index];
   EditorPlaytestActor report{
-      .id = actor < actor_ids_.size() ? actor_ids_[actor] : std::string{},
+      .id = std::string(id),
       .position = {at.x, at.y, at.z},
       .facing = pool.facing[index],
       .behavior = world_->brains()[pool.brain[index]].behavior.id,
@@ -547,13 +567,9 @@ void EditorPlaytestSession::reportTarget(EditorPlaytestActor& report,
 }
 
 std::string EditorPlaytestSession::actorIdOf(sim::EntityHandle handle) const {
-  const auto handles = world_->actorHandles();
-  for (size_t k = 0; k < handles.size() && k < actor_ids_.size(); ++k) {
-    if (handles[k] == handle) {
-      return actor_ids_[k];
-    }
-  }
-  return {};
+  const std::optional<uint32_t> index =
+      world_->actors().slots.denseIndex(handle);
+  return index ? std::string(world_->actorId(*index)) : std::string{};
 }
 
 Vec3 EditorPlaytestSession::renderPosition(size_t index, float alpha) const {

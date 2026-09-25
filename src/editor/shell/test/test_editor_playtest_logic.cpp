@@ -23,6 +23,23 @@ game::GameLogic* makeLogic() {
   return std::make_unique<WinsOnTwo>().release();
 }
 
+/// Spawns one actor, `imp`, on tick 0.
+class SpawnsImp final : public game::GameLogic {
+public:
+  void tick(game::GameLogicWorld& world) override {
+    if (world.tick() == 0) {
+      (void)world.spawnActor({.at = {4.5F, 4.5F, 0.0F},
+                              .behavior = "wander",
+                              .id = "imp",
+                              .model = "mesh:imp"});
+    }
+  }
+};
+
+game::GameLogic* makeSpawner() {
+  return std::make_unique<SpawnsImp>().release();
+}
+
 void unmakeLogic(game::GameLogic* logic) {
   const std::unique_ptr<game::GameLogic> owned(logic);
 }
@@ -80,4 +97,25 @@ TEST_CASE("a playtest with no library plays without logic") {
 
   CHECK_FALSE(state.logic);
   CHECK(state.outcome == game::RunOutcome::PLAYING);
+}
+
+TEST_CASE("a playtest reports the actors its logic spawns, and how to draw "
+          "them") {
+  game::GameSetup setup;
+  setup.actor_capacity = 4;
+  EditorPlaytestSession session(
+      setup, {},
+      {"main", std::make_shared<EditorLogicLibrary>(
+                   nullptr, game::GameLogicFactory{makeSpawner, unmakeLogic},
+                   std::filesystem::path{})});
+  EditorPlaytestState state;
+
+  run(session, 2);
+  session.publish(state);
+
+  REQUIRE(state.actors.size() == 1);
+  CHECK(state.actors[0].id == "imp");
+  CHECK(state.actors[0].spawned);
+  REQUIRE(session.spawnedActors() == std::vector<uint32_t>{0});
+  CHECK(session.actorModel(0) == "mesh:imp");
 }

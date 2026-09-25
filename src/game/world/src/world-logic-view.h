@@ -35,10 +35,17 @@ public:
   void damage(LogicTarget target, uint16_t amount) override;
   void heal(LogicTarget target, uint16_t amount) override;
   void endRun(RunOutcome outcome) override;
+  bool spawnEnemy(std::string_view archetype, Vec3 at,
+                  std::string_view id) override;
+  bool spawnActor(const LogicSpawn& spawn) override;
+  [[nodiscard]] uint32_t actorRoom() const override;
   [[nodiscard]] uint32_t random(uint32_t bound) override;
   void log(std::string_view message) override;
 
 private:
+  /// Queue @p spawn when there is room. False when there is none.
+  bool queueSpawn(ActorSpawn spawn);
+
   /// The world, borrowed.
   WorldLogicScene scene_;
 };

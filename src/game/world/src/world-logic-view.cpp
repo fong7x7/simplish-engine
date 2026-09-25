@@ -1,5 +1,8 @@
 #include "world-logic-view.h"
 
+#include <algorithm>
+#include <game/actors/enemy-spawn.h>
+#include <game/content/enemy-lookup.h>
 #include <game/player/player-system.h>
 #include <game/world/game-world.h>
 #include <string>
@@ -101,6 +104,42 @@ void WorldLogicView::endRun(RunOutcome outcome) {
   if (scene_.outcome == RunOutcome::PLAYING) {
     scene_.outcome = outcome;
   }
+}
+
+bool WorldLogicView::spawnEnemy(std::string_view archetype, Vec3 at,
+                                std::string_view id) {
+  const EnemyDefinition* enemy = findEnemy(scene_.content, archetype);
+  if (enemy == nullptr) {
+    return false;
+  }
+  ActorSpawn spawn = makeEnemySpawn(*enemy, at, 0.0F);
+  spawn.id = std::string(id);
+  return queueSpawn(std::move(spawn));
+}
+
+bool WorldLogicView::spawnActor(const LogicSpawn& spawn) {
+  return queueSpawn({.at = spawn.at,
+                     .yaw_degrees = spawn.yaw_degrees,
+                     .behavior = std::string(spawn.behavior),
+                     .faction = spawn.faction,
+                     .health = std::max<uint16_t>(spawn.health, 1),
+                     .id = std::string(spawn.id),
+                     .model = std::string(spawn.model)});
+}
+
+uint32_t WorldLogicView::actorRoom() const {
+  const uint32_t used =
+      scene_.actors.slots.size() + static_cast<uint32_t>(scene_.spawns.size());
+  const uint32_t capacity = scene_.actors.slots.capacity();
+  return capacity > used ? capacity - used : 0;
+}
+
+bool WorldLogicView::queueSpawn(ActorSpawn spawn) {
+  if (actorRoom() == 0) {
+    return false;
+  }
+  scene_.spawns.push_back(std::move(spawn));
+  return true;
 }
 
 uint32_t WorldLogicView::random(uint32_t bound) {

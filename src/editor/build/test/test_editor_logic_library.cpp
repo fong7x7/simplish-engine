@@ -37,11 +37,25 @@ EditorBuildStatus buildLogic(const std::filesystem::path& root) {
 /// One player, and one hostile actor standing still out of reach.
 eng::game::GameSetup setup() {
   eng::game::GameSetup setup;
+  setup.actor_capacity = eng::game::GAME_LOGIC_ACTOR_CAPACITY;
   eng::game::ActorSpawn actor;
   actor.at = {30.5F, 30.5F, 0.0F};
   actor.behavior = "idle";
   setup.actors.push_back(actor);
   return setup;
+}
+
+/// Play a run of setup() with @p library's logic until it is over, and
+/// give back everything the logic said.
+std::vector<std::string> playToTheEnd(const EditorLogicLibrary& library) {
+  const eng::game::GameLogicInstance logic(library.factory());
+  eng::game::GameWorld world(setup(), {}, logic.get());
+  eng::sim::Simulation simulation(world, eng::sim::TickHashing::ON);
+  while (!world.runOver() && simulation.nextTick() < 100000) {
+    (void)simulation.step({});
+  }
+  REQUIRE(world.runOver());
+  return world.takeLogicLog();
 }
 
 }  // namespace
@@ -67,12 +81,9 @@ TEST_CASE("the scaffold builds with the editor's toolchain, loads, and "
   const EditorLogicLibraryLoad load = loadEditorLogicLibrary(
       projectLogicLibraryPath(dir.path()), projectLogicLoadPath(dir.path(), 1));
   REQUIRE(load.error.empty());
-  eng::game::GameLogicInstance logic(load.library->factory());
-  eng::game::GameWorld world(setup(), {}, logic.get());
-  eng::sim::Simulation simulation(world, eng::sim::TickHashing::ON);
-  while (!world.runOver() && simulation.nextTick() < 100000) {
-    (void)simulation.step({});
-  }
-  REQUIRE(world.outcome() == eng::game::RunOutcome::WON);
-  REQUIRE(world.takeLogicLog().back() == "Survived");
+  // Nobody holds the controls, so the waves win: the run ends either way.
+  const std::vector<std::string> log = playToTheEnd(*load.library);
+  REQUIRE(log.size() >= 2);
+  REQUIRE(log[0] == "Survive 90 s");
+  REQUIRE(log[1] == "Wave 1");
 }

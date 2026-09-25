@@ -34,6 +34,7 @@ simplish_game_logic(
 // draw a random number but world.random(). The engine's
 // docs/game/logic.md says why, and lists everything the world offers.
 
+#include <array>
 #include <cstdint>
 #include <game/logic/game-logic-entry.h>
 #include <game/logic/game-logic.h>
@@ -45,28 +46,22 @@ namespace {
 constexpr uint64_t TICKS_PER_SECOND = 60;
 /// Survive this long and the run is won.
 constexpr uint64_t SURVIVE_TICKS = 90 * TICKS_PER_SECOND;
+/// A wave comes in this often, the first at once.
+constexpr uint64_t WAVE_TICKS = 20 * TICKS_PER_SECOND;
 /// Players get a segment of health back this often.
 constexpr uint64_t REGENERATE_TICKS = 10 * TICKS_PER_SECOND;
+/// Where a wave's chasers come in, around player 1, in tiles.
+constexpr std::array<eng::Vec3, 4> WAVE_OFFSETS{{
+    {9.0F, 0.0F, 0.0F}, {-9.0F, 0.0F, 0.0F},
+    {0.0F, 9.0F, 0.0F}, {0.0F, -9.0F, 0.0F}}};
 
-/// Hostile actors still standing.
-uint32_t hostilesLeft(const eng::game::GameLogicWorld& world) {
-  uint32_t left = 0;
-  for (uint32_t i = 0; i < world.actorCount(); ++i) {
-    const eng::game::LogicActor actor = world.actor(i);
-    if (actor.faction == eng::game::Faction::HOSTILE && actor.health > 0) {
-      ++left;
-    }
-  }
-  return left;
-}
-
-/// Win by clearing every hostile actor the level starts with, or by
-/// surviving long enough. Players slowly heal.
-class SurviveOrClear final : public eng::game::GameLogic {
+/// Survive 90 seconds against a wave of chasers every 20. Players slowly
+/// heal. A project with an enemies table can spawn its own archetypes
+/// instead: world.spawnEnemy("grunt", at, "name").
+class SurviveTheWaves final : public eng::game::GameLogic {
 public:
   void start(eng::game::GameLogicWorld& world) override {
-    hostiles_ = hostilesLeft(world);
-    world.log("Clear " + std::to_string(hostiles_) + " hostiles, or survive " +
+    world.log("Survive " +
               std::to_string(SURVIVE_TICKS / TICKS_PER_SECOND) + " s");
   }
 
@@ -74,32 +69,45 @@ public:
     if (world.outcome() != eng::game::RunOutcome::PLAYING) {
       return;
     }
+    if (world.tick() % WAVE_TICKS == 0) {
+      sendWave(world);
+    }
     if (world.tick() % REGENERATE_TICKS == REGENERATE_TICKS - 1) {
       for (uint32_t i = 0; i < world.playerCount(); ++i) {
         world.heal(world.player(i).target, 1);
       }
     }
-    if (hostiles_ > 0 && hostilesLeft(world) == 0) {
-      world.log("Cleared");
-      world.endRun(eng::game::RunOutcome::WON);
-    } else if (world.tick() + 1 >= SURVIVE_TICKS) {
-      world.log("Survived");
+    if (world.tick() + 1 >= SURVIVE_TICKS) {
+      world.log("Survived " + std::to_string(waves_) + " waves");
       world.endRun(eng::game::RunOutcome::WON);
     }
   }
 
   void hashState(eng::game::GameLogicHash& hash) const override {
-    hash.add(hostiles_);
+    hash.add(waves_);
   }
 
 private:
-  /// Hostile actors the level started with.
-  uint32_t hostiles_ = 0;
+  /// Spawn a chaser at each of the wave's places around player 1.
+  void sendWave(eng::game::GameLogicWorld& world) {
+    const eng::Vec3 centre = world.player(0).position;
+    for (const eng::Vec3& offset : WAVE_OFFSETS) {
+      (void)world.spawnActor(
+          {.at = {centre.x + offset.x, centre.y + offset.y, centre.z},
+           .behavior = "chase",
+           .id = "wave" + std::to_string(waves_)});
+    }
+    ++waves_;
+    world.log("Wave " + std::to_string(waves_));
+  }
+
+  /// Waves sent so far.
+  uint32_t waves_ = 0;
 };
 
 }  // namespace
 
-SIMPLISH_GAME_LOGIC(SurviveOrClear)
+SIMPLISH_GAME_LOGIC(SurviveTheWaves)
 )";
 
 }  // namespace

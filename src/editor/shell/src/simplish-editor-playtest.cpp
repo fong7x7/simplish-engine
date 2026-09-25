@@ -200,16 +200,26 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   // is not, and its panel would be a way to edit mid-game.
   commitPendingEdit();
   select({});
-  game::GameSetup setup = makeEditorPlaytestSetup(
-      state_.document, state_.assets, playtestFallback());
-  setup.characters[0] = character;
-  addPlaytestPlayers(setup);
-  playtest_ = std::make_unique<EditorPlaytestSession>(setup, playtestContent(),
-                                                      playtestRun());
+  const EditorPlaytestRun run = playtestRun();
+  playtest_ = std::make_unique<EditorPlaytestSession>(
+      playtestSetup(character, run), playtestContent(), run);
   beginPlaytestState();
   (void)avatarAsset();
   applyPlayModeToChrome();
   showStatusMessage(playingMessage());
+}
+
+game::GameSetup SimplishEditor::playtestSetup(const std::string& character,
+                                              const EditorPlaytestRun& run) {
+  game::GameSetup setup = makeEditorPlaytestSetup(
+      state_.document, state_.assets, playtestFallback());
+  setup.characters[0] = character;
+  addPlaytestPlayers(setup);
+  if (run.logic != nullptr) {
+    // Room for the logic to spawn into.
+    setup.actor_capacity = game::GAME_LOGIC_ACTOR_CAPACITY;
+  }
+  return setup;
 }
 
 void SimplishEditor::addPlaytestPlayers(game::GameSetup& setup) const {
@@ -494,7 +504,23 @@ std::vector<EditorCharacterFigure> SimplishEditor::characterFigures() const {
                        playtest_->renderPosition(i, playtest_alpha_),
                        pool.aim[i], playtest_->gait(i)});
   }
+  appendSpawnedFigures(figures);
   return figures;
+}
+
+void SimplishEditor::appendSpawnedFigures(
+    std::vector<EditorCharacterFigure>& figures) const {
+  // No prop stands for an actor the game logic spawned, so it is drawn
+  // the way a player is: its model, or the stand-in.
+  const game::ActorPool& pool = playtest_->actors();
+  for (const uint32_t i : playtest_->spawnedActors()) {
+    const sim::EntityHandle handle = pool.slots.handleAt(i);
+    figures.push_back({"spawned:" + std::to_string(handle.index) + ":" +
+                           std::to_string(handle.generation),
+                       std::string(playtest_->actorModel(i)),
+                       playtest_->actorRenderPosition(i, playtest_alpha_),
+                       pool.facing[i], playtest_->actorGait(i)});
+  }
 }
 
 void SimplishEditor::appendCharacterInstances() {
@@ -557,11 +583,10 @@ void SimplishEditor::refreshActorOverlays() {
   if (!viewport->show_ai || !isPlaying()) {
     return;
   }
-  for (size_t actor = 0; actor < playtest_->actorCount(); ++actor) {
-    if (const std::optional<uint32_t> index = playtest_->actorIndex(actor)) {
-      viewport->actor_overlays.push_back(
-          playtest_->actorOverlay(*index, playtest_alpha_));
-    }
+  // Every actor in the game, placed by the level or spawned by its logic.
+  for (uint32_t i = 0; i < playtest_->actors().slots.size(); ++i) {
+    viewport->actor_overlays.push_back(
+        playtest_->actorOverlay(i, playtest_alpha_));
   }
 }
 

@@ -131,6 +131,11 @@ DeployedGameRun runDeployedGame(const DeployedGameOptions& options,
   setup->player_count = seatsFor(options);
   run.players = setup->player_count;
   const game::GameLogicInstance instance(logic);
+  if (instance.get() != nullptr) {
+    // Room for the logic to spawn into, as a playtest gives it.
+    setup->actor_capacity =
+        std::max(setup->actor_capacity, game::GAME_LOGIC_ACTOR_CAPACITY);
+  }
   game::GameWorld world(*setup, readContent(options.content), instance.get());
   run.logic = world.hasLogic();
   play(world, options, run, out);

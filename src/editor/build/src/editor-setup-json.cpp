@@ -71,12 +71,19 @@ namespace {
             {"route", route},
             {"health", actor.health},
             {"death_blast_radius", actor.death_blast_radius},
-            {"death_blast_damage", actor.death_blast_damage}};
+            {"death_blast_damage", actor.death_blast_damage},
+            {"model", actor.model}};
+  }
+
+  /// @p entry's health and death blast, into @p actor.
+  void readActorHealth(const json& entry, game::ActorSpawn& actor) {
+    actor.health = number(entry, "health", game::ACTOR_DEFAULT_HEALTH);
+    actor.death_blast_radius = number(entry, "death_blast_radius", 0.0F);
+    actor.death_blast_damage = number(entry, "death_blast_damage", uint16_t{0});
   }
 
   game::ActorSpawn readActor(const json& entry) {
     game::ActorSpawn actor;
-    actor.id = text(entry, "id");
     actor.at = readVec3(member(entry, "at"));
     actor.yaw_degrees = number(entry, "yaw_degrees", 0.0F);
     actor.behavior = text(entry, "behavior");
@@ -87,9 +94,9 @@ namespace {
     for (const json& point : member(entry, "route")) {
       actor.route.push_back(readVec2(point));
     }
-    actor.health = number(entry, "health", game::ACTOR_DEFAULT_HEALTH);
-    actor.death_blast_radius = number(entry, "death_blast_radius", 0.0F);
-    actor.death_blast_damage = number(entry, "death_blast_damage", uint16_t{0});
+    readActorHealth(entry, actor);
+    actor.id = text(entry, "id");
+    actor.model = text(entry, "model");
     return actor;
   }
 
@@ -150,6 +157,7 @@ std::string serializeGameSetup(const game::GameSetup& setup) {
   const json root = {{"schema", EDITOR_SETUP_SCHEMA},
                      {"seed", setup.seed},
                      {"player_count", setup.player_count},
+                     {"actor_capacity", setup.actor_capacity},
                      {"players", writePlayers(setup)},
                      {"obstacles", writeObstacles(setup)},
                      {"actors", writeActors(setup)}};
@@ -165,6 +173,7 @@ std::optional<game::GameSetup> parseGameSetup(std::string_view text_in) {
   game::GameSetup setup;
   setup.seed = number(root, "seed", uint64_t{0});
   setup.player_count = number(root, "player_count", uint8_t{1});
+  setup.actor_capacity = number(root, "actor_capacity", uint32_t{0});
   readPlayers(member(root, "players"), setup);
   readBodies(root, setup);
   return setup;

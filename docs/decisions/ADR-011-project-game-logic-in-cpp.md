@@ -90,7 +90,7 @@ Developers and AI agents need to write that logic **in the game project the edit
 
 ### Implications for Future Work
 
-- **More of the world** — spawning actors (the director's job, and a capacity question for the actor pool), reading props and the navigation grid, emitting presentation cues — joins `GameLogicWorld` as methods, each with a test and a version bump.
+- **More of the world** — reading props and the navigation grid, emitting presentation cues — joins `GameLogicWorld` as methods, each with a test and a version bump. Spawning joined in API version 2: the run's actor room is fixed up front (`GameSetup::actor_capacity`), so it stays a capacity decision made when the run starts rather than a pool that grows mid-tick.
 - **The rendered client** links the same `simplish-project-logic` objects `simplish-game` does, and starts runs from the same baked setups.
 - **Trigger logic** ([project-format.md §7](../editor/project-format.md#7-logic-and-expressions)) remains the declarative layer for designers. Where a trigger's action set cannot say something, project logic can; the two do not replace each other.
 - **Replays should record which logic they were made with** — a hash of the library, or the sources — so one recorded against old rules is refused rather than reported as a divergence.

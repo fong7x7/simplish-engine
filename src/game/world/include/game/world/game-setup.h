@@ -16,6 +16,11 @@
 
 namespace eng::game {
 
+/// The actors a run with game logic has room for, the level's included:
+/// what a playtest or a deployed game gives `GameSetup::actor_capacity`
+/// when there is logic to spawn them. Engine §7's horde, and then some.
+inline constexpr uint32_t GAME_LOGIC_ACTOR_CAPACITY = 2048;
+
 /// The initial conditions of a run: how many players, who each one plays as,
 /// where each one enters the level, what in it they cannot walk through, and
 /// the actors — enemies and NPCs — waiting in it.
@@ -46,6 +51,11 @@ struct GameSetup {
   /// That order is their dense order, so it is part of the run: two peers
   /// listing the same actors differently simulate different runs.
   std::vector<ActorSpawn> actors;
+  /// The most actors the run holds at once: the level's, and room for game
+  /// logic to spawn more. Fixed for the run, so the pools never grow
+  /// mid-tick. Anything under the level's count — 0 by default — holds
+  /// exactly the level's, and the world hashes as it always did.
+  uint32_t actor_capacity = 0;
 };
 
 }  // namespace eng::game

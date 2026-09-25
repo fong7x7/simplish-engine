@@ -57,6 +57,10 @@ struct ActorSpawn {
   /// What the level calls it — the id of the prop it was placed as — so a
   /// project's game logic can pick it out by name; empty for none.
   std::string id{};
+  /// What draws it: an asset reference (`mesh:grunt`), or empty for the
+  /// stand-in. Presentation only — no tick ever reads it; it travels with
+  /// the spawn because an actor spawned mid-run has no prop to be drawn as.
+  std::string model{};
 };
 
 }  // namespace eng::game

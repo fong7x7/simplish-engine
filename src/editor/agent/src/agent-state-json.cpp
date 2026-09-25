@@ -470,7 +470,8 @@ namespace {
             {"sees_target", actor.sees_target},
             {"path_waypoints", actor.path_waypoints},
             {"health", actor.health},
-            {"max_health", actor.max_health}};
+            {"max_health", actor.max_health},
+            {"spawned", actor.spawned}};
   }
 
   /// Every actor in a playtest, as the agent API reports them.

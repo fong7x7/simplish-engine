@@ -9,6 +9,8 @@
 #include <engine/sim/tick-context.h>
 #include <game/actors/actor-brain.h>
 #include <game/actors/actor-pool.h>
+#include <game/actors/actor-spawn.h>
+#include <game/content/game-content.h>
 #include <game/logic/run-outcome.h>
 #include <game/player/player-pool.h>
 #include <game/world/logic-command.h>
@@ -31,8 +33,12 @@ struct WorldLogicScene {
   std::span<const ActorBrain> brains;
   /// The level's name for each actor, by its handle's slot.
   std::span<const std::string> actor_ids;
-  /// Where the logic's writes are queued.
+  /// Where the logic's damage and healing are queued.
   std::vector<LogicCommand>& commands;
+  /// Where the logic's spawns are queued.
+  std::vector<ActorSpawn>& spawns;
+  /// The run's content: the enemy archetypes `spawnEnemy` names.
+  const GameContent& content;
   /// The logic's own random stream.
   Pcg32& rng;
   /// How the run stands; the logic may end it.

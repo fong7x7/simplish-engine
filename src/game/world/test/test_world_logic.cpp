@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <engine/sim/simulation.h>
 #include <functional>
+#include <game/content/enemy-definition.h>
 #include <game/logic/game-logic.h>
 #include <game/world/game-world.h>
 #include <string>
@@ -221,4 +222,119 @@ TEST_CASE("game logic sees players as targets it can hurt") {
 
   REQUIRE(kind == LogicTargetKind::PLAYER);
   REQUIRE(world.players().health[0] == world.players().max_health[0] - 1);
+}
+
+namespace {
+
+/// `withBoss`, with room for @p capacity actors in all.
+GameSetup roomFor(uint32_t capacity) {
+  GameSetup setup = withBoss();
+  setup.actor_capacity = capacity;
+  return setup;
+}
+
+/// Content with one enemy archetype, `grunt`.
+eng::game::GameContent withGrunt() {
+  eng::game::GameContent content;
+  eng::game::EnemyDefinition grunt;
+  grunt.id = "grunt";
+  grunt.model = "mesh:grunt";
+  grunt.health = 7;
+  grunt.behavior = "chase";
+  content.enemies.push_back(grunt);
+  return content;
+}
+
+}  // namespace
+
+TEST_CASE("game logic spawns an actor that is read from the next tick on") {
+  uint32_t seen_on_spawn = 0;
+  Scripted logic([&](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      seen_on_spawn = world.actorCount();
+      REQUIRE(world.spawnActor(
+          {.at = {3.5F, 3.5F, 0.0F}, .behavior = "wander", .id = "pet"}));
+    }
+  });
+  GameWorld world(roomFor(4), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  (void)run(simulation, 2);
+
+  REQUIRE(seen_on_spawn == 1);
+  REQUIRE(world.actors().slots.size() == 2);
+  REQUIRE(world.actorId(1) == "pet");
+  REQUIRE(world.actorSpawned(1));
+  REQUIRE_FALSE(world.actorSpawned(0));
+}
+
+TEST_CASE("game logic spawns the project's enemy archetypes by id") {
+  bool unknown = true;
+  Scripted logic([&](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      REQUIRE(world.spawnEnemy("grunt", {4.5F, 1.5F, 0.0F}, "g1"));
+      unknown = world.spawnEnemy("nobody", {4.5F, 1.5F, 0.0F}, "g2");
+    }
+  });
+  GameWorld world(roomFor(4), withGrunt(), &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  (void)run(simulation, 1);
+
+  REQUIRE_FALSE(unknown);
+  REQUIRE(world.actors().slots.size() == 2);
+  REQUIRE(world.actors().max_health[1] == 7);
+  REQUIRE(world.actorModel(1) == "mesh:grunt");
+}
+
+TEST_CASE("game logic spawns no more than the run has room for") {
+  std::vector<bool> spawned;
+  uint32_t room_before = 0;
+  Scripted logic([&](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      room_before = world.actorRoom();
+      for (int i = 0; i < 3; ++i) {
+        spawned.push_back(world.spawnActor({.at = {3.5F, 3.5F, 0.0F}}));
+      }
+    }
+  });
+  GameWorld world(roomFor(3), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  (void)run(simulation, 1);
+
+  REQUIRE(room_before == 2);
+  REQUIRE(spawned == std::vector<bool>{true, true, false});
+  REQUIRE(world.actors().slots.size() == 3);
+}
+
+TEST_CASE("a run with no room spawns nothing") {
+  bool spawned = true;
+  Scripted logic([&](GameLogicWorld& world) {
+    spawned = world.spawnActor({.at = {3.5F, 3.5F, 0.0F}});
+  });
+  GameWorld world(withBoss(), {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  (void)run(simulation, 1);
+
+  REQUIRE_FALSE(spawned);
+}
+
+TEST_CASE("an actor spawned into a level with none of its own finds its way") {
+  GameSetup setup;
+  setup.spawns[0] = {1.5F, 1.5F, 0.0F};
+  setup.actor_capacity = 8;
+  Scripted logic([](GameLogicWorld& world) {
+    if (world.tick() == 0) {
+      (void)world.spawnActor({.at = {8.5F, 1.5F, 0.0F}, .behavior = "chase"});
+    }
+  });
+  GameWorld world(setup, {}, &logic);
+  Simulation simulation(world, TickHashing::ON);
+
+  (void)run(simulation, 60);
+
+  REQUIRE(world.actors().slots.size() == 1);
+  REQUIRE(world.actors().position[0].x < 8.0F);
 }

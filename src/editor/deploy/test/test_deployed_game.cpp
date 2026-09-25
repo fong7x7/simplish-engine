@@ -78,6 +78,19 @@ public:
   void tick([[maybe_unused]] game::GameLogicWorld& world) override {}
 };
 
+/// Says how much room it has to spawn into, on tick 0.
+class SaysRoom final : public game::GameLogic {
+public:
+  void start(game::GameLogicWorld& world) override {
+    world.log("room " + std::to_string(world.actorRoom()));
+  }
+  void tick([[maybe_unused]] game::GameLogicWorld& world) override {}
+};
+
+game::GameLogic* makeSaysRoom() {
+  return std::make_unique<SaysRoom>().release();
+}
+
 game::GameLogic* makeCountsPlayers() {
   return std::make_unique<CountsPlayers>().release();
 }
@@ -165,4 +178,16 @@ TEST_CASE("simplish-game's arguments are read as flag and value pairs") {
   CHECK(options->players == 3);
   CHECK_FALSE(parseDeployedGameArgs(bad).has_value());
   CHECK_FALSE(parseDeployedGameArgs(dangling).has_value());
+}
+
+TEST_CASE("a deployed game gives its logic room to spawn into") {
+  const DeployedContent content;
+  std::ostringstream out;
+
+  (void)runDeployedGame(content.options(1), {makeSaysRoom, unmake}, out);
+
+  // The level's one actor is in the room already.
+  CHECK(out.str() == "[logic 0] room " +
+                         std::to_string(game::GAME_LOGIC_ACTOR_CAPACITY - 1) +
+                         "\n");
 }

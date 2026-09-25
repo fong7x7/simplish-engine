@@ -355,6 +355,11 @@ private:
   bakeLevelSetup(const std::string& id);
   /// Copy the built game beside its content. False when it is not there.
   bool finishDeploy();
+  /// What a playtest as @p character with @p run's logic starts from: the
+  /// document's setup, the players asked for, and — with logic — room for
+  /// it to spawn actors into.
+  [[nodiscard]] game::GameSetup playtestSetup(const std::string& character,
+                                              const EditorPlaytestRun& run);
   /// What the next playtest is of, and the logic it runs — reading again,
   /// as it does, whether that logic is older than its source, so Play can
   /// say so.
@@ -454,6 +459,9 @@ private:
   /// The characters the viewport draws this frame: every player while a
   /// playtest runs, and the ones standing on the level's starts otherwise.
   [[nodiscard]] std::vector<EditorCharacterFigure> characterFigures() const;
+  /// Add a figure to @p figures for every actor the game logic spawned
+  /// during the playtest.
+  void appendSpawnedFigures(std::vector<EditorCharacterFigure>& figures) const;
   /// Draw every character `characterFigures` lists.
   void appendCharacterInstances();
   /// Draw @p figure as its character, or as the stand-in when it has none

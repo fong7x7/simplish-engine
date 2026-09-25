@@ -67,10 +67,18 @@ namespace {
     return PROJECTILE_POOL_CAPACITY + actors * 5 + 64;
   }
 
+  /// The most actors @p setup's run holds: its own, or the room it asks
+  /// for when that is more.
+  uint32_t actorCapacity(const GameSetup& setup) {
+    return std::max(static_cast<uint32_t>(setup.actors.size()),
+                    setup.actor_capacity);
+  }
+
   /// The navigation grid for @p setup's actors, or one with no cells when
-  /// there are none to plan across it.
+  /// there can be none to plan across it.
   spatial::NavGrid navGridFor(const GameSetup& setup) {
-    return setup.actors.empty() ? spatial::NavGrid{} : buildWorldNavGrid(setup);
+    return actorCapacity(setup) == 0 ? spatial::NavGrid{}
+                                     : buildWorldNavGrid(setup);
   }
 
 }  // namespace
@@ -78,21 +86,21 @@ namespace {
 GameWorld::GameWorld(const GameSetup& setup, const GameContent& content,
                      GameLogic* logic)
   : obstacles_(setup.obstacles), grid_(navGridFor(setup)),
-    broadphase_(obstacles_),
-    actors_(static_cast<uint32_t>(setup.actors.size())),
+    broadphase_(obstacles_), actors_(actorCapacity(setup)),
     flow_(grid_, grid_.requiredClearance(ACTOR_DEFAULT_RADIUS_TILES)),
-    combat_(static_cast<uint32_t>(setup.actors.size() + sim::MAX_PLAYERS),
-            grid_.spec(), broadphase_),
-    workspace_(static_cast<uint32_t>(setup.actors.size()), grid_, broadphase_),
+    combat_(actorCapacity(setup) + sim::MAX_PLAYERS, grid_.spec(), broadphase_),
+    workspace_(actorCapacity(setup), grid_, broadphase_),
     ai_rng_(setup.seed, AI_RNG_STREAM), logic_(logic),
-    logic_rng_(setup.seed, LOGIC_RNG_STREAM) {
+    logic_rng_(setup.seed, LOGIC_RNG_STREAM),
+    content_(actorCapacity(setup) > setup.actors.size() ? content
+                                                        : GameContent{}) {
   for (uint8_t slot = 0; slot < playerCount(setup); ++slot) {
     (void)spawnPlayer(players_, slot, setup.spawns[slot],
                       resolveCharacter(content, setup.characters[slot]));
   }
   spawnActors(setup, content);
-  reserveEffects(effects_, setup.actors.size());
-  cues_.reserve(cueRoom(setup.actors.size()));
+  reserveEffects(effects_, actorCapacity(setup));
+  cues_.reserve(cueRoom(actorCapacity(setup)));
 }
 
 void GameWorld::playerControl(const sim::TickContext& context) {
@@ -152,12 +160,43 @@ void GameWorld::director(const sim::TickContext& context) {
     return;
   }
   runLogic(context);
+  applyLogicWrites(context.tick);
+}
+
+void GameWorld::applyLogicWrites(uint64_t tick) {
   for (const LogicCommand& command : logic_commands_) {
-    applyLogicCommand(command, context.tick);
+    applyLogicCommand(command, tick);
   }
   logic_commands_.clear();
-  resolveDamage(context.tick);
+  resolveDamage(tick);
   clearCombatEffects(effects_);
+  for (const ActorSpawn& spawn : logic_spawns_) {
+    addActor(spawn);
+  }
+  logic_spawns_.clear();
+}
+
+void GameWorld::addActor(const ActorSpawn& spawn) {
+  const uint16_t brain = brainIndex(resolveBehavior(content_, spawn.behavior));
+  const auto handle = spawnActor(actors_, spawn, brain, brains_[brain]);
+  if (handle) {
+    assignRoute(actors_.slots.size() - 1U, spawn.route);
+    actor_ids_[handle->index] = spawn.id;
+    actor_models_[handle->index] = spawn.model;
+    actor_spawned_[handle->index] = 1;
+  }
+}
+
+std::string_view GameWorld::actorId(uint32_t index) const {
+  return actor_ids_[actors_.slots.handleAt(index).index];
+}
+
+std::string_view GameWorld::actorModel(uint32_t index) const {
+  return actor_models_[actors_.slots.handleAt(index).index];
+}
+
+bool GameWorld::actorSpawned(uint32_t index) const {
+  return actor_spawned_[actors_.slots.handleAt(index).index] != 0;
 }
 
 void GameWorld::runLogic(const sim::TickContext& context) {
@@ -167,6 +206,8 @@ void GameWorld::runLogic(const sim::TickContext& context) {
                        .brains = brains_,
                        .actor_ids = actor_ids_,
                        .commands = logic_commands_,
+                       .spawns = logic_spawns_,
+                       .content = content_,
                        .rng = logic_rng_,
                        .outcome = logic_outcome_,
                        .log = logic_log_});
@@ -272,7 +313,9 @@ void GameWorld::spawnActors(const GameSetup& setup,
   brains_.reserve(setup.actors.size());
   routes_.reserve(setup.actors.size());
   actor_handles_.reserve(setup.actors.size());
-  actor_ids_.resize(setup.actors.size());
+  actor_ids_.resize(actorCapacity(setup));
+  actor_models_.resize(actorCapacity(setup));
+  actor_spawned_.resize(actorCapacity(setup));
   for (const ActorSpawn& spawn : setup.actors) {
     const uint16_t brain = brainIndex(resolveBehavior(content, spawn.behavior));
     const auto handle = spawnActor(actors_, spawn, brain, brains_[brain]);
@@ -280,6 +323,7 @@ void GameWorld::spawnActors(const GameSetup& setup,
     if (handle) {
       assignRoute(actors_.slots.size() - 1U, spawn.route);
       actor_ids_[handle->index] = spawn.id;
+      actor_models_[handle->index] = spawn.model;
     }
   }
 }

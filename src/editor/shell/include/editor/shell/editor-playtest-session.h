@@ -243,6 +243,14 @@ public:
   /// The actors, as the simulation holds them.
   [[nodiscard]] const game::ActorPool& actors() const;
 
+  /// The dense index of every actor the game logic spawned during the run,
+  /// in dense order: the actors no prop stands for.
+  [[nodiscard]] std::vector<uint32_t> spawnedActors() const;
+
+  /// What draws the actor at dense index @p index: an asset reference, or
+  /// empty for the stand-in.
+  [[nodiscard]] std::string_view actorModel(uint32_t index) const;
+
   /// Where the actor at dense index @p index is drawn, @p alpha of the way
   /// from the last tick's position to this one's. Render-side only.
   [[nodiscard]] Vec3 actorRenderPosition(uint32_t index, float alpha) const;
@@ -312,7 +320,7 @@ private:
   /// The id of the prop the actor @p handle names became, or empty.
   [[nodiscard]] std::string actorIdOf(sim::EntityHandle handle) const;
   /// The report for the setup's @p actor-th actor, at dense index @p index.
-  [[nodiscard]] EditorPlaytestActor actorReport(size_t actor,
+  [[nodiscard]] EditorPlaytestActor actorReport(std::string_view id,
                                                 uint32_t index) const;
 
   /// The library the logic's code is in, kept open while it runs. Before

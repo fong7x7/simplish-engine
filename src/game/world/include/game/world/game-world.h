@@ -34,6 +34,7 @@
 #include <game/world/logic-command.h>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace eng::game {
@@ -67,7 +68,10 @@ public:
   /// into the players and the brains.
   ///
   /// The navigation grid is built here, from the setup's obstacles, sized
-  /// to take in every spawn — and only when there are actors to use it.
+  /// to take in every spawn — and only when there are actors to use it, or
+  /// room for game logic to spawn some. @p content is kept too, when the
+  /// setup leaves room for actors to be spawned: they name its behaviors
+  /// and enemy archetypes.
   ///
   /// @p logic, when given, is a project's own game rules (ADR-011), run in
   /// the director's phase of every tick. The world borrows it: whoever made
@@ -128,6 +132,15 @@ public:
   /// The brains the actors run, indexed by `ActorPool::brain`: what names
   /// the state an actor is in.
   [[nodiscard]] std::span<const ActorBrain> brains() const { return brains_; }
+  /// The name the level — or the game logic that spawned it — gave the
+  /// actor at dense index @p index; empty for none.
+  [[nodiscard]] std::string_view actorId(uint32_t index) const;
+  /// What draws the actor at dense index @p index: an asset reference, or
+  /// empty for the stand-in. Presentation only.
+  [[nodiscard]] std::string_view actorModel(uint32_t index) const;
+  /// Whether the actor at dense index @p index was spawned during the run,
+  /// rather than being one of the setup's: one with no prop to be drawn as.
+  [[nodiscard]] bool actorSpawned(uint32_t index) const;
   /// Each of the setup's actors' handle, in the setup's order — null for
   /// one the pool had no room for. How whoever built the setup finds the
   /// actor a spawn of theirs became.
@@ -175,6 +188,12 @@ private:
   void applyLogicCommand(const LogicCommand& command, uint64_t tick);
   /// Give the player or actor @p target back @p amount health segments.
   void heal(const LogicTarget& target, uint16_t amount);
+  /// Apply the game logic's queued writes: damage and healing in order,
+  /// the damage resolved, then its spawns in order.
+  void applyLogicWrites(uint64_t tick);
+  /// Add an actor as @p spawn describes, running the behavior it names;
+  /// nothing when the pool is full.
+  void addActor(const ActorSpawn& spawn);
 
   /// Every player in the session.
   PlayerPool players_;
@@ -218,8 +237,18 @@ private:
   RunOutcome logic_outcome_ = RunOutcome::PLAYING;
   /// What the logic asked for this tick; empty between ticks.
   std::vector<LogicCommand> logic_commands_;
-  /// The level's name for each actor, by its handle's slot.
+  /// The actors the logic asked for this tick; empty between ticks.
+  std::vector<ActorSpawn> logic_spawns_;
+  /// The level's — or the logic's — name for each actor, by its handle's
+  /// slot.
   std::vector<std::string> actor_ids_;
+  /// What draws each actor, by its handle's slot. Not state.
+  std::vector<std::string> actor_models_;
+  /// Whether each slot's actor was spawned mid-run, 1 for true. Not state.
+  std::vector<uint8_t> actor_spawned_;
+  /// The run's content, kept only when actors can be spawned mid-run: the
+  /// behaviors and archetypes they name. Empty otherwise.
+  GameContent content_;
   /// What the game logic has said since `takeLogicLog` last ran; not
   /// state.
   std::vector<std::string> logic_log_;

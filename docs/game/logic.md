@@ -9,7 +9,7 @@ A project's data tables say what its game is made of. Its **game logic** says th
 
 ## 1. Quick start
 
-1. **Build ▸ New Game Logic** writes `src/CMakeLists.txt` and an example, `src/game-logic.cpp`: win by clearing the level's hostiles or by surviving 90 seconds, and heal every player a segment every ten.
+1. **Build ▸ New Game Logic** writes `src/CMakeLists.txt` and an example, `src/game-logic.cpp`: survive 90 seconds against a wave of four chasers every 20, spawned around player 1, and heal every player a segment every ten.
 2. Edit it. **Build ▸ Build Game Logic** (`Cmd`/`Ctrl`+B) compiles it in the background — about two seconds — and loads it. The status line says how it went; the compiler's errors are in `build/logic.log`.
 3. **Play.** The playtest runs the logic. What it says with `world.log(...)` goes to the editor's log, prefixed `logic`.
 4. **Build ▸ Deploy Game** bakes every saved level, builds the engine in Release with the logic linked in, and puts the game in `build/deploy/`. The first deploy builds the whole engine and takes minutes; later ones rebuild what changed.
@@ -106,10 +106,15 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 | `damage(target, amount)` | Queued; applied as a hit |
 | `heal(target, amount)` | Queued; up to a full bar |
 | `endRun(outcome)` | The first ending stands |
+| `spawnEnemy(archetype, at, id)` | Queued; one of the project's enemy archetypes — health, body, behavior, side, model and death blast from `enemies.data.json` — named `id`. False, and nothing queued, for an archetype the project lacks or with no room left |
+| `spawnActor(spawn)` | Queued; an actor made to measure from a `LogicSpawn`: where, facing, behavior, side, health, id, model. False with no room left |
+| `actorRoom()` | How many more can be spawned this tick |
 | `random(bound)` | `0 … bound-1` from the logic's own stream, `LOGIC_RNG_STREAM`, so a draw added to the logic never shifts what actors roll |
 | `log(message)` | Presentation: the editor's log and `get_playtest`'s `logic_log`, or the deployed game's output |
 
-Everything else — spawning actors, reading props and the navigation grid, cueing effects and sounds — is §9's.
+**Spawns** are applied after damage and healing, in the order made, and read from the next tick on; they are not hurt by the tick that made them. A run has a fixed room, `GameSetup::actor_capacity`, so the pools never grow mid-tick: a playtest with logic, and a deployed game with logic linked in, get `GAME_LOGIC_ACTOR_CAPACITY` (2,048), the level's own actors included. A run without logic keeps exactly its level's room, and hashes as it always did. The navigation grid covers the level's players and actors with a margin; an actor spawned far outside it has no floor to plan across. In a playtest, a spawned actor is drawn as a player is — its model, or the stand-in cylinder — shows in the AI overlay, and `get_playtest` lists it after the level's, marked `spawned`. Its footsteps are not heard yet.
+
+Everything else — reading props and the navigation grid, cueing effects and sounds — is §9's.
 
 ---
 
@@ -173,7 +178,7 @@ It prints what the logic says, then how the run ended and the last tick's hash �
 
 ## 9. Not yet
 
-- **Spawning.** The actor pool is sized by the level's actors; spawning at run time is the director's job and needs the pool to grow. Until then, logic works with the actors a level places.
+- **Despawning** without a death, and **patrol routes** for spawned actors.
 - **More reads** — props, the navigation grid, line of sight, projectiles — and **presentation cues** from logic (a sound, an effect).
 - **Replays naming their logic.** A replay does not yet record which build of the logic it was made with, so one replayed against changed rules reports a divergence rather than refusing to start.
 - **The rendered deployed client**, and assets in the deploy folder with it.

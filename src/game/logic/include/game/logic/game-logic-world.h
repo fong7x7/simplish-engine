@@ -9,6 +9,7 @@
 #include <engine/sim/tick-input.h>
 #include <game/logic/logic-actor.h>
 #include <game/logic/logic-player.h>
+#include <game/logic/logic-spawn.h>
 #include <game/logic/logic-target.h>
 #include <game/logic/run-outcome.h>
 #include <string_view>
@@ -22,11 +23,13 @@ namespace eng::game {
 /// moved, actors have acted, hits have landed. They do not see this tick's
 /// writes, so the order logic reads things in never matters.
 ///
-/// **Writes** are queued, and applied in the order they were made once
-/// `GameLogic::tick` returns: damage through the same path an actor's bite
-/// takes — a player's grace after a hit, an actor's death and any blast it
-/// goes off in — and healing capped at a full bar. An actor killed this way
-/// is gone at the end of the tick, as one killed by a shot is.
+/// **Writes** are queued, and applied once `GameLogic::tick` returns:
+/// damage and healing first, in the order they were made — damage through
+/// the same path an actor's bite takes, a player's grace after a hit, an
+/// actor's death and any blast it goes off in; healing capped at a full bar
+/// — then spawns, in the order they were made. An actor killed this way is
+/// gone at the end of the tick, as one killed by a shot is; one spawned is
+/// read from the next tick on.
 ///
 /// Randomness comes from `random` and nowhere else: it draws on the run's
 /// own logic stream, derived from the session seed, so two peers draw the
@@ -67,6 +70,20 @@ public:
   /// End the run as @p outcome — `WON` or `LOST`; `PLAYING` does nothing.
   /// The first ending stands.
   virtual void endRun(RunOutcome outcome) = 0;
+
+  /// Add one of the project's enemy archetypes — its health, body,
+  /// behavior, side and model, from the enemies table — standing at @p at,
+  /// named @p id. False, and nothing queued, when the project has no such
+  /// archetype or the run has no room left (`actorRoom`).
+  virtual bool spawnEnemy(std::string_view archetype, Vec3 at,
+                          std::string_view id) = 0;
+  /// Add an actor as @p spawn describes. False, and nothing queued, when
+  /// the run has no room left.
+  virtual bool spawnActor(const LogicSpawn& spawn) = 0;
+  /// How many more actors can be spawned this tick: the run's room, less
+  /// the actors in it — the dying among them, until the tick ends — and
+  /// the spawns already queued.
+  [[nodiscard]] virtual uint32_t actorRoom() const = 0;
 
   /// A number from 0 to @p bound - 1 from the run's logic stream; 0 when
   /// @p bound is 0.

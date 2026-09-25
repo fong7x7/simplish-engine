@@ -43,6 +43,9 @@ struct EditorPlaytestActor {
   uint16_t health = 0;
   /// Health segments it spawned with.
   uint16_t max_health = 0;
+  /// Whether the project's game logic spawned it during the run, rather
+  /// than the level placing it; its id is then the one the logic gave.
+  bool spawned = false;
 };
 
 }  // namespace eng::editor
