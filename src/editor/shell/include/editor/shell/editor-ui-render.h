@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <game/ui/ui-button-info.h>
+#include <game/ui/ui-node-info.h>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@ struct EditorUiRender {
   bool text = false;
   /// Every button, where it was laid out in the picture.
   std::vector<game::UiButtonInfo> buttons{};
+  /// Every node with an id, where it was laid out, and its flags.
+  std::vector<game::UiNodeInfo> nodes{};
   /// Why it could not be rendered; empty when it was.
   std::string error{};
 };

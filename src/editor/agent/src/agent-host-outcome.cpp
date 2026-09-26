@@ -29,7 +29,8 @@ namespace {
   /// its screens, a screen drawn, or the rest of the state.
   std::string projectPart(const EditorShellState& state,
                           AgentHostRequestKind kind) {
-    if (kind == AgentHostRequestKind::WRITE_UI_SCREEN) {
+    if (kind == AgentHostRequestKind::WRITE_UI_SCREEN ||
+        kind == AgentHostRequestKind::WRITE_UI_THEME) {
       return agentUiScreensJson(state);
     }
     return kind == AgentHostRequestKind::RENDER_UI_SCREEN

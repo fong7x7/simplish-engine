@@ -3,6 +3,7 @@
 #include "agent-call.h"
 
 #include <algorithm>
+#include <engine/gui/gui-theme-json.h>
 #include <game/ui/ui-actions.h>
 #include <game/ui/ui-render-size.h>
 #include <game/ui/ui-screen-json.h>
@@ -21,10 +22,11 @@ namespace {
     return json::array({rect.x, rect.y, rect.w, rect.h});
   }
 
-  /// Every button @p node and its children hold, into @p out.
+  /// Every button, checkbox and toggle @p node and its children hold,
+  /// into @p out.
   // NOLINTNEXTLINE(misc-no-recursion) -- a screen is a tree, bounded in depth
   void buttonsOf(const game::UiNode& node, json& out) {
-    if (node.kind == game::UiNodeKind::BUTTON) {
+    if (game::uiChooses(node.kind)) {
       out.push_back(
           {{"id", node.id}, {"action", node.action}, {"text", node.text}});
     }
@@ -60,6 +62,35 @@ namespace {
     return message;
   }
 
+  /// @p button as `render_ui_screen` lists it.
+  json buttonJson(const game::UiButtonInfo& button) {
+    return {{"id", button.id},
+            {"action", button.action},
+            {"text", button.text},
+            {"rect", rectJson(button.rect)}};
+  }
+
+  /// The word each node kind is published as, in `UiNodeKind` order.
+  constexpr std::string_view KINDS[] = {"panel",  "label",    "button", "bar",
+                                        "spacer", "checkbox", "toggle"};
+
+  static_assert(std::size(KINDS) ==
+                static_cast<size_t>(game::UiNodeKind::TOGGLE) + 1);
+
+  /// @p nodes as `render_ui_screen` and `get_playtest` list them.
+  json nodesJson(const std::vector<game::UiNodeInfo>& nodes) {
+    json out = json::array();
+    for (const game::UiNodeInfo& node : nodes) {
+      out.push_back({{"id", node.id},
+                     {"type", KINDS[static_cast<size_t>(node.kind)]},
+                     {"rect", rectJson(node.rect)},
+                     {"visible", node.visible},
+                     {"disabled", node.disabled},
+                     {"selected", node.selected}});
+    }
+    return out;
+  }
+
   /// The size a render asks for, within the bounds.
   game::UiRenderSize renderSize(const json& params) {
     const auto side = [&params](std::string_view key, uint32_t fallback) {
@@ -80,6 +111,8 @@ std::string agentUiScreensJson(const EditorShellState& state) {
   }
   return json{{"screens", screens},
               {"actions", game::uiActions(state.ui.screens)},
+              {"theme",
+               state.ui.theme != nullptr ? json(state.ui.theme->name) : json()},
               {"problems", state.ui.problems}}
       .dump(2);
 }
@@ -105,6 +138,21 @@ AgentResult runAgentSetUiScreen(EditorShellState& state, const json& params) {
   return result;
 }
 
+AgentResult runAgentSetUiTheme(EditorShellState& state, const json& params) {
+  if (!state.project.loaded) {
+    return agentFailure(AgentStatus::UNAVAILABLE, "no project is open");
+  }
+  const json theme = params.value("theme", json());
+  std::string error = "theme must be an object";
+  if (!theme.is_object() || !parseGuiTheme(theme.dump(), error)) {
+    return agentFailure(AgentStatus::BAD_PARAMS, error);
+  }
+  AgentResult result = agentOk(json{{"queued", "write theme"}}.dump());
+  result.host.kind = AgentHostRequestKind::WRITE_UI_THEME;
+  result.host.text = theme.dump(2);
+  return result;
+}
+
 AgentResult runAgentRenderUiScreen(EditorShellState& state,
                                    const json& params) {
   const std::string id = agentStringParam(params, "id").value_or("");
@@ -126,14 +174,15 @@ std::string agentUiRenderJson(const EditorShellState& state) {
   const EditorUiRender& render = state.ui_render;
   json buttons = json::array();
   for (const game::UiButtonInfo& button : render.buttons) {
-    buttons.push_back({{"id", button.id},
-                       {"action", button.action},
-                       {"text", button.text},
-                       {"rect", rectJson(button.rect)}});
+    buttons.push_back(buttonJson(button));
   }
-  return json{{"id", render.id},           {"image", render.path},
-              {"width", render.width},     {"height", render.height},
-              {"text_drawn", render.text}, {"buttons", buttons},
+  return json{{"id", render.id},
+              {"image", render.path},
+              {"width", render.width},
+              {"height", render.height},
+              {"text_drawn", render.text},
+              {"buttons", buttons},
+              {"nodes", nodesJson(render.nodes)},
               {"error", render.error}}
       .dump(2);
 }
@@ -161,7 +210,10 @@ json agentPlaytestUiJson(const EditorPlaytestUi& ui) {
                        {"text", button.text},
                        {"rect", rectJson(button.rect)}});
   }
-  return {{"open", ui.open}, {"values", ui.values}, {"buttons", buttons}};
+  return {{"open", ui.open},
+          {"values", ui.values},
+          {"buttons", buttons},
+          {"nodes", nodesJson(ui.nodes)}};
 }
 
 }  // namespace eng::editor

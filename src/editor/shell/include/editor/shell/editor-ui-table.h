@@ -5,10 +5,12 @@
 /// @par Threading
 /// Main-thread-only; reads files.
 
+#include <engine/gui/gui-theme.h>
 #include <filesystem>
 #include <game/content/game-content.h>
 #include <game/ui/ui-screen.h>
 #include <game/ui/ui-values.h>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -22,13 +24,20 @@ inline constexpr std::string_view EDITOR_UI_DIR_NAME = "ui";
 /// `pause`.
 inline constexpr std::string_view EDITOR_UI_FILE_SUFFIX = ".ui.json";
 
-/// Every screen of a project (ADR-012, docs/game/ui.md), and what was
-/// wrong with any of them.
+/// The file in `content/ui/` that themes every screen of a project.
+inline constexpr std::string_view EDITOR_UI_THEME_FILE = "theme.json";
+
+/// Every screen of a project (ADR-012, docs/game/ui.md), the theme they
+/// are drawn in, and what was wrong with any of them.
 struct EditorUiTable {
   /// The screens that read, sorted by id.
   std::vector<game::UiScreen> screens{};
-  /// Every problem, each as `<id>.ui.json: path: what`.
+  /// Every problem, each as `<id>.ui.json: path: what`, or
+  /// `theme.json: what`.
   std::vector<std::string> problems{};
+  /// What every screen is drawn in: `content/ui/theme.json`, or null for
+  /// the dark preset when there is none, or it does not read.
+  std::shared_ptr<const GuiTheme> theme{};
 };
 
 /// `content/ui/` of the project at @p root.
@@ -39,11 +48,16 @@ editorUiDirPath(const std::filesystem::path& root);
 [[nodiscard]] std::filesystem::path
 editorUiScreenPath(const std::filesystem::path& root, std::string_view id);
 
+/// Where the screens' theme of the project at @p root is written.
+[[nodiscard]] std::filesystem::path
+editorUiThemePath(const std::filesystem::path& root);
+
 /// Whether @p id may name a screen: 1 to 64 lowercase letters, digits,
 /// `_` and `-`.
 [[nodiscard]] bool editorUiScreenIdValid(std::string_view id);
 
-/// Every screen of the project at @p root; none when it has no `ui/`.
+/// Every screen of the project at @p root, and their theme; none, and
+/// the dark preset, when it has no `ui/`.
 [[nodiscard]] EditorUiTable
 loadEditorUiTable(const std::filesystem::path& root);
 

@@ -259,16 +259,15 @@ public:
   /// properties panel out from under a drag in progress.
   void setStateHook(std::function<bool(EditorShellState&)> hook);
 
-  /// Carry out @p command exactly as choosing it from the menu bar would.
-  ///
-  /// Public because the camera and the project dialogs live behind it, and
-  /// a caller outside the window has no other way to reach them. It does
-  /// not check whether the command is enabled — `editorMenuCommandEnabled`
-  /// is that question, and the menu bar asks it before it draws the row.
   /// Write the game screen @p id of the open project as @p text, and read
   /// the screens again; false when there is no project or it will not
   /// write.
   bool writeUiScreen(std::string_view id, std::string_view text);
+
+  /// Write the open project's screens' theme, `content/ui/theme.json`, as
+  /// @p text, and read the screens again, rebuilding any shown; false
+  /// when there is no project or it will not write.
+  bool writeUiTheme(std::string_view text);
 
   /// Render the game screen @p id at @p size, showing @p values, to
   /// `build/ui/<id>.png` in the open project, keeping what came of it in
@@ -276,6 +275,12 @@ public:
   void renderUiScreen(std::string_view id, game::UiRenderSize size,
                       const game::UiValues& values);
 
+  /// Carry out @p command exactly as choosing it from the menu bar would.
+  ///
+  /// Public because the camera and the project dialogs live behind it, and
+  /// a caller outside the window has no other way to reach them. It does
+  /// not check whether the command is enabled — `editorMenuCommandEnabled`
+  /// is that question, and the menu bar asks it before it draws the row.
   void runMenuCommand(EditorMenuCommand command);
 
   /// Create the level @p id in the open project and edit it.

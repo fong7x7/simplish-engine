@@ -24,6 +24,7 @@ namespace {
       case AgentHostRequestKind::RESCAN_ASSETS:
       case AgentHostRequestKind::WRITE_UI_SCREEN:
       case AgentHostRequestKind::RENDER_UI_SCREEN:
+      case AgentHostRequestKind::WRITE_UI_THEME:
         return true;
       case AgentHostRequestKind::NONE:
       case AgentHostRequestKind::OPEN_PROJECT:
@@ -129,6 +130,8 @@ void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
     editor_->runMenuCommand(request.command);
   } else if (request.kind == AgentHostRequestKind::WRITE_UI_SCREEN) {
     (void)editor_->writeUiScreen(request.name, request.text);
+  } else if (request.kind == AgentHostRequestKind::WRITE_UI_THEME) {
+    (void)editor_->writeUiTheme(request.text);
   } else if (request.kind == AgentHostRequestKind::RENDER_UI_SCREEN) {
     editor_->renderUiScreen(request.name, {request.width, request.height},
                             editorUiValuesFromJson(request.text));

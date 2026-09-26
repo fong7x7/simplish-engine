@@ -60,6 +60,14 @@ const GuiTheme& GuiDrawContext::activeTheme() const {
   return theme != nullptr ? *theme : GuiTheme::dark();
 }
 
+GuiDrawContext GuiDrawContext::themedBy(const GuiTheme* scope) const {
+  GuiDrawContext scoped = *this;
+  if (scope != nullptr) {
+    scoped.theme = scope;
+  }
+  return scoped;
+}
+
 float GuiDrawContext::measureText(std::string_view str) const {
   return measureText(str, GuiFont{});
 }

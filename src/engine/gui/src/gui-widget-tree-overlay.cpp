@@ -84,7 +84,7 @@ void GuiWidgetTree::renderTooltip(const GuiDrawContext& ctx) const {
       tooltip_dismissed_ || tooltip_seconds_ < GUI_TOOLTIP_DELAY_SECONDS) {
     return;
   }
-  drawTooltip(ctx, *target, root->rect);
+  drawTooltip(ctx.themedBy(themeAt(tooltip_target_)), *target, root->rect);
 }
 
 }  // namespace eng

@@ -523,8 +523,7 @@ void GuiWidgetTree::updateAll(const GuiDrawContext& ctx, float dt) {
   elapsed_time_ += dt;
   tooltip_seconds_ += dt;
   for (auto& [id, node] : widget_nodes) {
-    static_cast<void>(id);
-    node->update(ctx, dt);
+    node->update(ctx.themedBy(themeAt(id)), dt);
   }
 }
 
@@ -537,6 +536,16 @@ bool GuiWidgetTree::dispatchClick(float mx, float my) {
     return true;
   }
   return focused_input_ != nullptr;
+}
+
+const GuiTheme* GuiWidgetTree::themeAt(GuiWidgetId id) const {
+  for (const GuiWidget* w = findWidget(id); w != nullptr;
+       w = findWidget(w->parent_id)) {
+    if (w->subtree_theme != nullptr) {
+      return w->subtree_theme.get();
+    }
+  }
+  return nullptr;
 }
 
 void GuiWidgetTree::renderAll(const GuiDrawContext& ctx) {

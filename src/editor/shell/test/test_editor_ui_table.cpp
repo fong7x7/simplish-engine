@@ -81,3 +81,20 @@ TEST_CASE("a screen's id is lowercase letters, digits, _ and -") {
   CHECK_FALSE(editorUiScreenIdValid("../escape"));
   CHECK_FALSE(editorUiScreenIdValid(""));
 }
+
+TEST_CASE("a project's screens are drawn in its theme.json, when it reads") {
+  const UiProject project;
+  CHECK(loadEditorUiTable(project.root()).theme == nullptr);
+
+  (void)writeProjectTextFile(editorUiThemePath(project.root()),
+                             R"({"name": "Ember", "base": "light"})");
+  const EditorUiTable themed = loadEditorUiTable(project.root());
+  REQUIRE(themed.theme != nullptr);
+  CHECK(themed.theme->name == "Ember");
+
+  (void)writeProjectTextFile(editorUiThemePath(project.root()),
+                             R"({"palette": {"primray": "#fff"}})");
+  const EditorUiTable broken = loadEditorUiTable(project.root());
+  CHECK(broken.theme == nullptr);
+  CHECK(broken.problems.front().starts_with("theme.json: "));
+}

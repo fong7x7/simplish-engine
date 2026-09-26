@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <engine/gui/gui-button.h>
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-renderer.h>
@@ -67,4 +69,52 @@ TEST_CASE("a render offset moves the subtree, and the frame after resets") {
   CHECK(fx.innerQuad().pos[1] == 47.0f);
   CHECK(fx.renderer.transform.offset_y == 0.0f);
   CHECK(fx.renderer.alpha_scale == 1.0f);
+}
+
+namespace {
+
+/// The colour a button under a panel is drawn in, when the panel carries
+/// @p own and the draw context @p drawn_with.
+uint32_t buttonFillUnder(const GuiTheme* own, const GuiTheme* drawn_with) {
+  GuiWidgetTree tree;
+  GuiRendererContext renderer;
+  const GuiWidgetId outer =
+      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
+  if (own != nullptr) {
+    tree.findWidget(outer)->subtree_theme = std::make_shared<GuiTheme>(*own);
+  }
+  const GuiWidgetId button = tree.createWidget(GuiWidgetType::BUTTON, outer);
+  tree.findWidget(button)->rect = {0, 0, 80, 24};
+  renderer.beginFrame();
+  GuiDrawContext ctx;
+  ctx.renderer = &renderer;
+  ctx.theme = drawn_with;
+  tree.renderAll(ctx);
+  // The button's box: the one quad its size.
+  const auto box = std::ranges::find_if(
+      renderer.vertices, [](const GuiVertex& v) { return v.rect_w == 80.0f; });
+  return box != renderer.vertices.end() ? box->color : 0U;
+}
+
+}  // namespace
+
+TEST_CASE("a widget's theme is what its subtree is drawn with") {
+  const GuiTheme light = GuiTheme::light();
+  const GuiTheme dark = GuiTheme::dark();
+  const uint32_t as_light = buttonFillUnder(nullptr, &light);
+  REQUIRE(as_light != buttonFillUnder(nullptr, &dark));
+  CHECK(buttonFillUnder(&light, &dark) == as_light);
+}
+
+TEST_CASE("a widget's theme is found from its nearest ancestor") {
+  GuiWidgetTree tree;
+  const GuiWidgetId root =
+      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
+  const GuiWidgetId mid = tree.createWidget(GuiWidgetType::PANEL, root);
+  const GuiWidgetId leaf = tree.createWidget(GuiWidgetType::PANEL, mid);
+  CHECK(tree.themeAt(leaf) == nullptr);
+  const auto theme = std::make_shared<GuiTheme>(GuiTheme::light());
+  tree.findWidget(mid)->subtree_theme = theme;
+  CHECK(tree.themeAt(leaf) == theme.get());
+  CHECK(tree.themeAt(root) == nullptr);
 }

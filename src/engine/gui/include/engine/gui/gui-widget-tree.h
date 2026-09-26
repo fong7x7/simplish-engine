@@ -216,6 +216,10 @@ public:
   /// Per-frame tick for every tree widget.
   void updateAll(const GuiDrawContext& ctx, float dt);
 
+  /// The theme @p id is drawn with: its own `subtree_theme`, or its nearest
+  /// ancestor's; null when none has one, for the draw context's.
+  [[nodiscard]] const GuiTheme* themeAt(GuiWidgetId id) const;
+
   bool dispatchClick(float mx, float my);
 
   void renderAll(const GuiDrawContext& ctx);

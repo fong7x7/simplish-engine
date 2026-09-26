@@ -1,4 +1,5 @@
 #include "ui-json-read.h"
+#include "ui-look-json.h"
 #include "ui-style-json.h"
 
 #include <algorithm>
@@ -15,12 +16,14 @@ namespace {
   using json = nlohmann::json;
 
   /// Node kinds by the `type` a file writes.
-  constexpr std::array<std::pair<std::string_view, UiNodeKind>, 5> KINDS{{
+  constexpr std::array<std::pair<std::string_view, UiNodeKind>, 7> KINDS{{
       {"panel", UiNodeKind::PANEL},
       {"label", UiNodeKind::LABEL},
       {"button", UiNodeKind::BUTTON},
       {"bar", UiNodeKind::BAR},
       {"spacer", UiNodeKind::SPACER},
+      {"checkbox", UiNodeKind::CHECKBOX},
+      {"toggle", UiNodeKind::TOGGLE},
   }};
 
   /// Anchors by the word a file writes.
@@ -67,8 +70,12 @@ namespace {
 
   /// Note what @p node lacks that its kind needs.
   void checkNeeds(const UiNode& node, std::string_view path, UiJsonRead& read) {
-    if (node.kind == UiNodeKind::BUTTON && node.action.empty()) {
-      uiProblem(read, path, "a button needs an 'action'");
+    if (uiChooses(node.kind) && node.action.empty()) {
+      uiProblem(read, path, "a button, checkbox or toggle needs an 'action'");
+    }
+    if (!node.bind.checked.empty() && node.kind != UiNodeKind::CHECKBOX &&
+        node.kind != UiNodeKind::TOGGLE) {
+      uiProblem(read, path, "only a checkbox or toggle is 'checked'");
     }
     if (node.kind == UiNodeKind::BAR &&
         (node.value.empty() || node.max.empty())) {
@@ -110,7 +117,8 @@ namespace {
             .action = uiText(node, "action"),
             .value = uiText(node, "value"),
             .max = maxOf(node),
-            .style = readUiStyle(node, path, read)};
+            .style = readUiStyle(node, path, read),
+            .bind = readUiBindings({node, path, read})};
   }
 
   /// Whether a node at @p path may be read: the limits.
@@ -134,7 +142,7 @@ namespace {
     if (!kind) {
       uiProblem(read, path,
                 "a node is an object whose 'type' is panel, "
-                "label, button, bar or spacer");
+                "label, button, bar, spacer, checkbox or toggle");
       return std::nullopt;
     }
     if (!withinLimits(path, read)) {

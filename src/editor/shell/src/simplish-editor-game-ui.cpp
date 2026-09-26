@@ -75,7 +75,8 @@ void SimplishEditor::rebuildGameUi(const game::WorldUi& ui) {
       continue;
     }
     auto view = std::make_unique<game::UiScreenView>(
-        *screen, [this](std::string_view action) { chooseUiAction(action); });
+        *screen, [this](std::string_view action) { chooseUiAction(action); },
+        state_.ui.theme);
     (void)view->build(guiWidgetTree(), game_ui_id_);
     game_ui_views_.push_back(std::move(view));
   }
@@ -160,7 +161,10 @@ void SimplishEditor::publishGameUi() {
   ui.open = playtest_->ui().open;
   ui.values = playtest_->ui().values;
   ui.buttons.clear();
+  ui.nodes.clear();
   for (const auto& view : game_ui_views_) {
+    std::ranges::move(view->nodes(guiWidgetTree()),
+                      std::back_inserter(ui.nodes));
     for (game::UiButtonInfo& button : view->buttons(guiWidgetTree())) {
       ui.buttons.push_back({view->screen().id, std::move(button.id),
                             std::move(button.action), std::move(button.text),
@@ -179,6 +183,17 @@ bool SimplishEditor::writeUiScreen(std::string_view id, std::string_view text) {
   return true;
 }
 
+bool SimplishEditor::writeUiTheme(std::string_view text) {
+  if (!state_.project.loaded ||
+      !writeProjectTextFile(editorUiThemePath(state_.project.root), text)) {
+    return false;
+  }
+  reloadUi();
+  // Shown screens hold the theme they were built in: build them again.
+  game_ui_shown_.clear();
+  return true;
+}
+
 void SimplishEditor::renderUiScreen(std::string_view id,
                                     game::UiRenderSize size,
                                     const game::UiValues& values) {
@@ -189,7 +204,7 @@ void SimplishEditor::renderUiScreen(std::string_view id,
     out.error = "no screen called '" + std::string(id) + "' in content/ui/";
     return;
   }
-  keepUiRender(game::renderUiScreen(*screen, values, size));
+  keepUiRender(game::renderUiScreen(*screen, values, size, state_.ui.theme));
 }
 
 void SimplishEditor::keepUiRender(const game::UiScreenRender& render) {
@@ -207,6 +222,7 @@ void SimplishEditor::keepUiRender(const game::UiScreenRender& render) {
   out.height = render.image.height;
   out.text = render.text;
   out.buttons = render.buttons;
+  out.nodes = render.nodes;
 }
 
 }  // namespace eng::editor

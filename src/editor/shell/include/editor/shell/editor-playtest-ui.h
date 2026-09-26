@@ -7,6 +7,7 @@
 
 #include <editor/shell/editor-playtest-button.h>
 #include <functional>
+#include <game/ui/ui-node-info.h>
 #include <map>
 #include <string>
 #include <vector>
@@ -23,6 +24,9 @@ struct EditorPlaytestUi {
   std::map<std::string, std::string, std::less<>> values{};
   /// Every button on the screens shown, top screen's last.
   std::vector<EditorPlaytestButton> buttons{};
+  /// Every node with an id on the screens shown, where it is laid out and
+  /// the flags its bindings set, top screen's last.
+  std::vector<game::UiNodeInfo> nodes{};
   /// An action `press_ui` chose, made on the next tick; empty for none.
   std::string press{};
 };

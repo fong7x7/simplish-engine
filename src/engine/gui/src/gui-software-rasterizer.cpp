@@ -280,13 +280,45 @@ namespace {
     }
   }
 
-  /// Composite a quad with no shape — a line — as its colour across its
-  /// bounding box.
-  void compositeSolidQuad(const PixelTarget& tgt, const PixelBounds& bounds,
-                          const FloatRgba& src) {
+  /// Whether @p quad's edges run along the axes: a box, which covers its
+  /// bounds, rather than a slanted line, which covers only its own area.
+  bool axisAligned(const std::array<GuiVertex, VERTICES_PER_QUAD>& quad) {
+    const auto& a = quad[0].pos;
+    const auto& b = quad[1].pos;
+    return a[0] == b[0] || a[1] == b[1];
+  }
+
+  /// Whether the point (@p x, @p y) is inside convex @p quad: on the same
+  /// side of each edge, whichever way the corners wind.
+  bool insideQuad(const std::array<GuiVertex, VERTICES_PER_QUAD>& quad, float x,
+                  float y) {
+    bool any_left = false;
+    bool any_right = false;
+    for (size_t i = 0; i < VERTICES_PER_QUAD; ++i) {
+      const auto& a = quad[i].pos;
+      const auto& b = quad[(i + 1) % VERTICES_PER_QUAD].pos;
+      const float cross =
+          (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]);
+      any_left = any_left || cross > 0.0F;
+      any_right = any_right || cross < 0.0F;
+    }
+    return !(any_left && any_right);
+  }
+
+  /// Composite a quad with no shape — a line — as its colour: across its
+  /// bounds when it is a box, over the pixels whose centres it covers when
+  /// it is slanted.
+  void
+  compositeSolidQuad(const PixelTarget& tgt, const PixelBounds& bounds,
+                     const std::array<GuiVertex, VERTICES_PER_QUAD>& quad) {
+    const FloatRgba src = unpackRgba(quad[0].color);
+    const bool box = axisAligned(quad);
     for (int32_t y = bounds.y_min; y < bounds.y_max; ++y) {
       for (int32_t x = bounds.x_min; x < bounds.x_max; ++x) {
-        writePixel(tgt, x, y, compositeOver(src, readPixel(tgt, x, y)));
+        if (box || insideQuad(quad, static_cast<float>(x) + 0.5F,
+                              static_cast<float>(y) + 0.5F)) {
+          writePixel(tgt, x, y, compositeOver(src, readPixel(tgt, x, y)));
+        }
       }
     }
   }
@@ -328,7 +360,7 @@ namespace {
     if (shaped) {
       compositeShapeQuad(tgt, bounds, box, v);
     } else {
-      compositeSolidQuad(tgt, bounds, unpackRgba(v.color));
+      compositeSolidQuad(tgt, bounds, quad);
     }
   }
 

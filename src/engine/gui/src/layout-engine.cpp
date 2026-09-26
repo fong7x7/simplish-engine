@@ -76,13 +76,14 @@ void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx,
     return;
   }
   w->tree_measured_limit = max_width;
+  const GuiDrawContext scoped = ctx.themedBy(w->subtree_theme.get());
   const float inner = contentWidthLimit(w->tree_layout, max_width);
   for (auto child : w->children) {
     if (const GuiWidget* c = findWidget(child)) {
-      measureWidget(child, ctx, childWidthLimit(*c, inner));
+      measureWidget(child, scoped, childWidthLimit(*c, inner));
     }
   }
-  w->tree_measured = measureBorderBox(*this, *w, {ctx, max_width});
+  w->tree_measured = measureBorderBox(*this, *w, {scoped, max_width});
 }
 
 void GuiWidgetTree::arrangeWidget(GuiWidgetId id, const Rect& available) {

@@ -22,6 +22,18 @@ enum class UiNodeKind : uint8_t {
   BAR,
   /// Empty space; grows to fill its line unless told otherwise.
   SPACER,
+  /// A box and its text that, pressed, chooses its action; shows its
+  /// `checked` value, never its own guess.
+  CHECKBOX,
+  /// A switch and its text, the same way.
+  TOGGLE,
 };
+
+/// Whether a node of @p kind is pressed to choose its action: a button, a
+/// checkbox or a toggle.
+[[nodiscard]] constexpr bool uiChooses(UiNodeKind kind) {
+  return kind == UiNodeKind::BUTTON || kind == UiNodeKind::CHECKBOX ||
+         kind == UiNodeKind::TOGGLE;
+}
 
 }  // namespace eng::game

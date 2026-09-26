@@ -97,3 +97,15 @@ TEST_CASE("a shadow is solid inside its shape and fades beyond it") {
   CHECK(at_edge < 200);
   CHECK(beyond < at_edge);
 }
+
+TEST_CASE("a slanted line covers only its own stroke, not its bounding box") {
+  GuiRendererContext renderer;
+  renderer.beginFrame();
+  renderer.emitLine({0.0f, 0.0f, 40.0f, 40.0f, WHITE, 4.0f});
+  const ImageData image = GuiSoftwareRasterizer::rasterizeQuads(
+      renderer.vertices, {0.0f, 0.0f, 40.0f, 40.0f}, BLACK);
+
+  CHECK(shown(image, 20, 20) == 255);  // on the diagonal
+  CHECK(shown(image, 35, 5) == 0);     // far off it, inside the box
+  CHECK(shown(image, 5, 35) == 0);
+}

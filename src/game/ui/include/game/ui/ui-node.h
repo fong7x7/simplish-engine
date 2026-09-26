@@ -5,6 +5,7 @@
 /// @par Threading
 /// A value type.
 
+#include <game/ui/ui-bindings.h>
 #include <game/ui/ui-node-kind.h>
 #include <game/ui/ui-node-style.h>
 #include <string>
@@ -19,9 +20,10 @@ struct UiNode {
   UiNodeKind kind = UiNodeKind::PANEL;
   /// Its name, for agents and tests to find it by; empty for none.
   std::string id{};
-  /// A label's or a button's text; `{key}` shows the value `key`.
+  /// A label's, a button's, a checkbox's or a toggle's text; `{key}` shows the
+  /// value `key`.
   std::string text{};
-  /// A button's action: what pressing it chooses.
+  /// A button's, checkbox's or toggle's action: what pressing it chooses.
   std::string action{};
   /// A bar's value, by key.
   std::string value{};
@@ -29,6 +31,8 @@ struct UiNode {
   std::string max{};
   /// Its layout and colours.
   UiNodeStyle style{};
+  /// Its flags that follow values.
+  UiBindings bind{};
   /// A panel's children, in order.
   std::vector<UiNode> children{};
 };

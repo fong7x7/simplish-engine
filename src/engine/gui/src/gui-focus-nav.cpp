@@ -451,7 +451,8 @@ void GuiWidgetTree::renderFocusRing(const GuiDrawContext& ctx) const {
     return;
   }
   const ScopedClip clip{ctx, ancestorClip(*widget)};
-  const GuiTheme& theme = ctx.activeTheme();
+  const GuiTheme* own = themeAt(widget->widget_id);
+  const GuiTheme& theme = own != nullptr ? *own : ctx.activeTheme();
   ctx.drawRoundedBorderRect({ringAround(widget->rect), theme.palette.focus_ring,
                              RING_RADIUS, theme.focus_ring_width});
 }
@@ -463,12 +464,13 @@ void GuiWidgetTree::renderTreeNode(GuiWidgetId id,
   if (widget == nullptr || !widget->visible) {
     return;
   }
-  const ScopedLayer layer{ctx, *widget};
-  widget->render(ctx);
+  const GuiDrawContext scoped = ctx.themedBy(widget->subtree_theme.get());
+  const ScopedLayer layer{scoped, *widget};
+  widget->render(scoped);
   layer.enterChildren();
-  const ScopedClip clip{ctx, widget->childClipRect()};
+  const ScopedClip clip{scoped, widget->childClipRect()};
   for (const GuiWidgetId child : sortedChildIdsByZ(*this, *widget)) {
-    renderTreeNode(child, ctx);
+    renderTreeNode(child, scoped);
   }
 }
 

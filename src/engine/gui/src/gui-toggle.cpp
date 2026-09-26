@@ -28,8 +28,16 @@ void GuiToggle::update(const GuiDrawContext& ctx, float dt) {
   GuiWidget::update(ctx, dt);
   const float target = on ? 1.0f : 0.0f;
   const float step = dt / SLIDE_SECONDS;
-  knob_ = knob_ < target ? std::min(target, knob_ + step)
-                         : std::max(target, knob_ - step);
+  knob_ = knob_ < 0.0f     ? target
+          : knob_ < target ? std::min(target, knob_ + step)
+                           : std::max(target, knob_ - step);
+}
+
+float GuiToggle::knob() const {
+  if (knob_ < 0.0f) {
+    return on ? 1.0f : 0.0f;
+  }
+  return knob_;
 }
 
 void GuiToggle::render(const GuiDrawContext& ctx) const {
@@ -48,14 +56,14 @@ void GuiToggle::render(const GuiDrawContext& ctx) const {
 void GuiToggle::drawSwitch(const GuiDrawContext& ctx, const Rect& track) const {
   const GuiPalette& p = ctx.activeTheme().palette;
   const GuiColor fill =
-      GuiColor::lerp(hovered ? p.control_hover : p.control, p.primary, knob_);
+      GuiColor::lerp(hovered ? p.control_hover : p.control, p.primary, knob());
   ctx.drawRoundedRect(track, GuiColor::applyOpacity(fill, opacity),
                       TRACK_H * 0.5f);
-  const float knob = TRACK_H - KNOB_INSET * 2.0f;
-  const float x = track.x + KNOB_INSET + knob_ * (TRACK_W - TRACK_H);
-  ctx.drawRoundedRect({x, track.y + KNOB_INSET, knob, knob},
+  const float side = TRACK_H - KNOB_INSET * 2.0f;
+  const float x = track.x + KNOB_INSET + knob() * (TRACK_W - TRACK_H);
+  ctx.drawRoundedRect({x, track.y + KNOB_INSET, side, side},
                       GuiColor::applyOpacity(p.on_primary, opacity),
-                      knob * 0.5f);
+                      side * 0.5f);
 }
 
 LayoutSize GuiToggle::measureContent(const GuiDrawContext& ctx,

@@ -24,7 +24,8 @@ select) **blend** over the theme's transition time instead of snapping.
 | `gui-theme-json.h` | `parseGuiTheme` / `loadGuiTheme`: a theme from a file |
 | `gui-style-transition.h` | `GuiStyleTransition`: eases a widget's drawn style between states |
 | `gui-theme-constants.h` | `THEME_*`: the dark palette as constants, for code with no draw context |
-| `test/test_gui_theme*.cpp`, `test_gui_style_transition.cpp`, `test_gui_widget_state.cpp` | The executable spec |
+| `gui-widget.h` (`subtree_theme`), `gui-widget-tree.h` (`themeAt`), `gui-draw-context.h` (`themedBy`) | A theme for one widget and everything under it |
+| `test/test_gui_theme*.cpp`, `test_gui_style_transition.cpp`, `test_gui_widget_state.cpp`, `test_gui_render_layers.cpp` (subtree themes) | The executable spec |
 
 ---
 
@@ -41,9 +42,32 @@ GuiContext::theme  ──►  GuiDrawContext::theme  ──►  widget.render(ct
 - Every `GuiDrawContext` carries a pointer to it. `ctx.activeTheme()`
   returns that theme, or the dark preset when the pointer is null (tests,
   headless captures), so a widget can always read it.
-- A subtree that should look different (a game screen inside the editor, a
-  light dialog in a dark app) sets `state_styles` on its widgets, or is
-  drawn with a context whose `theme` points elsewhere.
+- A subtree that should look different — a game screen inside the editor,
+  a light dialog in a dark app — gives its top widget a `subtree_theme`
+  (§1.1). One widget with a look of its own sets `state_styles` (§4.4).
+
+### 1.1 A theme for one subtree
+
+```cpp
+dialog->subtree_theme = std::make_shared<GuiTheme>(GuiTheme::light());
+```
+
+Everything under that widget, the widget included, is **measured, animated
+and drawn** with that theme instead of the draw context's: the tree scopes
+the context at each widget that carries one (`ctx.themedBy(theme)`) in
+`measureWidget`, `renderTreeNode` and `updateAll`, and the focus ring and
+tooltips over it use it too. Text roles resolve against it, so a label's
+size comes from the subtree's `text_sizes`. The nearest carrier wins, so
+subtrees nest; `tree.themeAt(id)` answers which applies.
+
+The editor shows a game's screens this way: `game/ui`'s covering panel
+carries the project's `content/ui/theme.json`
+([ui.md §1.4](../../../game/ui.md#14-the-theme)) while the editor's chrome
+keeps the editor's theme.
+
+Draw through `tree.renderAll(ctx)`: a caller walking `visitDrawOrder` and
+calling `render` itself bypasses the scoping, and draws every widget in
+the context's theme.
 
 ## 2. Tokens
 
@@ -214,8 +238,9 @@ function. After editing a `GuiTheme` in code, call `deriveComponents()`.
 
 ## 6. What is not here
 
-- Per-subtree theme scopes. The old string-keyed `ThemeScopeStack` was
-  never used and is gone. Use `state_styles` or a second draw context.
+- String-keyed theme scopes. The old `ThemeScopeStack` was never used and
+  is gone; a subtree's theme is a whole `GuiTheme` on `subtree_theme`
+  (§1.1).
 - Named style classes (`"style": "inventory-slot"`). A game screen's
   per-node colours cover the current need.
 - Typography roles are built: `theme.font(GuiTextRole::HEADING)`, derived

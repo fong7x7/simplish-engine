@@ -59,4 +59,15 @@ std::optional<float> uiNumber(const UiValues& values, std::string_view key) {
   return found != values.end() ? numberOf(found->second) : numberOf(key);
 }
 
+std::optional<bool> uiFlag(const UiValues& values, std::string_view binding) {
+  if (binding.empty()) {
+    return std::nullopt;
+  }
+  const bool negated = binding.front() == '!';
+  const auto found = values.find(negated ? binding.substr(1) : binding);
+  const bool set = found != values.end() && !found->second.empty() &&
+                   found->second != "0" && found->second != "false";
+  return set != negated;
+}
+
 }  // namespace eng::game

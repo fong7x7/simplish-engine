@@ -22,6 +22,7 @@
 #include "layout-size.h"
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -233,6 +234,10 @@ public:
   bool focused = false;
   /// This widget's own look in every state, in place of the theme's.
   std::optional<GuiStateStyles> state_styles{};
+  /// The theme this widget and its subtree are measured, animated and
+  /// drawn with, in place of the draw context's: a game's screen inside
+  /// the editor. Null to inherit.
+  std::shared_ptr<const GuiTheme> subtree_theme{};
 
   /// Numeric id when this component is a node in `GuiWidgetTree`.
   GuiWidgetId widget_id = GUI_WIDGET_ID_INVALID;

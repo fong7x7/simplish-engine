@@ -2,6 +2,7 @@
 #include <game/ui/ui-text.h>
 
 using eng::game::fillUiText;
+using eng::game::uiFlag;
 using eng::game::uiNumber;
 using eng::game::UiValues;
 
@@ -21,4 +22,18 @@ TEST_CASE("a bar's number is a value's, or the key read as one") {
   CHECK(uiNumber(values, "10") == 10.0F);
   CHECK_FALSE(uiNumber(values, "name").has_value());
   CHECK_FALSE(uiNumber(values, "unset").has_value());
+}
+
+TEST_CASE("a bound flag is on while its value is set, and !key while not") {
+  const UiValues values{
+      {"on", "yes"}, {"zero", "0"}, {"no", "false"}, {"blank", ""}};
+
+  CHECK(uiFlag(values, "on") == true);
+  CHECK(uiFlag(values, "zero") == false);
+  CHECK(uiFlag(values, "no") == false);
+  CHECK(uiFlag(values, "blank") == false);
+  CHECK(uiFlag(values, "unset") == false);
+  CHECK(uiFlag(values, "!unset") == true);
+  CHECK(uiFlag(values, "!on") == false);
+  CHECK_FALSE(uiFlag(values, "").has_value());
 }

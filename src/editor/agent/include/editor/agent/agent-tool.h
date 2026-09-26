@@ -176,6 +176,8 @@ enum class AgentTool : uint8_t {
   GET_UI_SCREENS,
   /// Write one game screen, checked first.
   SET_UI_SCREEN,
+  /// Write the theme every game screen is drawn in, checked first.
+  SET_UI_THEME,
   /// Draw one game screen to a PNG, with where its buttons are.
   RENDER_UI_SCREEN,
   /// Choose an action on a game screen, as player 1, in the playtest.
@@ -263,6 +265,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::GET_LOG,
     AgentTool::GET_UI_SCREENS,
     AgentTool::SET_UI_SCREEN,
+    AgentTool::SET_UI_THEME,
     AgentTool::RENDER_UI_SCREEN,
     AgentTool::PRESS_UI,
     AgentTool::SET_INTERFACE_SIZE,

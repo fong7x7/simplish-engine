@@ -723,18 +723,42 @@ inline constexpr AgentParam AGENT_PARAMS_SET_UI_SCREEN[] = {
      "or \"hud\" (over play, takes no input), \"anchor\": center, top, "
      "bottom, left, right, top_left, top_right, bottom_left, bottom_right or "
      "fill (default center), \"inset\": pixels from the edges (24), "
-     "\"root\": a node}. A node is {\"type\": panel, label, button, bar or "
-     "spacer, \"id\", and for a label or button \"text\" — {key} shows the "
-     "value key the logic set — for a button \"action\", for a bar "
-     "\"value\" and \"max\" (keys, or a number for max), and for a panel "
-     "\"children\": [nodes]}, styled by flexbox: \"direction\" row or "
-     "column, \"gap\", \"padding\" and \"margin\" (a number or [top, right, "
-     "bottom, left]), \"width\", \"height\", \"min_width\", "
-     "\"min_height\", \"grow\", \"align\" and \"align_self\" (start, "
-     "center, end, stretch), \"justify\" (start, center, end, "
-     "space_between, space_around, space_evenly), \"fill\" and \"color\" "
-     "(#rrggbb or #rrggbbaa) and \"radius\". docs/game/ui.md under "
-     "toolchain.engine_root has examples."},
+     "\"root\": a node}. A node is {\"type\": panel, label, button, bar, "
+     "spacer, checkbox or toggle, \"id\", and for a label, button, checkbox "
+     "or toggle \"text\" — {key} shows the value key the logic set — for "
+     "a button, checkbox or toggle \"action\", for a bar \"value\" and "
+     "\"max\" (keys, or a number for max), and for a panel \"children\": "
+     "[nodes]}. Layout is flexbox: \"direction\" row or column, \"gap\", "
+     "\"padding\" and \"margin\" (a number or [top, right, bottom, left]; "
+     "a margin side may be \"auto\" to push the node over), \"width\" and "
+     "\"height\" (pixels, or \"50%\" of the parent), \"min_width\", "
+     "\"min_height\", \"max_width\", \"max_height\", \"grow\", "
+     "\"shrink\", \"align\" and \"align_self\" (start, center, end, "
+     "stretch), \"justify\" (start, center, end, space_between, "
+     "space_around, space_evenly). Look, in the screens' theme (set_ui_theme): "
+     "\"variant\" neutral, primary, danger or ghost for a button; "
+     "\"role\" caption, label, body, heading, title or display, \"size\", "
+     "\"weight\" (100-900), \"wrap\" true, \"text_align\" left, center "
+     "or right for text; \"elevation\" none, low, mid or high, \"border\", "
+     "\"border_color\", \"opacity\" (0-1) for a panel; \"fill\" and "
+     "\"color\" (#rrggbb or #rrggbbaa) and \"radius\" override the theme. "
+     "Bound to values the logic sets, each a key or !key: \"visible\", "
+     "\"disabled\", \"selected\", and a checkbox's or toggle's \"checked\". "
+     "docs/game/ui.md under toolchain.engine_root has examples."},
+};
+
+inline constexpr AgentParam AGENT_PARAMS_SET_UI_THEME[] = {
+    {"theme", AgentParamType::OBJECT, AgentParamNeed::REQUIRED,
+     "The theme, every key optional: {\"name\", \"base\": dark or light "
+     "(the preset the rest is laid over), \"palette\": colours by role — "
+     "background, surface, surface_raised, surface_sunken, control, "
+     "control_hover, control_pressed, border, border_strong, text, "
+     "text_muted, text_disabled, primary, primary_hover, primary_pressed, "
+     "on_primary, danger, danger_hover, success, warning, focus_ring, "
+     "selection, scrim, shadow — as #rrggbb or #rrggbbaa, \"spacing\", "
+     "\"radii\" and \"text_sizes\": lists replacing their scales from the "
+     "first step, \"transition_ms\"}. "
+     "docs/engine/gui/technical/theming.md §4.6 has an example."},
 };
 
 inline constexpr AgentParam AGENT_PARAMS_RENDER_UI_SCREEN[] = {
@@ -1398,9 +1422,11 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "The game's own screens — its menus and HUD, content/ui/<id>.ui.json "
      "(docs/game/ui.md) — built from the engine's GUI widgets: each "
      "screen's id, layer (menu or hud) and buttons (id, action, text); "
-     "actions, every action any button names, sorted — what a choice is "
-     "numbered by; and problems, each screen file's mistakes by where they "
-     "are. The game logic shows a screen with world.showScreen(id), sets "
+     "actions, every action any button, checkbox or toggle names, sorted — "
+     "what a choice is numbered by; theme, the name of the theme they are "
+     "drawn in (null for the dark preset); and problems, each screen "
+     "file's and the theme's mistakes by where they are. The game logic shows "
+     "a screen with world.showScreen(id), sets "
      "the values its text shows with world.setUiValue(key, text), and "
      "hears a button pressed as a UI_ACTION event (onUiAction).",
      AgentToolEffect::READ,
@@ -1412,13 +1438,24 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "come back in the answer, which is get_ui_screens' after the write. "
      "render_ui_screen shows what it looks like.",
      AgentToolEffect::HOST, AGENT_PARAMS_SET_UI_SCREEN},
+    {AgentTool::SET_UI_THEME, "set_ui_theme",
+     "Write the theme every game screen is drawn in to "
+     "content/ui/theme.json, replacing any there: the palette its buttons, "
+     "text, bars, checkboxes and toggles take their colours from, and its "
+     "spacing, radii and text sizes. It is checked first, and one that "
+     "does not read is refused, saying why. Screens shown in a playtest "
+     "are built again in it; the answer is get_ui_screens' after the "
+     "write, whose theme is its name.",
+     AgentToolEffect::HOST, AGENT_PARAMS_SET_UI_THEME},
     {AgentTool::RENDER_UI_SCREEN, "render_ui_screen",
      "Draw a game screen as the game would show it, over a plain stand-in "
      "for the game, to build/ui/<id>.png in the project — open the image to "
      "see it. Answers with image (its path), width, height, text_drawn "
      "(false when no font was found: laid out, but no letters), buttons "
-     "(id, action, text and rect [x, y, w, h] in the image's pixels) and "
-     "error.",
+     "— every button, checkbox and toggle — (id, action, text and rect "
+     "[x, y, w, h] in the image's pixels), nodes — every node with an id "
+     "(id, type, rect, and visible, disabled and selected as its bindings "
+     "set them) — and error.",
      AgentToolEffect::HOST, AGENT_PARAMS_RENDER_UI_SCREEN},
     {AgentTool::PRESS_UI, "press_ui",
      "Choose an action on a game screen as player 1, as a click on its "

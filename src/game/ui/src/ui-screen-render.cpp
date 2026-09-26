@@ -88,17 +88,14 @@ namespace {
     (void)built.build(tree, root);
     (void)built.apply(tree, values);
     tree.computeLayout(target.first, target.second);
-    tree.visitDrawOrder([&ctx = target.second](const GuiWidget& widget) {
-      if (widget.visible) {
-        widget.render(ctx);
-      }
-    });
+    tree.renderAll(target.second);
   }
 
 }  // namespace
 
 UiScreenRender renderUiScreen(const UiScreen& screen, const UiValues& values,
-                              UiRenderSize size) {
+                              UiRenderSize size,
+                              const std::shared_ptr<const GuiTheme>& theme) {
   const Rect view = viewOf(size);
   CpuFont font;
   GuiRendererContext renderer;
@@ -106,10 +103,10 @@ UiScreenRender renderUiScreen(const UiScreen& screen, const UiValues& values,
   renderer.viewport_width = static_cast<uint32_t>(view.w);
   renderer.viewport_height = static_cast<uint32_t>(view.h);
   GuiWidgetTree tree;
-  UiScreenView built(screen, [](std::string_view) {});
+  UiScreenView built(screen, [](std::string_view) {}, theme);
   buildAndDraw(tree, built, values, {view, drawContext(renderer, font)});
   UiScreenRender out{rasterize(renderer, font, view), built.buttons(tree),
-                     font.face.has_value()};
+                     built.nodes(tree), font.face.has_value()};
   renderer.shutdown();
   return out;
 }

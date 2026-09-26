@@ -288,6 +288,7 @@ namespace {
       runAgentGetLog,
       runAgentGetUiScreens,
       runAgentSetUiScreen,
+      runAgentSetUiTheme,
       runAgentRenderUiScreen,
       runAgentPressUi,
       runAgentSetInterfaceSize,

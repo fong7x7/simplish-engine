@@ -1,9 +1,9 @@
 # Game Screens — Menus and a HUD from the GUI Widgets
 
-**Status:** built — `src/game/ui/` (the format and the builder), the logic's side in `src/game/logic/` and `src/game/world/`, the playtest's in `src/editor/shell/`, the agent tools in `src/editor/agent/src/agent-ui.cpp`.
+**Status:** built — `src/game/ui/` (the format, bindings and the builder), the logic's side in `src/game/logic/` and `src/game/world/`, the playtest's in `src/editor/shell/`, the agent tools in `src/editor/agent/src/agent-ui.cpp`.
 **Decision:** [ADR-012](../decisions/ADR-012-game-menus-as-data.md). **Read with:** [sdk.md](sdk.md), [layout-engine.md](../engine/gui/technical/layout-engine.md) (the flexbox every screen is laid out by).
 
-A game's own screens — a pause menu, "you died — retry?", an upgrade pick, a score and health readout — are **data**: one JSON file each in the project's `content/ui/`. Whoever presents the game builds them out of the engine's own GUI widgets (`GuiPanel`, `GuiLabel`, `GuiButton`), laid out by the GUI's CSS flexbox. The game logic never touches a widget. It shows and hides screens by id, sets named values their text shows, and hears a button pressed as an event.
+A game's own screens — a pause menu, "you died — retry?", an upgrade pick, a score and health readout — are **data**: one JSON file each in the project's `content/ui/`. Whoever presents the game builds them out of the engine's own GUI widgets (`GuiPanel`, `GuiLabel`, `GuiButton`, `GuiCheckbox`, `GuiToggle`), laid out by the GUI's CSS flexbox and drawn in the project's theme, `content/ui/theme.json`. The game logic never touches a widget. It shows and hides screens by id, sets named values their text shows and their flags follow, and hears a button pressed as an event.
 
 ```
 content/ui/pause.ui.json ──read──► UiScreen ──UiScreenView──► GuiWidgetTree (panels, labels, buttons)
@@ -26,13 +26,15 @@ game logic: showScreen("pause")                                    ▼
   "anchor": "center",
   "root": {
     "type": "panel", "width": 320, "padding": [20, 24], "gap": 12,
-    "fill": "#181c26e6", "radius": 8, "align": "center",
+    "fill": "#181c26e6", "radius": 8, "elevation": "mid",
     "children": [
-      {"type": "label", "text": "Paused"},
+      {"type": "label", "text": "Paused", "role": "title"},
       {"type": "label", "text": "Wave {wave} — score {score}"},
       {"type": "bar", "value": "health", "max": "health_max", "height": 10},
-      {"type": "button", "text": "Resume", "action": "resume", "id": "resume"},
-      {"type": "button", "text": "Quit", "action": "quit"}
+      {"type": "toggle", "text": "Music", "action": "music", "checked": "music_on"},
+      {"type": "button", "text": "Resume", "action": "resume", "id": "resume",
+       "variant": "primary"},
+      {"type": "button", "text": "Quit", "action": "quit", "variant": "ghost"}
     ]
   }
 }
@@ -50,36 +52,99 @@ game logic: showScreen("pause")                                    ▼
 | `type` | What | Its own keys |
 |---|---|---|
 | `panel` | A box laying its `children` out by flexbox | `children`: a list of nodes |
-| `label` | A line of text | `text` |
+| `label` | Text: one line, or wrapped with `"wrap": true` | `text` |
 | `button` | A button; pressed, it chooses its `action` | `text`, `action` (required) |
 | `bar` | A bar filled by `value`'s share of `max` | `value` (a key), `max` (a key, or a number) |
 | `spacer` | Empty space; grows to fill its line | — |
+| `checkbox` | A box and its text; pressed, it chooses its `action` | `text`, `action` (required), `checked` (a binding, §1.3) |
+| `toggle` | A switch and its text, the same way | `text`, `action` (required), `checked` |
 
 Every node may have an `id` — a name agents and tests find it by.
 
-**Text shows values.** `{key}` in a label's or a button's text is the value `key` the logic set, or nothing while it has set none; `{{` is a brace.
+**Text shows values.** `{key}` in a node's text is the value `key` the logic set, or nothing while it has set none; `{{` is a brace.
 
-### Style
+### 1.1 Layout
 
-The part of the GUI's `LayoutStyle` a menu needs ([layout-engine.md §3](../engine/gui/technical/layout-engine.md#3-layoutstyle-reference)), and colours. Sizes are pixels, border-box; `-1` is automatic.
+The part of the GUI's `LayoutStyle` a screen needs ([layout-engine.md §3](../engine/gui/technical/layout-engine.md#3-layoutstyle-reference)). Sizes are pixels, border-box; `-1` is automatic.
 
 | Key | Meaning | Default |
 |---|---|---|
 | `direction` | `row` or `column`: how a panel lays its children out | `column` |
 | `gap` | Between a panel's children | `0` |
-| `padding`, `margin` | A number, `[vertical, horizontal]`, or `[top, right, bottom, left]` | `0`; a button's padding `[8, 18]` |
-| `width`, `height`, `min_width`, `min_height` | Sizes | automatic, `0`; a bar `10` high, and with no `width` as wide as its line |
+| `padding` | A number, `[vertical, horizontal]`, or `[top, right, bottom, left]` | `0`; a button's `[8, 18]` |
+| `margin` | The same, and any side may be `"auto"`: it takes the free space, pushing the node over — `[0, 0, 0, "auto"]` sends it right, `[0, "auto"]` centres it | `0` |
+| `width`, `height` | Pixels, or a percentage of the parent's content box: `"50%"` | automatic; a bar `10` high, and with no `width` as wide as its line |
+| `min_width`, `min_height`, `max_width`, `max_height` | Limits | `0`; no maximum |
 | `grow` | Share of the free space on its line | `0`; a spacer's `1` |
+| `shrink` | How much of an overflow it gives up; `0` never shrinks | `1` |
 | `align` | A panel's children across its axis: `start`, `center`, `end`, `stretch` | `stretch` |
 | `justify` | Along its axis: `start`, `center`, `end`, `space_between`, `space_around`, `space_evenly` | `start` |
 | `align_self` | This node, overriding its parent's `align` | — |
-| `fill` | Background: a panel's, a button's face, a bar's filled part — `#rrggbb` or `#rrggbbaa` | none; a button's slate, a bar's green |
-| `color` | Text colour, or a bar's empty part | near-white; a bar's dark grey |
-| `radius` | Corner roundness | `0`; a button's `6` |
 
 A column stretches its children across by default, so a button spans it. Give the panel `"align": "center"` (or the button `"align_self": "start"`) to keep buttons at their natural width.
 
-**Mistakes are named, never fatal.** An unknown `type` or key, a colour that is not one, a button with no `action`: each is a problem named by where it is — `root/children[2]: 'align' should be start, center, ...` — and that node is left out or keeps its default. The editor logs them, and `get_ui_screens` lists them. A file that is not a JSON object, or has no `root`, is no screen.
+### 1.2 Look
+
+Every screen is drawn in the project's **theme** (§1.4), so a node names a role and the theme gives the colours. `fill` and `color` override it for one node.
+
+| Key | Applies to | Meaning | Default |
+|---|---|---|---|
+| `variant` | button | `neutral`, `primary` (the accent), `danger`, `ghost` (no box until hovered) — the theme's look for it in every state | `neutral` |
+| `role` | label, button | `caption`, `label`, `body`, `heading`, `title`, `display`: the theme's size and weight for it | a label's `body`, a button's `label` |
+| `size`, `weight` | label | Text size in pixels, weight 100–900, over the role's | the role's |
+| `wrap` | label | `true` to wrap at the label's width, so a column of text flows | `false` |
+| `text_align` | label | `left`, `center`, `right` | `left` |
+| `elevation` | panel | `none`, `low`, `mid`, `high`: the theme's drop shadow for that step | `none` |
+| `border`, `border_color` | panel | Border width, and its colour | none; the theme's `border` |
+| `radius` | panel, button, bar | Corner roundness | `0`; a button's theme radius |
+| `opacity` | any | 0 to 1; fades the node and everything in it | `1` |
+| `fill` | panel, button, bar | Background, `#rrggbb` or `#rrggbbaa`: a panel's, a button's face (lighter when hovered), a bar's filled part | none; the theme's button look, the theme's `success` |
+| `color` | label, button, bar | Text colour, or a bar's empty part | the theme's `text`; `surface_sunken` |
+
+### 1.3 Bindings
+
+A node's flags follow values the logic sets. Each is a key — on while that value is set to anything but empty, `0` or `false` — or `!key`, on while it is not:
+
+| Key | While on | Unbound |
+|---|---|---|
+| `visible` | Shown; hidden, it takes no room and its siblings close up | shown |
+| `disabled` | Dimmed, not pressable, skipped by the keyboard and pad | enabled |
+| `selected` | Drawn chosen: the current tab, the upgrade picked | not |
+| `checked` | A checkbox or toggle is on | as last pressed |
+
+```json
+{"type": "panel", "direction": "row", "gap": 8, "children": [
+  {"type": "label", "text": "New record!", "role": "heading", "visible": "record"},
+  {"type": "button", "text": "Buy ({cost})", "action": "buy", "variant": "primary",
+   "disabled": "!can_afford"},
+  {"type": "toggle", "text": "Music", "action": "music", "checked": "music_on"}]}
+```
+
+**A bound checkbox or toggle shows its value, never its own guess.** Pressed, it chooses its action and stays as it was until the logic sets the value — the same rule as every choice: the logic decides (§4). An unbound one flips when pressed, and is only a way to send the action.
+
+```cpp
+void onUiAction(GameLogicWorld& world, const LogicEvent& choice) override {
+  if (sdk::chose(choice, "music")) {
+    music_ = !music_;
+    world.setUiValue("music_on", music_ ? "1" : "0");
+  }
+}
+```
+
+### 1.4 The theme
+
+`content/ui/theme.json` is the engine's theme file ([theming.md §4.6](../engine/gui/technical/theming.md#46-a-theme-file)): a `base` preset (`dark` or `light`), palette colours by role, spacing, radii and text sizes. Every key is optional; with no file, screens are drawn in the dark preset.
+
+```json
+{ "name": "Ember", "base": "dark",
+  "palette": { "primary": "#e8703a", "primary_hover": "#f08a52",
+               "surface_raised": "#2a2220", "scrim": "#0a0604b0" },
+  "radii": [0, 4, 8, 12] }
+```
+
+The screens' covering panel carries it as its `subtree_theme`, so everything in a screen — buttons, text, checkboxes, the focus ring — is measured and drawn in it, even inside the editor, whose own chrome keeps the editor's theme. A menu's dimming is the theme's `scrim`. A theme file that does not read is a problem like a screen's, and the screens fall back to the dark preset.
+
+**Mistakes are named, never fatal.** An unknown `type` or key, a colour that is not one, a button with no `action`, a `weight` of 50: each is a problem named by where it is — `root/children[2]: 'variant' should be one of neutral, primary, danger, ghost` — and that node is left out or keeps its default. The editor logs them, and `get_ui_screens` lists them. A file that is not a JSON object, or has no `root`, is no screen.
 
 ---
 
@@ -90,7 +155,7 @@ A column stretches its children across by default, so a button spans it. Give th
 | `world.showScreen(id)` | Shows the screen, on top of those shown. A name no file has is warned of in the log |
 | `world.hideScreen(id)` | Stops showing it |
 | `world.showing(id)` | Whether it is shown |
-| `world.setUiValue(key, text)` | Sets the value `{key}` shows and a bar reads; `sdk::setUiNumber(world, key, n)` for a number |
+| `world.setUiValue(key, text)` | Sets the value `{key}` shows, a bar reads and a binding follows; `sdk::setUiNumber(world, key, n)` for a number |
 | `onUiAction(world, event)` | A player chose `event.id` — a button's action — on the tick before; `event.target` is who. `sdk::chose(event, "retry")` asks which |
 
 ```cpp
@@ -180,13 +245,14 @@ The deployed game is headless until the rendered client exists; it keeps the scr
 
 | Tool | Does |
 |---|---|
-| `get_ui_screens` | Every screen: id, layer and buttons (id, action, text); the action list; every file's problems |
+| `get_ui_screens` | Every screen: id, layer and buttons (id, action, text — checkboxes and toggles too); the action list; the theme's name, null for the dark preset; every file's problems |
 | `set_ui_screen {id, screen}` | Checks a screen and writes it; one that is no screen is refused with its problems |
-| `render_ui_screen {id, width, height, values}` | Draws it through the GUI's software rasterizer, with the system's UI font, to `build/ui/<id>.png` — open the image to see it — and answers with each button's rect |
+| `set_ui_theme {theme}` | Checks a theme and writes it to `content/ui/theme.json`; screens shown are built again in it. One that does not read is refused, saying why |
+| `render_ui_screen {id, width, height, values}` | Draws it in the theme through the GUI's software rasterizer, with the system's UI font, to `build/ui/<id>.png` — open the image to see it — and answers with each button's rect and each named node's rect, type and bound flags (`visible`, `disabled`, `selected`) |
 | `press_ui {action}` | Chooses an action as player 1 on the next playtest tick, as a click would; follow with `step_playtest` |
-| `get_playtest` → `ui` | The screens shown, the values, and every button with its rect |
+| `get_playtest` → `ui` | The screens shown, the values, every button with its rect, and every named node with its rect and flags |
 
-The loop: write a screen with `set_ui_screen`, look at it with `render_ui_screen`, have the logic show it, playtest, `press_ui`, `step_playtest`, and read the outcome.
+The loop: set the theme with `set_ui_theme`, write a screen with `set_ui_screen`, look at it with `render_ui_screen` — passing `values` to see each binding's two states — have the logic show it, playtest, `press_ui`, `step_playtest`, and read the outcome: `get_playtest`'s `ui.nodes` says what is shown, disabled and selected now.
 
 ---
 
@@ -206,13 +272,14 @@ SIMPLISH_LOGIC_TEST(retry_brings_the_player_back, "main") {
 
 `test.choose(slot, action)` makes the choice on the next tick only; `test.uiValue(key)` reads a value; `test.world().showing(id)` asks what is shown; `test.hold(0, {.pause = true})` holds the pause button, and `test.world().paused()` says whether it paused.
 
-In the engine, `game/ui`'s tests build screens into a bare `GuiWidgetTree` and lay them out with the one-argument `computeLayout`; `test_ui_screen_render.cpp` renders one and writes `ui-screen-capture.png` at the repository root, a gitignored artefact.
+In the engine, `game/ui`'s tests build screens into a bare `GuiWidgetTree` and lay them out with the one-argument `computeLayout`; `test_ui_screen_render.cpp` renders two and writes `ui-screen-capture.png` and `ui-screen-themed-capture.png` — an upgrade pick in the light theme — at the repository root, gitignored artefacts.
 
 ---
 
 ## 8. Not yet
 
-- Text size and weight: every label uses the UI font at one size.
-- Images, sliders, text fields: the format names panels, labels, buttons, bars and spacers.
+- A button's text size and weight past its `role`: only a label takes `size` and `weight`.
+- Images, sliders, text fields, tabs, lists: the format names panels, labels, buttons, bars, spacers, checkboxes and toggles.
+- Named styles shared between nodes, and a node repeated for each item of a list value.
 - Transitions: a screen appears and goes at once.
 - Per-player screens in split-screen co-op: every screen is shown to everyone, and a choice is player 1's in the editor.

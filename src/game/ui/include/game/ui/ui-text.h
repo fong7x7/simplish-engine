@@ -22,4 +22,10 @@ namespace eng::game {
 [[nodiscard]] std::optional<float> uiNumber(const UiValues& values,
                                             std::string_view key);
 
+/// Whether the flag bound to @p binding — a key, or `!key` — is on: the
+/// value is set to anything but empty, `0` or `false`, or, with `!`, is
+/// not. Nothing for an empty binding: the flag is not bound.
+[[nodiscard]] std::optional<bool> uiFlag(const UiValues& values,
+                                         std::string_view binding);
+
 }  // namespace eng::game

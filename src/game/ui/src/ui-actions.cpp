@@ -8,7 +8,7 @@ namespace {
   /// Every action @p node and its children name, into @p out.
   // NOLINTNEXTLINE(misc-no-recursion) -- a screen is a tree, bounded in depth
   void collect(const UiNode& node, std::vector<std::string>& out) {
-    if (node.kind == UiNodeKind::BUTTON && !node.action.empty()) {
+    if (uiChooses(node.kind) && !node.action.empty()) {
       out.push_back(node.action);
     }
     for (const UiNode& child : node.children) {

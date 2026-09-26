@@ -58,6 +58,10 @@ public:
   /// The theme to draw from: `theme`, or the dark preset without one.
   [[nodiscard]] const GuiTheme& activeTheme() const;
 
+  /// This context, drawing from @p scope instead when it is not null: what
+  /// a widget with a `subtree_theme` and its subtree are drawn with.
+  [[nodiscard]] GuiDrawContext themedBy(const GuiTheme* scope) const;
+
   /// Draw a solid-filled rectangle.
   void drawFilledRect(const Rect& rect, const GuiColor& color) const;
 

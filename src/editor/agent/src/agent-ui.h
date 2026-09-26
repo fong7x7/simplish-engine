@@ -22,6 +22,10 @@ namespace eng::editor {
 [[nodiscard]] AgentResult runAgentSetUiScreen(EditorShellState& state,
                                               const nlohmann::json& params);
 
+/// `set_ui_theme`: check a theme, then have the editor write it.
+[[nodiscard]] AgentResult runAgentSetUiTheme(EditorShellState& state,
+                                             const nlohmann::json& params);
+
 /// `render_ui_screen`: have the editor draw a screen to a PNG.
 [[nodiscard]] AgentResult runAgentRenderUiScreen(EditorShellState& state,
                                                  const nlohmann::json& params);

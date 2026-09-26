@@ -69,5 +69,9 @@ root — gitignored artifacts, not fixtures to commit.
   do not hardcode colours in a widget. Interaction looks go through the
   `disabled` / `selected` flags and per-state `GuiStateStyles`, which blend
   on change — never by swapping styles each tick.
+- A subtree drawn in another theme (a game's screen inside the editor)
+  gets `widget.subtree_theme`; the tree scopes measuring, updating and
+  drawing to it. Draw through `tree.renderAll(ctx)` — walking
+  `visitDrawOrder` yourself skips the scoping.
 - `image-loader.cpp` calls stb, whose implementation TUs live in
   `engine/image/` — see the root CLAUDE.md for why.

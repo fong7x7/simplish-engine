@@ -54,8 +54,13 @@ private:
   /// Draw the pill and its knob in @p track.
   void drawSwitch(const GuiDrawContext& ctx, const Rect& track) const;
 
-  /// Where the knob is drawn, 0 off to 1 on, easing after `on`.
-  float knob_ = 0.0f;
+  /// Where the knob is: 0 off to 1 on, easing after `on`; negative until
+  /// the first `update`, which starts it where `on` is.
+  float knob_ = -1.0f;
+
+  /// Where the knob is drawn: `knob_`, or where `on` is before any
+  /// `update` — so a toggle never updated, in a capture, draws its state.
+  [[nodiscard]] float knob() const;
 };
 
 }  // namespace eng

@@ -130,3 +130,48 @@ TEST_CASE("send_input holds the pause button, and get_playtest says whether "
   CHECK(playtest["game_paused"] == true);
   CHECK(playtest["play_tick"] == 42);
 }
+
+TEST_CASE("set_ui_theme checks a theme, and leaves the writing to the editor") {
+  EditorShellState state = withPauseMenu();
+
+  const AgentResult written = ok(state, "set_ui_theme", R"({"theme": {
+      "name": "Ember", "base": "light",
+      "palette": {"primary": "#e8703a"}}})");
+  const AgentResult bad = runAgentTool(
+      state, "set_ui_theme", R"({"theme": {"palette": {"primray": "#fff"}}})");
+  const AgentResult missing = runAgentTool(state, "set_ui_theme", "{}");
+
+  CHECK(written.host.kind == AgentHostRequestKind::WRITE_UI_THEME);
+  CHECK(json::parse(written.host.text)["name"] == "Ember");
+  CHECK(bad.status == AgentStatus::BAD_PARAMS);
+  CHECK(json::parse(bad.json)["message"].get<std::string>().find("primray") !=
+        std::string::npos);
+  CHECK(missing.status == AgentStatus::BAD_PARAMS);
+}
+
+TEST_CASE("get_ui_screens names the screens' theme, or null for the preset") {
+  EditorShellState state = withPauseMenu();
+  CHECK(json::parse(ok(state, "get_ui_screens", "{}").json)["theme"].is_null());
+
+  auto theme = std::make_shared<GuiTheme>(GuiTheme::light());
+  theme->name = "Daylight";
+  state.ui.theme = theme;
+
+  CHECK(json::parse(ok(state, "get_ui_screens", "{}").json)["theme"] ==
+        "Daylight");
+}
+
+TEST_CASE("a checkbox's and a toggle's actions are listed with the buttons") {
+  EditorShellState state = withPauseMenu();
+  state.ui.screens.push_back(*game::parseUiScreen(R"({"root": {
+      "type": "panel", "children": [
+        {"type": "checkbox", "text": "Music", "action": "music"},
+        {"type": "toggle", "text": "Hard", "action": "hard"}]}})",
+                                                  "options")
+                                  .screen);
+
+  const json read = json::parse(ok(state, "get_ui_screens", "{}").json);
+
+  CHECK(read["screens"][1]["buttons"].size() == 2);
+  CHECK(read["actions"] == json::array({"hard", "music", "quit", "resume"}));
+}

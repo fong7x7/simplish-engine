@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 63 tools, HTTP transport, MCP bridge
+**Status:** Built — 77 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -184,6 +184,7 @@ each one's parameters; this table is the map.
 | `get_playtest` | Whether the level is being edited, played, or waiting on the character selector (`choosing`), and whether a playtest is paused or its run is over: the tick, where each player is, who they play as, their health, whether they are down or out and whether a stand-in or a seated pad (`pad`) plays them, every actor — the prop it came from, where it is, which way it faces, its behavior and the state it is in, its faction, the player it targets (or the actor, by id, when its target is another actor) and whether it sees them, waypoints left on its path and its health — every projectile in flight and hazard pool on the floor, the effects playing and the cues played and heard (`effects.sounds`), how the run stands (`outcome`: playing, won, lost), whether the project's game logic runs (`logic`) and what it last said (`logic_log`) — actors it spawned are listed after the level's, `spawned: true`, the latest tick hash, dropped ticks, and queued input |
 | `get_log` | The editor's recent log, numbered: lines at or above a level, from a sequence on, optionally one subsystem's |
 | `get_build` | The project's own C++ game logic ([logic.md](../game/logic.md)) and the game it deploys to: whether it has logic and where its source is, whether a build is loaded and whether the source has changed since (`logic_stale`), why a library would not load, the logic API version, the toolchain the editor builds with, where the last deploy went, and the last build — `logic` or `deploy`, `idle`/`running`/`succeeded`/`failed`, a count of builds to tell yours from the last, its log file, the lines naming an error, and its last lines. `run_command` runs `new_game_logic`, `build_game_logic` and `deploy_game`; poll this to see them finish |
+| `get_ui_screens` | The game's own screens ([ui.md](../game/ui.md)): each one's id, layer and buttons, the action list, the theme's name, and every screen file's and the theme's problems |
 
 ### Editing
 
@@ -214,6 +215,11 @@ each one's parameters; this table is the map.
 | `set_interface_size` | Draws the editor's own interface at a `scale` from 0.5 to 3, as View › Interface does; saved to the user's graphics file; `get_state` reports `interface_scale` |
 | `set_water_effects` | Switches any of the water's `reflections`, `refraction`, `contact` foam and `caustics` on or off, as the View menu's Water effect rows do, leaving the rest; saved to the user's graphics file |
 | `paint_water` | Lays water over a rectangle of the ground — at a `depth`, and where it was dry in a `color` (`#rrggbb`), `opacity`, `flow_direction` (degrees), `flow_speed` and `viscosity` (0 to 1) — or, with `dry`, takes it off, as the Water and Dry cards do; the terrain under it is untouched |
+| `undo`, `redo` | Steps the level's history back or forward one edit, the same history Ctrl+Z walks |
+| `set_ui_screen` | Checks a game screen and writes it to `content/ui/<id>.ui.json`; one that is no screen is refused with its problems |
+| `set_ui_theme` | Checks a theme and writes it to `content/ui/theme.json`, the theme every game screen is drawn in; screens shown are built again in it |
+| `render_ui_screen` | Draws a game screen in its theme, showing the `values` given, to `build/ui/<id>.png`, with each button's and each named node's rect and bound flags |
+| `press_ui` | Chooses a game screen's action as player 1 on the next playtest tick, as a click would |
 | `set_water_depth` | Makes the water in a rectangle, or in the selected body of water (`target` `selection`, after `select` with `target` `water`), one depth — `puddle`, `shallows`, `pond`, `lake`, `deep` or a number of tiles — as the Depth row does; one undoable edit |
 | `set_volume` | Sets any of `master`, `effects`, `music`, `interface` (0 to 1) and `muted`, as the Sound screen does; saved to the user's volumes file |
 | `set_sound` | Plays one of the project's sound files in one of the game's sounds (`slot`, `file`), or the built-in again with an empty `file`; written to the sounds table |

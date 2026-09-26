@@ -6,7 +6,7 @@
 #
 # A screen is data — content/ui/<id>.ui.json, read here with named problems
 # — and a UiScreenView builds it into a GuiWidgetTree out of the engine's
-# own panels, labels and buttons, laid out by flexbox. Presentation: the
+# own panels, labels, buttons, checkboxes and toggles, laid out by flexbox. Presentation: the
 # game logic only shows screens and sets the values they show, and a
 # button pressed reaches the simulation as player input, never from here.
 
@@ -14,11 +14,15 @@ simplish_add_module(simplish-game-ui
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-actions.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-json-read.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-look-json.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-json.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-render.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-view.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-screen-view-fill.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-style-json.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-style-read.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-text.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-view-widgets.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui-widget-style.cpp
     DEPENDENCIES simplish-engine-gui
                  nlohmann_json::nlohmann_json

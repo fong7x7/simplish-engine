@@ -2,6 +2,7 @@
 #include <editor/project/project-paths.h>
 #include <editor/project/project-text-file.h>
 #include <editor/shell/editor-ui-table.h>
+#include <engine/gui/gui-theme-json.h>
 #include <game/ui/ui-actions.h>
 #include <game/ui/ui-screen-json.h>
 #include <nlohmann/json.hpp>
@@ -50,7 +51,29 @@ namespace {
     }
   }
 
+  /// Read the theme from @p path, when there is one, into @p table.
+  void readTheme(const std::filesystem::path& path, EditorUiTable& table) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+      return;
+    }
+    const std::optional<std::string> text = readProjectTextFile(path);
+    std::string error = text ? "" : "could not be read";
+    std::optional<GuiTheme> theme =
+        text ? parseGuiTheme(*text, error) : std::nullopt;
+    if (theme) {
+      table.theme = std::make_shared<GuiTheme>(std::move(*theme));
+    } else {
+      table.problems.push_back(std::string(EDITOR_UI_THEME_FILE) + ": " +
+                               error);
+    }
+  }
+
 }  // namespace
+
+std::filesystem::path editorUiThemePath(const std::filesystem::path& root) {
+  return editorUiDirPath(root) / EDITOR_UI_THEME_FILE;
+}
 
 std::filesystem::path editorUiDirPath(const std::filesystem::path& root) {
   return projectContentPath(root) / EDITOR_UI_DIR_NAME;
@@ -71,6 +94,7 @@ bool editorUiScreenIdValid(std::string_view id) {
 
 EditorUiTable loadEditorUiTable(const std::filesystem::path& root) {
   EditorUiTable table;
+  readTheme(editorUiThemePath(root), table);
   for (const auto& [id, path] : screenFiles(editorUiDirPath(root))) {
     if (editorUiScreenIdValid(id)) {
       readScreen(id, path, table);

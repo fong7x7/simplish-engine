@@ -52,6 +52,9 @@ enum class AgentHostRequestKind : uint8_t {
   /// `AgentHostRequest::width` by `height`, showing the values
   /// `AgentHostRequest::text` holds as a JSON object, to a PNG.
   RENDER_UI_SCREEN,
+  /// Write the game screens' theme as `AgentHostRequest::text`, and read
+  /// the screens again.
+  WRITE_UI_THEME,
 };
 
 }  // namespace eng::editor
