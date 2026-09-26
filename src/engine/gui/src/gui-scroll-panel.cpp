@@ -2,6 +2,7 @@
 
 #include "engine/gui/gui-draw-context.h"
 #include "engine/gui/gui-widget-tree.h"
+#include "flex-layout.h"
 
 #include <algorithm>
 
@@ -27,20 +28,6 @@ namespace {
   Span spanOf(const Rect& rect, GuiScrollAxis axis) {
     return axis == GuiScrollAxis::VERTICAL ? Span{rect.y, rect.h}
                                            : Span{rect.x, rect.w};
-  }
-
-  /// The size @p child takes along @p axis.
-  float sizeOf(const GuiWidget& child, GuiScrollAxis axis, float fallback) {
-    const float own = axis == GuiScrollAxis::VERTICAL ? child.tree_layout.height
-                                                      : child.tree_layout.width;
-    return own > 0.0f ? own : fallback;
-  }
-
-  /// The slot of @p view that starts @p at along @p axis and is @p size long.
-  Rect slotIn(const Rect& view, GuiScrollAxis axis, float at, float size) {
-    return axis == GuiScrollAxis::VERTICAL
-               ? Rect{view.x, view.y + at, view.w, size}
-               : Rect{view.x + at, view.y, size, view.h};
   }
 
   /// The commands that step back and forward along @p axis.
@@ -79,20 +66,42 @@ void GuiScrollPanel::setScrollOffset(float offset) {
 void GuiScrollPanel::arrangeChildren(GuiWidgetTree& tree,
                                      const Rect& available) {
   rect = available;
-  const Rect view = viewport();
-  float at = 0.0f;
+  tree_layout.direction = axis == GuiScrollAxis::VERTICAL
+                              ? FlexDirection::COLUMN
+                              : FlexDirection::ROW;
+  sizeUnmeasured(tree);
+  const LayoutSize flow = flowSize(tree, *this);
+  content_ = axis == GuiScrollAxis::VERTICAL ? flow.h : flow.w;
+  viewport_ = spanOf(viewport(), axis).length;
+  setScrollOffset(offset_);
+  // The children are laid out by flexbox, like any other.
+  arrangeFlexChildren(tree, *this, scrolledBox());
+}
+
+Rect GuiScrollPanel::scrolledBox() const {
+  const Edges& pad = tree_layout.padding;
+  return axis == GuiScrollAxis::VERTICAL
+             ? Rect{rect.x, rect.y - offset_, rect.w,
+                    std::max(rect.h, content_ + pad.top + pad.bottom)}
+             : Rect{rect.x - offset_, rect.y,
+                    std::max(rect.w, content_ + pad.left + pad.right), rect.h};
+}
+
+void GuiScrollPanel::sizeUnmeasured(GuiWidgetTree& tree) const {
   for (const GuiWidgetId id : children) {
-    const GuiWidget* child = tree.findWidget(id);
-    if (child == nullptr || !child->visible) {
+    GuiWidget* child = tree.findWidget(id);
+    if (child == nullptr) {
       continue;
     }
-    const float size = sizeOf(*child, axis, item_size);
-    tree.arrangeWidget(id, slotIn(view, axis, at - offset_, size));
-    at += size + tree_layout.gap;
+    const bool vertical = axis == GuiScrollAxis::VERTICAL;
+    const float own =
+        vertical ? child->tree_layout.height : child->tree_layout.width;
+    float& measured =
+        vertical ? child->tree_measured.h : child->tree_measured.w;
+    if (own < 0.0f && measured <= 0.0f) {
+      measured = item_size;
+    }
   }
-  content_ = std::max(0.0f, at - tree_layout.gap);
-  viewport_ = spanOf(view, axis).length;
-  setScrollOffset(offset_);
 }
 
 bool GuiScrollPanel::scrollBy(float dx, float dy) {

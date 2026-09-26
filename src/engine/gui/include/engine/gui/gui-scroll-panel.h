@@ -17,9 +17,10 @@ namespace eng {
 /// menu, a strip of character cards.
 ///
 /// Children are laid out whenever the panel is — by `computeLayout`,
-/// `arrangeWidget`, or itself after a scroll — at their `tree_layout.height`
-/// (a column) or `tree_layout.width` (a row), else `item_size`,
-/// `tree_layout.gap` apart, inside `tree_layout.padding`, and are drawn
+/// `arrangeWidget`, or itself after a scroll — by flexbox along the axis,
+/// in a box as long as they need: at their own or measured size, else
+/// `item_size`, with their margins, `tree_layout.gap` apart, inside
+/// `tree_layout.padding`, aligned across by `align_items`, and drawn
 /// clipped to it. The wheel scrolls it, and so does a pad's right stick
 /// (`GuiWidgetTree::scrollFocusBy`). Focus moving to a child scrolls just
 /// far enough to show it, and a direction along the axis with nothing
@@ -82,6 +83,14 @@ public:
   float wheel_step = 40.0f;
 
 private:
+  /// Give each child with no size of its own along the axis, and nothing
+  /// measured, `item_size`.
+  void sizeUnmeasured(GuiWidgetTree& tree) const;
+
+  /// The box its children lie in: as long as they need along the axis,
+  /// and slid back by the scroll.
+  [[nodiscard]] Rect scrolledBox() const;
+
   /// The rect inside the padding that children show through.
   [[nodiscard]] Rect viewport() const;
 

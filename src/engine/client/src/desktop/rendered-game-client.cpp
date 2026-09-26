@@ -70,7 +70,7 @@ bool RenderedGameClient::onInit() {
     return false;
   }
   loadGuiFont();
-  syncGuiRendererSurfaceFromDevice();
+  resizeGuiToBackbuffer();
   return true;
 }
 
@@ -118,6 +118,10 @@ void RenderedGameClient::setUiScale(float scale) {
 
 void RenderedGameClient::resizeGuiToBackbuffer() {
   gui_.resize(guiLayoutWidth(), guiLayoutHeight());
+  // Laid-out edges land on whole device pixels, so hairlines stay sharp.
+  if (gui_.tree != nullptr) {
+    gui_.tree->pixel_snap = 1.0f / (textRasterSupersample() * ui_scale_);
+  }
   syncGuiRendererSurfaceFromDevice();
 }
 

@@ -34,6 +34,12 @@ namespace eng {
 [[nodiscard]] float childWidthLimit(const GuiWidget& child,
                                     float content_width);
 
+/// @p widget's in-flow children end to end along its main axis — their
+/// sizes, margins and the gaps between them — and the thickest across:
+/// how much room they want, padding aside.
+[[nodiscard]] LayoutSize flowSize(const GuiWidgetTree& tree,
+                                  const GuiWidget& widget);
+
 /// Place @p parent's children inside @p box, its border box, by flexbox:
 /// in-flow children along its direction within its padding, spaced by
 /// their margins and its gap, grown, shrunk, wrapped and aligned; absolute

@@ -8,6 +8,7 @@
 /// @par Threading Main thread only.
 
 #include "gui-rect.h"
+#include "layout-auto-margins.h"
 #include "layout-edges.h"
 #include "scroll-state.h"
 
@@ -94,11 +95,20 @@ struct LayoutStyle {
   /// Space outside the edges, kept clear of siblings and the parent's
   /// content edge. Adds to `gap`; margins never collapse.
   Edges margin;
+  /// Which margins are `auto`, sharing out free space instead.
+  LayoutAutoMargins margin_auto{};
 
   /// Explicit width in pixels (-1 = auto).
   float width = -1.0f;
   /// Explicit height in pixels (-1 = auto).
   float height = -1.0f;
+  /// Width as a percentage of the parent's content box (-1 = not one);
+  /// wins over `width`. Unknown while measuring unless the parent's width
+  /// is, when it counts as auto.
+  float width_percent = -1.0f;
+  /// Height as a percentage of the parent's content box (-1 = not one);
+  /// wins over `height`; counts as auto while measuring.
+  float height_percent = -1.0f;
   /// Minimum width constraint in pixels.
   float min_width = 0.0f;
   /// Minimum height constraint in pixels.

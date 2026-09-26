@@ -54,6 +54,10 @@ public:
   /// Whether the focus ring is drawn: shown by navigation, hidden by the
   /// pointer.
   GuiFocusVisibility focus_visibility = GuiFocusVisibility::HIDDEN;
+  /// Round arranged edges to multiples of this many layout pixels — one
+  /// device pixel, `1 / density`, keeps edges crisp; 0 leaves them where
+  /// the layout put them. The rendered client sets it.
+  float pixel_snap = 0.0f;
 
   /// Allocate a widget and attach to parent. Returns GUI_WIDGET_ID_INVALID on
   /// failure.
@@ -129,6 +133,12 @@ public:
   /// `computeLayout` with no font: text measures at a fixed width a
   /// character, as it does when drawn without one.
   void computeLayout(const Rect& viewport);
+
+  /// Lay out again only what changed: subtrees that are clean
+  /// (`markDirty` not called on anything in them) and keep their box are
+  /// left as they are. As `computeLayout` otherwise — call `markDirty` on a
+  /// widget whose content changed, a label's text say, for it to count.
+  void updateLayout(const Rect& viewport, const GuiDrawContext& ctx);
 
   /// Measure a single subtree bottom-up (post-order), setting each
   /// widget's `tree_measured`, with no limit on its width.
@@ -479,6 +489,9 @@ private:
 
   /// The overlay layer, once made.
   GuiWidgetId overlay_layer_ = GUI_WIDGET_ID_INVALID;
+  /// Whether the layout under way is `updateLayout`'s, which skips what
+  /// has not changed.
+  bool incremental_layout_ = false;
   /// The widget whose tooltip the pointer is resting on, or invalid.
   GuiWidgetId tooltip_target_ = GUI_WIDGET_ID_INVALID;
   /// Seconds the pointer has rested there.

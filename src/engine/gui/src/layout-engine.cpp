@@ -15,6 +15,10 @@ constexpr float SCROLL_VELOCITY_EPSILON = 0.01f;
 
 namespace {
 
+  bool sameRect(const Rect& a, const Rect& b) {
+    return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
+  }
+
   /// Clamp a value to [min_val, max_val].
   float clampf(float val, float min_val, float max_val) {
     return std::max(min_val, std::min(val, max_val));
@@ -47,6 +51,13 @@ void GuiWidgetTree::computeLayout(const Rect& viewport,
   clearDirtyFlags();
 }
 
+void GuiWidgetTree::updateLayout(const Rect& viewport,
+                                 const GuiDrawContext& ctx) {
+  incremental_layout_ = true;
+  computeLayout(viewport, ctx);
+  incremental_layout_ = false;
+}
+
 void GuiWidgetTree::computeLayout(const Rect& viewport) {
   computeLayout(viewport, GuiDrawContext{});
 }
@@ -59,9 +70,12 @@ void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx) {
 void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx,
                                   float max_width) {
   auto* w = findWidget(id);
-  if (w == nullptr) {
+  // What is clean and measured against the same width still holds.
+  if (w == nullptr || (incremental_layout_ && !w->tree_dirty &&
+                       w->tree_measured_limit == max_width)) {
     return;
   }
+  w->tree_measured_limit = max_width;
   const float inner = contentWidthLimit(w->tree_layout, max_width);
   for (auto child : w->children) {
     if (const GuiWidget* c = findWidget(child)) {
@@ -73,7 +87,9 @@ void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx,
 
 void GuiWidgetTree::arrangeWidget(GuiWidgetId id, const Rect& available) {
   auto* w = findWidget(id);
-  if (w == nullptr) {
+  // A clean subtree placed where it already is needs nothing done.
+  if (w == nullptr ||
+      (incremental_layout_ && !w->tree_dirty && sameRect(w->rect, available))) {
     return;
   }
   w->rect = available;

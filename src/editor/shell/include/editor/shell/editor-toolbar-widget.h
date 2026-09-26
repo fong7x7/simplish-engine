@@ -93,8 +93,6 @@ private:
   void styleButtons(GuiWidgetTree& tree);
   /// Create the status label at the right end of the row.
   void wireStatusLabel(GuiWidgetTree& tree);
-  /// Create the empty, growing panel that pushes the status label right.
-  void wireSpacer(GuiWidgetTree& tree);
   /// Make @p tool the active one, as its button's click does.
   void pickTool(EditorTool tool);
   /// Create one button per tool.
@@ -110,8 +108,6 @@ private:
   GuiWidgetId project_label_ = GUI_WIDGET_ID_INVALID;
   /// Status label, right-aligned.
   GuiWidgetId status_label_ = GUI_WIDGET_ID_INVALID;
-  /// Empty panel before the status label that grows to push it right.
-  GuiWidgetId spacer_ = GUI_WIDGET_ID_INVALID;
   /// One button per entry in EDITOR_TOOLS, in the same order.
   std::vector<GuiWidgetId> tool_buttons_{};
   /// The Play / Stop button, after the tools.

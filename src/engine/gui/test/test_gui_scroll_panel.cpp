@@ -198,3 +198,41 @@ TEST_CASE("the right stick scrolls the list focus is in") {
   // Focus stays where it was; the stick reads, it does not move focus.
   REQUIRE(fx.tree.focused_id == fx.rows[0]);
 }
+
+namespace {
+
+/// A 200 × 60 panel, centring across, over an 80-wide button with 10 above
+/// and below it and a stretched one after.
+struct FlexListFixture {
+  GuiWidgetTree tree;
+  GuiWidgetId root{
+      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID)};
+  GuiWidgetId id = GUI_WIDGET_ID_INVALID;
+  GuiWidgetId a = GUI_WIDGET_ID_INVALID;
+  GuiWidgetId b = GUI_WIDGET_ID_INVALID;
+
+  FlexListFixture() {
+    auto panel = std::make_unique<GuiScrollPanel>();
+    panel->tree_layout.align_items = Align::CENTER;
+    id = tree.insertExternalWidget(std::move(panel), root);
+    a = tree.createWidget(GuiWidgetType::BUTTON, id);
+    tree.findWidget(a)->tree_layout.width = 80.0f;
+    tree.findWidget(a)->tree_layout.height = 30.0f;
+    tree.findWidget(a)->tree_layout.margin = {10.0f, 0.0f, 10.0f, 0.0f};
+    b = tree.createWidget(GuiWidgetType::BUTTON, id);
+    tree.findWidget(b)->tree_layout.height = 30.0f;
+    tree.arrangeWidget(id, {0.0f, 0.0f, 200.0f, 60.0f});
+  }
+};
+
+}  // namespace
+
+TEST_CASE("a scroll panel lays its children out by flexbox") {
+  FlexListFixture fx;
+  const Rect& ra = fx.tree.findWidget(fx.a)->rect;
+  CHECK(ra.x == 60.0f);  // centred across
+  CHECK(ra.y == 10.0f);  // after its top margin
+  CHECK(fx.tree.findWidget(fx.b)->rect.y == 50.0f);
+  auto* scroller = dynamic_cast<GuiScrollPanel*>(fx.tree.findWidget(fx.id));
+  CHECK(scroller->maxScroll() == 20.0f);  // 80 of content in 60
+}

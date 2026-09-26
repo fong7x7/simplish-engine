@@ -330,3 +330,95 @@ TEST_CASE("the layout leaves a manually placed child where it was put") {
   REQUIRE(at(fx.rect(inner), {1.0f, 2.0f, 3.0f, 4.0f}));
   REQUIRE(fx.rect(flowed).y == Approx(0.0f));
 }
+
+TEST_CASE("an auto left margin pushes a child to the end of its row") {
+  FlexFixture fx;
+  fx.rootStyle().direction = FlexDirection::ROW;
+  const GuiWidgetId a = fx.add(fx.root, 50.0f, 20.0f);
+  const GuiWidgetId b = fx.add(fx.root, 50.0f, 20.0f);
+  fx.style(b).margin_auto.left = true;
+  fx.layout();
+  CHECK(fx.rect(a).x == Approx(0.0f));
+  CHECK(fx.rect(b).x == Approx(350.0f));
+}
+
+TEST_CASE("auto margins on both sides centre, and share the room evenly") {
+  FlexFixture fx;
+  fx.rootStyle().direction = FlexDirection::ROW;
+  const GuiWidgetId a = fx.add(fx.root, 100.0f, 20.0f);
+  fx.style(a).margin_auto.left = true;
+  fx.style(a).margin_auto.right = true;
+  fx.layout();
+  CHECK(fx.rect(a).x == Approx(150.0f));
+}
+
+TEST_CASE("auto margins across a line align a child in it") {
+  FlexFixture fx;
+  fx.rootStyle().direction = FlexDirection::ROW;
+  const GuiWidgetId bottom = fx.add(fx.root, 50.0f, 40.0f);
+  const GuiWidgetId middle = fx.add(fx.root, 50.0f, -1.0f);
+  fx.style(bottom).margin_auto.top = true;
+  fx.style(middle).margin_auto.top = true;
+  fx.style(middle).margin_auto.bottom = true;
+  fx.style(middle).min_height = 20.0f;
+  fx.layout();
+  CHECK(fx.rect(bottom).y == Approx(260.0f));
+  // An auto margin across stops the stretch.
+  CHECK(fx.rect(middle).h == Approx(20.0f));
+  CHECK(fx.rect(middle).y == Approx(140.0f));
+}
+
+TEST_CASE("percentage sizes are shares of the parent's content box") {
+  FlexFixture fx;
+  fx.rootStyle().direction = FlexDirection::ROW;
+  fx.rootStyle().padding = {0.0f, 50.0f, 0.0f, 50.0f};
+  fx.rootStyle().align_items = Align::START;
+  const GuiWidgetId quarter = fx.add(fx.root, -1.0f, -1.0f);
+  fx.style(quarter).width_percent = 25.0f;
+  fx.style(quarter).height_percent = 50.0f;
+  fx.layout();
+  CHECK(fx.rect(quarter).w == Approx(75.0f));
+  CHECK(fx.rect(quarter).h == Approx(150.0f));
+}
+
+TEST_CASE("an absolute child's percentages are shares of its parent's box") {
+  FlexFixture fx;
+  const GuiWidgetId badge = fx.add(fx.root, -1.0f, 20.0f);
+  fx.style(badge).position = PositionMode::ABSOLUTE;
+  fx.style(badge).width_percent = 10.0f;
+  fx.style(badge).abs_right = 0.0f;
+  fx.layout();
+  CHECK(fx.rect(badge).w == Approx(40.0f));
+  CHECK(fx.rect(badge).x == Approx(360.0f));
+}
+
+TEST_CASE("pixel snapping rounds placed edges to the step") {
+  FlexFixture fx;
+  fx.tree.pixel_snap = 1.0f;
+  fx.rootStyle().direction = FlexDirection::ROW;
+  fx.rootStyle().justify_content = Align::SPACE_EVENLY;
+  const GuiWidgetId a = fx.add(fx.root, 100.0f, 20.0f);
+  fx.add(fx.root, 100.0f, 20.0f);
+  fx.layout();
+  CHECK(fx.rect(a).x == 67.0f);  // 66.67 rounded
+  CHECK(fx.rect(a).w == 100.0f);
+}
+
+TEST_CASE("updateLayout leaves clean subtrees where they are") {
+  FlexFixture fx;
+  const GuiWidgetId panel = fx.add(fx.root, -1.0f, 100.0f);
+  const GuiWidgetId inner = fx.add(panel, -1.0f, 30.0f);
+  const GuiDrawContext ctx{};
+  fx.tree.updateLayout({0, 0, 400, 300}, ctx);
+  // Moved by hand: a clean tree in the same viewport is not laid out again.
+  fx.tree.findWidget(inner)->rect.x = 5.0f;
+  fx.tree.updateLayout({0, 0, 400, 300}, ctx);
+  CHECK(fx.rect(inner).x == 5.0f);
+  // Marked dirty, it is.
+  fx.tree.markDirty(inner);
+  fx.tree.updateLayout({0, 0, 400, 300}, ctx);
+  CHECK(fx.rect(inner).x == 0.0f);
+  // So is everything when the viewport changes.
+  fx.tree.updateLayout({0, 0, 500, 300}, ctx);
+  CHECK(fx.rect(inner).w == 500.0f);
+}

@@ -39,9 +39,8 @@ constexpr eng::Rect BAR_RECT{0.0f, 28.0f, 1280.0f, TOOLBAR_HEIGHT};
 
 TEST_CASE("the toolbar creates one button per tool") {
   ToolbarFixture fx;
-  // A button per tool, the play button, the two labels, and the spacer
-  // that pushes the status label right.
-  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 4);
+  // A button per tool, the play button, and the two labels.
+  REQUIRE(fx.tree.childCount(fx.toolbar_id) == std::size(EDITOR_TOOLS) + 3);
 }
 
 TEST_CASE("the toolbar's flex row puts the status label at its right end") {

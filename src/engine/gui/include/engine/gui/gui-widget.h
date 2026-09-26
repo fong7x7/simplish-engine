@@ -247,6 +247,9 @@ public:
   /// Border-box size from the last measure pass: the explicit size, or the
   /// content's plus padding, within the min and max. Margins not included.
   LayoutSize tree_measured{};
+  /// The width limit that measurement used, so `updateLayout` knows when
+  /// it still holds.
+  float tree_measured_limit = -2.0f;
   /// Paint and hit-test order among siblings; higher draws later (on top).
   int32_t z_index = 0;
   /// Optional debug label for editors and tests.

@@ -44,8 +44,8 @@ EditorToolbarWidget::EditorToolbarWidget() {
   fill_color = THEME_PANEL;
   border_color = THEME_BORDER;
   border_width = 1.0f;
-  // One row, centred up and down: project name, the tools, Play, a spacer
-  // that takes whatever is left, and the status line at the right.
+  // One row, centred up and down: project name, the tools, Play, and the
+  // status line pushed to the right by its auto margin.
   tree_layout.direction = FlexDirection::ROW;
   tree_layout.align_items = Align::CENTER;
   tree_layout.padding = {0.0f, SIDE_PADDING, 0.0f, SIDE_PADDING};
@@ -78,7 +78,6 @@ void EditorToolbarWidget::wireChildren(GuiWidgetTree& tree) {
 
   wireToolButtons(tree);
   wirePlayButton(tree);
-  wireSpacer(tree);
   wireStatusLabel(tree);
 }
 
@@ -89,16 +88,10 @@ void EditorToolbarWidget::wireStatusLabel(GuiWidgetTree& tree) {
     label->align = GuiLabelAlign::LEFT;
     label->text = status_text_;
     label->overflow = GuiTextOverflow::ELLIPSIS;
-    // The one thing in the row that gives way on a narrow window.
+    // The one thing in the row that gives way on a narrow window; its
+    // auto left margin takes the room left over, pushing it to the end.
     label->tree_layout.width = STATUS_LABEL_WIDTH;
-  }
-}
-
-void EditorToolbarWidget::wireSpacer(GuiWidgetTree& tree) {
-  spacer_ = tree.createWidget(GuiWidgetType::PANEL, bar_panel_);
-  if (auto* spacer = dynamic_cast<GuiPanel*>(tree.findWidget(spacer_))) {
-    spacer->fill_color = GuiColor{0, 0, 0, 0};
-    spacer->tree_layout.flex_grow = 1.0f;
+    label->tree_layout.margin_auto.left = true;
   }
 }
 
@@ -196,8 +189,6 @@ void EditorToolbarWidget::shutdown(GuiWidgetTree& tree) {
   play_button_ = GUI_WIDGET_ID_INVALID;
   tree.destroyWidget(project_label_);
   tree.destroyWidget(status_label_);
-  tree.destroyWidget(spacer_);
-  spacer_ = GUI_WIDGET_ID_INVALID;
   project_label_ = GUI_WIDGET_ID_INVALID;
   status_label_ = GUI_WIDGET_ID_INVALID;
   bar_panel_ = GUI_WIDGET_ID_INVALID;

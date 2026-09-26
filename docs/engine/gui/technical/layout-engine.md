@@ -107,6 +107,8 @@ no relayout.
 | `flex_basis` | `-1` | Main size before growing or shrinking; `-1` is the explicit size, else the measured one. **`0` with `flex_grow` means "take only leftover space"** |
 | `align_self` | `AUTO` | Overrides the parent's `align_items` for this child |
 | `margin` | `0` | Space outside; adds to `gap`, never collapses |
+| `margin_auto` | none | Which margins are `auto`: along the row they share the room left over (`left` alone pushes the item to the end, both centre it); across it they align the item in place of `align_self` |
+| `width_percent`, `height_percent` | `-1` | A share of the parent's content box, winning over `width` / `height`. While measuring, a width percentage is a share of the width the parent gives and a height percentage counts as auto |
 | `position` | `RELATIVE` | `RELATIVE`: in flow. `ABSOLUTE`: out of flow, placed by insets. `MANUAL`: out of flow and never placed (§6) |
 | `abs_x`, `abs_y` | `0` | `ABSOLUTE`: distance from the parent's left/top edge to the margin |
 | `abs_right`, `abs_bottom` | `-1` | `ABSOLUTE`: distance from the right/bottom edge. With an auto size, stretches from `abs_x`/`abs_y` to here. With an explicit size, anchors to that edge |
@@ -169,14 +171,14 @@ bar.padding = {0.0f, 10.0f, 0.0f, 10.0f};
 bar.gap = 4.0f;
 // ... buttons: width 72, height 24, flex_shrink 0 ...
 play.margin.left = 16.0f;                    // extra space before one item
-spacer.flex_grow = 1.0f;                     // an empty GuiPanel with a
-                                             // transparent fill
 status.width = 260.0f;                       // shrink 1: the one that gives
+status.margin_auto.left = true;              // CSS margin-left: auto
 ```
 
-There are no `auto` margins (§8), so a growing spacer does the pushing.
-Pick one item to give way on narrow windows (here the status text) and set
-`flex_shrink = 0` on the rest. See `EditorToolbarWidget`.
+The auto margin takes whatever room the row has left, pushing the status
+text to the end. Pick one item to give way on narrow windows (here the
+status text) and set `flex_shrink = 0` on the rest. See
+`EditorToolbarWidget`.
 
 ### 4.4 Button that sizes to its label
 
@@ -288,9 +290,10 @@ A widget can be laid out on its own, outside `computeLayout`, with
 `tree.measureWidget(id, ctx)` followed by `tree.arrangeWidget(id, rect)`.
 `EditorToolbarWidget::layout` does this for its tests.
 
-`GuiScrollPanel` keeps its own stacking rule. Its children are placed at
-`tree_layout.height` (or `width` sideways), or `item_size`, and are
-flex-laid-out inside that slot.
+`GuiScrollPanel` lays its children out by flexbox along its axis, in a box
+as long as they need, slid back by the scroll. A child with no size of its
+own and nothing measured gets `item_size`. Margins, `gap`, `padding` and
+`align_items` work as in any container.
 
 ## 7. Testing a layout
 
@@ -317,16 +320,25 @@ do, and open the PNG.
 | CSS | Here |
 |---|---|
 | `min-width: auto` (items will not shrink below their content) | `min_width` defaults to `0`. Set it yourself where text must not be squeezed |
-| `margin: auto` | Not supported. Use a `flex_grow` spacer (§4.3) or `justify_content` |
-| Percent and `em` units | Pixels only |
+| `margin: auto` | Supported (`margin_auto`) for free space along the row and alignment across it |
+| Percent units | `width_percent` / `height_percent` only; not for margins, padding or insets |
+| `em`, `rem`, `vw` units | Pixels only |
 | `row-reverse`, `column-reverse`, `order` | Not supported. Order children in the tree |
 | Separate `row-gap` / `column-gap` | One `gap` for both |
-| Text that wraps to the width it is given | Labels measure one line. Wrapped text (`GuiTextArea`) needs an explicit height |
-| `overflow: scroll` on any box | Use `GuiScrollPanel` |
+| Text that wraps to the width it is given | Supported: measuring passes each widget the widest it may be, and a `GuiLabel` with `wrap = WORD` measures as tall as its lines at that width. It does not re-wrap if flex later shrinks it |
+| `overflow: scroll` on any box | Use `GuiScrollPanel`, which lays its children out by flexbox along its axis and scrolls them |
 | Baseline alignment | Not supported |
 
 Other behaviour to know about:
-- There is no partial relayout. `tree_dirty` is cleared by
-  `computeLayout` but not yet used to skip clean subtrees.
-- Positions are not pixel-snapped. Fractional rects are possible with
-  `CENTER` and `SPACE_*`.
+- **Incremental relayout.** `computeLayout` lays out everything.
+  `updateLayout` skips subtrees that are clean (nothing in them
+  `markDirty`-ed) and keep their box, so a change deep in a big screen
+  re-measures its ancestors only. Widgets do not mark themselves: after
+  changing something that changes a widget's size (a label's text, a
+  list's rows), call `tree.markDirty(id)`. Adding or removing a widget
+  marks its parent.
+- **Pixel snapping.** `tree.pixel_snap` rounds every placed edge to a
+  multiple of that many layout pixels. The rendered client sets it to one
+  device pixel, `1 / (density × ui_scale)`, so hairlines and borders stay
+  sharp. It is 0, meaning off, by default, which is why the tests see exact
+  fractions.

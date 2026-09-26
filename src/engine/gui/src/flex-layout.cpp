@@ -85,6 +85,8 @@ namespace {
     Axis main = Axis::X;
     /// Its content box: the border box less the padding.
     Rect content{};
+    /// Layout pixels to round placed edges to; 0 for none.
+    float snap = 0.0f;
   };
 
   Axis mainAxisOf(FlexDirection direction) {
@@ -147,17 +149,61 @@ namespace {
             std::max(0.0f, box.h - edgesAlong(padding, Axis::Y))};
   }
 
+  /// @p style's percentage size along @p axis, as pixels of a parent
+  /// content box @p parent long, or its explicit size when it has none.
+  float explicitIn(const LayoutStyle& style, Axis axis, float parent) {
+    const float pct =
+        axis == Axis::X ? style.width_percent : style.height_percent;
+    return pct >= 0.0f ? parent * pct / 100.0f : explicitAlong(style, axis);
+  }
+
+  /// @p style with its percentage sizes made pixels of @p content.
+  LayoutStyle resolvePercents(LayoutStyle style, const Rect& content) {
+    style.width = explicitIn(style, Axis::X, content.w);
+    style.height = explicitIn(style, Axis::Y, content.h);
+    return style;
+  }
+
+  /// @p rect with its edges rounded to multiples of @p step; unchanged
+  /// for no step.
+  Rect snapRect(const Rect& rect, float step) {
+    if (step <= 0.0f) {
+      return rect;
+    }
+    const float x0 = std::round(rect.x / step) * step;
+    const float y0 = std::round(rect.y / step) * step;
+    const float x1 = std::round((rect.x + rect.w) / step) * step;
+    const float y1 = std::round((rect.y + rect.h) / step) * step;
+    return {x0, y0, x1 - x0, y1 - y0};
+  }
+
+  bool autoLeading(const LayoutAutoMargins& m, Axis axis) {
+    return axis == Axis::X ? m.left : m.top;
+  }
+
+  bool autoTrailing(const LayoutAutoMargins& m, Axis axis) {
+    return axis == Axis::X ? m.right : m.bottom;
+  }
+
   bool inFlow(const GuiWidget& child) {
     return child.visible &&
            child.tree_layout.position == PositionMode::RELATIVE;
   }
 
-  /// @p child's hypothetical main size: its basis, within its min and max.
-  float baseSize(const GuiWidget& child, Axis main) {
-    const LayoutStyle& style = child.tree_layout;
+  /// @p style's size along @p axis: its explicit one, else @p measured's.
+  float naturalAlong(const LayoutStyle& style, const LayoutSize& measured,
+                     Axis axis) {
+    const float size = explicitAlong(style, axis);
+    return size >= 0.0f ? size : along(measured, axis);
+  }
+
+  /// The hypothetical main size of a child styled @p style that measured
+  /// @p measured: its basis, within its min and max.
+  float baseSize(const LayoutStyle& style, const LayoutSize& measured,
+                 Axis main) {
     const float basis = style.flex_basis >= 0.0f
                             ? style.flex_basis
-                            : along(child.tree_measured, main);
+                            : naturalAlong(style, measured, main);
     return clampAlong(style, main, basis);
   }
 
@@ -175,7 +221,9 @@ namespace {
   LayoutSize outerMeasured(const GuiWidget& child, Axis main) {
     const Edges& margin = child.tree_layout.margin;
     const Axis cross = otherAxis(main);
-    return sizeFrom(main, baseSize(child, main) + edgesAlong(margin, main),
+    return sizeFrom(main,
+                    baseSize(child.tree_layout, child.tree_measured, main) +
+                        edgesAlong(margin, main),
                     along(child.tree_measured, cross) +
                         edgesAlong(margin, cross));
   }
@@ -206,22 +254,32 @@ namespace {
     return clampAlong(style, axis, size >= 0.0f ? size : natural);
   }
 
-  /// The in-flow children of @p parent, with their hypothetical sizes.
+  /// @p child as a flex item of @p frame: its percentages resolved against
+  /// the content box, and its hypothetical sizes.
+  FlexItem makeItem(const GuiWidget& child, const FlexFrame& frame) {
+    const Axis cross = otherAxis(frame.main);
+    const LayoutStyle style = resolvePercents(child.tree_layout, frame.content);
+    const float base = baseSize(style, child.tree_measured, frame.main);
+    const float natural = naturalAlong(style, child.tree_measured, cross);
+    return {.id = child.widget_id,
+            .style = style,
+            .base = base,
+            .main = base,
+            .cross = clampAlong(style, cross, natural)};
+  }
+
+  /// The in-flow children of @p parent, their percentages resolved against
+  /// @p frame's content box, with their hypothetical sizes.
   std::vector<FlexItem> collectItems(const GuiWidgetTree& tree,
-                                     const GuiWidget& parent, Axis main) {
+                                     const GuiWidget& parent,
+                                     const FlexFrame& frame) {
     std::vector<FlexItem> items;
     items.reserve(parent.children.size());
     for (const GuiWidgetId id : parent.children) {
       const GuiWidget* child = tree.findWidget(id);
-      if (child == nullptr || !inFlow(*child)) {
-        continue;
+      if (child != nullptr && inFlow(*child)) {
+        items.push_back(makeItem(*child, frame));
       }
-      const float base = baseSize(*child, main);
-      items.push_back({.id = id,
-                       .style = child->tree_layout,
-                       .base = base,
-                       .main = base,
-                       .cross = along(child->tree_measured, otherAxis(main))});
     }
     return items;
   }
@@ -469,19 +527,34 @@ namespace {
     return align == Align::END ? room - size : 0.0f;
   }
 
-  /// Where @p item sits across @p line, and how thick it is.
+  /// How far in an item goes when its auto margins @p autos across share
+  /// @p spare: all of it with only a leading one, half with both, none
+  /// with only a trailing one.
+  float autoLead(const LayoutAutoMargins& autos, Axis cross, float spare) {
+    if (!autoLeading(autos, cross)) {
+      return 0.0f;
+    }
+    return autoTrailing(autos, cross) ? spare * 0.5f : spare;
+  }
+
+  /// Where @p item sits across @p line, and how thick it is: by its auto
+  /// margins when it has any across, else by its alignment.
   Span crossSpan(const FlexItem& item, const FlexLine& line,
                  const FlexFrame& frame) {
     const Axis cross = otherAxis(frame.main);
     const Align align = crossAlignOf(item, frame);
     const float room = line.cross - edgesAlong(item.style.margin, cross);
-    const bool stretches =
-        align == Align::STRETCH && explicitAlong(item.style, cross) < 0.0f;
+    const LayoutAutoMargins& autos = item.style.margin_auto;
+    const bool has_auto =
+        autoLeading(autos, cross) || autoTrailing(autos, cross);
+    const bool stretches = align == Align::STRETCH && !has_auto &&
+                           explicitAlong(item.style, cross) < 0.0f;
     const float size =
         stretches ? clampAlong(item.style, cross, room) : item.cross;
+    const float lead = has_auto ? autoLead(autos, cross, room - size)
+                                : alignWithin(align, room, size);
     return {spanOf(frame.content, cross).start + line.offset +
-                leading(item.style.margin, cross) +
-                alignWithin(align, room, size),
+                leading(item.style.margin, cross) + lead,
             size};
   }
 
@@ -495,21 +568,77 @@ namespace {
     return free_space;
   }
 
-  /// Arrange each item on @p line in turn along the main axis.
+  /// How many auto margins along the main axis @p line's items have.
+  size_t autoMarginsOn(const std::vector<FlexItem>& items, const FlexLine& line,
+                       Axis main) {
+    size_t count = 0;
+    for (size_t i = line.begin; i < line.end; ++i) {
+      count += autoLeading(items[i].style.margin_auto, main) ? 1 : 0;
+      count += autoTrailing(items[i].style.margin_auto, main) ? 1 : 0;
+    }
+    return count;
+  }
+
+  /// How a line's free space is handed out along it.
+  struct LineSpacing {
+    /// Before the first item.
+    float lead = 0.0f;
+    /// Extra between each pair.
+    float between = 0.0f;
+    /// To each auto margin.
+    float share = 0.0f;
+  };
+
+  /// @p line's free space: to its auto margins if it has any, else by
+  /// `justify_content`.
+  LineSpacing lineSpacing(const std::vector<FlexItem>& items,
+                          const FlexLine& line, const FlexFrame& frame) {
+    const float free_space = lineFreeSpace(items, line, frame);
+    const size_t autos = autoMarginsOn(items, line, frame.main);
+    if (autos > 0) {
+      return {0.0f, 0.0f,
+              std::max(free_space, 0.0f) / static_cast<float>(autos)};
+    }
+    const Distribution d = distribute(frame.style.justify_content, free_space,
+                                      line.end - line.begin);
+    return {d.lead, d.between, 0.0f};
+  }
+
+  /// Arrange each item on @p line in turn along the main axis: free space
+  /// to the auto margins if there are any, else by `justify_content`.
   void placeLine(GuiWidgetTree& tree, const std::vector<FlexItem>& items,
                  const FlexLine& line, const FlexFrame& frame) {
-    const Distribution d =
-        distribute(frame.style.justify_content,
-                   lineFreeSpace(items, line, frame), line.end - line.begin);
-    float at = spanOf(frame.content, frame.main).start + d.lead;
+    const LineSpacing spacing = lineSpacing(items, line, frame);
+    float at = spanOf(frame.content, frame.main).start + spacing.lead;
     for (size_t i = line.begin; i < line.end; ++i) {
       const FlexItem& item = items[i];
-      at += leading(item.style.margin, frame.main);
-      const Span cross = crossSpan(item, line, frame);
-      tree.arrangeWidget(item.id, rectFrom(frame.main, {at, item.main}, cross));
+      const LayoutAutoMargins& autos = item.style.margin_auto;
+      at += leading(item.style.margin, frame.main) +
+            (autoLeading(autos, frame.main) ? spacing.share : 0.0f);
+      const Rect placed =
+          rectFrom(frame.main, {at, item.main}, crossSpan(item, line, frame));
+      tree.arrangeWidget(item.id, snapRect(placed, frame.snap));
       at += item.main + trailing(item.style.margin, frame.main) +
-            frame.style.gap + d.between;
+            (autoTrailing(autos, frame.main) ? spacing.share : 0.0f) +
+            frame.style.gap + spacing.between;
     }
+  }
+
+  /// An absolute child styled @p style, inset from both ends of @p box
+  /// along @p axis with no size of its own: stretched between them.
+  Span stretchedSpan(const LayoutStyle& style, Axis axis, Span box) {
+    const float near = axis == Axis::X ? style.abs_x : style.abs_y;
+    const float far = axis == Axis::X ? style.abs_right : style.abs_bottom;
+    const float room = box.length - near - far - edgesAlong(style.margin, axis);
+    return {box.start + near + leading(style.margin, axis),
+            clampAlong(style, axis, room)};
+  }
+
+  /// An absolute @p child's size along @p axis: @p given, its explicit or
+  /// percentage size, within its limits, else its measured one.
+  float absoluteSize(const GuiWidget& child, Axis axis, float given) {
+    return given >= 0.0f ? clampAlong(child.tree_layout, axis, given)
+                         : along(child.tree_measured, axis);
   }
 
   /// Where an absolute @p child sits along @p axis of @p box, and how long
@@ -520,18 +649,17 @@ namespace {
     const LayoutStyle& style = child.tree_layout;
     const float near = axis == Axis::X ? style.abs_x : style.abs_y;
     const float far = axis == Axis::X ? style.abs_right : style.abs_bottom;
-    const float lead = leading(style.margin, axis);
-    const float room = box.length - near - far - edgesAlong(style.margin, axis);
-    if (far >= 0.0f && explicitAlong(style, axis) < 0.0f) {
-      return {box.start + near + lead, clampAlong(style, axis, room)};
+    const float given = explicitIn(style, axis, box.length);
+    if (far >= 0.0f && given < 0.0f) {
+      return stretchedSpan(style, axis, box);
     }
-    const float size = along(child.tree_measured, axis);
+    const float size = absoluteSize(child, axis, given);
     if (far >= 0.0f) {
       return {box.start + box.length - far - trailing(style.margin, axis) -
                   size,
               size};
     }
-    return {box.start + near + lead, size};
+    return {box.start + near + leading(style.margin, axis), size};
   }
 
   /// Arrange @p parent's absolute children within @p box — hidden ones
@@ -546,7 +674,8 @@ namespace {
       }
       const Span x = absoluteSpan(*child, Axis::X, spanOf(box, Axis::X));
       const Span y = absoluteSpan(*child, Axis::Y, spanOf(box, Axis::Y));
-      tree.arrangeWidget(id, rectFrom(Axis::X, x, y));
+      tree.arrangeWidget(id,
+                         snapRect(rectFrom(Axis::X, x, y), tree.pixel_snap));
     }
   }
 
@@ -554,7 +683,12 @@ namespace {
 
 LayoutSize measureBorderBox(const GuiWidgetTree& tree, const GuiWidget& widget,
                             const MeasureLimit& limit) {
-  const LayoutStyle& style = widget.tree_layout;
+  LayoutStyle style = widget.tree_layout;
+  // A width percentage is known while measuring only as a share of the
+  // width the parent gives; a height percentage is not known at all.
+  if (style.width_percent >= 0.0f && limit.max_width >= 0.0f) {
+    style.width = limit.max_width * style.width_percent / 100.0f;
+  }
   const LayoutSize own = widget.measureContent(
       limit.ctx, contentWidthLimit(style, limit.max_width));
   const LayoutSize flow = flowContent(tree, widget);
@@ -562,8 +696,15 @@ LayoutSize measureBorderBox(const GuiWidgetTree& tree, const GuiWidget& widget,
           measureAlong(style, Axis::Y, std::max(own.h, flow.h))};
 }
 
+LayoutSize flowSize(const GuiWidgetTree& tree, const GuiWidget& widget) {
+  return flowContent(tree, widget);
+}
+
 float contentWidthLimit(const LayoutStyle& style, float max_width) {
-  float limit = style.width >= 0.0f ? style.width : max_width;
+  const float own = style.width_percent >= 0.0f && max_width >= 0.0f
+                        ? max_width * style.width_percent / 100.0f
+                        : style.width;
+  float limit = own >= 0.0f ? own : max_width;
   if (style.max_width >= 0.0f) {
     limit = limit < 0.0f ? style.max_width : std::min(limit, style.max_width);
   }
@@ -584,8 +725,9 @@ void arrangeFlexChildren(GuiWidgetTree& tree, const GuiWidget& parent,
                          const Rect& box) {
   const FlexFrame frame{.style = parent.tree_layout,
                         .main = mainAxisOf(parent.tree_layout.direction),
-                        .content = contentBox(box, parent.tree_layout.padding)};
-  std::vector<FlexItem> items = collectItems(tree, parent, frame.main);
+                        .content = contentBox(box, parent.tree_layout.padding),
+                        .snap = tree.pixel_snap};
+  std::vector<FlexItem> items = collectItems(tree, parent, frame);
   if (!items.empty()) {
     std::vector<FlexLine> lines = breakLines(items, frame);
     for (const FlexLine& line : lines) {
