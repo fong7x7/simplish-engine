@@ -38,6 +38,24 @@ namespace {
     return entry.get<float>();
   }
 
+  /// The key reduced motion is kept under.
+  constexpr const char* MOTION_KEY = "reduce_motion";
+
+  /// The motion @p file keeps, or nothing — with why in @p problems — when
+  /// it keeps none or one that is not a boolean.
+  std::optional<GuiMotion> readMotion(const json& file,
+                                      std::vector<std::string>& problems) {
+    if (!file.contains(MOTION_KEY)) {
+      return std::nullopt;
+    }
+    if (!file.at(MOTION_KEY).is_boolean()) {
+      problems.emplace_back("reduce_motion must be true or false");
+      return std::nullopt;
+    }
+    return file.at(MOTION_KEY).get<bool>() ? GuiMotion::REDUCED
+                                           : GuiMotion::FULL;
+  }
+
   /// One effect's switch from @p entry, the value under its word, into
   /// @p effects; a line in @p problems when it is not a boolean.
   void readEffect(const json& entry, WaterEffect effect, WaterEffects& effects,
@@ -111,6 +129,7 @@ EditorGraphicsSettings parseEditorGraphics(const std::string& text,
   settings.water = readWater(file, problems).value_or(settings.water);
   settings.water_effects = readEffects(file, problems);
   settings.ui_scale = readInterface(file, problems).value_or(settings.ui_scale);
+  settings.motion = readMotion(file, problems).value_or(settings.motion);
   return settings;
 }
 
@@ -134,7 +153,8 @@ namespace {
 std::string writeEditorGraphics(const EditorGraphicsSettings& settings) {
   const json file{{WATER_KEY, waterFidelityWord(settings.water)},
                   {EFFECTS_KEY, effectsJson(settings.water_effects)},
-                  {INTERFACE_KEY, settings.ui_scale}};
+                  {INTERFACE_KEY, settings.ui_scale},
+                  {MOTION_KEY, settings.motion == GuiMotion::REDUCED}};
   return file.dump(2) + "\n";
 }
 

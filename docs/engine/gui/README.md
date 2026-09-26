@@ -24,6 +24,8 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 | [text-pipeline.md](technical/text-pipeline.md) | FreeType glyph rasterisation, font atlas, shaping, line breaking | `text-pipeline.cpp`, `shaped-run.cpp`, `gui-font-discovery.cpp` |
 | [rhi-text-draw-path.md](technical/rhi-text-draw-path.md) | How text reaches the RHI | `gui-renderer.cpp` |
 | [theming.md](technical/theming.md) | The typed theme: palette, spacing/radius/type/elevation scales, per-state component styles and their transitions, button variants, theme files — with recipes | `gui-theme.cpp`, `gui-theme-json.cpp`, `gui-state-style.cpp`, `gui-style-transition.cpp` |
+| [motion.md](technical/motion.md) | Easing curves (cubic-bézier, spring), arriving and leaving (`GuiPresence`), layout glides, reduced motion — with recipes | `gui-easing.cpp`, `gui-motion-curves.cpp`, `gui-widget-presence.cpp`, `gui-widget-animator.cpp` |
+| [inspecting.md](technical/inspecting.md) | Seeing what layout did: the layout overlay, `get_widgets`, the widget gallery captures | `gui-layout-overlay.cpp`, `editor-widgets-json.cpp`, `test_gui_gallery_capture.cpp` |
 | [input.md](technical/input.md) | Hit testing, focus, event dispatch, input contexts | `gui-input.cpp` |
 | [overlays.md](technical/overlays.md) | The overlay layer: popover placement, tooltips, modal dialogs, toasts, context menus, the menu bar | `gui-widget-tree-overlay.cpp`, `gui-popover-placement.cpp`, `gui-modal.cpp`, `gui-toasts.cpp`, `gui-menu-bar.cpp` |
 | [dockspace.md](technical/dockspace.md) | Dock region arrangement and config loading | `dockspace-arrange.cpp`, `dockspace-config-loader.cpp`, `gui-dockspace-widget.cpp` |

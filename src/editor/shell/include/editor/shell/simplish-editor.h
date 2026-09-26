@@ -154,6 +154,7 @@
 #include <editor/shell/editor-viewport-widget.h>
 #include <editor/shell/editor-water-depths.h>
 #include <editor/shell/editor-water.h>
+#include <editor/shell/editor-widget-query.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gltf/skinned-model.h>
 #include <engine/gui/gui-toast-kind.h>
@@ -274,6 +275,10 @@ public:
   /// `state().ui_render`.
   void renderUiScreen(std::string_view id, game::UiRenderSize size,
                       const game::UiValues& values);
+
+  /// Describe the editor's own widgets @p query asks for into
+  /// `state().widgets`, as `get_widgets` answers.
+  void describeWidgets(const EditorWidgetQuery& query);
 
   /// Carry out @p command exactly as choosing it from the menu bar would.
   ///
@@ -620,6 +625,9 @@ private:
   /// Open the Controls or Sound screen, or ask for a sound to import;
   /// false for any other command.
   bool runSettingsCommand(EditorMenuCommand command);
+  /// Carry out @p command if it is View › Interface's — a scale, Reduce
+  /// Motion, Show Layout Bounds; whether it was.
+  bool runInterfaceCommand(EditorMenuCommand command);
   /// Build the Sound screen, hidden, over the viewport.
   void initSound(GuiWidgetTree& tree);
   /// Build the layer the game's own screens are drawn in, over the
@@ -1249,6 +1257,14 @@ private:
   /// Switch @p effect of the water on if it is off and off if it is on,
   /// saved with the user's graphics settings.
   void toggleWaterEffect(WaterEffect effect);
+
+  /// Land interface animations at once, or animate again; saved with the
+  /// user's graphics settings.
+  void toggleReducedMotion();
+
+  /// Show every widget's box and the hovered one's box model over the
+  /// interface, or stop; for this session only.
+  void toggleLayoutBounds();
   /// Check the View menu's water and interface rows, apply the interface
   /// scale, and save the graphics settings, when they have changed since
   /// last time.

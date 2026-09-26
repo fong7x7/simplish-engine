@@ -17,4 +17,9 @@ namespace eng::editor {
 AgentResult runAgentSetInterfaceSize(EditorShellState& state,
                                      const nlohmann::json& params);
 
+/// `get_widgets`: have the editor describe its own widgets — all, or
+/// those under one, to a depth. Refused on a depth out of range.
+AgentResult runAgentGetWidgets(EditorShellState& state,
+                               const nlohmann::json& params);
+
 }  // namespace eng::editor

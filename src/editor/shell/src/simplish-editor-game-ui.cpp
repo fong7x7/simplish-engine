@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <editor/project/project-paths.h>
 #include <editor/project/project-text-file.h>
+#include <editor/shell/editor-widgets-json.h>
 #include <editor/shell/simplish-editor.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/core/logger.h>
@@ -192,6 +193,10 @@ bool SimplishEditor::writeUiTheme(std::string_view text) {
   // Shown screens hold the theme they were built in: build them again.
   game_ui_shown_.clear();
   return true;
+}
+
+void SimplishEditor::describeWidgets(const EditorWidgetQuery& query) {
+  state_.widgets = editorWidgetsJson(guiWidgetTree(), query);
 }
 
 void SimplishEditor::renderUiScreen(std::string_view id,

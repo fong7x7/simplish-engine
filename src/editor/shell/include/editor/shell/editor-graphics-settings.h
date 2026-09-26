@@ -5,6 +5,7 @@
 /// @par Threading Main-thread only.
 
 #include <cstdint>
+#include <engine/gui/gui-motion.h>
 #include <engine/render-water/water-effects.h>
 #include <engine/render-water/water-fidelity.h>
 #include <filesystem>
@@ -26,6 +27,9 @@ struct EditorGraphicsSettings {
   /// quarter larger (View › Interface). The whole GUI scales, text
   /// re-rasterized to stay crisp.
   float ui_scale = 1.0f;
+  /// Whether the interface animates, or lands at once (View › Reduce
+  /// Motion).
+  GuiMotion motion = GuiMotion::FULL;
   /// The file they are kept in; empty when there is nowhere to keep them.
   std::filesystem::path file;
   /// Bumped on every change; the editor applies and saves when it moves on

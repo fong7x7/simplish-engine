@@ -9,6 +9,7 @@
 #include "gui-draw-context.h"
 #include "gui-focus-visibility.h"
 #include "gui-input.h"
+#include "gui-layout-overlay.h"
 #include "gui-nav-command.h"
 #include "gui-text-input.h"
 #include "gui-widget.h"
@@ -71,6 +72,10 @@ public:
 
   /// Remove a widget and all its descendants from the tree.
   void destroyWidget(GuiWidgetId id);
+
+  /// Play @p id's leaving to @p to, then destroy it — after the frame's
+  /// updates, never during them. It stops taking the pointer at once.
+  void dismiss(GuiWidgetId id, const GuiPresence& to);
 
   /// Lookup a tree node by id. Returns nullptr if not found.
   GuiWidget* findWidget(GuiWidgetId id);
@@ -215,6 +220,15 @@ public:
 
   /// Per-frame tick for every tree widget.
   void updateAll(const GuiDrawContext& ctx, float dt);
+
+  /// Draw every widget's box and the hovered one's box model over the
+  /// tree: `GuiLayoutOverlay::BOXES` — the editor's View › Show Layout
+  /// Bounds.
+  GuiLayoutOverlay layout_overlay = GuiLayoutOverlay::OFF;
+
+  /// The deepest visible widget under the pointer: what the layout
+  /// overlay inspects. Null when the pointer is over none.
+  [[nodiscard]] const GuiWidget* inspectedWidget() const;
 
   /// The theme @p id is drawn with: its own `subtree_theme`, or its nearest
   /// ancestor's; null when none has one, for the draw context's.
@@ -490,6 +504,8 @@ private:
   void trackTooltip(GuiWidgetId hovered);
   /// Draw the tooltip, when the pointer has rested long enough.
   void renderTooltip(const GuiDrawContext& ctx) const;
+  /// Draw the layout overlay, when it is on.
+  void renderLayoutOverlay(const GuiDrawContext& ctx) const;
 
   /// The overlay layer, once made.
   GuiWidgetId overlay_layer_ = GUI_WIDGET_ID_INVALID;
@@ -516,6 +532,15 @@ private:
   bool drag_moved_ = false;
   /// Monotonic time accumulated from updateAll dt for double-click timing.
   float elapsed_time_ = 0.0f;
+
+  /// Start a glide on every widget with a `layout_glide` that the layout
+  /// just run moved within its parent.
+  void startGlides();
+  /// Start @p widget's glide if the layout moved it, and note where it is.
+  void glideMoved(GuiWidget& widget);
+  /// Widgets whose leaving has finished, destroyed once the frame's
+  /// updates are done.
+  std::vector<GuiWidgetId> dismissed_{};
   /// Elapsed time of the last click (for double-click detection).
   float last_click_time_ = -1.0f;
   /// X coordinate of the last click (for double-click proximity check).

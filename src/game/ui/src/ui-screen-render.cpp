@@ -87,6 +87,10 @@ namespace {
     dynamic_cast<GuiPanel&>(*tree.findWidget(root)).fill_color = {0, 0, 0, 0};
     (void)built.build(tree, root);
     (void)built.apply(tree, values);
+    // A picture shows the screen arrived: every entrance landed.
+    GuiDrawContext still = target.second;
+    still.motion = GuiMotion::REDUCED;
+    tree.updateAll(still, 0.0F);
     tree.computeLayout(target.first, target.second);
     tree.renderAll(target.second);
   }

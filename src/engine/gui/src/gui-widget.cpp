@@ -15,12 +15,13 @@ void GuiWidget::resetTransientState() {
 }
 
 void GuiWidget::update(const GuiDrawContext& ctx, float dt) {
-  animator_.tick(*this, dt);
+  const float step = guiMotionStep(ctx.motion, dt);
+  animator_.tick(*this, step);
   const GuiTheme& theme = ctx.activeTheme();
   if (const GuiStateStyles* styles = activeStyles(theme)) {
     style_transition_.retarget(styles->of(visualState()),
                                theme.transition_seconds);
-    style_transition_.tick(dt);
+    style_transition_.tick(step);
   }
 }
 

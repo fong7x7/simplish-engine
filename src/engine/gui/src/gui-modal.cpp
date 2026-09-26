@@ -55,16 +55,24 @@ bool GuiModal::handleNav(GuiNavCommand command) {
 
 void GuiModal::open(GuiWidgetTree& tree) {
   visible = true;
-  fadeIn(fade_seconds, GuiEasing::EASE_OUT);
+  pointer_through = false;
+  enter({.seconds = fade_seconds, .easing = GuiEasing::EASE_OUT});
+  for (const GuiWidgetId card : children) {
+    tree.findWidget(card)->enter(GUI_PRESENCE_POP);
+  }
   tree.markDirty(widget_id);
   tree.setFocusScope(widget_id);
 }
 
 void GuiModal::close(GuiWidgetTree& tree) {
-  visible = false;
+  pointer_through = true;
   if (tree.focus_scope_id == widget_id) {
     tree.setFocusScope(GUI_WIDGET_ID_INVALID);
   }
+  leave(GuiPresence{.seconds = fade_seconds}.exiting(), [this] {
+    visible = false;
+    opacity = 1.0f;
+  });
 }
 
 GuiWidgetId GuiModal::addCard(GuiWidgetTree& tree, float width) {

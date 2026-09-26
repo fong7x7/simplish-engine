@@ -19,6 +19,8 @@ inline constexpr float UI_BUTTON_RADIUS = 6.0F;
 inline constexpr Edges UI_BUTTON_PADDING{8.0F, 18.0F, 8.0F, 18.0F};
 /// A bar's height, unless the node gives one.
 inline constexpr float UI_BAR_HEIGHT = 10.0F;
+/// How long a menu's nodes take to glide to a new place.
+inline constexpr float UI_MENU_GLIDE_SECONDS = 0.18F;
 /// Nothing: a panel with no fill.
 inline constexpr GuiColor UI_CLEAR{0, 0, 0, 0};
 

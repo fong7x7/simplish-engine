@@ -41,6 +41,26 @@ void SimplishEditor::setInterfaceScale(float scale) {
       "%");
 }
 
+void SimplishEditor::toggleReducedMotion() {
+  GuiMotion& motion = state_.graphics.motion;
+  motion = motion == GuiMotion::REDUCED ? GuiMotion::FULL : GuiMotion::REDUCED;
+  ++state_.graphics.revision;
+  showStatusMessage(motion == GuiMotion::REDUCED ? "Reduce motion: on"
+                                                 : "Reduce motion: off");
+}
+
+void SimplishEditor::toggleLayoutBounds() {
+  GuiLayoutOverlay& overlay = guiWidgetTree().layout_overlay;
+  overlay = overlay == GuiLayoutOverlay::BOXES ? GuiLayoutOverlay::OFF
+                                               : GuiLayoutOverlay::BOXES;
+  if (auto* menu = dynamic_cast<EditorMenuBarWidget*>(
+          guiWidgetTree().findWidget(menu_bar_id_))) {
+    menu->setLayoutOverlay(overlay);
+  }
+  showStatusMessage(overlay == GuiLayoutOverlay::BOXES ? "Layout bounds: on"
+                                                       : "Layout bounds: off");
+}
+
 void SimplishEditor::toggleWaterEffect(WaterEffect effect) {
   bool& on = state_.graphics.water_effects.on[waterEffectIndex(effect)];
   on = !on;
@@ -58,7 +78,9 @@ void SimplishEditor::tickGraphics() {
     menu->setWaterFidelity(state_.graphics.water);
     menu->setWaterEffects(state_.graphics.water_effects);
     menu->setUiScale(state_.graphics.ui_scale);
+    menu->setMotion(state_.graphics.motion);
   }
+  guiContext().motion = state_.graphics.motion;
   // A new scale changes the layout's size, which layoutChrome notices.
   setUiScale(state_.graphics.ui_scale);
   // The first frame only applies what was read; there is nothing new to

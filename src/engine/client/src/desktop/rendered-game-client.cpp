@@ -213,6 +213,7 @@ GuiDrawContext RenderedGameClient::guiDrawContext() const {
   ctx.text_pipeline = gui_.text_pipeline.get();
   ctx.face_id = guiTextFaceId();
   ctx.theme = &gui_.theme;
+  ctx.motion = gui_.motion;
   return ctx;
 }
 

@@ -52,8 +52,11 @@ TEST_CASE("an open modal blocks the pointer from what is under it") {
   fx.tree.dispatchMouseDown({.x = 20, .y = 20});
   fx.tree.dispatchMouseUp({.x = 20, .y = 20});
   CHECK(fx.pressed_under == 0);
-  // The click landed on the backdrop, which dismisses.
+  // The click landed on the backdrop, which dismisses: at once for the
+  // pointer, and out of sight when its fade ends.
   CHECK(fx.dismissed == 1);
+  CHECK(fx.modal->pointer_through);
+  fx.tree.updateAll({}, 1.0f);
   CHECK_FALSE(fx.modal->visible);
 }
 
@@ -67,4 +70,25 @@ TEST_CASE("a click on the card does not dismiss; CANCEL does unless NEVER") {
   fx.modal->dismiss = GuiModalDismiss::CANCEL_ONLY;
   CHECK(fx.modal->handleNav(GuiNavCommand::CANCEL));
   CHECK(fx.dismissed == 1);
+}
+
+TEST_CASE("an opening modal's card pops up to rest") {
+  ModalFixture fx;
+  const GuiWidget& card = *fx.tree.findWidget(fx.card);
+  CHECK(card.render_scale == GUI_PRESENCE_POP.scale);
+  CHECK(card.opacity == 0.0f);
+  fx.tree.updateAll({}, 1.0f);
+  CHECK(card.render_scale == 1.0f);
+  CHECK(card.opacity == 1.0f);
+}
+
+TEST_CASE("with reduced motion, a modal lands and leaves in one frame") {
+  ModalFixture fx;
+  GuiDrawContext still;
+  still.motion = GuiMotion::REDUCED;
+  fx.tree.updateAll(still, 0.001f);
+  CHECK(fx.tree.findWidget(fx.card)->opacity == 1.0f);
+  fx.modal->close(fx.tree);
+  fx.tree.updateAll(still, 0.001f);
+  CHECK_FALSE(fx.modal->visible);
 }

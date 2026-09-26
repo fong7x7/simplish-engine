@@ -198,3 +198,26 @@ TEST_CASE("a built screen lists its named nodes, with their flags") {
   CHECK(nodes[3].rect.w == 190.0F);
   CHECK(s.view.buttons(s.tree).size() == 3);
 }
+
+TEST_CASE("a menu pops up and its nodes glide; a HUD only fades in") {
+  Settings s;
+  const GuiWidget& card =
+      *s.tree.findWidget(s.tree.findWidget(s.view.overlay())->children.front());
+  CHECK(card.render_scale == GUI_PRESENCE_POP.scale);
+  CHECK(s.byId("done").layout_glide > 0.0F);
+  s.tree.updateAll({}, 1.0F);
+  CHECK(card.render_scale == 1.0F);
+  CHECK(card.opacity == 1.0F);
+
+  GuiWidgetTree tree;
+  const GuiWidgetId root =
+      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
+  UiScreenView hud(*parseUiScreen(R"({"layer": "hud", "root":
+      {"type": "label", "text": "{score}", "id": "score"}})",
+                                  "hud")
+                        .screen,
+                   [](std::string_view) {});
+  (void)hud.build(tree, root);
+  CHECK(tree.findById("score")->layout_glide == 0.0F);
+  CHECK(tree.findById("score")->render_scale == 1.0F);
+}

@@ -231,7 +231,8 @@ function. After editing a `GuiTheme` in code, call `deriveComponents()`.
   literal that only looks right in one theme.
 - **Interaction goes through flags** (`disabled`, `selected`), never by
   swapping styles by hand each tick. The transition only animates a change
-  of state.
+  of state, and lands at once under reduced motion
+  ([motion.md §4](motion.md#4-reduced-motion)).
 - **Elevation draws a shadow.** `drawBox` draws the theme's `shadow(elevation)`
   under any filled style that is raised; `GuiDropdown` does, from
   `theme.menu`.

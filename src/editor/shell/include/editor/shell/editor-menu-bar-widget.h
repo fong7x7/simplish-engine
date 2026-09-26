@@ -51,6 +51,8 @@
 #include <editor/shell/editor-play-mode.h>
 #include <editor/shell/editor-playtest-clock.h>
 #include <engine/gui/gui-dropdown.h>
+#include <engine/gui/gui-layout-overlay.h>
+#include <engine/gui/gui-motion.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-widget-id.h>
@@ -152,6 +154,12 @@ public:
   /// Check the View › Interface row whose scale is @p scale, if any.
   void setUiScale(float scale);
 
+  /// Check View › Reduce Motion when @p motion is REDUCED.
+  void setMotion(GuiMotion motion);
+
+  /// Check View › Show Layout Bounds when @p overlay draws boxes.
+  void setLayoutOverlay(GuiLayoutOverlay overlay);
+
   /// Check each water effect row whose effect @p effects draws.
   void setWaterEffects(const WaterEffects& effects);
 
@@ -236,8 +244,13 @@ private:
   [[nodiscard]] bool playtestChecked(EditorMenuCommand command) const;
 
   /// Whether @p command is a water row showing the fidelity or an effect
-  /// the user has chosen; otherwise what `playtestChecked` says.
+  /// the user has chosen; otherwise what `interfaceChecked` says.
   [[nodiscard]] bool waterChecked(EditorMenuCommand command) const;
+
+  /// Whether @p command is an interface row showing the scale, reduced
+  /// motion or layout bounds the user has chosen; otherwise what
+  /// `playtestChecked` says.
+  [[nodiscard]] bool interfaceChecked(EditorMenuCommand command) const;
 
   /// Menus in left-to-right order.
   std::vector<Menu> menus_{};
@@ -267,6 +280,10 @@ private:
   float ui_scale_ = 1.0f;
   /// Which water effect rows are checked.
   WaterEffects water_effects_{};
+  /// Whether Reduce Motion is checked.
+  GuiMotion motion_ = GuiMotion::FULL;
+  /// Whether Show Layout Bounds is checked.
+  GuiLayoutOverlay layout_overlay_ = GuiLayoutOverlay::OFF;
   /// Whether the history has an applied action for Undo to revert.
   bool can_undo_ = false;
   /// Whether the history has a reverted action for Redo to reapply.

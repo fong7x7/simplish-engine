@@ -33,6 +33,9 @@ namespace {
         kind == AgentHostRequestKind::WRITE_UI_THEME) {
       return agentUiScreensJson(state);
     }
+    if (kind == AgentHostRequestKind::DESCRIBE_WIDGETS) {
+      return state.widgets;
+    }
     return kind == AgentHostRequestKind::RENDER_UI_SCREEN
                ? agentUiRenderJson(state)
                : agentStateJson(state);

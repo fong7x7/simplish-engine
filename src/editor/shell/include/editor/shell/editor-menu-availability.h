@@ -61,6 +61,8 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::SET_INTERFACE_NORMAL,
     EditorMenuCommand::SET_INTERFACE_LARGE,
     EditorMenuCommand::SET_INTERFACE_LARGER,
+    EditorMenuCommand::TOGGLE_REDUCED_MOTION,
+    EditorMenuCommand::TOGGLE_LAYOUT_BOUNDS,
 };
 
 /// Whether @p command names work that exists at all.

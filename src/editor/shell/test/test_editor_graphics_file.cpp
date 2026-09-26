@@ -106,3 +106,22 @@ TEST_CASE("a graphics file with an interface scale out of range keeps 1") {
   REQUIRE(problems.size() == 1);
   CHECK(problems.front() == "interface_scale must be a number from 0.5 to 3");
 }
+
+TEST_CASE("reduced motion survives being written and read back") {
+  EditorGraphicsSettings settings{};
+  settings.motion = GuiMotion::REDUCED;
+  std::vector<std::string> problems;
+  const EditorGraphicsSettings read =
+      parseEditorGraphics(writeEditorGraphics(settings), problems);
+  CHECK(problems.empty());
+  CHECK(read.motion == GuiMotion::REDUCED);
+}
+
+TEST_CASE("a graphics file that gets reduced motion wrong animates") {
+  std::vector<std::string> problems;
+  const EditorGraphicsSettings read =
+      parseEditorGraphics(R"({"reduce_motion": "yes"})", problems);
+  CHECK(read.motion == GuiMotion::FULL);
+  REQUIRE(problems.size() == 1);
+  CHECK(problems.front() == "reduce_motion must be true or false");
+}

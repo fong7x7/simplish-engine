@@ -48,6 +48,7 @@ void GuiWidgetTree::computeLayout(const Rect& viewport,
   }
   measureWidget(root_id, ctx, viewport.w);
   arrangeWidget(root_id, viewport);
+  startGlides();
   clearDirtyFlags();
 }
 

@@ -108,6 +108,8 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "set_interface_normal",
     "set_interface_large",
     "set_interface_larger",
+    "toggle_reduced_motion",
+    "toggle_layout_bounds",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==

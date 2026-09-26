@@ -10,6 +10,7 @@
 #include "gui-color.h"
 #include "gui-corners.h"
 #include "gui-font.h"
+#include "gui-motion.h"
 #include "gui-nine-slice.h"
 #include "gui-rect-paint.h"
 #include "gui-renderer.h"
@@ -54,6 +55,9 @@ public:
   uint32_t face_id = 0;
   /// The theme widgets draw from (not owned); null for `GuiTheme::dark()`.
   const GuiTheme* theme = nullptr;
+  /// Whether widgets animate, or land at once: the reduced-motion
+  /// preference, `GuiContext::motion`.
+  GuiMotion motion = GuiMotion::FULL;
 
   /// The theme to draw from: `theme`, or the dark preset without one.
   [[nodiscard]] const GuiTheme& activeTheme() const;

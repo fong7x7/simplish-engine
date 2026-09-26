@@ -230,7 +230,7 @@ The host sets it for one tick when a button is pressed; the world turns it into 
 
 Every table read — opening a project, a rescan — reads `content/ui/`, logging each problem. A playtest's content carries the screen ids and the action list, and a bake (the logic check, a deploy) copies `content/ui/` beside the data tables.
 
-While playing, the game's screens are drawn over the viewport in a layer of their own, rebuilt when the logic changes which are shown and filled in as it sets values:
+While playing, the game's screens are drawn over the viewport in a layer of their own, rebuilt when the logic changes which are shown and filled in as it sets values. A menu pops up over its fading scrim and its nodes glide aside as a binding shows or hides one; a HUD fades in and keeps still ([motion.md](../engine/gui/technical/motion.md)) — all of it at once under View › Reduce Motion. A screen answers to:
 
 - **Mouse:** click a button.
 - **Keyboard:** while a menu is on top, the arrows move between its buttons, Tab steps through them, and Return or Space presses the focused one. Other keys still reach the game.
@@ -281,5 +281,5 @@ In the engine, `game/ui`'s tests build screens into a bare `GuiWidgetTree` and l
 - A button's text size and weight past its `role`: only a label takes `size` and `weight`.
 - Images, sliders, text fields, tabs, lists: the format names panels, labels, buttons, bars, spacers, checkboxes and toggles.
 - Named styles shared between nodes, and a node repeated for each item of a list value.
-- Transitions: a screen appears and goes at once.
+- Exit transitions: a screen pops in, but goes at once when the logic hides it.
 - Per-player screens in split-screen co-op: every screen is shown to everyone, and a choice is player 1's in the editor.

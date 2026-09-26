@@ -354,7 +354,7 @@ void GuiTextInput::renderSelectionHighlight(const GuiDrawContext& ctx,
                      GuiColor::applyOpacity(selectionBgColor(ctx), opacity));
   std::string_view sel_str{buffer_.data() + lo, hi - lo};
   ctx.drawText(GuiColor::applyOpacity(selectionTextColor(ctx), opacity),
-               {x0, rect.y + INPUT_TEXT_VPAD}, sel_str);
+               {x0, textTop(ctx)}, sel_str);
 }
 
 void GuiTextInput::renderCursorLine(const GuiDrawContext& ctx,
@@ -379,13 +379,13 @@ void GuiTextInput::renderPlaceholder(const GuiDrawContext& ctx,
   }
   const GuiColor tc =
       GuiColor::applyOpacity(ctx.activeTheme().palette.text_muted, opacity);
-  ctx.drawText(tc, {text_x, rect.y + INPUT_TEXT_VPAD}, placeholder);
+  ctx.drawText(tc, {text_x, textTop(ctx)}, placeholder);
 }
 
 void GuiTextInput::renderTextAndCursor(const GuiDrawContext& ctx) const {
   float text_x = rect.x + INPUT_TEXT_PAD;
   if (!buffer_.empty()) {
-    ctx.drawText(textColor(ctx), {text_x, rect.y + INPUT_TEXT_VPAD}, buffer_);
+    ctx.drawText(textColor(ctx), {text_x, textTop(ctx)}, buffer_);
   }
   renderPlaceholder(ctx, text_x);
   renderSelectionHighlight(ctx, text_x);
@@ -394,7 +394,13 @@ void GuiTextInput::renderTextAndCursor(const GuiDrawContext& ctx) const {
 
 LayoutSize GuiTextInput::measureContent(const GuiDrawContext& ctx,
                                         float /*max_width*/) const {
-  return {0.0f, ctx.textLineHeight()};
+  return {0.0f, ctx.textLineHeight() + INPUT_TEXT_VPAD * 2.0f};
+}
+
+float GuiTextInput::textTop(const GuiDrawContext& ctx) const {
+  // Centred up and down in a box taller than a line, as a field's text is.
+  return rect.y +
+         std::max(INPUT_TEXT_VPAD, (rect.h - ctx.textLineHeight()) * 0.5f);
 }
 
 void GuiTextInput::render(const GuiDrawContext& ctx) const {

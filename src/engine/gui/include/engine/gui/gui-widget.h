@@ -4,11 +4,13 @@
 /// @brief Abstract base for interactive GUI widgets (tree nodes and overlays).
 /// Tree identity: `gui-widget-id.h`; widget kind: `gui-widget-type.h`.
 
+#include "draw-pos.h"
 #include "gui-animation.h"
 #include "gui-draw-context.h"
 #include "gui-focus-change.h"
 #include "gui-mouse-event.h"
 #include "gui-nav-command.h"
+#include "gui-presence.h"
 #include "gui-rect.h"
 #include "gui-scroll-event.h"
 #include "gui-state-styles.h"
@@ -190,6 +192,23 @@ public:
   /// Animate opacity from current to 0 over the given duration.
   void fadeOut(float duration, GuiEasing easing);
 
+  /// Arrive: jump to @p from — faded, scaled, offset — and animate to
+  /// rest, fully opaque, at scale 1, not offset. Layout is untouched.
+  void enter(const GuiPresence& from);
+
+  /// Go: animate from where it is drawn now to @p to, then call @p done
+  /// (to hide it, or destroy it: `GuiWidgetTree::dismiss`).
+  void leave(const GuiPresence& to, std::function<void()> done);
+
+  /// Draw it at @p dx, @p dy from where it is laid out, and ease back:
+  /// how a `layout_glide` starts. Layout and hit testing are unchanged.
+  void glideFrom(float dx, float dy);
+
+  /// Where this widget's children are placed from: its top-left, or, for
+  /// one that scrolls, its content's scrolled top-left. A child whose
+  /// place from here changed moved; one scrolled along did not.
+  [[nodiscard]] virtual DrawPos contentOrigin() const;
+
   /// Animate rect to the target position/size over the given duration.
   void slideTo(const Rect& target, float duration, GuiEasing easing);
 
@@ -234,6 +253,17 @@ public:
   bool focused = false;
   /// This widget's own look in every state, in place of the theme's.
   std::optional<GuiStateStyles> state_styles{};
+  /// Seconds it glides to a new place when a layout moves it within its
+  /// parent — a list reordering, a row inserted above it — instead of
+  /// jumping; 0 to jump. Only where it is drawn moves: layout and hit
+  /// testing see the new place at once. Its size never animates.
+  float layout_glide = 0.0f;
+  /// The curve a glide follows.
+  GuiEasing layout_glide_easing = GuiEasing::EMPHASIZED;
+  /// Where it was, from its parent's `contentOrigin`, when last laid out;
+  /// kept by the tree for a glide to start from. Nothing before its first
+  /// layout.
+  std::optional<DrawPos> laid_out_at{};
   /// The theme this widget and its subtree are measured, animated and
   /// drawn with, in place of the draw context's: a game's screen inside
   /// the editor. Null to inherit.

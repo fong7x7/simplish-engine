@@ -175,3 +175,19 @@ TEST_CASE("a checkbox's and a toggle's actions are listed with the buttons") {
   CHECK(read["screens"][1]["buttons"].size() == 2);
   CHECK(read["actions"] == json::array({"hard", "music", "quit", "resume"}));
 }
+
+TEST_CASE("get_widgets asks the editor to describe what it was asked for") {
+  EditorShellState state = withPauseMenu();
+
+  const AgentResult asked = ok(state, "get_widgets",
+                               R"({"under": "toolbar", "depth": 2,
+                                   "hidden": true})");
+  const AgentResult deep =
+      runAgentTool(state, "get_widgets", R"({"depth": 99})");
+
+  CHECK(asked.host.kind == AgentHostRequestKind::DESCRIBE_WIDGETS);
+  CHECK(asked.host.widgets.under == "toolbar");
+  CHECK(asked.host.widgets.depth == 2);
+  CHECK(asked.host.widgets.hidden);
+  CHECK(deep.status == AgentStatus::BAD_PARAMS);
+}

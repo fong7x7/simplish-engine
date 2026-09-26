@@ -184,6 +184,8 @@ enum class AgentTool : uint8_t {
   PRESS_UI,
   /// Draw the editor's own interface larger or smaller.
   SET_INTERFACE_SIZE,
+  /// The editor's own widgets: where each is laid out, and its flags.
+  GET_WIDGETS,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -269,6 +271,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::RENDER_UI_SCREEN,
     AgentTool::PRESS_UI,
     AgentTool::SET_INTERFACE_SIZE,
+    AgentTool::GET_WIDGETS,
 };
 
 }  // namespace eng::editor

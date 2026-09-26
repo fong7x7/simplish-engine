@@ -58,6 +58,10 @@ struct MenuCapture {
     ctx.renderer = &renderer;
     ctx.text_pipeline = &font.pipeline;
     ctx.face_id = font.face_id;
+    // The capture is of the menu once it has dropped in.
+    eng::GuiDrawContext still = ctx;
+    still.motion = eng::GuiMotion::REDUCED;
+    tree.updateAll(still, 0.0f);
     tree.visitDrawOrder([&ctx](const eng::GuiWidget& widget) {
       if (widget.visible) {
         widget.render(ctx);

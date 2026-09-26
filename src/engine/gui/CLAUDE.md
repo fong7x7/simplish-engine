@@ -73,5 +73,14 @@ root — gitignored artifacts, not fixtures to commit.
   gets `widget.subtree_theme`; the tree scopes measuring, updating and
   drawing to it. Draw through `tree.renderAll(ctx)` — walking
   `visitDrawOrder` yourself skips the scoping.
+- Motion goes through `enter` / `leave` / `tree.dismiss` (a `GuiPresence`)
+  and `layout_glide`, which animate drawing only, and respects
+  `ctx.motion` (reduced motion) —
+  [technical/motion.md](../../../docs/engine/gui/technical/motion.md). A
+  still capture lands animations first (`updateAll` with REDUCED).
+- To see what layout did: `tree.layout_overlay`, the editor's `get_widgets`,
+  and the widget gallery captures (`ctest -R gallery`) —
+  [technical/inspecting.md](../../../docs/engine/gui/technical/inspecting.md).
+  Add a new widget to the gallery.
 - `image-loader.cpp` calls stb, whose implementation TUs live in
   `engine/image/` — see the root CLAUDE.md for why.

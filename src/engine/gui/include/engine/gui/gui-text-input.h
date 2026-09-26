@@ -194,6 +194,9 @@ private:
 
   /// Draw placeholder text when the buffer is empty.
   void renderPlaceholder(const GuiDrawContext& ctx, float text_x) const;
+  /// Where its line of text starts down: centred in its box, and never
+  /// nearer the top than its padding.
+  [[nodiscard]] float textTop(const GuiDrawContext& ctx) const;
 
   /// Draw the blinking cursor line at cursor_pos_.
   void renderCursorLine(const GuiDrawContext& ctx, float text_x) const;

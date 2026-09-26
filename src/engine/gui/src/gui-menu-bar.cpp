@@ -119,6 +119,9 @@ void GuiMenuBar::buildScrim(GuiWidgetTree& tree) {
 }
 
 void GuiMenuBar::open(GuiWidgetTree& tree, int index) {
+  // A menu drops in when the bar opens; moving across the titles swaps
+  // menus at once, as a desktop menu bar does.
+  const bool arriving = open_ < 0;
   close(tree);
   if (index < 0 || std::cmp_greater_equal(index, dropdowns_.size())) {
     return;
@@ -128,6 +131,9 @@ void GuiMenuBar::open(GuiWidgetTree& tree, int index) {
   auto& menu = *dynamic_cast<GuiDropdown*>(tree.findWidget(dropdowns_[i]));
   menu.popUp(tree.findWidget(titles_[i])->rect, viewport,
              {.side = GuiPopoverSide::BELOW, .gap = 2.0f});
+  if (arriving) {
+    menu.enter(GUI_PRESENCE_DROP);
+  }
   tree.findWidget(titles_[i])->selected = true;
   tree.findWidget(scrim_)->visible = true;
   open_ = index;

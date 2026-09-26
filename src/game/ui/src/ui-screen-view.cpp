@@ -59,10 +59,13 @@ GuiWidgetId UiScreenView::build(GuiWidgetTree& tree, GuiWidgetId parent) {
   cover.subtree_theme = theme_;
   overlay_ = cover.widget_id;
   buildNode(tree, overlay_, screen_.root);
+  GuiWidget& root = *tree.findWidget(cover.children.front());
   if (screen_.anchor == UiAnchor::FILL) {
-    tree.findWidget(tree.findWidget(overlay_)->children.front())
-        ->tree_layout.flex_grow = 1.0F;
+    root.tree_layout.flex_grow = 1.0F;
   }
+  // A menu pops up over its dimming; a HUD fades in over play.
+  cover.enter(GUI_PRESENCE_FADE);
+  root.enter(menu ? GUI_PRESENCE_POP : GUI_PRESENCE_FADE);
   (void)apply(tree, {});
   return overlay_;
 }
@@ -91,8 +94,12 @@ void UiScreenView::buildNode(GuiWidgetTree& tree, GuiWidgetId parent,
   GuiWidget& widget = *tree.findWidget(made);
   styleUiWidget(widget, node);
   widget.id = node.id;
-  // A HUD takes no input: the pointer goes through it to the game.
+  // A HUD takes no input: the pointer goes through it to the game. A
+  // menu's nodes glide aside as a bound one shows or hides; a HUD's, whose
+  // values change every tick, keep still.
   widget.pointer_through = screen_.layer == UiScreenLayer::HUD;
+  widget.layout_glide =
+      screen_.layer == UiScreenLayer::MENU ? UI_MENU_GLIDE_SECONDS : 0.0F;
   track(made, node);
   for (const UiNode& child : node.children) {
     buildNode(tree, made, child);

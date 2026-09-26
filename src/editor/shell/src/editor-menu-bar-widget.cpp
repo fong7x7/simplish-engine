@@ -104,6 +104,8 @@ namespace {
       EditorMenuCommand::SET_INTERFACE_NORMAL,
       EditorMenuCommand::SET_INTERFACE_LARGE,
       EditorMenuCommand::SET_INTERFACE_LARGER,
+      EditorMenuCommand::TOGGLE_REDUCED_MOTION,
+      EditorMenuCommand::TOGGLE_LAYOUT_BOUNDS,
   };
 
   /// The project's levels are spliced in after New Level, so Play Level
@@ -403,14 +405,24 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
 }
 
 bool EditorMenuBarWidget::waterChecked(EditorMenuCommand command) const {
-  if (const int size = editorInterfaceSizeOf(command); size >= 0) {
-    return EDITOR_INTERFACE_SCALES[size] == ui_scale_;
-  }
   if (const int water = editorWaterFidelityOf(command); water >= 0) {
     return WATER_FIDELITIES[water] == water_;
   }
   if (const int effect = editorWaterEffectOf(command); effect >= 0) {
     return water_effects_.on[static_cast<size_t>(effect)];
+  }
+  return interfaceChecked(command);
+}
+
+bool EditorMenuBarWidget::interfaceChecked(EditorMenuCommand command) const {
+  if (const int size = editorInterfaceSizeOf(command); size >= 0) {
+    return EDITOR_INTERFACE_SCALES[size] == ui_scale_;
+  }
+  if (command == EditorMenuCommand::TOGGLE_REDUCED_MOTION) {
+    return motion_ == GuiMotion::REDUCED;
+  }
+  if (command == EditorMenuCommand::TOGGLE_LAYOUT_BOUNDS) {
+    return layout_overlay_ == GuiLayoutOverlay::BOXES;
   }
   return playtestChecked(command);
 }
@@ -448,6 +460,22 @@ void EditorMenuBarWidget::setUiScale(float scale) {
     return;
   }
   ui_scale_ = scale;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setMotion(GuiMotion motion) {
+  if (motion_ == motion) {
+    return;
+  }
+  motion_ = motion;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setLayoutOverlay(GuiLayoutOverlay overlay) {
+  if (layout_overlay_ == overlay) {
+    return;
+  }
+  layout_overlay_ = overlay;
   items_dirty_ = true;
 }
 
@@ -514,12 +542,19 @@ void EditorMenuBarWidget::requestMenu(int index) {
 
 void EditorMenuBarWidget::openMenu(GuiWidgetTree& tree, int index) {
   const auto count = static_cast<int>(menus_.size());
+  const bool arriving = open_menu_ < 0;
   open_menu_ = (index >= 0 && index < count) ? index : -1;
   for (size_t i = 0; i < menus_.size(); ++i) {
     showMenu(tree, i);
   }
   if (auto* panel = tree.findWidget(scrim_)) {
     panel->visible = open_menu_ >= 0;
+  }
+  // A menu drops in when the bar opens; moving across the titles swaps
+  // menus at once, as a desktop menu bar does.
+  if (arriving && open_menu_ >= 0) {
+    const auto open = static_cast<size_t>(open_menu_);
+    tree.findWidget(menus_[open].dropdown)->enter(GUI_PRESENCE_DROP);
   }
 }
 

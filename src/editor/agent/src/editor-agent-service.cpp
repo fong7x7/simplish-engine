@@ -15,17 +15,19 @@ namespace eng::editor {
 namespace {
 
   /// Whether @p kind is one `runProjectRequest` carries out: a menu command
-  /// or a rescan. The rest are nothing, or done by `runLevelRequest` or
-  /// `runPresentationRequest`. Listed rather than defaulted, so a kind
-  /// added to the enum fails the build here until it is placed.
+  /// or a rescan. The rest are nothing, or done by `runLevelRequest`,
+  /// `runPresentationRequest` or `runInterfaceRequest`. Listed rather than
+  /// defaulted, so a kind added to the enum fails the build here until it is
+  /// placed.
   constexpr bool isProjectRequest(AgentHostRequestKind kind) {
     switch (kind) {
       case AgentHostRequestKind::RUN_COMMAND:
       case AgentHostRequestKind::RESCAN_ASSETS:
+        return true;
       case AgentHostRequestKind::WRITE_UI_SCREEN:
       case AgentHostRequestKind::RENDER_UI_SCREEN:
       case AgentHostRequestKind::WRITE_UI_THEME:
-        return true;
+      case AgentHostRequestKind::DESCRIBE_WIDGETS:
       case AgentHostRequestKind::NONE:
       case AgentHostRequestKind::OPEN_PROJECT:
       case AgentHostRequestKind::CREATE_PROJECT:
@@ -128,21 +130,30 @@ void EditorAgentService::runProjectRequest(const AgentHostRequest& request) {
   }
   if (request.kind == AgentHostRequestKind::RUN_COMMAND) {
     editor_->runMenuCommand(request.command);
-  } else if (request.kind == AgentHostRequestKind::WRITE_UI_SCREEN) {
+  } else {
+    editor_->rescanAssets();
+  }
+}
+
+bool EditorAgentService::runInterfaceRequest(const AgentHostRequest& request) {
+  if (request.kind == AgentHostRequestKind::WRITE_UI_SCREEN) {
     (void)editor_->writeUiScreen(request.name, request.text);
   } else if (request.kind == AgentHostRequestKind::WRITE_UI_THEME) {
     (void)editor_->writeUiTheme(request.text);
   } else if (request.kind == AgentHostRequestKind::RENDER_UI_SCREEN) {
     editor_->renderUiScreen(request.name, {request.width, request.height},
                             editorUiValuesFromJson(request.text));
+  } else if (request.kind == AgentHostRequestKind::DESCRIBE_WIDGETS) {
+    editor_->describeWidgets(request.widgets);
   } else {
-    editor_->rescanAssets();
+    return false;
   }
+  return true;
 }
 
 void EditorAgentService::runHostRequest(const AgentHostRequest& request) {
   if (editor_ == nullptr || runLevelRequest(request) ||
-      runPresentationRequest(request)) {
+      runPresentationRequest(request) || runInterfaceRequest(request)) {
     return;
   }
   runProjectRequest(request);

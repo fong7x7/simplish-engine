@@ -6,6 +6,7 @@
 /// @par Threading Main thread only.
 
 #include <cstdint>
+#include <engine/gui/gui-motion.h>
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-renderer.h>
 #include <engine/gui/gui-theme.h>
@@ -27,6 +28,9 @@ public:
   /// The theme every widget draws from; `GuiTheme::dark()` until one is
   /// applied.
   GuiTheme theme = GuiTheme::dark();
+  /// Whether widgets animate, or land at once: the user's reduced-motion
+  /// preference, carried to every draw context.
+  GuiMotion motion = GuiMotion::FULL;
   /// Owned text pipeline context for font rendering.
   std::unique_ptr<TextPipelineContext> text_pipeline{};
   /// Owned GUI renderer context for draw submission.

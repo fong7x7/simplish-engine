@@ -82,6 +82,10 @@ public:
   /// How far one notch of the wheel scrolls, in pixels.
   float wheel_step = 40.0f;
 
+  /// Its content's scrolled top-left: a child scrolled along has not
+  /// moved, so does not glide.
+  [[nodiscard]] DrawPos contentOrigin() const override;
+
 private:
   /// Give each child with no size of its own along the axis, and nothing
   /// measured, `item_size`.

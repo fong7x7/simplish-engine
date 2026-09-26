@@ -2,7 +2,7 @@
 
 **Parent document:** [Editor REQUIREMENTS](REQUIREMENTS.md)
 **Version:** 1.0
-**Status:** Built — 77 tools, HTTP transport, MCP bridge
+**Status:** Built — 78 tools, HTTP transport, MCP bridge
 **Last Updated:** 2026-09-09
 
 The editor answers to an agent the same way it answers to a person: through
@@ -185,6 +185,7 @@ each one's parameters; this table is the map.
 | `get_log` | The editor's recent log, numbered: lines at or above a level, from a sequence on, optionally one subsystem's |
 | `get_build` | The project's own C++ game logic ([logic.md](../game/logic.md)) and the game it deploys to: whether it has logic and where its source is, whether a build is loaded and whether the source has changed since (`logic_stale`), why a library would not load, the logic API version, the toolchain the editor builds with, where the last deploy went, and the last build — `logic` or `deploy`, `idle`/`running`/`succeeded`/`failed`, a count of builds to tell yours from the last, its log file, the lines naming an error, and its last lines. `run_command` runs `new_game_logic`, `build_game_logic` and `deploy_game`; poll this to see them finish |
 | `get_ui_screens` | The game's own screens ([ui.md](../game/ui.md)): each one's id, layer and buttons, the action list, the theme's name, and every screen file's and the theme's problems |
+| `get_widgets` | The editor's own widget tree as laid out this frame — each widget's type, id, name, rect and flags — from one widget (`under`) to a `depth` ([inspecting.md](../engine/gui/technical/inspecting.md)) |
 
 ### Editing
 

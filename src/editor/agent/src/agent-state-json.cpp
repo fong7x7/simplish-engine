@@ -565,6 +565,7 @@ std::string agentStateJson(const EditorShellState& state) {
               {"playtest", agentPlayModeName(state.playtest.mode)}};
   out["selection"] = json::parse(agentSelectionJson(state));
   out["interface_scale"] = state.graphics.ui_scale;
+  out["reduce_motion"] = state.graphics.motion == GuiMotion::REDUCED;
   return out.dump(2);
 }
 

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <engine/gui/gui-draw-context.h>
+#include <engine/gui/gui-presence.h>
 #include <engine/gui/gui-toasts.h>
 #include <ranges>
 #include <utility>
@@ -19,11 +20,20 @@ namespace {
   constexpr float FADE_IN = 0.15f;
   constexpr float FADE_OUT = 0.3f;
 
-  /// How visible @p toast is now: rising as it arrives, falling as it goes.
-  float presence(const GuiToast& toast) {
-    const float in = std::min(1.0f, toast.age / FADE_IN);
-    const float out = std::min(1.0f, (toast.lifetime - toast.age) / FADE_OUT);
-    return std::clamp(std::min(in, out), 0.0f, 1.0f);
+  /// How far @p toast has arrived, 0 to 1, eased as a toast rises; all the
+  /// way at once under reduced motion.
+  float arrived(const GuiToast& toast, GuiMotion motion) {
+    return applyEasing(GUI_PRESENCE_RISE.easing,
+                       guiMotionStep(motion, toast.age) / FADE_IN);
+  }
+
+  /// How visible @p toast is now: rising as it arrives, falling as it goes
+  /// — or, under reduced motion, there until it is gone.
+  float presence(const GuiToast& toast, GuiMotion motion) {
+    const float left = toast.lifetime - toast.age;
+    const float out =
+        motion == GuiMotion::REDUCED ? 1.0f : std::min(1.0f, left / FADE_OUT);
+    return std::clamp(std::min(arrived(toast, motion), out), 0.0f, 1.0f);
   }
 
   GuiColor accentOf(GuiToastKind kind, const GuiPalette& p) {
@@ -58,13 +68,15 @@ namespace {
                   const DrawPos& corner, float max_width) {
     const GuiTheme& theme = ctx.activeTheme();
     const GuiFont& font = theme.font(GuiTextRole::BODY);
-    const float alpha = presence(toast);
+    const float alpha = presence(toast, ctx.motion);
+    const float rise =
+        (1.0f - arrived(toast, ctx.motion)) * GUI_PRESENCE_RISE.offset_y;
     const std::string text =
         ctx.ellipsize(toast.text, font, max_width - PAD_X * 2 - ACCENT);
     const float w = ctx.measureText(text, font) + PAD_X * 2 + ACCENT;
     const float h = ctx.fontMetrics(font).line_height + PAD_Y * 2;
-    // Slides up a little as it arrives.
-    const Rect box{corner.x - w, corner.y - h + (1.0f - alpha) * 8.0f, w, h};
+    // Rises a little as it arrives.
+    const Rect box{corner.x - w, corner.y - h + rise, w, h};
     drawToastBox(ctx, toast, box, alpha);
     ctx.drawText({.text = text,
                   .pos = {box.x + ACCENT + PAD_X, box.y + PAD_Y},

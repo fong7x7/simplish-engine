@@ -126,6 +126,12 @@ enum class EditorMenuCommand : uint8_t {
   SET_INTERFACE_LARGE,
   /// Draw the interface at 150%.
   SET_INTERFACE_LARGER,
+  /// Land every interface animation at once, or animate again: the user's
+  /// reduced-motion preference, saved with their graphics settings.
+  TOGGLE_REDUCED_MOTION,
+  /// Draw every widget's box, and the hovered one's margin, padding and
+  /// content, over the interface.
+  TOGGLE_LAYOUT_BOUNDS,
 };
 
 /// View › Interface's rows, smallest first.
@@ -238,6 +244,8 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::SET_INTERFACE_NORMAL, "Interface: 100%", ""},
     {EditorMenuCommand::SET_INTERFACE_LARGE, "Interface: 125%", ""},
     {EditorMenuCommand::SET_INTERFACE_LARGER, "Interface: 150%", ""},
+    {EditorMenuCommand::TOGGLE_REDUCED_MOTION, "Reduce Motion", ""},
+    {EditorMenuCommand::TOGGLE_LAYOUT_BOUNDS, "Show Layout Bounds", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is

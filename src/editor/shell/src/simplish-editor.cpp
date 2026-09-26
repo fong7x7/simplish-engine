@@ -2316,12 +2316,23 @@ bool SimplishEditor::runSettingsCommand(EditorMenuCommand command) {
     openSound();
   } else if (command == EditorMenuCommand::IMPORT_SOUND) {
     importSound();
-  } else if (const int size = editorInterfaceSizeOf(command); size >= 0) {
-    setInterfaceScale(EDITOR_INTERFACE_SCALES[size]);
   } else if (const int water = editorWaterFidelityOf(command); water >= 0) {
     setWaterFidelity(WATER_FIDELITIES[water]);
   } else if (const int effect = editorWaterEffectOf(command); effect >= 0) {
     toggleWaterEffect(WATER_EFFECT_LIST[effect]);
+  } else {
+    return runInterfaceCommand(command);
+  }
+  return true;
+}
+
+bool SimplishEditor::runInterfaceCommand(EditorMenuCommand command) {
+  if (const int size = editorInterfaceSizeOf(command); size >= 0) {
+    setInterfaceScale(EDITOR_INTERFACE_SCALES[size]);
+  } else if (command == EditorMenuCommand::TOGGLE_REDUCED_MOTION) {
+    toggleReducedMotion();
+  } else if (command == EditorMenuCommand::TOGGLE_LAYOUT_BOUNDS) {
+    toggleLayoutBounds();
   } else {
     return false;
   }

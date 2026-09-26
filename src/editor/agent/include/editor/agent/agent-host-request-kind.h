@@ -55,6 +55,8 @@ enum class AgentHostRequestKind : uint8_t {
   /// Write the game screens' theme as `AgentHostRequest::text`, and read
   /// the screens again.
   WRITE_UI_THEME,
+  /// Describe the editor's widgets `AgentHostRequest::widgets` asks for.
+  DESCRIBE_WIDGETS,
 };
 
 }  // namespace eng::editor

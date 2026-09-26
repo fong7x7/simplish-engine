@@ -525,6 +525,11 @@ void GuiWidgetTree::updateAll(const GuiDrawContext& ctx, float dt) {
   for (auto& [id, node] : widget_nodes) {
     node->update(ctx.themedBy(themeAt(id)), dt);
   }
+  // A leaving that finished during the loop asked to be destroyed; the
+  // loop is over the map it would change.
+  for (const GuiWidgetId id : std::exchange(dismissed_, {})) {
+    destroyWidget(id);
+  }
 }
 
 bool GuiWidgetTree::dispatchClick(float mx, float my) {
@@ -554,6 +559,7 @@ void GuiWidgetTree::renderAll(const GuiDrawContext& ctx) {
   }
   renderFocusRing(ctx);
   renderTooltip(ctx);
+  renderLayoutOverlay(ctx);
 }
 
 bool GuiWidgetTree::anyHovered() const {

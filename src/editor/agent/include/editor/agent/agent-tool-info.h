@@ -785,6 +785,19 @@ inline constexpr AgentParam AGENT_PARAMS_SET_INTERFACE_SIZE[] = {
      "larger; 0.5 to 3. View › Interface offers 0.9, 1, 1.25 and 1.5."},
 };
 
+inline constexpr AgentParam AGENT_PARAMS_GET_WIDGETS[] = {
+    {"under", AgentParamType::STRING, AgentParamNeed::OPTIONAL,
+     "The widget to start from, by its id or its name (its debug name, as "
+     "this tool lists it) — \"editor-toolbar\", \"editor-properties\"; the "
+     "whole "
+     "window when left out."},
+    {"depth", AgentParamType::INTEGER, AgentParamNeed::OPTIONAL,
+     "How many levels below it to list, 0 to 32; default 6. A widget at the "
+     "limit says how many children it has as more."},
+    {"hidden", AgentParamType::BOOLEAN, AgentParamNeed::OPTIONAL,
+     "List hidden widgets, and what is under them, too; default false."},
+};
+
 inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::DESCRIBE,
      "describe",
@@ -1473,6 +1486,16 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "Refused, changing nothing, on a scale out of range. Answers with "
      "interface_scale and the file; get_state reports it too.",
      AgentToolEffect::EDIT, AGENT_PARAMS_SET_INTERFACE_SIZE},
+    {AgentTool::GET_WIDGETS, "get_widgets",
+     "The editor's own interface as its widget tree, as laid out this "
+     "frame: each widget's type, id, name, rect [x, y, w, h] in layout "
+     "pixels (the window's size divided by the interface scale), whether "
+     "it is visible, disabled, selected, focused and hovered, and its "
+     "children, in drawing order. For checking where the editor put "
+     "something — a panel's size, a button's place — without a "
+     "screenshot. View › Show Layout Bounds draws the same boxes in the "
+     "window.",
+     AgentToolEffect::HOST, AGENT_PARAMS_GET_WIDGETS},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

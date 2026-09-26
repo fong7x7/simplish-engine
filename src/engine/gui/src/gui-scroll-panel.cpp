@@ -78,6 +78,11 @@ void GuiScrollPanel::arrangeChildren(GuiWidgetTree& tree,
   arrangeFlexChildren(tree, *this, scrolledBox());
 }
 
+DrawPos GuiScrollPanel::contentOrigin() const {
+  const Rect box = scrolledBox();
+  return {box.x, box.y};
+}
+
 Rect GuiScrollPanel::scrolledBox() const {
   const Edges& pad = tree_layout.padding;
   return axis == GuiScrollAxis::VERTICAL

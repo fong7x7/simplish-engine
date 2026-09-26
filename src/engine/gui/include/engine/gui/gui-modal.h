@@ -48,10 +48,12 @@ public:
   /// CANCEL dismisses it unless `dismiss` is NEVER.
   bool handleNav(GuiNavCommand command) override;
 
-  /// Show it, keep navigation inside it, fade it in, and ask for a layout.
+  /// Show it, keep navigation inside it, and ask for a layout: the
+  /// backdrop fades in and each card pops up (`GUI_PRESENCE_POP`).
   void open(GuiWidgetTree& tree);
 
-  /// Hide it and let navigation range over the tree again.
+  /// Let the pointer and navigation range over the tree again at once, and
+  /// fade it out; it is hidden when the fade ends.
   void close(GuiWidgetTree& tree);
 
   /// Add the dialog's box: a raised card @p width wide in the theme's
@@ -64,7 +66,7 @@ public:
   std::function<void()> on_dismiss{};
   /// What dismisses it.
   GuiModalDismiss dismiss = GuiModalDismiss::BACKDROP_OR_CANCEL;
-  /// Seconds it takes to fade in.
+  /// Seconds it takes to fade in; its cards take `GUI_PRESENCE_POP`'s.
   float fade_seconds = 0.15f;
 };
 

@@ -292,6 +292,7 @@ namespace {
       runAgentRenderUiScreen,
       runAgentPressUi,
       runAgentSetInterfaceSize,
+      runAgentGetWidgets,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

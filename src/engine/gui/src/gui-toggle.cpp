@@ -27,7 +27,7 @@ std::unique_ptr<GuiWidget> GuiToggle::clone() const {
 void GuiToggle::update(const GuiDrawContext& ctx, float dt) {
   GuiWidget::update(ctx, dt);
   const float target = on ? 1.0f : 0.0f;
-  const float step = dt / SLIDE_SECONDS;
+  const float step = guiMotionStep(ctx.motion, dt) / SLIDE_SECONDS;
   knob_ = knob_ < 0.0f     ? target
           : knob_ < target ? std::min(target, knob_ + step)
                            : std::max(target, knob_ - step);

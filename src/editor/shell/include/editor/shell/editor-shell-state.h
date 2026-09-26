@@ -114,6 +114,9 @@ struct EditorShellState {
   EditorUiTable ui;
   /// The last screen `render_ui_screen` drew. Not saved.
   EditorUiRender ui_render;
+  /// The editor's widgets as `get_widgets` last described them, JSON. Not
+  /// saved.
+  std::string widgets;
   /// The project's own sounds, from `content/data/sounds.data.json`: which
   /// of the game's sound slots play one of `sound_files` instead of their
   /// built-in sound. Read with the other tables; written by the editor.

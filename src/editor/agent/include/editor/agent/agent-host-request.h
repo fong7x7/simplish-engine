@@ -9,6 +9,7 @@
 #include <editor/shell/editor-effect-shot.h>
 #include <editor/shell/editor-level-unsaved.h>
 #include <editor/shell/editor-menu-command.h>
+#include <editor/shell/editor-widget-query.h>
 #include <string>
 
 namespace eng::editor {
@@ -54,6 +55,8 @@ struct AgentHostRequest {
   uint32_t width = 0;
   /// A view's height, in pixels.
   uint32_t height = 0;
+  /// Which of the editor's widgets to describe.
+  EditorWidgetQuery widgets{};
 };
 
 }  // namespace eng::editor

@@ -91,6 +91,10 @@ private:
   [[nodiscard]] bool runLevelRequest(const AgentHostRequest& request);
   /// Play an effect or a sound; false for any other request.
   [[nodiscard]] bool runPresentationRequest(const AgentHostRequest& request);
+  /// Carry out @p request if it is about interfaces — a game screen or
+  /// theme written or drawn, the editor's widgets described; whether it
+  /// was.
+  [[nodiscard]] bool runInterfaceRequest(const AgentHostRequest& request);
   /// Carry out everything else: a menu command, a rescan.
   void runProjectRequest(const AgentHostRequest& request);
 
