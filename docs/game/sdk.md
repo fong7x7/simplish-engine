@@ -30,7 +30,7 @@ constexpr sdk::Every WAVES{sdk::seconds(20)};
 class Arena final : public sdk::Game {
 protected:
   void onTick(GameLogicWorld& world) override {
-    if (WAVES.due(world.tick())) {
+    if (WAVES.due(world.playTick())) {
       sdk::spawnRing(world, {.centre = findActor(world, "gate")->position,
                              .radius = 7.0F,
                              .count = 6,
@@ -83,9 +83,11 @@ Derive from `sdk::Game` rather than `GameLogic`: it hands each event of the last
 | `onActorNoticed(world, event)` | An actor took someone new as its target; `event.other` is whom |
 | `onActorAttacked(world, event)` | An actor struck, fired, spat or blew itself up; `event.other` is whom it had in mind |
 | `onActorWindingUp(world, event)` | An actor began an attack that winds up; it lands its state's `windup_ticks` later, if it still can |
+| `onPausePressed(world, event)` | A player pressed the pause button; nothing pauses unless the logic does: `sdk::togglePause(world, "pause")` ([ui.md §3](ui.md#3-pausing)) |
+| `onPausedTick(world)` | Every tick the game is paused, in place of `onTick` |
 | `onUiAction(world, event)` | A player chose an action — a button — on one of the game's screens; `event.id` is the action. `sdk::chose(event, "retry")` asks which ([ui.md](ui.md)) |
 | `onPlayerStepped(world, event)`, `onActorStepped(world, event)` | A foot came down — heard once `world.listenForSteps(LogicSteps::PLAYERS)` or `EVERYONE` asks |
-| `onTick(world)` | Every tick, after the hooks above |
+| `onTick(world)` | Every tick played, after the hooks above — not while paused |
 | `onRunEnded(world)` | Once, at the end of the tick the run ended on; `world.outcome()` says how. The tick after is never played, so writes do nothing — log the tally here |
 | `onHash(hash)` | Fold every member a later tick decides anything by into the tick hash |
 
@@ -155,7 +157,7 @@ void onStart(GameLogicWorld&) override {
   });
 }
 void onTick(GameLogicWorld& world) override {
-  if (WAVES.due(world.tick())) {
+  if (WAVES.due(world.playTick())) {
     waves_.emit({++wave_});
   }
   waves_.dispatch(world);
@@ -227,7 +229,7 @@ void onActorHurt(GameLogicWorld& world, const LogicEvent& hit) override {
   }
 }
 void onTick(GameLogicWorld& world) override {
-  if (sdk::Every{sdk::seconds(5)}.due(world.tick())) {
+  if (sdk::Every{sdk::seconds(5)}.due(world.playTick())) {
     marked_.forgetGone(world);
   }
 }
@@ -252,7 +254,7 @@ Both spatial questions are asked of the navigation grid, which covers the level'
 
 ## 5. Time
 
-A tick is 1/60 s and the tick number is the clock (`world.tick()`); nothing else may be.
+A tick is 1/60 s, and tick numbers are the only clocks there are. `world.tick()` counts every tick; `world.playTick()` counts the ticks played, standing still while the game is paused ([ui.md §3](ui.md#3-pausing)). **Time gameplay by `playTick()`** — waves, cooldowns, phases — so a pause runs none of it down; the engine's own systems do.
 
 | Tool | |
 |---|---|

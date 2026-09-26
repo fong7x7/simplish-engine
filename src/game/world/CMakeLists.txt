@@ -37,6 +37,7 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_logic_events.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_walker_gait.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_ui.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_pause.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_horde_budget.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_stand_in_input.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_world_actors.cpp

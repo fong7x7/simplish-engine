@@ -66,7 +66,7 @@ Four forces decide how a game's screens are made.
 - A screen can only use what the format names; a custom widget means a format change in `game/ui`.
 - `PlayerInput` grows by four bytes and the replay format moves to version 3; version 2 replays are not read.
 - A choice is heard a tick after it is made, like every input.
-- Pausing a run is not a menu's to decide: in lockstep a run cannot stop for one player. The editor's playtest pauses its own clock; a game's pause screen stops nothing unless its logic does.
+- Pausing is not a menu's to decide: showing a screen stops nothing. It is the logic's — `world.pause()`, simulation state every peer takes on the same tick, which stills gameplay and its play clock while input, choices and the logic run on, so a pause menu's buttons still answer ([ui.md §3](../game/ui.md#3-pausing)). The host's own clock pause (the editor's F6) stops every tick, and with them any screen's answers.
 
 ### Neutral
 

@@ -159,14 +159,14 @@ physics::CollisionBox WorldLogicView::obstacle(uint32_t index) const {
 
 void WorldLogicView::damage(LogicTarget target, uint16_t amount,
                             std::optional<LogicTarget> by) {
-  scene_.commands.push_back({.kind = LogicCommandKind::DAMAGE,
-                             .target = target,
-                             .amount = amount,
-                             .by = by});
+  scene_.writes.commands.push_back({.kind = LogicCommandKind::DAMAGE,
+                                    .target = target,
+                                    .amount = amount,
+                                    .by = by});
 }
 
 void WorldLogicView::heal(LogicTarget target, uint16_t amount) {
-  scene_.commands.push_back(
+  scene_.writes.commands.push_back(
       {.kind = LogicCommandKind::HEAL, .target = target, .amount = amount});
 }
 
@@ -198,8 +198,8 @@ bool WorldLogicView::spawnActor(const LogicSpawn& spawn) {
 }
 
 uint32_t WorldLogicView::actorRoom() const {
-  const uint32_t used =
-      scene_.actors.slots.size() + static_cast<uint32_t>(scene_.spawns.size());
+  const uint32_t used = scene_.actors.slots.size() +
+                        static_cast<uint32_t>(scene_.writes.spawns.size());
   const uint32_t capacity = scene_.actors.slots.capacity();
   return capacity > used ? capacity - used : 0;
 }
@@ -208,17 +208,17 @@ bool WorldLogicView::queueSpawn(ActorSpawn spawn) {
   if (actorRoom() == 0) {
     return false;
   }
-  scene_.spawns.push_back(std::move(spawn));
+  scene_.writes.spawns.push_back(std::move(spawn));
   return true;
 }
 
 void WorldLogicView::moveTo(LogicTarget target, Vec3 at) {
-  scene_.commands.push_back(
+  scene_.writes.commands.push_back(
       {.kind = LogicCommandKind::MOVE, .target = target, .at = at});
 }
 
 void WorldLogicView::removeActor(LogicTarget target) {
-  scene_.commands.push_back(
+  scene_.writes.commands.push_back(
       {.kind = LogicCommandKind::REMOVE, .target = target});
 }
 
@@ -233,7 +233,7 @@ bool WorldLogicView::setActorState(LogicTarget target, std::string_view state) {
   if (found == states.end()) {
     return false;
   }
-  scene_.commands.push_back(
+  scene_.writes.commands.push_back(
       {.kind = LogicCommandKind::SET_STATE,
        .target = target,
        .state = static_cast<uint8_t>(found - states.begin())});
@@ -241,9 +241,9 @@ bool WorldLogicView::setActorState(LogicTarget target, std::string_view state) {
 }
 
 void WorldLogicView::setActorFaction(LogicTarget target, Faction faction) {
-  scene_.commands.push_back({.kind = LogicCommandKind::SET_FACTION,
-                             .target = target,
-                             .faction = faction});
+  scene_.writes.commands.push_back({.kind = LogicCommandKind::SET_FACTION,
+                                    .target = target,
+                                    .faction = faction});
 }
 
 void WorldLogicView::fireShot(const LogicShot& shot) {
@@ -251,28 +251,28 @@ void WorldLogicView::fireShot(const LogicShot& shot) {
     return;
   }
   const float step = shot.speed / static_cast<float>(TICK_RATE_HZ);
-  scene_.combat.shots.push_back({{shot.from.x, shot.from.y},
-                                 Vec2::normalize(shot.direction) * step,
-                                 shot.damage,
-                                 shot.side,
-                                 combatantOf(shot.shooter)});
+  scene_.writes.combat.shots.push_back({{shot.from.x, shot.from.y},
+                                        Vec2::normalize(shot.direction) * step,
+                                        shot.damage,
+                                        shot.side,
+                                        combatantOf(shot.shooter)});
 }
 
 void WorldLogicView::blast(const LogicBlast& blast) {
-  scene_.combat.blasts.push_back({{blast.at.x, blast.at.y},
-                                  blast.radius,
-                                  blast.damage,
-                                  NO_COMBATANT,
-                                  combatantOf(blast.by)});
+  scene_.writes.combat.blasts.push_back({{blast.at.x, blast.at.y},
+                                         blast.radius,
+                                         blast.damage,
+                                         NO_COMBATANT,
+                                         combatantOf(blast.by)});
 }
 
 void WorldLogicView::spawnHazard(const LogicHazard& hazard) {
-  scene_.combat.hazards.push_back({{hazard.at.x, hazard.at.y},
-                                   hazard.radius,
-                                   hazard.damage,
-                                   hazard.ticks,
-                                   hazard.side,
-                                   combatantOf(hazard.by)});
+  scene_.writes.combat.hazards.push_back({{hazard.at.x, hazard.at.y},
+                                          hazard.radius,
+                                          hazard.damage,
+                                          hazard.ticks,
+                                          hazard.side,
+                                          combatantOf(hazard.by)});
 }
 
 uint32_t WorldLogicView::random(uint32_t bound) {
@@ -320,6 +320,22 @@ void WorldLogicView::setUiValue(std::string_view key, std::string_view text) {
     ui.values.insert_or_assign(std::string(key), std::string(text));
     ++ui.revision;
   }
+}
+
+void WorldLogicView::pause() {
+  scene_.run.paused = 1;
+}
+
+void WorldLogicView::resume() {
+  scene_.run.paused = 0;
+}
+
+bool WorldLogicView::paused() const {
+  return scene_.run.paused != 0;
+}
+
+uint64_t WorldLogicView::playTick() const {
+  return scene_.run.play_tick;
 }
 
 void WorldLogicView::cue(const LogicCue& cue) {

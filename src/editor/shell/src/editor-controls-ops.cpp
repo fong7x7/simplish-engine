@@ -13,9 +13,9 @@ namespace {
 
   /// Each action's label, in `InputAction` order.
   constexpr std::array<std::string_view, input::INPUT_ACTION_COUNT>
-      ACTION_LABELS = {"Move up",    "Move down", "Move left",
-                       "Move right", "Fire",      "Aim up",
-                       "Aim down",   "Aim left",  "Aim right"};
+      ACTION_LABELS = {"Move up",   "Move down", "Move left", "Move right",
+                       "Fire",      "Aim up",    "Aim down",  "Aim left",
+                       "Aim right", "Pause"};
 
   /// What a list of no controls shows.
   constexpr std::string_view NONE = "—";

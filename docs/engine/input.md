@@ -65,12 +65,14 @@ pad is labelled as an Xbox pad.
 An `InputBindings` maps each `InputAction` to any number of controls: a key
 (by the platform's key symbol, opaque to the engine), a pad button, or one
 direction of a pad axis. A control may feed several actions. The actions are
-the four move directions, fire, and the four aim directions — the aim ones
+the four move directions, fire, the four aim directions — the aim ones
 are what let the right stick aim, and what let a player move aiming onto
-keys or the other stick.
+keys or the other stick — and pause, `INPUT_BUTTON_PAUSE` in the input,
+which the game logic hears pressed and answers ([ui.md §3](../game/ui.md)).
 
 `defaultGamepadBindings()` is twin-stick on every pad: the left stick and
-d-pad move, the right stick aims, the right trigger or right shoulder fires.
+d-pad move, the right stick aims, the right trigger or right shoulder fires,
+and Start pauses. The editor adds P for pause among its keys.
 Keys are added by whoever knows the platform's keys; the editor adds WASD
 and the arrows.
 
@@ -117,7 +119,8 @@ player can edit, and back:
   "actions": {
     "move_up":   ["pad:-left_y", "pad:dpad_up", "key:w", "key:up"],
     "fire":      ["pad:right_trigger", "pad:right_shoulder"],
-    "aim_right": ["pad:+right_x"]
+    "aim_right": ["pad:+right_x"],
+    "pause":     ["pad:start", "key:p"]
   }
 }
 ```

@@ -12,7 +12,8 @@ namespace eng::game::sdk {
 
 /// Whether @p player is holding fire this tick: the trigger, the left
 /// mouse button, or `send_input`'s `fire`. A player who is not up fires
-/// nothing, so this is false for them. Aim is `LogicPlayer::aim`.
+/// nothing, and nobody fires while the game is paused, so this is false
+/// then. Aim is `LogicPlayer::aim`.
 [[nodiscard]] bool firing(const GameLogicWorld& world,
                           const LogicPlayer& player);
 

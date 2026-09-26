@@ -545,9 +545,12 @@ namespace {
         input::quantizeInputAxis(agentFloatParam(params, "move_y", 0));
     input.aim_x = input::quantizeInputAxis(agentFloatParam(params, "aim_x", 0));
     input.aim_y = input::quantizeInputAxis(agentFloatParam(params, "aim_y", 0));
-    input.buttons = agentBoolParam(params, "fire").value_or(false)
-                        ? input::INPUT_BUTTON_FIRE
-                        : 0U;
+    input.buttons = (agentBoolParam(params, "fire").value_or(false)
+                         ? input::INPUT_BUTTON_FIRE
+                         : 0U) |
+                    (agentBoolParam(params, "pause").value_or(false)
+                         ? input::INPUT_BUTTON_PAUSE
+                         : 0U);
     return input;
   }
 

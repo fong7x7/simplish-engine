@@ -176,6 +176,19 @@ public:
   /// Set the value @p key the screens' text shows as `{key}`, and bars
   /// read, to @p text.
   virtual void setUiValue(std::string_view key, std::string_view text) = 0;
+  /// Pause the game from the next tick: players and actors stand still,
+  /// nothing flies, bites or bleeds out, and `playTick` stops — while
+  /// input, choices on screens and the logic go on. Simulation state, so
+  /// every peer pauses on the same tick.
+  virtual void pause() = 0;
+  /// Play on from the next tick.
+  virtual void resume() = 0;
+  /// Whether the game is paused.
+  [[nodiscard]] virtual bool paused() const = 0;
+  /// Ticks played unpaused before this one: the clock to time gameplay by
+  /// — waves, cooldowns, phases — so a pause runs none of it down.
+  /// `tick()` counts every tick, paused or not.
+  [[nodiscard]] virtual uint64_t playTick() const = 0;
 
   GameLogicWorld(const GameLogicWorld&) = delete;
   GameLogicWorld& operator=(const GameLogicWorld&) = delete;

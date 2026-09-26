@@ -25,7 +25,7 @@ namespace {
 class Survive final : public eng::game::GameLogic {
 public:
   void tick(eng::game::GameLogicWorld& world) override {
-    if (world.tick() == 60 * 90) {
+    if (world.playTick() == 60 * 90) {
       world.endRun(eng::game::RunOutcome::WON);
     }
   }
@@ -80,7 +80,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 | Do | Never |
 |---|---|
-| Count time in ticks: `world.tick()`, 60 a second | Read a clock — `std::chrono`, `time`, frame time |
+| Count time in ticks, 60 a second: `world.playTick()` for gameplay, which a pause stops; `world.tick()` counts every tick | Read a clock — `std::chrono`, `time`, frame time |
 | Draw from `world.random(bound)` | `std::rand`, `std::random_device`, a stream of your own seeded from anything but ticks |
 | Iterate vectors and arrays in index order | Iterate `std::unordered_map`/`set`, or anything ordered by address |
 | Keep a `LogicTarget` to name an entity across ticks | Keep an index into `actor(i)`: it names someone else after compaction |
@@ -94,7 +94,7 @@ The logic is simulation. Everything [ADR-002](../decisions/ADR-002-fixed-timeste
 
 ## 5. What the world offers
 
-This is `GameLogicWorld`, API version 10 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
+This is `GameLogicWorld`, API version 11 — what the engine lets logic read and change. The **SDK** built on it — a `Game` base with event hooks, entity queries, per-entity data, timers, spawn patterns, dice — is [sdk.md](sdk.md); start there to write a game.
 
 | Read | |
 |---|---|
@@ -104,7 +104,7 @@ This is `GameLogicWorld`, API version 10 — what the engine lets logic read and
 | `actorCount()`, `actor(i)` | The level's id for it (the prop it was placed as), position, facing, faction, health, the state of its behavior it is in, and a `target` |
 | `outcome()` | Playing, won or lost |
 | `actorOf(target)`, `playerOf(target)` | The entity a kept target names now, or nothing when it is gone |
-| `events()` | What happened in the last tick, in the order it happened: actors spawned, hurt, killed and removed; players hurt, downed, revived (`by` the teammate) and out; actors entering a state of their behavior (`state`, its id), noticing a target, winding up an attack and attacking (`other`, whom); and, once `listenForSteps` asks, players' and actors' steps — one each time a walker covers its feet's stride; and a player's choice on one of the game's screens (`UI_ACTION`, its action in `id`). Each is noted where it happens — the actor passes note what an actor does as they decide it — every hit that takes health is its own event, however many land in a tick — so a dead actor's event carries where it fell and its name. A hurt, death or downing carries `amount`, the health it took (no more than was left); `cause`, what kind of thing did it (`ATTACK`, `SHOT`, `BLAST`, `HAZARD`, `LOGIC`); and `by`, who is credited — the striker, shooter or spiller, or for a blast whoever killed the one that went off. A hit that takes nothing — on the dead, or on a player still in the grace after a hurt — is not an event |
+| `events()` | What happened in the last tick, in the order it happened: actors spawned, hurt, killed and removed; players hurt, downed, revived (`by` the teammate) and out; actors entering a state of their behavior (`state`, its id), noticing a target, winding up an attack and attacking (`other`, whom); and, once `listenForSteps` asks, players' and actors' steps — one each time a walker covers its feet's stride; a player's choice on one of the game's screens (`UI_ACTION`, its action in `id`); and a player pressing the pause button (`PAUSE_PRESSED`). Each is noted where it happens — the actor passes note what an actor does as they decide it — every hit that takes health is its own event, however many land in a tick — so a dead actor's event carries where it fell and its name. A hurt, death or downing carries `amount`, the health it took (no more than was left); `cause`, what kind of thing did it (`ATTACK`, `SHOT`, `BLAST`, `HAZARD`, `LOGIC`); and `by`, who is credited — the striker, shooter or spiller, or for a blast whoever killed the one that went off. A hit that takes nothing — on the dead, or on a player still in the grace after a hurt — is not an event |
 | `lineOfSight(from, to)`, `walkable(at)` | Asked of the navigation grid, for an actor of the default size; false outside it |
 | `obstacleCount()`, `obstacle(i)` | The level's solid props, as boxes |
 
@@ -127,6 +127,7 @@ This is `GameLogicWorld`, API version 10 — what the engine lets logic read and
 | `log(message)` | Presentation: the editor's log and `get_playtest`'s `logic_log`, or the deployed game's output |
 | `listenForSteps(steps)` | Hear `PLAYER_STEPPED` — and with `EVERYONE`, `ACTOR_STEPPED` — from the next tick: a step each time a walker covers its feet's stride (`stepSetStride`: a character's or an enemy's `footsteps`), at most one a tick; moving more than a tile at once is no step. Off (`NONE`) until asked, since a horde walking is hundreds a tick. Simulation, timed in ticks — unlike a clip's foot contacts, which are presentation |
 | `showScreen(id)`, `hideScreen(id)`, `showing(id)`, `setUiValue(key, text)` | The game's own screens — `content/ui/<id>.ui.json`, menus and a HUD built from the GUI widgets — and the values their text shows ([ui.md](ui.md)). Presentation, never hashed; a button pressed comes back as input, heard as a `UI_ACTION` event |
+| `pause()`, `resume()`, `paused()`, `playTick()` | Pause the game from the next tick — gameplay stands still while input, choices and the logic run on — or play on; `playTick` counts only ticks played, the clock gameplay is timed by ([ui.md §3](ui.md#3-pausing)) |
 | `cue({.at, .sound, .effect, .gain, .scale, .reach})` | Presentation: a sound played and an effect shown where the playtest can — never state, never hashed, nothing a tick reads, dropped by the headless deployed game. `sound` is a sound slot (`combat.blast`, `step.boots.wood`) or a WAV or Ogg file under `assets/`, loaded the first time it is cued; `effect` is a particle preset (`smoke`, `fireball`, …) or a whole combat effect by its cue's name (`combat.blast`); `reach` `AT` is heard from where it is, `EVERYWHERE` alike anywhere. `get_playtest`'s `logic_cues` lists the last few; a name with no sound or effect is warned of once in the log |
 
 **Events** are gathered as a tick runs — spawns and removals as the logic's writes are applied, hurts, deaths and downs read off the pools at its end — and handed over on the next, so they are state, carried and hashed in the `logic` section.

@@ -211,6 +211,9 @@ void SimplishEditor::startPlaytestAs(const std::string& character) {
   // is not, and its panel would be a way to edit mid-game.
   commitPendingEdit();
   select({});
+  // Screens are read afresh: a file written by hand since the project was
+  // opened is played as it is now.
+  reloadUi();
   const EditorPlaytestRun run = playtestRun();
   playtest_ = std::make_unique<EditorPlaytestSession>(
       playtestSetup(character, run), playtestContent(), run);
@@ -726,10 +729,8 @@ void SimplishEditor::onClientGamepadButtonDown(input::GamepadButton button) {
     }
     return;
   }
-  // Start is a pad's pause button on every platform; F6 is the keyboard's.
-  if (isPlaying() && button == input::GamepadButton::START) {
-    togglePlaytestPause();
-  }
+  // Start is the game's own Pause, bound like any control, which the
+  // game logic answers; the editor's clock pause is F6's alone.
 }
 
 void SimplishEditor::onClientFocusLost() {

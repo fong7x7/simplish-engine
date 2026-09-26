@@ -50,6 +50,10 @@ struct WorldReadSources {
   WorldUi ui{};
   /// The project's screens, by id.
   std::span<const std::string> screens{};
+  /// Whether the game is paused.
+  uint8_t paused = 0;
+  /// Ticks played unpaused.
+  uint64_t play_tick = 0;
 };
 
 }  // namespace eng::game

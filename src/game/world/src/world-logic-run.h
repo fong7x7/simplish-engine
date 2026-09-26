@@ -5,6 +5,7 @@
 /// @par Threading
 /// A view over a world's own fields, for one call of the logic.
 
+#include <cstdint>
 #include <game/logic/logic-steps.h>
 #include <game/logic/run-outcome.h>
 
@@ -17,6 +18,10 @@ struct WorldLogicRun {
   RunOutcome& outcome;
   /// Whose steps the logic hears.
   LogicSteps& steps;
+  /// 1 while the game is paused.
+  uint8_t& paused;
+  /// Ticks played unpaused before this one.
+  uint64_t play_tick = 0;
 };
 
 }  // namespace eng::game

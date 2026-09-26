@@ -713,6 +713,8 @@ namespace {
   json playtestLogicJson(const EditorPlaytestState& playtest) {
     return {{"outcome", agentRunOutcomeName(playtest.outcome)},
             {"logic", playtest.logic},
+            {"game_paused", playtest.game_paused},
+            {"play_tick", playtest.play_tick},
             {"logic_log", playtest.logic_log},
             {"logic_cues", logicCuesJson(playtest)},
             {"ui", agentPlaytestUiJson(playtest.ui)}};

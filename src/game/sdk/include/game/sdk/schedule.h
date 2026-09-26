@@ -16,7 +16,8 @@
 
 namespace eng::game::sdk {
 
-/// Values the logic has set aside for a tick to come — "blow the bridge in
+/// Values the logic has set aside for a play tick to come — `playTick`,
+/// which a pause stops — "blow the bridge in
 /// three seconds", "the second phase starts at minute two" — held until
 /// that tick, rather than a timer checked every tick for each.
 ///
@@ -42,12 +43,13 @@ public:
   /// Hold @p value until @p tick.
   void at(uint64_t tick, const Value& value);
 
-  /// Hold @p value until @p ticks from @p world's tick.
+  /// Hold @p value until @p ticks of play from now — `playTick`, which a
+  /// pause stops.
   void after(const GameLogicWorld& world, uint64_t ticks, const Value& value) {
-    at(world.tick() + ticks, value);
+    at(world.playTick() + ticks, value);
   }
 
-  /// Hand every value due by @p world's tick to @p run — as
+  /// Hand every value due by @p world's `playTick` to @p run — as
   /// `run(world, value)` — in order, taking each out first.
   template <typename Run> void runDue(GameLogicWorld& world, Run run);
 
@@ -86,7 +88,7 @@ void Schedule<Value>::at(uint64_t tick, const Value& value) {
 template <typename Value>
 template <typename Run>
 void Schedule<Value>::runDue(GameLogicWorld& world, Run run) {
-  while (!entries_.empty() && entries_.front().first <= world.tick()) {
+  while (!entries_.empty() && entries_.front().first <= world.playTick()) {
     const Value value = std::move(entries_.front().second);
     entries_.erase(entries_.begin());
     run(world, value);

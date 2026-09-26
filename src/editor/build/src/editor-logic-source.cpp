@@ -35,6 +35,25 @@ namespace {
                                 "# Everything here is built by the editor.\n*\n");
   }
 
+  /// Write @p text as the screen file @p name of the project at @p root,
+  /// unless one is there. False when it could not be written.
+  bool writeScreenUnlessThere(const std::filesystem::path& root,
+                              std::string_view name, const std::string& text) {
+    const std::filesystem::path path = projectContentPath(root) / "ui" / name;
+    std::error_code ec;
+    return std::filesystem::exists(path, ec) ||
+           writeProjectTextFile(path, text);
+  }
+
+  /// Write the scaffold's screens into the project at @p root, keeping any
+  /// of the same name.
+  bool writeScaffoldScreens(const std::filesystem::path& root) {
+    return writeScreenUnlessThere(root, "pause.ui.json",
+                                  logicScaffoldPauseScreen()) &&
+           writeScreenUnlessThere(root, "hud.ui.json",
+                                  logicScaffoldHudScreen());
+  }
+
 }  // namespace
 
 bool projectHasLogic(const std::filesystem::path& root) {
@@ -54,6 +73,7 @@ EditorLogicScaffold scaffoldProjectLogic(const std::filesystem::path& root) {
       writeProjectTextFile(src / LOGIC_EXAMPLE_TESTS_FILE_NAME,
                            logicScaffoldTests()) &&
       writeProjectTextFile(src / LOGIC_CMAKE_FILE_NAME, logicScaffoldCMake()) &&
+      writeScaffoldScreens(root) &&
       ignoreBuildFolder(root) &&
       writeProjectAgentGuide(root, editorToolchain().engine_root);
   return written ? EditorLogicScaffold::CREATED : EditorLogicScaffold::FAILED;

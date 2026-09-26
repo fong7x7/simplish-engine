@@ -30,6 +30,7 @@ namespace {
       {Keycode::ARROW_LEFT, input::InputAction::MOVE_LEFT},
       {'d', input::InputAction::MOVE_RIGHT},
       {Keycode::ARROW_RIGHT, input::InputAction::MOVE_RIGHT},
+      {'p', input::InputAction::PAUSE},
   };
 
   /// One menu command the character selector reads, and its key.

@@ -31,7 +31,7 @@ namespace {
 
 bool fireWeapon(GameLogicWorld& world, const LogicPlayer& player,
                 const Weapon& weapon, Cooldown& cooldown) {
-  if (!firing(world, player) || !cooldown.ready(world.tick())) {
+  if (!firing(world, player) || !cooldown.ready(world.playTick())) {
     return false;
   }
   const Vec3 muzzle{player.position.x + player.aim.x * MUZZLE_TILES,
@@ -44,7 +44,7 @@ bool fireWeapon(GameLogicWorld& world, const LogicPlayer& player,
                     .damage = weapon.damage,
                     .shooter = player.target});
   }
-  cooldown.start(world.tick(), weapon.refire_ticks);
+  cooldown.start(world.playTick(), weapon.refire_ticks);
   return true;
 }
 

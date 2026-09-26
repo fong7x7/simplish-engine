@@ -119,6 +119,38 @@ void choosesRetry(LogicTest& test) {
   test.expect(!test.world().showing("over"), "and the screen hidden");
 }
 
+/// Pauses and plays on as the pause button is pressed.
+class PauseButton final : public game::GameLogic {
+public:
+  void tick(game::GameLogicWorld& world) override {
+    for (const game::LogicEvent& event : world.events()) {
+      if (event.kind != game::LogicEventKind::PAUSE_PRESSED) {
+        continue;
+      }
+      if (world.paused()) {
+        world.resume();
+      } else {
+        world.pause();
+      }
+    }
+  }
+};
+
+game::GameLogic* makePauseButton() {
+  return std::make_unique<PauseButton>().release();
+}
+
+void pausesAndGoesOn(LogicTest& test) {
+  test.hold(0, {.pause = true});
+  test.run(3);
+  test.expect(test.world().paused(), "the press paused the game");
+  test.hold(0, {});
+  test.run(1);
+  test.hold(0, {.pause = true});
+  test.run(3);
+  test.expect(!test.world().paused(), "a second press played on");
+}
+
 /// @p body as a test of the level `arena`.
 LogicTestCase testOf(void (*body)(LogicTest&)) {
   return {"a_test", "arena", 1, body};
@@ -189,4 +221,13 @@ TEST_CASE("a logic test chooses on a screen, and reads what it shows") {
 
   CHECK(result.failures.empty());
   CHECK(result.passed);
+}
+
+TEST_CASE("a logic test holds the pause button, as a player would") {
+  const TestContent content;
+
+  const LogicTestResult result = runLogicTest(
+      testOf(pausesAndGoesOn), {makePauseButton, unmake}, content.path());
+
+  CHECK(result.failures.empty());
 }

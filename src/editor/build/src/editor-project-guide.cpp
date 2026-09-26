@@ -79,6 +79,11 @@ spacers laid out by flexbox (`@ENGINE@/docs/game/ui.md`). Write one with
 writes), and show it from the logic with `world.showScreen("<id>")`.
 `world.setUiValue(key, text)` fills a label's `{key}`. A button pressed
 is heard in `onUiAction`; in a playtest, `press_ui` presses one.
+
+The pause button — P, a pad's Start, `send_input`'s `pause` — is heard in
+`onPausePressed`; `sdk::togglePause(world, "pause")` pauses the game and
+shows the menu. Paused, gameplay stands still and `onTick` waits; time
+gameplay by `world.playTick()`, which stops while paused.
 )";
 
   /// The pointer to the guide.

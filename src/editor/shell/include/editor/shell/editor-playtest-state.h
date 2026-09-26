@@ -57,6 +57,11 @@ struct EditorPlaytestState {
   game::RunOutcome outcome = game::RunOutcome::PLAYING;
   /// Whether the playtest runs the project's game logic.
   bool logic = false;
+  /// Whether the game logic has the game paused: gameplay stands still,
+  /// its screens and input go on. Not the editor's own clock pause.
+  bool game_paused = false;
+  /// Ticks played unpaused, which gameplay is timed by.
+  uint64_t play_tick = 0;
   /// The last lines the game logic said, oldest first; at most
   /// `EDITOR_LOGIC_LOG_LINES`.
   std::vector<std::string> logic_log;

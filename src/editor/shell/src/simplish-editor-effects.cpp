@@ -120,6 +120,9 @@ void SimplishEditor::tickEditEffects(float seconds) {
 }
 
 void SimplishEditor::advancePlaytestEffects(float seconds) {
+  if (playtest_->gamePaused()) {
+    return;
+  }
   playtest_->stepEffects(seconds);
   emitter_player_.advance(state_.document.emitters, seconds,
                           playtest_->effects());

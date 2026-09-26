@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <editor/agent/agent-dispatch.h>
+#include <engine/input/input-action.h>
 #include <game/ui/ui-screen-json.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -112,4 +113,20 @@ TEST_CASE("get_playtest reports the game screens shown and their buttons") {
   CHECK(playtest["ui"]["open"] == json::array({"pause"}));
   CHECK(playtest["ui"]["values"]["score"] == "4");
   CHECK(playtest["ui"]["buttons"][0]["rect"][2] == 100.0);
+}
+
+TEST_CASE("send_input holds the pause button, and get_playtest says whether "
+          "the game is paused") {
+  EditorShellState state = withPauseMenu();
+  state.playtest.mode = EditorPlayMode::PLAYING;
+  state.playtest.game_paused = true;
+  state.playtest.play_tick = 42;
+
+  (void)ok(state, "send_input", R"({"pause": true, "ticks": 2})");
+  const json playtest = json::parse(ok(state, "get_playtest", "{}").json);
+
+  REQUIRE(state.playtest.scripted.size() == 1);
+  CHECK(state.playtest.scripted[0].input.buttons == input::INPUT_BUTTON_PAUSE);
+  CHECK(playtest["game_paused"] == true);
+  CHECK(playtest["play_tick"] == 42);
 }

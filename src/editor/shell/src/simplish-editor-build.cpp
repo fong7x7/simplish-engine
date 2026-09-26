@@ -119,6 +119,7 @@ void SimplishEditor::newGameLogic() {
   }
   const EditorLogicScaffold made = scaffoldProjectLogic(state_.project.root);
   refreshLogicState();
+  reloadUi();  // the scaffold's pause menu and HUD
   if (made == EditorLogicScaffold::CREATED) {
     showStatusMessage("Wrote src/ with an example — Build ▸ Build Game Logic "
                       "compiles it");
@@ -138,6 +139,7 @@ void SimplishEditor::buildGameLogic() {
   // else a build could mean.
   (void)scaffoldProjectLogic(root);
   refreshLogicState();
+  reloadUi();
   const EditorToolchain tools = editorToolchain();
   std::vector<EditorBuildCommand> commands = logicBuildCommands(root, tools);
   // The new library runs in a process of its own before this one loads it.

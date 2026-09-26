@@ -21,6 +21,9 @@ struct TestInput {
   float aim_y = 0.0F;
   /// Whether fire is held, as the trigger or the left mouse button.
   bool fire = false;
+  /// Whether the pause button is held: pressing it is heard once, as a
+  /// `PAUSE_PRESSED` event.
+  bool pause = false;
 };
 
 }  // namespace eng::game::sdk

@@ -38,6 +38,8 @@ struct WorldReadScratch {
   RunOutcome outcome = RunOutcome::PLAYING;
   /// Whose steps, never listened for.
   LogicSteps steps = LogicSteps::NONE;
+  /// A copy of whether the game is paused.
+  uint8_t paused = 0;
   /// Lines logged, never shown.
   std::vector<std::string> log{};
   /// Cues raised, never played.

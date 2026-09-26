@@ -188,6 +188,9 @@ public:
   /// in the project's action list — on the next tick (ADR-012).
   void queueUiAction(uint32_t code) { pending_ui_action_ = code; }
 
+  /// Whether the game logic has the game paused.
+  [[nodiscard]] bool gamePaused() const { return world_->paused(); }
+
   /// The screens the game logic shows, and the values they show.
   [[nodiscard]] const game::WorldUi& ui() const { return world_->ui(); }
 

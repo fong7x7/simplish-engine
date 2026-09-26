@@ -18,7 +18,9 @@ namespace {
   /// @p input as the tick reads it.
   sim::PlayerInput quantised(const game::sdk::TestInput& input) {
     return {axis(input.move_x), axis(input.move_y), axis(input.aim_x),
-            axis(input.aim_y), input.fire ? input::INPUT_BUTTON_FIRE : 0U};
+            axis(input.aim_y),
+            (input.fire ? input::INPUT_BUTTON_FIRE : 0U) |
+                (input.pause ? input::INPUT_BUTTON_PAUSE : 0U)};
   }
 
 }  // namespace

@@ -117,11 +117,43 @@ private:
 
 **What is shown is presentation.** The screens shown and their values are kept by the world beside the cues and never hashed: showing a screen changes nothing a tick reads. **A choice is simulation.** It arrives as input, on one tick, recorded in the replay and exchanged between lockstep peers, and it is the logic that decides what it does — so a press on a screen the logic has already hidden is the logic's to ignore (`world.showing`).
 
-**Pausing is not a menu's.** In lockstep a run cannot stop for one player, so showing a menu pauses nothing: a game whose pause screen should stop play stops it in its own logic. The editor's playtest pauses its own clock with F6.
+**Pausing is the logic's.** Showing a menu stops nothing; the logic pauses the game (§3), and a pause menu is a screen it shows while it does.
 
 ---
 
-## 3. A choice is input
+## 3. Pausing
+
+A pause stops the **game loop, not the UI loop**. It is simulation state the logic sets, so ticks go on: each still reads input, hears the pause button and the choices made on screens, and runs the logic, while players, actors, projectiles, hazards, damage and a downed player's window all stand still.
+
+| Call | Does |
+|---|---|
+| `world.pause()`, `world.resume()` | Pause, or play on, from the next tick |
+| `world.paused()` | Whether the game is paused |
+| `world.playTick()` | Ticks played unpaused: the clock gameplay runs on. `world.tick()` counts every tick, paused or not |
+| `onPausePressed(world, event)` | A player started pressing the pause button — P, or a pad's Start, unless rebound (Edit › Controls). Heard paused or not; nothing pauses unless the logic says so |
+| `sdk::togglePause(world, "pause")` | Pause and show the screen, or hide it and play on |
+| `onPausedTick(world)` | `sdk::Game`'s tick while paused, in place of `onTick` |
+
+```cpp
+void onPausePressed(GameLogicWorld& world, const LogicEvent&) override {
+  sdk::togglePause(world, "pause");            // content/ui/pause.ui.json
+}
+void onUiAction(GameLogicWorld& world, const LogicEvent& choice) override {
+  if (sdk::chose(choice, "resume") && world.paused()) {
+    sdk::togglePause(world, "pause");
+  }
+}
+```
+
+**Time gameplay by `playTick()`.** The engine's own systems run on it — cooldowns, wind-ups, grace, the revive and bleed-out windows — so a pause runs none of them down, and the SDK's timers should too: `WAVES.due(world.playTick())`. `sdk::Schedule` and `sdk::fireWeapon` already do, and nobody fires while paused. `sdk::Game` calls `onTick` only on ticks played — whether a tick is paused is settled before its hooks, so each play tick reaches `onTick` exactly once, the tick a menu resumes on included — and `onPausedTick` on the others.
+
+**Every peer pauses together.** Pausing is in the tick, so in co-op the whole session pauses on the same tick, whoever pressed; which players may pause, or resume, is the logic's to decide from `event.target`.
+
+**In the editor**, a paused game holds its scene still — effects, water, animation — while its screens, their values and buttons go on. The editor's own clock pause, F6, is separate: it stops every tick, for looking at one frame, and a game menu cannot be answered through it. `get_playtest` reports `game_paused` and `play_tick`; `send_input`'s `pause` holds the button.
+
+---
+
+## 4. A choice is input
 
 `sim::PlayerInput::ui_action` is 0, or one plus the action's index in the **project's action list** — every action any screen's button names, sorted and once each (`game::uiActions`). Sorted, so every peer and every replay number them alike; adding a screen that names a new action renumbers the ones after it, which a replay recorded before the change will not match. The replay format records it (version 3).
 
@@ -129,7 +161,7 @@ The host sets it for one tick when a button is pressed; the world turns it into 
 
 ---
 
-## 4. In the editor
+## 5. In the editor
 
 Every table read — opening a project, a rescan — reads `content/ui/`, logging each problem. A playtest's content carries the screen ids and the action list, and a bake (the logic check, a deploy) copies `content/ui/` beside the data tables.
 
@@ -144,7 +176,7 @@ The deployed game is headless until the rendered client exists; it keeps the scr
 
 ---
 
-## 5. For agents
+## 6. For agents
 
 | Tool | Does |
 |---|---|
@@ -158,7 +190,7 @@ The loop: write a screen with `set_ui_screen`, look at it with `render_ui_screen
 
 ---
 
-## 6. Testing
+## 7. Testing
 
 A logic test (`SIMPLISH_LOGIC_TEST`, [sdk.md §10](sdk.md#10-testing-it)) can choose and read:
 
@@ -172,13 +204,13 @@ SIMPLISH_LOGIC_TEST(retry_brings_the_player_back, "main") {
 }
 ```
 
-`test.choose(slot, action)` makes the choice on the next tick only; `test.uiValue(key)` reads a value; `test.world().showing(id)` asks what is shown.
+`test.choose(slot, action)` makes the choice on the next tick only; `test.uiValue(key)` reads a value; `test.world().showing(id)` asks what is shown; `test.hold(0, {.pause = true})` holds the pause button, and `test.world().paused()` says whether it paused.
 
 In the engine, `game/ui`'s tests build screens into a bare `GuiWidgetTree` and lay them out with the one-argument `computeLayout`; `test_ui_screen_render.cpp` renders one and writes `ui-screen-capture.png` at the repository root, a gitignored artefact.
 
 ---
 
-## 7. Not yet
+## 8. Not yet
 
 - Text size and weight: every label uses the UI font at one size.
 - Images, sliders, text fields: the format names panels, labels, buttons, bars and spacers.

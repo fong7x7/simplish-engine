@@ -20,8 +20,9 @@ namespace {
   using A = InputAction;
   using S = InputSource;
 
-  /// The left stick and d-pad move, the right stick aims, and the right
-  /// trigger or shoulder fires — the twin-stick layout, on every pad.
+  /// The left stick and d-pad move, the right stick aims, the right
+  /// trigger or shoulder fires, and Start pauses — the twin-stick layout,
+  /// on every pad.
   constexpr DefaultBinding DEFAULT_PAD[] = {
       {A::MOVE_UP, S::negative(GamepadAxis::LEFT_Y)},
       {A::MOVE_UP, S::button(GamepadButton::DPAD_UP)},
@@ -37,6 +38,7 @@ namespace {
       {A::AIM_DOWN, S::positive(GamepadAxis::RIGHT_Y)},
       {A::AIM_LEFT, S::negative(GamepadAxis::RIGHT_X)},
       {A::AIM_RIGHT, S::positive(GamepadAxis::RIGHT_X)},
+      {A::PAUSE, S::button(GamepadButton::START)},
   };
 
   /// @p deadzone held to a range that leaves something to steer with.
