@@ -251,6 +251,9 @@ public:
   int32_t z_index = 0;
   /// Optional debug label for editors and tests.
   std::string debug_name{};
+  /// Shown in a small box by the tree after the pointer rests on the
+  /// widget for `GUI_TOOLTIP_DELAY_SECONDS`; empty for none.
+  std::string tooltip{};
   /// Whether this tree node can take focus from keyboard or pad navigation.
   /// Buttons, sliders, dropdowns and text fields set it themselves; a
   /// custom widget sets it to join in.
@@ -259,10 +262,6 @@ public:
   bool tree_dirty = true;
   /// Node needs redraw.
   bool tree_render_dirty = true;
-  /// Whether this widget is registered as an overlay component.
-  /// Set by GuiWidgetTree::registerComponent. When true, visitDrawOrder
-  /// skips this node (it renders via renderSortedOverlays instead).
-  bool overlay_registered = false;
 
 private:
   /// Click callbacks registered for this widget (routed after hit-test).

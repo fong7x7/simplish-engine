@@ -156,6 +156,7 @@
 #include <editor/shell/editor-water.h>
 #include <engine/client/desktop-game-client.h>
 #include <engine/gltf/skinned-model.h>
+#include <engine/gui/gui-toast-kind.h>
 #include <engine/gui/gui-widget-id.h>
 #include <engine/gui/image-data.h>
 #include <engine/input/gamepad-seats.h>
@@ -368,6 +369,8 @@ private:
   void forgetGameLogic();
   /// Everything that follows a build ending as @p status.
   void finishBuild(EditorBuildStatus status);
+  /// Log a failed deploy and tell the user how the deploy went.
+  void reportDeploy();
   /// What follows a logic build ending: load what it made, if it made
   /// something, and say how it went.
   void finishLogicBuild();
@@ -1338,6 +1341,9 @@ private:
   void showAbout();
   /// Put a message in the toolbar status line for a few seconds.
   void showStatusMessage(std::string text);
+  /// Tell the user of an outcome — saved, built, failed — in a toast in
+  /// the corner, coloured by @p kind; the status line when there is none.
+  void notify(std::string text, GuiToastKind kind);
   /// Log and surface why a project could not be opened.
   void reportProjectOpenFailure(ProjectOpenError error);
   /// Run the View accelerators. Returns true when @p key was one of them.
@@ -1377,6 +1383,8 @@ private:
   GuiWidgetId work_row_ = GUI_WIDGET_ID_INVALID;
   /// The viewport's place in the work row; the overlays cover it.
   GuiWidgetId stage_panel_ = GUI_WIDGET_ID_INVALID;
+  /// The toasts `notify` shows, in the overlay layer.
+  GuiWidgetId toasts_id_ = GUI_WIDGET_ID_INVALID;
   /// Menu bar widget id in the tree (owned by the tree).
   GuiWidgetId menu_bar_id_ = GUI_WIDGET_ID_INVALID;
   /// Toolbar widget id in the tree (owned by the tree).

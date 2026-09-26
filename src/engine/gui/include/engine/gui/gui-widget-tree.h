@@ -1,8 +1,8 @@
 #pragma once
 
 /// @file gui-widget-tree.h
-/// @brief Retained widget tree plus registered overlay `GuiWidget`s (hit
-/// test, render, text focus) in one context.
+/// @brief The retained widget tree: ownership, layout, hit testing,
+/// focus, rendering, and the overlay layer popovers and dialogs live in.
 /// @par Threading Main thread only.
 
 #include "adopt-result.h"
@@ -26,6 +26,12 @@ namespace eng {
 
 using GuiWidgetVisitor = std::function<void(const GuiWidget&)>;
 using GuiWidgetMutVisitor = std::function<void(GuiWidget&)>;
+
+/// Seconds the pointer rests on a widget before its tooltip shows.
+inline constexpr float GUI_TOOLTIP_DELAY_SECONDS = 0.5f;
+
+/// `z_index` of the overlay layer: above anything else under the root.
+inline constexpr int32_t GUI_OVERLAY_LAYER_Z = 1000000;
 
 /// @thread_safety Main thread only.
 class GuiWidgetTree {
@@ -104,6 +110,17 @@ public:
   /// Return the number of direct children.
   size_t childCount(GuiWidgetId id) const;
 
+  /// The layer overlays live in — popovers, menus, modals, toasts: a
+  /// see-through panel over the whole root, drawn and hit above
+  /// everything else under it, made on first call. Its children are placed
+  /// by hand (`PositionMode::MANUAL`, with `placePopover`) or by insets
+  /// (`ABSOLUTE`). Invalid until the tree has a root.
+  GuiWidgetId overlayLayer();
+
+  /// Whether the tree changed since `computeLayout` last ran — a widget
+  /// added, removed or `markDirty`-ed — so the host should lay it out.
+  [[nodiscard]] bool needsLayout() const;
+
   /// Lay the tree out in @p viewport, the screen rect: measure every
   /// widget bottom-up, then arrange from the root, which takes the whole
   /// viewport. Text is measured with @p ctx's font.
@@ -140,12 +157,11 @@ public:
   /// Set keyboard focus to a specific widget. No-op if not focusable.
   void setFocus(GuiWidgetId id);
 
-  /// Focus @p widget, a tree node or a registered overlay component. No-op
-  /// if it is neither, or not focusable.
+  /// Focus @p widget, a node of this tree. No-op if it is not one, or not
+  /// focusable.
   void setFocus(GuiWidget& widget);
 
-  /// The widget with focus — a tree node, or an overlay component, which
-  /// has no id and leaves `focused_id` invalid — or null.
+  /// The widget with focus, or null.
   [[nodiscard]] GuiWidget* focusedWidget();
   [[nodiscard]] const GuiWidget* focusedWidget() const;
 
@@ -185,19 +201,9 @@ public:
   void setFocusScope(GuiWidgetId scope);
 
 
-  /// Register an overlay component (non-owning). Among overlays, higher
-  /// `z_index` draws and receives hits above lower; ties keep registration
-  /// order.
-  void registerComponent(GuiWidget& comp);
-
-  void unregisterComponent(GuiWidget& comp);
-
-  /// Unregister all overlay components; clears capture and text focus.
-  void clearComponents();
-
   void updateHover(float mx, float my);
 
-  /// Per-frame tick for every registered overlay and tree widget.
+  /// Per-frame tick for every tree widget.
   void updateAll(const GuiDrawContext& ctx, float dt);
 
   bool dispatchClick(float mx, float my);
@@ -230,8 +236,6 @@ public:
 
   void clearFocus();
 
-  /// Returns the number of registered overlay components.
-  [[nodiscard]] size_t componentCount() const;
 
 private:
   /// Flags indicating which cursor-relevant widget types are hovered.
@@ -280,14 +284,13 @@ private:
   static void pasteFromClipboard(GuiTextInput& input);
 
   /// Every visible focusable widget navigation can reach: the focus
-  /// scope's in tree order, then — with no scope set — the focusable
-  /// overlay components in registration order.
+  /// scope's, in tree order.
   [[nodiscard]] std::vector<GuiWidget*> focusableInScope();
 
   /// The root navigation searches from: the focus scope, or the tree root.
   [[nodiscard]] GuiWidgetId navRoot() const;
 
-  /// Whether @p widget is a node of this tree rather than an overlay.
+  /// Whether @p widget is a node of this tree.
   [[nodiscard]] bool isTreeNode(const GuiWidget& widget) const;
 
   /// Whether the focused widget is one navigation can reach.
@@ -313,7 +316,7 @@ private:
   /// nearest scrolling ancestor; true if one moved.
   bool scrollNav(GuiNavCommand command);
 
-  /// Focus @p widget — a tree node, an overlay, or null for nothing —
+  /// Focus @p widget — a tree node, or null for nothing —
   /// dropping typing focus from any other text field, and scrolling it
   /// into view.
   void moveFocus(GuiWidget* widget);
@@ -341,8 +344,6 @@ private:
   /// whatever `childClipRect` it asks for.
   void renderTreeNode(GuiWidgetId id, const GuiDrawContext& ctx) const;
 
-  /// Drop every reference the tree holds to overlay @p comp.
-  void forgetComponent(GuiWidget& comp);
 
   /// Update the system cursor shape based on hovered widget type.
   void updateCursorForHover();
@@ -377,10 +378,6 @@ private:
   /// Swap focused text input, unfocusing the old and focusing the new.
   void applyTextInputFocus(GuiTextInput* hit);
 
-  /// `ord_asc`: overlays in ascending `z_index` (same order as paint).
-  void
-  applyTextInputFocusFromSortedOverlays(const std::vector<GuiWidget*>& ord_asc,
-                                        float mx, float my);
 
   /// If the last mouse-down did not capture, fire `onClick` on matching
   /// button-up inside the same widget (desktop press/release path).
@@ -462,25 +459,6 @@ private:
   static void visitDrawOrderRec(const GuiWidgetTree& tree, GuiWidgetId id,
                                 const GuiWidgetVisitor& visitor);
 
-  /// Sort overlay components by ascending z_index.
-  static std::vector<GuiWidget*>
-  sortedOverlaysZAsc(const std::vector<GuiWidget*>& comps);
-
-  /// Return the topmost widget (highest z) that contains (x, y).
-  static GuiWidget* topHitInZAscOrder(const std::vector<GuiWidget*>& ord_asc,
-                                      float x, float y);
-
-  /// Return the topmost GuiTextInput that contains (mx, my).
-  static GuiTextInput*
-  topTextInputInZAscOrder(const std::vector<GuiWidget*>& ord_asc, float mx,
-                          float my);
-
-  /// Find the topmost overlay component at (x, y).
-  static GuiWidget* findTopOverlayAt(const std::vector<GuiWidget*>& comps,
-                                     float x, float y);
-
-  /// Hit-test overlays first, then the widget tree.
-  GuiWidget* hitTestAny(float mx, float my);
 
   /// Resolve a tree hit-test result to a mutable widget pointer.
   static GuiWidget* resolveTreeHit(GuiWidgetTree& tree, float x, float y);
@@ -493,19 +471,24 @@ private:
   static GuiTextInput* findTreeTextInput(GuiWidgetTree& tree, GuiWidgetId id,
                                          float mx, float my);
 
-  /// Render overlay components in ascending z_index order.
-  static void renderSortedOverlays(const std::vector<GuiWidget*>& comps,
-                                   const GuiDrawContext& ctx);
 
-  /// Flat list of widgets participating in hit-testing and focus (scene order).
-  std::vector<GuiWidget*> components_{};
+  /// Track the tooltip the pointer is over, now on @p hovered.
+  void trackTooltip(GuiWidgetId hovered);
+  /// Draw the tooltip, when the pointer has rested long enough.
+  void renderTooltip(const GuiDrawContext& ctx) const;
+
+  /// The overlay layer, once made.
+  GuiWidgetId overlay_layer_ = GUI_WIDGET_ID_INVALID;
+  /// The widget whose tooltip the pointer is resting on, or invalid.
+  GuiWidgetId tooltip_target_ = GUI_WIDGET_ID_INVALID;
+  /// Seconds the pointer has rested there.
+  float tooltip_seconds_ = 0.0f;
+  /// Whether a press put its tooltip away until the pointer moves on.
+  bool tooltip_dismissed_ = false;
   /// Widget that captured mouse after a successful mouse-down dispatch.
   GuiWidget* captured_ = nullptr;
   /// Text field receiving IME/text input when focused.
   GuiTextInput* focused_input_ = nullptr;
-  /// The overlay component with navigation focus, when one has it rather
-  /// than a tree node.
-  GuiWidget* focused_overlay_ = nullptr;
   /// Widget hit on mouse-down when `handleMouseDown` returned false.
   GuiWidget* pending_click_target_ = nullptr;
   /// Button index from that mouse-down; must match for synthesized click.

@@ -270,12 +270,18 @@ void SimplishEditor::finishBuild(EditorBuildStatus status) {
   if (status == EditorBuildStatus::SUCCEEDED && !finishDeploy()) {
     build.status = EditorBuildStatus::FAILED;
   }
-  if (build.status != EditorBuildStatus::SUCCEEDED) {
+  reportDeploy();
+}
+
+void SimplishEditor::reportDeploy() {
+  const EditorBuildState& build = state_.build;
+  const bool deployed = build.status == EditorBuildStatus::SUCCEEDED;
+  if (!deployed) {
     LOG_WARN("build", "Deploy failed — see " + build.log.string());
   }
-  showStatusMessage(build.status == EditorBuildStatus::SUCCEEDED
-                        ? "Deployed to " + build.deployed.string()
-                        : "Deploy failed — see " + build.log.string());
+  notify(deployed ? "Deployed to " + build.deployed.string()
+                  : "Deploy failed — see " + build.log.string(),
+         deployed ? GuiToastKind::SUCCESS : GuiToastKind::ERROR);
 }
 
 void SimplishEditor::finishLogicBuild() {
@@ -289,10 +295,11 @@ void SimplishEditor::finishLogicBuild() {
           .value_or(""));
   refreshLogicState();
   const std::string message = logicBuildMessage(state_.build);
-  if (state_.build.status == EditorBuildStatus::FAILED) {
+  const bool failed = state_.build.status == EditorBuildStatus::FAILED;
+  if (failed) {
     LOG_WARN("build", message);
   }
-  showStatusMessage(message);
+  notify(message, failed ? GuiToastKind::ERROR : GuiToastKind::SUCCESS);
 }
 
 void SimplishEditor::loadGameLogic() {

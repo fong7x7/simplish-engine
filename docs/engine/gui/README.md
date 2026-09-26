@@ -17,7 +17,7 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 
 | Document | Subsystem | Implementation |
 |---|---|---|
-| [widgets.md](technical/widgets.md) | Widget base type, lifecycle, and the built-in widget set | `gui-widget.cpp`, `gui-button.cpp`, `gui-label.cpp`, `gui-panel.cpp`, `gui-dropdown.cpp`, `gui-slider.cpp`, `gui-scroll-panel.cpp`, `gui-text-input.cpp`, `gui-text-area.cpp`, `gui-image.cpp`, `gui-viewport.cpp` |
+| [widgets.md](technical/widgets.md) | Widget base type, lifecycle, and the built-in widget set — §0 is the catalogue with examples: checkbox, toggle, radio, tabs, progress, number field, virtual list, table, tree view, card | `gui-widget.cpp`, `gui-button.cpp`, `gui-label.cpp`, `gui-panel.cpp`, `gui-dropdown.cpp`, `gui-slider.cpp`, `gui-scroll-panel.cpp`, `gui-text-input.cpp`, `gui-text-area.cpp`, `gui-image.cpp`, `gui-viewport.cpp` |
 | [gui-widget-tree.md](technical/gui-widget-tree.md) | Tree ownership, IDs, traversal, dirty propagation | `gui-widget-tree.cpp` |
 | [layout-engine.md](technical/layout-engine.md) | CSS flexbox layout: padding, margins, gaps, grow/shrink, wrap, alignment, absolute insets, natural sizes — with recipes | `flex-layout.cpp`, `layout-engine.cpp` |
 | [renderer.md](technical/renderer.md) | Quad batching, scissor stack, draw-command emission | `gui-renderer.cpp`, `gui-draw-context.cpp` |
@@ -25,6 +25,7 @@ Implementation-level documents, one per subsystem. These describe how the shippe
 | [rhi-text-draw-path.md](technical/rhi-text-draw-path.md) | How text reaches the RHI | `gui-renderer.cpp` |
 | [theming.md](technical/theming.md) | The typed theme: palette, spacing/radius/type/elevation scales, per-state component styles and their transitions, button variants, theme files — with recipes | `gui-theme.cpp`, `gui-theme-json.cpp`, `gui-state-style.cpp`, `gui-style-transition.cpp` |
 | [input.md](technical/input.md) | Hit testing, focus, event dispatch, input contexts | `gui-input.cpp` |
+| [overlays.md](technical/overlays.md) | The overlay layer: popover placement, tooltips, modal dialogs, toasts, context menus, the menu bar | `gui-widget-tree-overlay.cpp`, `gui-popover-placement.cpp`, `gui-modal.cpp`, `gui-toasts.cpp`, `gui-menu-bar.cpp` |
 | [dockspace.md](technical/dockspace.md) | Dock region arrangement and config loading | `dockspace-arrange.cpp`, `dockspace-config-loader.cpp`, `gui-dockspace-widget.cpp` |
 | [markdown-parser.md](technical/markdown-parser.md) | Block and inline markdown parsing | `markdown-parser.cpp` |
 | [markdown-renderer.md](technical/markdown-renderer.md) | Rendering parsed markdown into draw commands | `markdown-renderer.cpp` |

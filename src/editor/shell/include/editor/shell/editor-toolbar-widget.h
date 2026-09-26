@@ -95,6 +95,8 @@ private:
   void wireStatusLabel(GuiWidgetTree& tree);
   /// Create the empty, growing panel that pushes the status label right.
   void wireSpacer(GuiWidgetTree& tree);
+  /// Make @p tool the active one, as its button's click does.
+  void pickTool(EditorTool tool);
   /// Create one button per tool.
   void wireToolButtons(GuiWidgetTree& tree);
   /// Create the play button at the end of the tool row.

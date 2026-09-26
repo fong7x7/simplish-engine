@@ -188,6 +188,8 @@ The GUI framework listens to the engine input system's `method_changed` event (`
 
 ### Core Widgets
 
+> **What ships** is catalogued, with examples, in [technical/widgets.md §0](technical/widgets.md#0-the-widget-set-read-this-first); overlays (modals, tooltips, toasts, menus) in [technical/overlays.md](technical/overlays.md). Not built from the table below: `Splitter`, `Canvas`, `ChatPanel`, closeable or reorderable tabs, and a searchable dropdown.
+
 | Widget | Description |
 |---|---|
 | `Panel` | Container with optional title bar, background, border, shadow, rounded corners |

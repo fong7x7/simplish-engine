@@ -69,7 +69,7 @@ namespace {
     if (widget == nullptr || !widget->visible) {
       return;
     }
-    if (canFocus(*widget) && !widget->overlay_registered) {
+    if (canFocus(*widget)) {
       out.push_back(widget);
     }
     for (const GuiWidgetId child : widget->children) {
@@ -247,24 +247,17 @@ bool GuiWidgetTree::isTreeNode(const GuiWidget& widget) const {
 }
 
 GuiWidget* GuiWidgetTree::focusedWidget() {
-  return focused_overlay_ != nullptr ? focused_overlay_
-                                     : findWidget(focused_id);
+  return findWidget(focused_id);
 }
 
 const GuiWidget* GuiWidgetTree::focusedWidget() const {
-  return focused_overlay_ != nullptr ? focused_overlay_
-                                     : findWidget(focused_id);
+  return findWidget(focused_id);
 }
 
 std::vector<GuiWidget*> GuiWidgetTree::focusableInScope() {
   std::vector<GuiWidget*> out;
   if (navRoot() != GUI_WIDGET_ID_INVALID) {
     collectFocusable(*this, navRoot(), out);
-  }
-  // Overlays belong to no subtree, so a scope leaves them out.
-  if (findWidget(focus_scope_id) == nullptr) {
-    std::ranges::copy_if(components_, std::back_inserter(out),
-                         [](const GuiWidget* c) { return canFocus(*c); });
   }
   return out;
 }
@@ -281,9 +274,7 @@ void GuiWidgetTree::moveFocus(GuiWidget* widget) {
     clearFocus();
   }
   GuiWidget* was = focusedWidget();
-  const bool in_tree = widget != nullptr && isTreeNode(*widget);
-  focused_id = in_tree ? widget->widget_id : GUI_WIDGET_ID_INVALID;
-  focused_overlay_ = widget != nullptr && !in_tree ? widget : nullptr;
+  focused_id = widget != nullptr ? widget->widget_id : GUI_WIDGET_ID_INVALID;
   revealFocus();
   if (was != widget) {
     announceFocusChange(was, widget);
@@ -307,17 +298,14 @@ void GuiWidgetTree::setFocus(GuiWidgetId id) {
 }
 
 void GuiWidgetTree::setFocus(GuiWidget& widget) {
-  const bool overlay =
-      std::ranges::find(components_, &widget) != components_.end();
-  if (widget.tree_focusable && (overlay || isTreeNode(widget))) {
+  if (widget.tree_focusable && isTreeNode(widget)) {
     moveFocus(&widget);
   }
 }
 
 void GuiWidgetTree::setFocusScope(GuiWidgetId scope) {
   focus_scope_id = scope;
-  if (scope == GUI_WIDGET_ID_INVALID ||
-      (focused_overlay_ == nullptr && isWithin(*this, focused_id, scope))) {
+  if (scope == GUI_WIDGET_ID_INVALID || isWithin(*this, focused_id, scope)) {
     return;
   }
   const std::vector<GuiWidget*> focusable = focusableInScope();
@@ -346,10 +334,6 @@ bool GuiWidgetTree::navigateFocus(GuiNavCommand command) {
 }
 
 bool GuiWidgetTree::bubbleNav(GuiNavCommand command) {
-  if (focused_overlay_ != nullptr) {
-    // An overlay has no parent to pass a command on to.
-    return focused_overlay_->handleNav(command);
-  }
   const GuiWidgetId stop = navRoot();
   for (GuiWidgetId at = focused_id; at != GUI_WIDGET_ID_INVALID;) {
     GuiWidget* widget = findWidget(at);
@@ -480,9 +464,7 @@ void GuiWidgetTree::renderTreeNode(GuiWidgetId id,
     return;
   }
   const ScopedLayer layer{ctx, *widget};
-  if (!widget->overlay_registered) {
-    widget->render(ctx);
-  }
+  widget->render(ctx);
   layer.enterChildren();
   const ScopedClip clip{ctx, widget->childClipRect()};
   for (const GuiWidgetId child : sortedChildIdsByZ(*this, *widget)) {

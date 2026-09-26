@@ -304,59 +304,50 @@ TEST_CASE("a custom widget joins navigation by taking focus") {
   REQUIRE(fx.tree.focused_id == card);
 }
 
-TEST_CASE("overlay components take part in navigation beside the tree") {
+TEST_CASE("widgets in the overlay layer take part in navigation") {
   MenuFixture fx;
   const GuiWidgetId tree_button = fx.button(fx.root, {100, 100, 100, 40});
-  GuiButton overlay;
-  overlay.rect = {100, 300, 100, 40};
-  fx.tree.registerComponent(overlay);
+  const GuiWidgetId popover =
+      fx.button(fx.tree.overlayLayer(), {100, 300, 100, 40});
   fx.tree.setFocus(tree_button);
 
   REQUIRE(fx.tree.routeNav(GuiNavCommand::DOWN));
-  REQUIRE(fx.tree.focusedWidget() == &overlay);
-  REQUIRE(fx.tree.focused_id == GUI_WIDGET_ID_INVALID);
+  REQUIRE(fx.tree.focused_id == popover);
   REQUIRE(fx.tree.routeNav(GuiNavCommand::UP));
   REQUIRE(fx.tree.focused_id == tree_button);
-  fx.tree.unregisterComponent(overlay);
 }
 
-TEST_CASE("confirm presses a focused overlay") {
+TEST_CASE("confirm presses a focused widget in the overlay layer") {
   MenuFixture fx;
-  GuiButton overlay;
-  overlay.rect = {100, 300, 100, 40};
+  const GuiWidgetId popover =
+      fx.button(fx.tree.overlayLayer(), {100, 300, 100, 40});
   int presses = 0;
-  overlay.onClick([&presses](const GuiMouseEvent&) { ++presses; });
-  fx.tree.registerComponent(overlay);
-  fx.tree.setFocus(overlay);
+  fx.tree.findWidget(popover)->onClick(
+      [&presses](const GuiMouseEvent&) { ++presses; });
+  fx.tree.setFocus(popover);
   REQUIRE(fx.tree.routeNav(GuiNavCommand::CONFIRM));
   REQUIRE(presses == 1);
-  fx.tree.unregisterComponent(overlay);
 }
 
-TEST_CASE("an overlay unregistered while focused drops focus") {
+TEST_CASE("an overlay destroyed while focused drops focus") {
   MenuFixture fx;
-  GuiButton overlay;
-  overlay.rect = {100, 300, 100, 40};
-  fx.tree.registerComponent(overlay);
-  fx.tree.setFocus(overlay);
-  REQUIRE(fx.tree.focusedWidget() == &overlay);
-
-  fx.tree.unregisterComponent(overlay);
+  const GuiWidgetId popover =
+      fx.button(fx.tree.overlayLayer(), {100, 300, 100, 40});
+  fx.tree.setFocus(popover);
+  REQUIRE(fx.tree.focused_id == popover);
+  fx.tree.destroyWidget(popover);
   REQUIRE(fx.tree.focusedWidget() == nullptr);
 }
 
-TEST_CASE("a focus scope leaves overlays out") {
+TEST_CASE("a focus scope leaves the rest of the tree out, overlays too") {
   MenuFixture fx;
   const GuiWidgetId dialog = fx.panel(fx.root, {0, 0, 400, 200});
   const GuiWidgetId ok = fx.button(dialog, {100, 100, 100, 40});
-  GuiButton overlay;
-  overlay.rect = {100, 300, 100, 40};
-  fx.tree.registerComponent(overlay);
+  (void)fx.button(fx.tree.overlayLayer(), {100, 300, 100, 40});
   fx.tree.setFocusScope(dialog);
 
   REQUIRE(fx.tree.focused_id == ok);
   REQUIRE_FALSE(fx.tree.routeNav(GuiNavCommand::DOWN));
-  fx.tree.unregisterComponent(overlay);
 }
 
 TEST_CASE("a widget hears when it gains and loses focus") {

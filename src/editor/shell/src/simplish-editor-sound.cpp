@@ -304,7 +304,7 @@ SimplishEditor::importSoundFile(const std::filesystem::path& source,
   EditorSoundImport imported =
       importEditorSound(projectAssetsPath(state_.project.root), source);
   if (!imported.error.empty()) {
-    showStatusMessage("Not imported: " + imported.error);
+    notify("Not imported: " + imported.error, GuiToastKind::ERROR);
     return imported;
   }
   rescanSoundFiles();

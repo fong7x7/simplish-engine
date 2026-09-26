@@ -210,4 +210,14 @@ bool GuiDropdown::handleNav(GuiNavCommand command) {
   return false;
 }
 
+void GuiDropdown::popUp(const Rect& anchor, const Rect& viewport,
+                        const GuiPopoverPlacement& placement) {
+  const LayoutSize size{static_cast<float>(style.width),
+                        static_cast<float>(items.size()) *
+                            static_cast<float>(style.item_height)};
+  rect = placePopover(anchor, size, viewport, placement);
+  hovered_item = -1;
+  visible = true;
+}
+
 }  // namespace eng

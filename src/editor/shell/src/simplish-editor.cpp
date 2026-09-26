@@ -41,6 +41,7 @@
 #include <engine/gui/gui-label.h>
 #include <engine/gui/gui-panel.h>
 #include <engine/gui/gui-theme-constants.h>
+#include <engine/gui/gui-toasts.h>
 #include <engine/gui/gui-widget-tree.h>
 #include <engine/gui/image-loader.h>
 #include <engine/render-mesh/mesh-transform.h>
@@ -57,6 +58,9 @@ namespace eng::editor {
 namespace {
 
   constexpr float TITLE_BAR_HEIGHT = 28.0f;
+  /// Seconds a toast shows for; a failure's, longer.
+  constexpr float TOAST_SECONDS = 3.5f;
+  constexpr float ERROR_TOAST_SECONDS = 8.0f;
   constexpr float TITLE_INSET = 10.0f;
   /// How long File > About leaves its line in the toolbar status.
   constexpr float ABOUT_SECONDS = 4.0f;
@@ -496,6 +500,8 @@ void SimplishEditor::initToolbar(GuiWidgetTree& tree) {
 }
 
 void SimplishEditor::initWorkArea(GuiWidgetTree& tree) {
+  toasts_id_ = tree.insertExternalWidget(std::make_unique<GuiToasts>(),
+                                         tree.overlayLayer());
   initToolbar(tree);
   initWorkRow(tree);
   initViewport(tree);
@@ -711,7 +717,8 @@ bool SimplishEditor::canSaveDocument() {
   // The editor cannot show a level it could not parse, so what it would
   // write here is an empty one over whatever the file actually holds.
   if (!state_.level_readable) {
-    showStatusMessage("Not saving over a level file that could not be read");
+    notify("Not saving over a level file that could not be read",
+           GuiToastKind::ERROR);
     return false;
   }
   return true;
@@ -722,7 +729,7 @@ bool SimplishEditor::writeLevelFile() {
     return true;
   }
   LOG_ERROR("editor", "Could not write " + editorLevelPath(state_).string());
-  showStatusMessage("Could not save the level");
+  notify("Could not save the level", GuiToastKind::ERROR);
   return false;
 }
 
@@ -742,7 +749,7 @@ void SimplishEditor::saveDocument() {
   // history describing it.
   applyProjectNameToChrome();
   LOG_INFO("editor", "Saved level: " + editorLevelPath(state_).string());
-  showStatusMessage("Saved " + state_.project.metadata.name);
+  notify("Saved " + state_.project.metadata.name, GuiToastKind::SUCCESS);
 }
 
 void SimplishEditor::createLevel(std::string_view id,
@@ -809,7 +816,7 @@ void SimplishEditor::reportLevelUnreadable() {
   // writing an empty level over the file that could not be parsed.
   state_.level_readable = false;
   LOG_ERROR("editor", "Could not read " + editorLevelPath(state_).string());
-  showStatusMessage("Could not read the project's level");
+  notify("Could not read the project's level", GuiToastKind::ERROR);
 }
 
 void SimplishEditor::reportDroppedProps(size_t dropped) {
@@ -2048,7 +2055,7 @@ bool SimplishEditor::chromeNeedsLayout() {
   // is placed manually, so an unconditional pass would be wasted work. The
   // two panels are in here because folding one, or selecting a placement,
   // changes how much room the viewport beside it gets.
-  return guiLayoutWidth() != laid_out_width_ ||
+  return guiWidgetTree().needsLayout() || guiLayoutWidth() != laid_out_width_ ||
          guiLayoutHeight() != laid_out_height_ ||
          assetBrowserHeight() != laid_out_panel_height_ ||
          propertiesPanelWidth() != laid_out_properties_width_;
@@ -2530,10 +2537,23 @@ void SimplishEditor::closeProject() {
 }
 
 void SimplishEditor::showStatusMessage(std::string text) {
-  // There is no notification system yet, so messages borrow the toolbar's
-  // status line rather than pretending to open a window.
+  // Passing feedback — a setting switched — borrows the toolbar's status
+  // line; outcomes worth noticing go to `notify`'s toasts.
   status_override_ = std::move(text);
   status_override_left_ = ABOUT_SECONDS;
+}
+
+void SimplishEditor::notify(std::string text, GuiToastKind kind) {
+  auto* toasts =
+      dynamic_cast<GuiToasts*>(guiWidgetTree().findWidget(toasts_id_));
+  if (toasts == nullptr) {
+    showStatusMessage(std::move(text));
+    return;
+  }
+  // Failures stay long enough to read and act on.
+  toasts->show(std::move(text), kind,
+               kind == GuiToastKind::ERROR ? ERROR_TOAST_SECONDS
+                                           : TOAST_SECONDS);
 }
 
 void SimplishEditor::showAbout() {
@@ -2698,7 +2718,7 @@ void SimplishEditor::destroyChromeWidgets(GuiWidgetTree& tree) {
   for (GuiWidgetId* id :
        {&controls_id_, &sound_id_, &character_select_id_, &asset_panel_id_,
         &properties_panel_id_, &menu_bar_id_, &toolbar_id_, &viewport_id_,
-        &stage_panel_, &work_row_, &title_panel_, &root_panel_}) {
+        &stage_panel_, &work_row_, &toasts_id_, &title_panel_, &root_panel_}) {
     tree.destroyWidget(*id);
     *id = GUI_WIDGET_ID_INVALID;
   }

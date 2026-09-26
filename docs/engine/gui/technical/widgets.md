@@ -7,6 +7,95 @@
 
 ---
 
+## 0. The widget set (read this first)
+
+> Sections 1–12 are the original M1 design. This table is what ships. Every widget reads `ctx.activeTheme()` ([theming.md](theming.md)), measures its natural size for the flex layout ([layout-engine.md](layout-engine.md)), and takes part in pad and keyboard navigation through `handleNav`.
+
+| Widget | Header | What it is | Focus / keys |
+|---|---|---|---|
+| `GuiPanel` | `gui-panel.h` | A container, drawn from its fill fields or `state_styles` | — |
+| `GuiCard` | `gui-card.h` | A container in the theme's card look, raised and lifting on hover | — |
+| `GuiLabel` | `gui-label.h` | Text by role or font; wraps, ellipsizes, aligns | — |
+| `GuiButton` | `gui-button.h` | A label in a variant's look: NEUTRAL, PRIMARY, DANGER, GHOST | CONFIRM presses |
+| `GuiCheckbox` | `gui-checkbox.h` | Tick box and label; UNCHECKED, CHECKED, INDETERMINATE | CONFIRM toggles |
+| `GuiToggle` | `gui-toggle.h` | On/off switch with a sliding knob | CONFIRM flips; LEFT off, RIGHT on |
+| `GuiRadioGroup` | `gui-radio-group.h` | One of several options | UP / DOWN choose |
+| `GuiTabs` | `gui-tabs.h` | Tab bar with a sliding accent underline | LEFT / RIGHT select |
+| `GuiProgressBar` | `gui-progress-bar.h` | Determinate fill, or an indeterminate sweep | — |
+| `GuiNumberField` | `gui-number-field.h` | A number between − and + steppers: drag to scrub, wheel, steppers | LEFT / RIGHT step |
+| `GuiSlider` | `gui-slider.h` | A value on a track | LEFT / RIGHT step |
+| `GuiTextInput`, `GuiTextArea` | `gui-text-input.h`, `gui-text-area.h` | Editable text in the field look | CONFIRM types, CANCEL stops |
+| `GuiDropdown` | `gui-dropdown.h` | A menu of rows; `popUp` opens it anywhere | UP / DOWN, CONFIRM |
+| `GuiScrollPanel` | `gui-scroll-panel.h` | A scrolling stack of children | scrolls to focus |
+| `GuiVirtualList` | `gui-virtual-list.h` | Any number of rows, only the visible ones drawn, by callback; single or multiple selection | UP / DOWN, CONFIRM activates |
+| `GuiTable` | `gui-table.h` | A virtual list with sortable, resizable columns | as the list |
+| `GuiTreeView` | `gui-tree-view.h` | Nested rows that fold and unfold | RIGHT unfolds or steps in, LEFT folds or steps out |
+| `GuiMenuBar` | `gui-menu-bar.h` | Menu titles whose menus open in the overlay layer | — |
+| `GuiModal` | `gui-modal.h` | A dialog over everything ([overlays.md](overlays.md)) | scopes focus; CANCEL dismisses |
+| `GuiToasts` | `gui-toasts.h` | Corner notices that fade | — |
+| `GuiImage`, `GuiViewport`, `GuiDockspaceWidget` | | An image, a render target, docking | — |
+
+Every widget has `disabled`, which dims it, ignores clicks, and is skipped by focus; `selected`; `tooltip`; `render_scale` / `render_offset`; and `opacity`, which fades its subtree.
+
+### 0.1 A settings screen
+
+```cpp
+const GuiTheme& t = GuiTheme::dark();
+auto add = [&](auto widget, GuiWidgetId parent) {
+  return tree.insertExternalWidget(std::move(widget), parent);
+};
+auto card = std::make_unique<GuiCard>();
+card->tree_layout.padding = {t.space(GuiSpace::XL), t.space(GuiSpace::XL),
+                             t.space(GuiSpace::XL), t.space(GuiSpace::XL)};
+card->tree_layout.gap = t.space(GuiSpace::MD);
+const GuiWidgetId box = add(std::move(card), screen);
+
+auto title = std::make_unique<GuiLabel>();
+title->text = "Settings";
+title->role = GuiTextRole::TITLE;
+add(std::move(title), box);
+
+auto tabs = std::make_unique<GuiTabs>();
+tabs->tabs = {"Game", "Audio", "Video"};
+tabs->on_change = [&](int i) { showPage(i); };
+add(std::move(tabs), box);
+
+auto shake = std::make_unique<GuiToggle>();
+shake->label = "Screen shake";
+shake->on = settings.shake;
+shake->on_change = [&](bool on) { settings.shake = on; };
+add(std::move(shake), box);
+
+auto fov = std::make_unique<GuiNumberField>();
+fov->min = 60; fov->max = 110; fov->step = 1; fov->suffix = "°";
+fov->value = settings.fov;
+fov->on_change = [&](double v) { settings.fov = v; };
+add(std::move(fov), box);
+
+auto difficulty = std::make_unique<GuiRadioGroup>();
+difficulty->options = {"Story", "Normal", "Brutal"};
+difficulty->selected = settings.difficulty;
+add(std::move(difficulty), box);
+```
+
+### 0.2 A list of ten thousand
+
+```cpp
+list->row_count = actors.size();
+list->row_height = 28;
+list->selection_mode = GuiListSelection::MULTIPLE;
+list->draw_row = [&](const GuiDrawContext& ctx, const GuiListRow& row) {
+  const Actor& a = actors[row.index];
+  ctx.drawText({.text = a.name, .pos = {row.rect.x + 8, row.rect.y + 6},
+                .color = ctx.activeTheme().palette.text});
+};
+list->on_activate = [&](size_t i) { inspect(actors[i]); };
+```
+
+Only the rows in view are drawn, so the cost does not grow with the count. `GuiTable` (columns and `cell_text`) and `GuiTreeView` (`roots` of `GuiTreeNode`) are the same list with more drawn per row.
+
+---
+
 ## 1. Requirements Summary
 
 | ID | Requirement | Source |

@@ -100,9 +100,6 @@ void RenderedGameClient::loadGuiFont() {
 }
 
 void RenderedGameClient::onShutdown() {
-  if (gui_.tree != nullptr) {
-    gui_.tree->clearComponents();
-  }
   gui_.shutdown();
 }
 

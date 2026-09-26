@@ -20,6 +20,14 @@ namespace {
   /// as a separate thing rather than a sixth tool.
   constexpr float PLAY_BUTTON_GAP = 16.0f;
 
+  /// What each tool does, in `EditorTool` order, for its button's tooltip.
+  constexpr std::string_view TOOL_TIPS[] = {
+      "Select and move what is placed", "Paint terrain onto the ground",
+      "Raise and lower the ground", "Place props from the asset browser",
+      "Place spawn points, objectives and interactables"};
+  static_assert(std::size(TOOL_TIPS) == std::size(EDITOR_TOOLS),
+                "every tool needs a tooltip");
+
   /// Give @p widget a fixed @p width and @p height (-1 for its measured
   /// one) that the row never shrinks.
   void fixSize(GuiWidget& widget, float width, float height) {
@@ -94,6 +102,13 @@ void EditorToolbarWidget::wireSpacer(GuiWidgetTree& tree) {
   }
 }
 
+void EditorToolbarWidget::pickTool(EditorTool tool) {
+  active_tool_ = tool;
+  if (on_tool_selected) {
+    on_tool_selected(tool);
+  }
+}
+
 void EditorToolbarWidget::wireToolButtons(GuiWidgetTree& tree) {
   tool_buttons_.reserve(std::size(EDITOR_TOOLS));
   for (EditorTool tool : EDITOR_TOOLS) {
@@ -101,13 +116,9 @@ void EditorToolbarWidget::wireToolButtons(GuiWidgetTree& tree) {
     if (auto* button = dynamic_cast<GuiButton*>(tree.findWidget(id))) {
       button->label = editorToolLabel(tool);
       button->debug_name = std::string(editorToolLabel(tool));
+      button->tooltip = std::string(TOOL_TIPS[static_cast<size_t>(tool)]);
       fixSize(*button, BUTTON_WIDTH, BUTTON_HEIGHT);
-      button->onClick([this, tool](const GuiMouseEvent&) {
-        active_tool_ = tool;
-        if (on_tool_selected) {
-          on_tool_selected(tool);
-        }
-      });
+      button->onClick([this, tool](const GuiMouseEvent&) { pickTool(tool); });
     }
     tool_buttons_.push_back(id);
   }
@@ -118,6 +129,7 @@ void EditorToolbarWidget::wirePlayButton(GuiWidgetTree& tree) {
   if (auto* button = dynamic_cast<GuiButton*>(tree.findWidget(play_button_))) {
     button->label = "Play";
     button->debug_name = "play";
+    button->tooltip = "Play the level, or stop playing (F5)";
     fixSize(*button, BUTTON_WIDTH, BUTTON_HEIGHT);
     // Set apart, so it reads as a separate thing rather than another tool.
     button->tree_layout.margin.left = PLAY_BUTTON_GAP;

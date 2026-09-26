@@ -3,6 +3,7 @@
 #include "gui-dropdown-item.h"
 #include "gui-dropdown-style.h"
 #include "gui-panel.h"
+#include "gui-popover-placement.h"
 
 #include <cstdint>
 #include <vector>
@@ -39,6 +40,12 @@ public:
   /// at the ends, so an open menu keeps focus — and CONFIRM selects the
   /// highlighted row. CANCEL is left to whoever opened the menu.
   bool handleNav(GuiNavCommand command) override;
+
+  /// Open it as a popover against @p anchor inside @p viewport — a menu
+  /// under its button, a context menu at the pointer (a zero-size anchor)
+  /// — flipped and slid to stay on screen, as `placePopover` does.
+  void popUp(const Rect& anchor, const Rect& viewport,
+             const GuiPopoverPlacement& placement);
 
   /// The dropdown items.
   std::vector<GuiDropdownItem> items{};

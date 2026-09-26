@@ -55,6 +55,13 @@ root — gitignored artifacts, not fixtures to commit.
   own placement rule overrides `arrangeChildren` and calls
   `tree.arrangeWidget` on each child; one placed by another widget is
   `PositionMode::MANUAL`.
+- Anything that floats — a menu, popover, dialog, toast — goes in
+  `tree.overlayLayer()` and is placed with `placePopover` or insets
+  ([technical/overlays.md](../../../docs/engine/gui/technical/overlays.md)).
+  There is no other overlay mechanism; `registerComponent` is gone.
+- Before writing a widget, check the catalogue in `technical/widgets.md` §0:
+  checkbox, toggle, radio, tabs, progress, number field, virtual list, table
+  and tree view exist.
 - Widgets subclassing the external-widget path are inserted with
   `tree.insertExternalWidget(std::make_unique<T>(), parent)`, then `init(tree)`.
 - Colours, spacing and radii come from `ctx.activeTheme()` (`GuiTheme`,

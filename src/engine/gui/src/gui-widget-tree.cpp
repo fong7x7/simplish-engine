@@ -114,6 +114,7 @@ void GuiWidgetTree::attachWidget(GuiWidgetTree& tree, GuiWidgetId id,
   auto* p = tree.findWidget(parent);
   if (p != nullptr) {
     p->children.push_back(id);
+    tree.markDirty(parent);
   }
 }
 
@@ -253,6 +254,7 @@ void GuiWidgetTree::destroyWidget(GuiWidgetId id) {
 
   std::vector<GuiWidgetId> descendants;
   collectDescendants(*this, id, descendants);
+  markDirty(it->second->parent_id);
   detachFromTree(*this, id, it->second->parent_id);
   clearReferences(*this, id);
   widget_nodes.erase(id);
@@ -328,51 +330,10 @@ void GuiWidgetTree::visitDrawOrderRec(const GuiWidgetTree& tree, GuiWidgetId id,
   if (w == nullptr || !w->visible) {
     return;
   }
-  if (!w->overlay_registered) {
-    visitor(*w);
-  }
+  visitor(*w);
   for (GuiWidgetId cid : sortedChildIdsByZ(tree, *w)) {
     visitDrawOrderRec(tree, cid, visitor);
   }
-}
-
-std::vector<GuiWidget*>
-GuiWidgetTree::sortedOverlaysZAsc(const std::vector<GuiWidget*>& comps) {
-  auto out = comps;
-  // NOLINTNEXTLINE(bugprone-nondeterministic-pointer-iteration-order) --
-  // sorted by z_index, not pointer value
-  std::ranges::stable_sort(out, [](const GuiWidget* a, const GuiWidget* b) {
-    return a->z_index < b->z_index;
-  });
-  return out;
-}
-
-GuiWidget*
-GuiWidgetTree::topHitInZAscOrder(const std::vector<GuiWidget*>& ord_asc,
-                                 float x, float y) {
-  for (auto* it : std::views::reverse(ord_asc)) {
-    if (it->isInside(x, y)) {
-      return it;
-    }
-  }
-  return nullptr;
-}
-
-GuiTextInput*
-GuiWidgetTree::topTextInputInZAscOrder(const std::vector<GuiWidget*>& ord_asc,
-                                       float mx, float my) {
-  for (auto* ri : std::views::reverse(ord_asc)) {
-    auto* input = dynamic_cast<GuiTextInput*>(ri);
-    if (input != nullptr && input->isInside(mx, my)) {
-      return input;
-    }
-  }
-  return nullptr;
-}
-
-GuiWidget* GuiWidgetTree::findTopOverlayAt(const std::vector<GuiWidget*>& comps,
-                                           float x, float y) {
-  return topHitInZAscOrder(sortedOverlaysZAsc(comps), x, y);
 }
 
 GuiWidget* GuiWidgetTree::resolveTreeHit(GuiWidgetTree& tree, float x,
@@ -408,15 +369,6 @@ GuiTextInput* GuiWidgetTree::findTreeTextInput(GuiWidgetTree& tree,
     }
   }
   return asTextInputAt(w, mx, my);
-}
-
-void GuiWidgetTree::renderSortedOverlays(const std::vector<GuiWidget*>& comps,
-                                         const GuiDrawContext& ctx) {
-  for (GuiWidget* w : sortedOverlaysZAsc(comps)) {
-    if (w->visible) {
-      w->render(ctx);
-    }
-  }
 }
 
 void GuiWidgetTree::visitDrawOrder(const GuiWidgetVisitor& visitor) const {
@@ -470,40 +422,6 @@ size_t GuiWidgetTree::childCount(GuiWidgetId id) const {
   return (it != widget_nodes.end()) ? it->second->children.size() : 0;
 }
 
-void GuiWidgetTree::registerComponent(GuiWidget& comp) {
-  comp.overlay_registered = true;
-  components_.push_back(&comp);
-}
-
-void GuiWidgetTree::forgetComponent(GuiWidget& comp) {
-  for (GuiWidget** held :
-       {&pending_click_target_, &captured_, &focused_overlay_}) {
-    if (*held == &comp) {
-      *held = nullptr;
-    }
-  }
-  if (focused_input_ == &comp) {
-    focused_input_ = nullptr;
-  }
-}
-
-void GuiWidgetTree::unregisterComponent(GuiWidget& comp) {
-  comp.overlay_registered = false;
-  auto it = std::ranges::find(components_, &comp);
-  if (it != components_.end()) {
-    forgetComponent(comp);
-    components_.erase(it);
-  }
-}
-
-void GuiWidgetTree::clearComponents() {
-  focused_input_ = nullptr;
-  captured_ = nullptr;
-  pending_click_target_ = nullptr;
-  focused_overlay_ = nullptr;
-  components_.clear();
-}
-
 void GuiWidgetTree::clearTreeHover() {
   for (auto& [id, node] : widget_nodes) {
     static_cast<void>(id);
@@ -524,19 +442,11 @@ void GuiWidgetTree::applyTreeHover(GuiWidgetId leaf_id) {
 }
 
 void GuiWidgetTree::updateHover(float mx, float my) {
-  auto* top_overlay = findTopOverlayAt(components_, mx, my);
-  for (auto* comp : components_) {
-    comp->hovered = (comp == top_overlay);
-  }
   clearTreeHover();
-  if (top_overlay != nullptr) {
-    GuiMouseEvent evt{.x = mx, .y = my};
-    top_overlay->handleMouseMove(evt);
-  } else {
-    auto hit = hitTest(mx, my);
-    applyTreeHover(hit.widget_id);
-    routeHoverMove(mx, my);
-  }
+  auto hit = hitTest(mx, my);
+  applyTreeHover(hit.widget_id);
+  trackTooltip(hit.widget_id);
+  routeHoverMove(mx, my);
   updateCursorForHover();
 }
 
@@ -566,9 +476,6 @@ void GuiWidgetTree::accumulateCursorFlags(HoveredCursorFlags& flags,
 GuiWidgetTree::HoveredCursorFlags
 GuiWidgetTree::scanHoveredCursorFlags() const {
   HoveredCursorFlags flags{};
-  for (const auto* c : components_) {
-    accumulateCursorFlags(flags, *c);
-  }
   for (const auto& [id, node] : widget_nodes) {
     static_cast<void>(id);
     accumulateCursorFlags(flags, *node);
@@ -588,11 +495,6 @@ void GuiWidgetTree::updateCursorForHover() {
   setUiCursor(cursorShapeForHover());
 }
 
-void GuiWidgetTree::applyTextInputFocusFromSortedOverlays(
-    const std::vector<GuiWidget*>& ord_asc, float mx, float my) {
-  applyTextInputFocus(topTextInputInZAscOrder(ord_asc, mx, my));
-}
-
 void GuiWidgetTree::applyTextInputFocus(GuiTextInput* hit) {
   if (hit == focused_input_) {
     return;
@@ -608,9 +510,8 @@ void GuiWidgetTree::applyTextInputFocus(GuiTextInput* hit) {
 
 void GuiWidgetTree::updateTextInputFocus(float mx, float my,
                                          GuiSelectionExtend sel_mode) {
-  applyTextInputFocusFromSortedOverlays(sortedOverlaysZAsc(components_), mx,
-                                        my);
-  if (focused_input_ == nullptr && root_id != GUI_WIDGET_ID_INVALID) {
+  applyTextInputFocus(nullptr);
+  if (root_id != GUI_WIDGET_ID_INVALID) {
     applyTextInputFocus(findTreeTextInput(*this, root_id, mx, my));
   }
   if (focused_input_ != nullptr) {
@@ -620,25 +521,16 @@ void GuiWidgetTree::updateTextInputFocus(float mx, float my,
 
 void GuiWidgetTree::updateAll(const GuiDrawContext& ctx, float dt) {
   elapsed_time_ += dt;
-  for (auto* comp : components_) {
-    comp->update(ctx, dt);
-  }
+  tooltip_seconds_ += dt;
   for (auto& [id, node] : widget_nodes) {
     static_cast<void>(id);
-    if (!node->overlay_registered) {
-      node->update(ctx, dt);
-    }
+    node->update(ctx, dt);
   }
 }
 
 bool GuiWidgetTree::dispatchClick(float mx, float my) {
   updateTextInputFocus(mx, my, GuiSelectionExtend::COLLAPSE);
   GuiMouseEvent event{.x = mx, .y = my};
-  auto* comp = findTopOverlayAt(components_, mx, my);
-  if (comp != nullptr) {
-    comp->handleClick(event);
-    return true;
-  }
   auto* tree_hit = resolveTreeHit(*this, mx, my);
   if (tree_hit != nullptr) {
     tree_hit->handleClick(event);
@@ -651,25 +543,16 @@ void GuiWidgetTree::renderAll(const GuiDrawContext& ctx) {
   if (root_id != GUI_WIDGET_ID_INVALID) {
     renderTreeNode(root_id, ctx);
   }
-  renderSortedOverlays(components_, ctx);
   renderFocusRing(ctx);
+  renderTooltip(ctx);
 }
 
 bool GuiWidgetTree::anyHovered() const {
-  if (std::ranges::any_of(components_,
-                          [](const GuiWidget* c) { return c->hovered; })) {
-    return true;
-  }
   return std::ranges::any_of(
       widget_nodes, [](const auto& pair) { return pair.second->hovered; });
 }
 
 GuiWidget* GuiWidgetTree::findById(std::string_view component_id) {
-  auto it = std::ranges::find_if(
-      components_, [&](const GuiWidget* c) { return c->id == component_id; });
-  if (it != components_.end()) {
-    return *it;
-  }
   for (auto& [wid, node] : widget_nodes) {
     static_cast<void>(wid);
     if (node->id == component_id) {
@@ -680,11 +563,6 @@ GuiWidget* GuiWidgetTree::findById(std::string_view component_id) {
 }
 
 const GuiWidget* GuiWidgetTree::findById(std::string_view component_id) const {
-  auto it = std::ranges::find_if(
-      components_, [&](const GuiWidget* c) { return c->id == component_id; });
-  if (it != components_.end()) {
-    return *it;
-  }
   for (const auto& [wid, node] : widget_nodes) {
     static_cast<void>(wid);
     if (node->id == component_id) {
@@ -704,7 +582,12 @@ void GuiWidgetTree::handleClickWithDoubleCheck(const GuiMouseEvent& event,
   if (is_dbl && focused_input_ != nullptr) {
     focused_input_->setPendingWordSelect(event.x);
   }
-  target.handleClick(event);
+  // The second click of a pair reaches the widget as a double-click.
+  GuiMouseEvent click = event;
+  if (is_dbl) {
+    click.type = GuiMouseEventType::DOUBLE_CLICK;
+  }
+  target.handleClick(click);
 }
 
 void GuiWidgetTree::tryFireClickFromMouseUp(const GuiMouseEvent& event,
@@ -747,14 +630,6 @@ void GuiWidgetTree::recordClickTiming(float mx, float my) {
   last_click_y_ = my;
 }
 
-GuiWidget* GuiWidgetTree::hitTestAny(float mx, float my) {
-  auto* comp = findTopOverlayAt(components_, mx, my);
-  if (comp == nullptr) {
-    comp = resolveTreeHit(*this, mx, my);
-  }
-  return comp;
-}
-
 bool GuiWidgetTree::handleMouseDownHit(GuiWidget& comp,
                                        const GuiMouseEvent& event) {
   if (comp.handleMouseDown(event)) {
@@ -769,10 +644,11 @@ bool GuiWidgetTree::handleMouseDownHit(GuiWidget& comp,
 }
 
 bool GuiWidgetTree::dispatchMouseDown(const GuiMouseEvent& event) {
+  tooltip_dismissed_ = true;
   pending_click_target_ = nullptr;
   drag_moved_ = false;
   focus_visibility = GuiFocusVisibility::HIDDEN;
-  auto* comp = hitTestAny(event.x, event.y);
+  auto* comp = resolveTreeHit(*this, event.x, event.y);
   if (comp == nullptr) {
     drag_input_ = nullptr;
     return false;
@@ -814,9 +690,6 @@ void GuiWidgetTree::dispatchMouseMove(const GuiMouseEvent& event) {
 }
 
 bool GuiWidgetTree::dispatchScroll(const GuiScrollEvent& event) {
-  if (auto* comp = findTopOverlayAt(components_, event.x, event.y)) {
-    return comp->handleScroll(event);
-  }
   // The widget under the wheel first, then each ancestor: a button in a
   // list does not scroll, and the list it is in does.
   for (GuiWidget* at = resolveTreeHit(*this, event.x, event.y); at != nullptr;
@@ -970,10 +843,6 @@ void GuiWidgetTree::clearFocus() {
     focused_input_->focus = GuiTextInputFocus::UNFOCUSED;
   }
   focused_input_ = nullptr;
-}
-
-size_t GuiWidgetTree::componentCount() const {
-  return components_.size();
 }
 
 }  // namespace eng
