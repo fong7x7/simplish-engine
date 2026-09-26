@@ -17,11 +17,21 @@ namespace {
 
   /// Font directory searched under the engine data directory.
   constexpr const char* GUI_FONT_SUBDIR = "fonts";
-  /// Regular weight, in the CSS-style scale `loadFont` takes.
-  constexpr uint16_t GUI_FONT_WEIGHT = 400;
   /// Layout height of GUI text, in logical pixels. Chrome offsets across the
   /// editor are tuned against this size.
   constexpr uint32_t GUI_TEXT_PIXEL_H = 14;
+
+  /// The interface scales `setUiScale` allows.
+  constexpr float MIN_UI_SCALE = 0.5f;
+  constexpr float MAX_UI_SCALE = 3.0f;
+
+  /// @p event with its position in GUI layout space, the window's divided
+  /// by @p ui_scale.
+  eng::GuiMouseEvent toGuiSpace(eng::GuiMouseEvent event, float ui_scale) {
+    event.x /= ui_scale;
+    event.y /= ui_scale;
+    return event;
+  }
 
   /// Byte to unit range, for alpha, which carries no transfer function.
   constexpr float BYTE_TO_FLOAT = 1.0f / 255.0f;
@@ -78,15 +88,14 @@ void RenderedGameClient::loadGuiFont() {
     LOG_WARN("gui", "No UI font found; text will draw as placeholder boxes");
     return;
   }
-  auto face = gui_.text_pipeline->loadFont(font->file_path, GUI_FONT_WEIGHT,
-                                           eng::FontLoadItalic::NORMAL);
+  auto face = gui_.text_pipeline->loadFontFamily(font->file_path);
   if (!face.has_value()) {
     LOG_WARN("gui", "Could not load UI font: " + font->file_path);
     return;
   }
   gui_text_face_id_ = *face;
-  gui_.text_pipeline->setFontRasterHeight(gui_text_face_id_, GUI_TEXT_PIXEL_H,
-                                          textRasterSupersample());
+  gui_.text_pipeline->setAllFontsRasterHeight(
+      GUI_TEXT_PIXEL_H, textRasterSupersample() * ui_scale_);
   LOG_INFO("gui", "UI font: " + font->family + " (" + font->file_path + ")");
 }
 
@@ -95,6 +104,19 @@ void RenderedGameClient::onShutdown() {
     gui_.tree->clearComponents();
   }
   gui_.shutdown();
+}
+
+void RenderedGameClient::setUiScale(float scale) {
+  const float clamped = std::clamp(scale, MIN_UI_SCALE, MAX_UI_SCALE);
+  if (clamped == ui_scale_) {
+    return;
+  }
+  ui_scale_ = clamped;
+  resizeGuiToBackbuffer();
+  if (gui_.text_pipeline != nullptr) {
+    gui_.text_pipeline->setAllFontsRasterHeight(
+        GUI_TEXT_PIXEL_H, textRasterSupersample() * ui_scale_);
+  }
 }
 
 void RenderedGameClient::resizeGuiToBackbuffer() {
@@ -119,7 +141,7 @@ void RenderedGameClient::guiDispatchMouseDown(
   if (gui_.tree == nullptr) {
     return;
   }
-  gui_.tree->dispatchMouseDown(event);
+  gui_.tree->dispatchMouseDown(toGuiSpace(event, ui_scale_));
 }
 
 void RenderedGameClient::guiDispatchMouseUp(
@@ -127,7 +149,7 @@ void RenderedGameClient::guiDispatchMouseUp(
   if (gui_.tree == nullptr) {
     return;
   }
-  gui_.tree->dispatchMouseUp(event);
+  gui_.tree->dispatchMouseUp(toGuiSpace(event, ui_scale_));
 }
 
 void RenderedGameClient::guiDispatchMouseMove(
@@ -135,7 +157,7 @@ void RenderedGameClient::guiDispatchMouseMove(
   if (gui_.tree == nullptr) {
     return;
   }
-  gui_.tree->dispatchMouseMove(event);
+  gui_.tree->dispatchMouseMove(toGuiSpace(event, ui_scale_));
 }
 
 void RenderedGameClient::guiDispatchScroll(
@@ -143,7 +165,10 @@ void RenderedGameClient::guiDispatchScroll(
   if (gui_.tree == nullptr) {
     return;
   }
-  gui_.tree->dispatchScroll(event);
+  eng::GuiScrollEvent scaled = event;
+  scaled.x /= ui_scale_;
+  scaled.y /= ui_scale_;
+  gui_.tree->dispatchScroll(scaled);
 }
 
 bool RenderedGameClient::guiDispatchText(std::string_view text) const {

@@ -180,6 +180,8 @@ enum class AgentTool : uint8_t {
   RENDER_UI_SCREEN,
   /// Choose an action on a game screen, as player 1, in the playtest.
   PRESS_UI,
+  /// Draw the editor's own interface larger or smaller.
+  SET_INTERFACE_SIZE,
 };
 
 /// Every tool, in the order the manifest lists them.
@@ -263,6 +265,7 @@ inline constexpr AgentTool AGENT_TOOLS[] = {
     AgentTool::SET_UI_SCREEN,
     AgentTool::RENDER_UI_SCREEN,
     AgentTool::PRESS_UI,
+    AgentTool::SET_INTERFACE_SIZE,
 };
 
 }  // namespace eng::editor

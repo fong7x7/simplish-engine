@@ -57,6 +57,10 @@ inline constexpr EditorMenuCommand EDITOR_IMPLEMENTED_COMMANDS[] = {
     EditorMenuCommand::NEW_GAME_LOGIC,
     EditorMenuCommand::BUILD_GAME_LOGIC,
     EditorMenuCommand::DEPLOY_GAME,
+    EditorMenuCommand::SET_INTERFACE_SMALL,
+    EditorMenuCommand::SET_INTERFACE_NORMAL,
+    EditorMenuCommand::SET_INTERFACE_LARGE,
+    EditorMenuCommand::SET_INTERFACE_LARGER,
 };
 
 /// Whether @p command names work that exists at all.

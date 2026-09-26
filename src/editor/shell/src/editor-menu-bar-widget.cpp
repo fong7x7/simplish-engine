@@ -99,6 +99,11 @@ namespace {
       EditorMenuCommand::TOGGLE_WATER_REFRACTION,
       EditorMenuCommand::TOGGLE_WATER_CONTACT,
       EditorMenuCommand::TOGGLE_WATER_CAUSTICS,
+      EditorMenuCommand::SEPARATOR,
+      EditorMenuCommand::SET_INTERFACE_SMALL,
+      EditorMenuCommand::SET_INTERFACE_NORMAL,
+      EditorMenuCommand::SET_INTERFACE_LARGE,
+      EditorMenuCommand::SET_INTERFACE_LARGER,
   };
 
   /// The project's levels are spliced in after New Level, so Play Level
@@ -398,6 +403,9 @@ bool EditorMenuBarWidget::commandChecked(EditorMenuCommand command) const {
 }
 
 bool EditorMenuBarWidget::waterChecked(EditorMenuCommand command) const {
+  if (const int size = editorInterfaceSizeOf(command); size >= 0) {
+    return EDITOR_INTERFACE_SCALES[size] == ui_scale_;
+  }
   if (const int water = editorWaterFidelityOf(command); water >= 0) {
     return WATER_FIDELITIES[water] == water_;
   }
@@ -432,6 +440,14 @@ void EditorMenuBarWidget::setWaterFidelity(WaterFidelity fidelity) {
     return;
   }
   water_ = fidelity;
+  items_dirty_ = true;
+}
+
+void EditorMenuBarWidget::setUiScale(float scale) {
+  if (ui_scale_ == scale) {
+    return;
+  }
+  ui_scale_ = scale;
   items_dirty_ = true;
 }
 

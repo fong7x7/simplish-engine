@@ -118,7 +118,25 @@ enum class EditorMenuCommand : uint8_t {
   /// Build the deployed game — the engine with the project's logic linked
   /// in — and put it, with the project's content, in `build/deploy/`.
   DEPLOY_GAME,
+  /// Draw the interface at 90%.
+  SET_INTERFACE_SMALL,
+  /// Draw the interface at its designed size.
+  SET_INTERFACE_NORMAL,
+  /// Draw the interface at 125%.
+  SET_INTERFACE_LARGE,
+  /// Draw the interface at 150%.
+  SET_INTERFACE_LARGER,
 };
+
+/// View › Interface's rows, smallest first.
+inline constexpr EditorMenuCommand EDITOR_INTERFACE_COMMANDS[] = {
+    EditorMenuCommand::SET_INTERFACE_SMALL,
+    EditorMenuCommand::SET_INTERFACE_NORMAL,
+    EditorMenuCommand::SET_INTERFACE_LARGE,
+    EditorMenuCommand::SET_INTERFACE_LARGER};
+
+/// The scale each of `EDITOR_INTERFACE_COMMANDS` sets.
+inline constexpr float EDITOR_INTERFACE_SCALES[] = {0.9f, 1.0f, 1.25f, 1.5f};
 
 /// The water rows, indexed by the fidelity each sets.
 inline constexpr EditorMenuCommand EDITOR_WATER_COMMANDS[] = {
@@ -216,6 +234,10 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
     {EditorMenuCommand::BUILD_GAME_LOGIC, "Build Game Logic", "Ctrl+B"},
 #endif
     {EditorMenuCommand::DEPLOY_GAME, "Deploy Game", ""},
+    {EditorMenuCommand::SET_INTERFACE_SMALL, "Interface: 90%", ""},
+    {EditorMenuCommand::SET_INTERFACE_NORMAL, "Interface: 100%", ""},
+    {EditorMenuCommand::SET_INTERFACE_LARGE, "Interface: 125%", ""},
+    {EditorMenuCommand::SET_INTERFACE_LARGER, "Interface: 150%", ""},
 };
 
 /// How many stand-ins @p command plays with, or -1 for a command that is
@@ -235,6 +257,18 @@ inline constexpr EditorMenuCommandInfo EDITOR_MENU_COMMAND_INFO[] = {
   for (int index = 0; index < 3; ++index) {
     if (EDITOR_WATER_COMMANDS[index] == command) {
       return index;
+    }
+  }
+  return -1;
+}
+
+/// Which of `EDITOR_INTERFACE_SCALES` @p command sets, or -1 for a
+/// command that is not an interface row.
+[[nodiscard]] constexpr int editorInterfaceSizeOf(EditorMenuCommand command) {
+  for (size_t index = 0; index < std::size(EDITOR_INTERFACE_COMMANDS);
+       ++index) {
+    if (EDITOR_INTERFACE_COMMANDS[index] == command) {
+      return static_cast<int>(index);
     }
   }
   return -1;

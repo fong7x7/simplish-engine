@@ -6,9 +6,6 @@ namespace eng::editor::test {
 
 namespace {
 
-  /// Regular weight in the CSS-style scale `loadFont` takes.
-  constexpr uint16_t REGULAR_WEIGHT = 400;
-
   /// Stand-in for a GPU atlas texture. `emitGlyph` drops glyphs whose atlas
   /// has no texture handle, and there is no device here to make one; the CPU
   /// rasterizer samples atlas pixels rather than textures, so any non-zero
@@ -25,8 +22,8 @@ CaptureFont::CaptureFont() {
   if (!chosen.has_value()) {
     return;
   }
-  auto loaded = pipeline.loadFont(chosen->file_path, REGULAR_WEIGHT,
-                                  eng::FontLoadItalic::NORMAL);
+  // Every weight the theme's roles use, as the editor loads them.
+  auto loaded = pipeline.loadFontFamily(chosen->file_path);
   if (!loaded.has_value()) {
     return;
   }

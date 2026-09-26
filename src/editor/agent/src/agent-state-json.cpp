@@ -564,6 +564,7 @@ std::string agentStateJson(const EditorShellState& state) {
               {"unsaved_changes", hasUnsavedEditorChanges(state.history)},
               {"playtest", agentPlayModeName(state.playtest.mode)}};
   out["selection"] = json::parse(agentSelectionJson(state));
+  out["interface_scale"] = state.graphics.ui_scale;
   return out.dump(2);
 }
 

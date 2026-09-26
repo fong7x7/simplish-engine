@@ -2,6 +2,7 @@
 
 #include "gui-button-variant.h"
 #include "gui-panel.h"
+#include "gui-text-role.h"
 #include "gui-widget-type.h"
 
 #include <string_view>
@@ -24,8 +25,8 @@ public:
   void render(const GuiDrawContext& ctx) const override;
 
   /// The label's width, one line high; padding makes the rest.
-  [[nodiscard]] LayoutSize
-  measureContent(const GuiDrawContext& ctx) const override;
+  [[nodiscard]] LayoutSize measureContent(const GuiDrawContext& ctx,
+                                          float max_width) const override;
 
   /// The theme's look for this button's `variant`.
   [[nodiscard]] const GuiStateStyles*
@@ -33,6 +34,9 @@ public:
 
   /// Text displayed on the button.
   std::string_view label{};
+  /// What its label is, which picks its font from the theme: LABEL, a
+  /// medium weight, unless set otherwise.
+  GuiTextRole role = GuiTextRole::LABEL;
   /// Which of the theme's button looks it takes; `state_styles` overrides
   /// it with a look of its own.
   GuiButtonVariant variant = GuiButtonVariant::NEUTRAL;

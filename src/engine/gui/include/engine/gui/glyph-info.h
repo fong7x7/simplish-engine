@@ -12,6 +12,10 @@ namespace eng {
 struct GlyphInfo {
   /// Unicode codepoint this glyph represents.
   uint32_t codepoint = 0;
+  /// The font's own index for it, which kerning is looked up by.
+  uint32_t glyph_index = 0;
+  /// Pixel height it was rasterized at.
+  uint32_t raster_px = 0;
   /// X position within the atlas texture in pixels.
   uint16_t atlas_x = 0;
   /// Y position within the atlas texture in pixels.

@@ -114,8 +114,13 @@ public:
   void computeLayout(const Rect& viewport);
 
   /// Measure a single subtree bottom-up (post-order), setting each
-  /// widget's `tree_measured`.
+  /// widget's `tree_measured`, with no limit on its width.
   void measureWidget(GuiWidgetId id, const GuiDrawContext& ctx);
+
+  /// As above, the subtree at most @p max_width wide (negative for no
+  /// limit): what wrapping text inside it wraps to.
+  void measureWidget(GuiWidgetId id, const GuiDrawContext& ctx,
+                     float max_width);
 
   /// Arrange a single subtree top-down within the available rect.
   void arrangeWidget(GuiWidgetId id, const Rect& available);

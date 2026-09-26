@@ -94,6 +94,18 @@ namespace {
              {0.0f, 12.0f, 32.0f, 0.0f, p.shadow}}};
   }
 
+  /// Each role's font from @p t's type scale, in `GuiTextRole` order.
+  std::array<GuiFont, GUI_TEXT_ROLE_COUNT> roleFonts(const GuiTheme& t) {
+    return {{{.size = t.textSize(GuiTextSize::SM)},
+             {.size = t.textSize(GuiTextSize::MD), .weight = 500},
+             {.size = t.textSize(GuiTextSize::MD)},
+             {.size = t.textSize(GuiTextSize::LG), .weight = 600},
+             {.size = t.textSize(GuiTextSize::XL), .weight = 600},
+             {.size = t.textSize(GuiTextSize::DISPLAY),
+              .weight = 700,
+              .letter_spacing = -0.5f}}};
+  }
+
 }  // namespace
 
 float GuiTheme::space(GuiSpace step) const {
@@ -108,6 +120,10 @@ float GuiTheme::textSize(GuiTextSize step) const {
   return text_sizes[static_cast<size_t>(step)];
 }
 
+const GuiFont& GuiTheme::font(GuiTextRole role) const {
+  return type_roles[static_cast<size_t>(role)];
+}
+
 const GuiShadow& GuiTheme::shadow(GuiElevation level) const {
   return shadows[static_cast<size_t>(level)];
 }
@@ -118,6 +134,7 @@ const GuiStateStyles& GuiTheme::button(GuiButtonVariant variant) const {
 
 void GuiTheme::deriveComponents() {
   shadows = defaultShadows(palette);
+  type_roles = roleFonts(*this);
   const auto colors = variantColors(palette);
   for (size_t i = 0; i < GUI_BUTTON_VARIANT_COUNT; ++i) {
     buttons[i] = buttonStyles(palette, colors[i], radius(GuiRadius::MD));

@@ -218,5 +218,5 @@ function. After editing a `GuiTheme` in code, call `deriveComponents()`.
   never used and is gone. Use `state_styles` or a second draw context.
 - Named style classes (`"style": "inventory-slot"`). A game screen's
   per-node colours cover the current need.
-- Typography by role (heading, body, caption) needs the text phase's font
-  families and sizes. `text_sizes` is the scale it will read.
+- Typography roles are built: `theme.font(GuiTextRole::HEADING)`, derived
+  from `text_sizes`; see [text-pipeline.md §0.2](text-pipeline.md#02-roles).

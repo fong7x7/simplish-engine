@@ -6,6 +6,7 @@
 #include "agent-effects.h"
 #include "agent-emitters.h"
 #include "agent-ground.h"
+#include "agent-interface.h"
 #include "agent-log.h"
 #include "agent-sound.h"
 #include "agent-sprites.h"
@@ -289,6 +290,7 @@ namespace {
       runAgentSetUiScreen,
       runAgentRenderUiScreen,
       runAgentPressUi,
+      runAgentSetInterfaceSize,
   };
 
   static_assert(std::size(AGENT_TOOL_FNS) == std::size(AGENT_TOOLS),

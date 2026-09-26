@@ -25,9 +25,11 @@ repository**. Verify before relying on any of them:
 - **`gui.md §9` is an editor contract from that other project**, not the
   Simplish editor. Treat it as a template; [docs/editor/REQUIREMENTS.md](../../../docs/editor/REQUIREMENTS.md)
   is authoritative.
-- **HarfBuzz shaping and ICU line breaking are described but absent.** FreeType
-  is built with `FT_DISABLE_HARFBUZZ`; `shaped-run.cpp` handles kerning and
-  ligatures with no complex-script support.
+- **HarfBuzz shaping, ICU line breaking and the SDF atlas are described but
+  absent.** FreeType is built with `FT_DISABLE_HARFBUZZ`. What ships —
+  sized and weighted faces, `kern`-table kerning, UTF-8, word wrap and
+  ellipsis — is in `technical/text-pipeline.md` §0; the sections after it
+  are the original design.
 - **The dev console does not exist.** Gamepad navigation does, and is newer
   than the spec around it: `technical/input.md §5` describes what shipped.
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <engine/client/desktop-dialog-start-folder.h>
 #include <engine/client/desktop-platform-keycode.h>
 #include <engine/client/desktop-platform-mouse-button.h>
@@ -92,6 +93,13 @@ namespace {
                                static_cast<int>(config.min_window_height));
     }
     return win;
+  }
+
+  /// A window side of @p window_px pixels as the GUI lays out across it at
+  /// @p ui_scale: at least one.
+  uint32_t scaledLayoutSide(int window_px, float ui_scale) {
+    const float side = static_cast<float>(window_px) / ui_scale;
+    return static_cast<uint32_t>(std::max(std::round(side), 1.0f));
   }
 
   /// Build a GUI mouse event from an SDL button event.
@@ -222,12 +230,12 @@ void DesktopGameClient::setWindowTitle(std::string_view utf8_title) {
 
 uint32_t DesktopGameClient::guiLayoutWidth() const {
   const auto wh = windowClientSizePx();
-  return static_cast<uint32_t>(std::max(wh.first, 1));
+  return scaledLayoutSide(wh.first, uiScale());
 }
 
 uint32_t DesktopGameClient::guiLayoutHeight() const {
   const auto wh = windowClientSizePx();
-  return static_cast<uint32_t>(std::max(wh.second, 1));
+  return scaledLayoutSide(wh.second, uiScale());
 }
 
 float DesktopGameClient::textRasterSupersample() const {

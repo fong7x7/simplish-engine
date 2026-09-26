@@ -232,7 +232,8 @@ bool GuiWidget::isAnimating() const {
   return animator_.hasActiveAnimations();
 }
 
-LayoutSize GuiWidget::measureContent(const GuiDrawContext& /*ctx*/) const {
+LayoutSize GuiWidget::measureContent(const GuiDrawContext& /*ctx*/,
+                                     float /*max_width*/) const {
   return {};
 }
 

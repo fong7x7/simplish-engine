@@ -17,6 +17,27 @@ namespace {
   /// The key the water's effects are kept under.
   constexpr const char* EFFECTS_KEY = "water_effects";
 
+  /// The key the interface's scale is kept under, and the scales allowed.
+  constexpr const char* INTERFACE_KEY = "interface_scale";
+  constexpr float MIN_INTERFACE_SCALE = 0.5f;
+  constexpr float MAX_INTERFACE_SCALE = 3.0f;
+
+  /// The interface scale @p file keeps, or nothing — with why in
+  /// @p problems — when it keeps none or one out of range.
+  std::optional<float> readInterface(const json& file,
+                                     std::vector<std::string>& problems) {
+    if (!file.contains(INTERFACE_KEY)) {
+      return std::nullopt;
+    }
+    const json& entry = file.at(INTERFACE_KEY);
+    if (!entry.is_number() || entry.get<float>() < MIN_INTERFACE_SCALE ||
+        entry.get<float>() > MAX_INTERFACE_SCALE) {
+      problems.emplace_back("interface_scale must be a number from 0.5 to 3");
+      return std::nullopt;
+    }
+    return entry.get<float>();
+  }
+
   /// One effect's switch from @p entry, the value under its word, into
   /// @p effects; a line in @p problems when it is not a boolean.
   void readEffect(const json& entry, WaterEffect effect, WaterEffects& effects,
@@ -89,6 +110,7 @@ EditorGraphicsSettings parseEditorGraphics(const std::string& text,
   }
   settings.water = readWater(file, problems).value_or(settings.water);
   settings.water_effects = readEffects(file, problems);
+  settings.ui_scale = readInterface(file, problems).value_or(settings.ui_scale);
   return settings;
 }
 
@@ -111,7 +133,8 @@ namespace {
 
 std::string writeEditorGraphics(const EditorGraphicsSettings& settings) {
   const json file{{WATER_KEY, waterFidelityWord(settings.water)},
-                  {EFFECTS_KEY, effectsJson(settings.water_effects)}};
+                  {EFFECTS_KEY, effectsJson(settings.water_effects)},
+                  {INTERFACE_KEY, settings.ui_scale}};
   return file.dump(2) + "\n";
 }
 

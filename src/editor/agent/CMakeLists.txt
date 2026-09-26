@@ -18,6 +18,7 @@ set(_agent_sources
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-effects.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-emitters.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-host-outcome.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-interface.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-ground.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-sprites.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/agent-controls.cpp"

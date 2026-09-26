@@ -392,7 +392,8 @@ void GuiTextInput::renderTextAndCursor(const GuiDrawContext& ctx) const {
   renderCursorLine(ctx, text_x);
 }
 
-LayoutSize GuiTextInput::measureContent(const GuiDrawContext& ctx) const {
+LayoutSize GuiTextInput::measureContent(const GuiDrawContext& ctx,
+                                        float /*max_width*/) const {
   return {0.0f, ctx.textLineHeight()};
 }
 

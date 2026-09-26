@@ -87,3 +87,22 @@ TEST_CASE("a graphics file that gets an effect wrong keeps the rest") {
       WaterEffects{});
   CHECK(problems.size() == 1);
 }
+
+TEST_CASE("the interface scale survives being written and read back") {
+  EditorGraphicsSettings settings;
+  settings.ui_scale = 1.25f;
+  std::vector<std::string> problems;
+  const EditorGraphicsSettings read =
+      parseEditorGraphics(writeEditorGraphics(settings), problems);
+  CHECK(problems.empty());
+  CHECK(read.ui_scale == 1.25f);
+}
+
+TEST_CASE("a graphics file with an interface scale out of range keeps 1") {
+  std::vector<std::string> problems;
+  const EditorGraphicsSettings read =
+      parseEditorGraphics(R"({"interface_scale": 9})", problems);
+  CHECK(read.ui_scale == 1.0f);
+  REQUIRE(problems.size() == 1);
+  CHECK(problems.front() == "interface_scale must be a number from 0.5 to 3");
+}

@@ -4,7 +4,10 @@
 // FT_FREETYPE_H
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_SYNTHESIS_H
 // NOLINTEND(llvm-include-order)
+
+#include "text-pipeline-fonts.h"
 
 #include <algorithm>
 #include <cmath>
@@ -21,6 +24,8 @@ constexpr uint32_t INITIAL_ATLAS_WIDTH = 1024;
 constexpr uint32_t INITIAL_ATLAS_HEIGHT = 1024;
 /// FreeType 26.6 fixed-point divisor (2^6 = 64).
 constexpr float FREETYPE_26_6_SCALE = 64.0f;
+/// FreeType 16.16 fixed-point divisor.
+constexpr float FREETYPE_16_16_SCALE = 65536.0f;
 /// Number of channels in an RGBA pixel.
 constexpr uint32_t RGBA_CHANNELS = 4;
 
@@ -78,6 +83,11 @@ namespace {
         inv_ss;
   }
 
+  /// Which of @p ctx's atlas pages @p page is.
+  uint32_t pageIndex(const TextPipelineContext& ctx, const FontAtlas& page) {
+    return static_cast<uint32_t>(&page - ctx.atlases.data());
+  }
+
   /// Point every cached glyph at `tex` after atlas GPU resource is recreated.
   void refreshGlyphAtlasTextureHandles(TextPipelineContext& ctx,
                                        uint32_t atlas_page,
@@ -126,7 +136,7 @@ namespace {
     }
     ctx.gpu_device->destroyTexture(old_tex);
     page.texture = new_tex;
-    refreshGlyphAtlasTextureHandles(ctx, 0, page.texture);
+    refreshGlyphAtlasTextureHandles(ctx, pageIndex(ctx, page), page.texture);
   }
 
   /// Validate atlas pixel buffer has enough data for the texture dimensions.
@@ -148,7 +158,8 @@ namespace {
     if (!atlasTextureHandleOk(page.texture)) {
       page.texture = createAtlasGpuTexture(*ctx.gpu_device, page);
       if (atlasTextureHandleOk(page.texture)) {
-        refreshGlyphAtlasTextureHandles(ctx, 0, page.texture);
+        refreshGlyphAtlasTextureHandles(ctx, pageIndex(ctx, page),
+                                        page.texture);
       }
       return;
     }
@@ -158,14 +169,14 @@ namespace {
   }
 
   /// Maximum font supersample factor.
-  constexpr float MAX_SUPERSAMPLE = 3.0f;
+  constexpr float MAX_SUPERSAMPLE = 6.0f;
 
   float clampFontSupersample(float supersample) {
     return std::clamp(supersample, 1.0f, MAX_SUPERSAMPLE);
   }
 
   /// Maximum rasterized pixel height for a glyph.
-  constexpr uint32_t MAX_RASTER_PX = 96;
+  constexpr uint32_t MAX_RASTER_PX = 256;
 
   /// Padding in pixels between atlas glyphs.
   constexpr uint32_t GLYPH_PAD = 1;
@@ -179,14 +190,18 @@ namespace {
   void populateGlyphMetrics(GlyphInfo& gi, FT_Face ft_face, uint32_t codepoint,
                             float layout_supersample) {
     gi.codepoint = codepoint;
+    gi.glyph_index = FT_Get_Char_Index(ft_face, codepoint);
     gi.atlas_w = static_cast<uint16_t>(ft_face->glyph->bitmap.width);
     gi.atlas_h = static_cast<uint16_t>(ft_face->glyph->bitmap.rows);
     const float inv_ss = 1.0f / std::max(1.0f, layout_supersample);
     gi.bearing_x = static_cast<float>(ft_face->glyph->bitmap_left) * inv_ss;
     gi.bearing_y = static_cast<float>(ft_face->glyph->bitmap_top) * inv_ss;
-    gi.advance =
-        (static_cast<float>(ft_face->glyph->advance.x) / FREETYPE_26_6_SCALE) *
-        inv_ss;
+    // The unhinted advance, fractional: hinting rounds each advance to a
+    // whole pixel, which crushes small spaces and spaces weights unevenly.
+    // Glyphs are snapped to device pixels as they are drawn instead.
+    gi.advance = (static_cast<float>(ft_face->glyph->linearHoriAdvance) /
+                  FREETYPE_16_16_SCALE) *
+                 inv_ss;
     gi.atlas_layout_scale = inv_ss;
     gi.atlas_index = 0;
   }
@@ -337,25 +352,42 @@ FontFace buildFontFace(FT_Face face, const BuildFontFaceParams& p) {
   return ff;
 }
 
-std::optional<uint32_t> TextPipelineContext::loadFont(
-    std::string_view path, uint16_t weight,
-    // Algorithm: Structured control flow (data assembly and checks).
-    FontLoadItalic italic) {
+std::optional<uint32_t> TextPipelineContext::loadFont(std::string_view path,
+                                                      uint16_t weight,
+                                                      FontLoadItalic italic) {
   if (ft_library == nullptr) {
     return std::nullopt;
   }
-  auto* ft = static_cast<FT_Library>(ft_library);
-
-  FT_Face face = nullptr;
-  std::string path_str(path);
-  if (FT_New_Face(ft, path_str.c_str(), 0, &face) != 0) {
+  const std::optional<OpenedFont> opened =
+      openFontAtWeight(ft_library, path, {weight, italic});
+  if (!opened) {
     return std::nullopt;
   }
-
+  auto* face = static_cast<FT_Face>(opened->ft_face);
   FT_Set_Pixel_Sizes(face, 0, DEFAULT_PIXEL_SIZE);
-  auto face_id = static_cast<uint32_t>(faces.size() + 1);
+  const auto face_id = static_cast<uint32_t>(faces.size() + 1);
   faces.push_back(buildFontFace(face, {face_id, weight, italic}));
+  faces.back().synthetic_bold = opened->synthetic_bold;
   return face_id;
+}
+
+std::optional<uint32_t>
+TextPipelineContext::loadFontFamily(std::string_view path) {
+  std::optional<uint32_t> regular;
+  for (const uint16_t weight : GUI_FONT_FAMILY_WEIGHTS) {
+    const auto face = loadFont(path, weight, FontLoadItalic::NORMAL);
+    if (weight == FONT_WEIGHT_NORMAL) {
+      regular = face;
+    }
+  }
+  return regular;
+}
+
+void TextPipelineContext::setAllFontsRasterHeight(uint32_t layout_pixel_height,
+                                                  float supersample) {
+  for (const FontFace& face : faces) {
+    setFontRasterHeight(face.face_id, layout_pixel_height, supersample);
+  }
 }
 
 ShapedRun TextPipelineContext::shapeText(uint32_t face_id,
@@ -398,38 +430,76 @@ void TextPipelineContext::setFontRasterHeight(
   }
 }
 
-static FT_Face loadGlyphBitmap(FontFace& face, uint32_t codepoint) {
+/// Thicken @p slot's outline, and widen its unhinted advance by as much
+/// as FreeType widened the hinted one (26.6 to 16.16 is a factor of 1024).
+static void emboldenGlyph(FT_GlyphSlot slot) {
+  const FT_Pos before = slot->advance.x;
+  FT_GlyphSlot_Embolden(slot);
+  slot->linearHoriAdvance += (slot->advance.x - before) * 1024;
+}
+
+/// Load and render @p codepoint of @p face at @p raster_px, thickened when
+/// the face is synthetically bold.
+static FT_Face loadGlyphBitmap(FontFace& face, uint32_t codepoint,
+                               uint32_t raster_px) {
   auto* ft_face = static_cast<FT_Face>(face.ft_face);
   if (ft_face == nullptr) {
     return nullptr;
   }
-  FT_Set_Pixel_Sizes(ft_face, 0, face.raster_pixel_height);
-  auto glyph_idx = FT_Get_Char_Index(ft_face, codepoint);
-  if (FT_Load_Glyph(ft_face, glyph_idx, FT_LOAD_RENDER) != 0) {
+  FT_Set_Pixel_Sizes(ft_face, 0, raster_px);
+  const auto glyph_idx = FT_Get_Char_Index(ft_face, codepoint);
+  // Light hinting: vertical only, so outlines keep their horizontal
+  // proportions and the fractional advances above stay true.
+  if (FT_Load_Glyph(ft_face, glyph_idx, FT_LOAD_TARGET_LIGHT) != 0) {
+    return nullptr;
+  }
+  if (face.synthetic_bold) {
+    emboldenGlyph(ft_face->glyph);
+  }
+  if (FT_Render_Glyph(ft_face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
     return nullptr;
   }
   return ft_face;
 }
 
-/// Rasterize a single glyph, place it in the atlas, and store in the face
-/// cache.
+/// Place @p gi's bitmap in the last atlas page, starting a new page when
+/// it is full. False only when the glyph cannot fit an empty page.
+static bool placeInAtlas(TextPipelineContext& ctx, GlyphInfo& gi, FT_Face ft) {
+  if (layoutGlyphBitmapInAtlas(ctx.atlases.back(), gi, ft)) {
+    gi.atlas_index = static_cast<uint32_t>(ctx.atlases.size() - 1);
+    return true;
+  }
+  const FontAtlas& full = ctx.atlases.back();
+  FontAtlas page;
+  page.width = full.width;
+  page.height = full.height;
+  page.rgba_pixels.assign(
+      static_cast<size_t>(page.width) * page.height * RGBA_CHANNELS, 0);
+  ctx.atlases.push_back(std::move(page));
+  gi.atlas_index = static_cast<uint32_t>(ctx.atlases.size() - 1);
+  return layoutGlyphBitmapInAtlas(ctx.atlases.back(), gi, ft);
+}
+
+/// Rasterize @p codepoint of @p face at @p raster_px, place it in the
+/// atlas, and cache it.
 const GlyphInfo* rasterizeAndCacheGlyph(TextPipelineContext& ctx,
-                                        FontFace& face, FontAtlas& page,
-                                        uint32_t codepoint) {
-  auto* ft_face = loadGlyphBitmap(face, codepoint);
+                                        FontFace& face, uint32_t codepoint,
+                                        uint32_t raster_px) {
+  auto* ft_face = loadGlyphBitmap(face, codepoint, raster_px);
   if (ft_face == nullptr) {
     return nullptr;
   }
   GlyphInfo gi;
   populateGlyphMetrics(gi, ft_face, codepoint, face.layout_supersample);
-  const uint32_t gw = gi.atlas_w;
-  const uint32_t gh = gi.atlas_h;
-  if (!layoutGlyphBitmapInAtlas(page, gi, ft_face)) {
+  gi.raster_px = raster_px;
+  if (!placeInAtlas(ctx, gi, ft_face)) {
     return nullptr;
   }
-  setGlyphUvCoords(gi, gw, gh, page);
-  uploadGlyphTexture({ctx, page, gi, gw}, gh);
-  auto [inserted, _] = face.glyphs.emplace(codepoint, gi);
+  FontAtlas& page = ctx.atlases[gi.atlas_index];
+  setGlyphUvCoords(gi, gi.atlas_w, gi.atlas_h, page);
+  uploadGlyphTexture({ctx, page, gi, gi.atlas_w}, gi.atlas_h);
+  auto [inserted, _] =
+      face.glyphs.emplace(fontGlyphKey(raster_px, codepoint), gi);
   return &inserted->second;
 }
 
@@ -443,22 +513,65 @@ FontFace* findFaceById(std::vector<FontFace>& face_list, uint32_t face_id) {
   return nullptr;
 }
 
-const GlyphInfo* TextPipelineContext::ensureGlyph(
-    uint32_t face_id,
-    // Algorithm: Structured control flow (data assembly and checks).
-    uint32_t codepoint) {
-  if (atlases.empty()) {
-    return nullptr;
-  }
-  auto* face = findFaceById(faces, face_id);
-  if (face == nullptr) {
-    return nullptr;
-  }
-  auto it = face->glyphs.find(codepoint);
-  if (it != face->glyphs.end()) {
+/// @p face's glyph for @p codepoint at @p raster_px, rasterized on first
+/// use.
+static const GlyphInfo* cachedGlyph(TextPipelineContext& ctx, FontFace& face,
+                                    uint32_t codepoint, uint32_t raster_px) {
+  const auto it = face.glyphs.find(fontGlyphKey(raster_px, codepoint));
+  if (it != face.glyphs.end()) {
     return &it->second;
   }
-  return rasterizeAndCacheGlyph(*this, *face, atlases[0], codepoint);
+  return rasterizeAndCacheGlyph(ctx, face, codepoint, raster_px);
+}
+
+const GlyphInfo* TextPipelineContext::ensureGlyph(uint32_t face_id,
+                                                  uint32_t codepoint) {
+  auto* face = findFaceById(faces, face_id);
+  if (atlases.empty() || face == nullptr) {
+    return nullptr;
+  }
+  return cachedGlyph(*this, *face, codepoint, face->raster_pixel_height);
+}
+
+const GlyphInfo* TextPipelineContext::ensureGlyph(uint32_t face_id,
+                                                  uint32_t codepoint,
+                                                  float layout_px) {
+  auto* face = findFaceById(faces, face_id);
+  if (atlases.empty() || face == nullptr) {
+    return nullptr;
+  }
+  const float raw = std::round(layout_px * face->layout_supersample);
+  const auto raster = static_cast<uint32_t>(
+      std::clamp(raw, 1.0f, static_cast<float>(MAX_RASTER_PX)));
+  return cachedGlyph(*this, *face, codepoint, raster);
+}
+
+FontMetrics TextPipelineContext::metrics(uint32_t face_id,
+                                         float layout_px) const {
+  for (const FontFace& face : faces) {
+    if (face.face_id == face_id) {
+      const float base = static_cast<float>(face.raster_pixel_height) /
+                         std::max(1.0f, face.layout_supersample);
+      const float k = layout_px / std::max(base, 1.0f);
+      return {face.ascender * k, face.descender * k, face.line_height * k};
+    }
+  }
+  return {};
+}
+
+float TextPipelineContext::kerning(uint32_t face_id, const GlyphInfo& left,
+                                   const GlyphInfo& right) const {
+  for (const FontFace& face : faces) {
+    if (face.face_id == face_id && face.ft_face != nullptr) {
+      return fontKerning(face.ft_face, left, right);
+    }
+  }
+  return 0.0f;
+}
+
+std::optional<uint32_t>
+TextPipelineContext::faceFor(uint16_t weight, FontLoadItalic italic) const {
+  return nearestFace(faces, {weight, italic});
 }
 
 std::vector<ShapedRun>

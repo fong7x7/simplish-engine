@@ -754,6 +754,13 @@ inline constexpr AgentParam AGENT_PARAMS_PRESS_UI[] = {
      "An action a button names, as get_ui_screens lists them."},
 };
 
+/// `set_interface_size` names one scale.
+inline constexpr AgentParam AGENT_PARAMS_SET_INTERFACE_SIZE[] = {
+    {"scale", AgentParamType::NUMBER, AgentParamNeed::REQUIRED,
+     "How large to draw the interface: 1 its designed size, 1.25 a quarter "
+     "larger; 0.5 to 3. View › Interface offers 0.9, 1, 1.25 and 1.5."},
+};
+
 inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
     {AgentTool::DESCRIBE,
      "describe",
@@ -1420,6 +1427,15 @@ inline constexpr AgentToolInfo AGENT_TOOL_INFO[] = {
      "with step_playtest. get_playtest's ui lists the screens shown and "
      "their buttons.",
      AgentToolEffect::EDIT, AGENT_PARAMS_PRESS_UI},
+    {AgentTool::SET_INTERFACE_SIZE, "set_interface_size",
+     "Draw the editor's own interface — menus, panels, text — larger or "
+     "smaller, as View › Interface does, from the next frame. Everything "
+     "scales and text is re-rasterized to stay sharp; the level and its "
+     "view are unchanged. The user's setting, saved to the graphics file at "
+     "once, not part of the undo history, and allowed while playing. "
+     "Refused, changing nothing, on a scale out of range. Answers with "
+     "interface_scale and the file; get_state reports it too.",
+     AgentToolEffect::EDIT, AGENT_PARAMS_SET_INTERFACE_SIZE},
 };
 
 static_assert(std::size(AGENT_TOOL_INFO) == std::size(AGENT_TOOLS),

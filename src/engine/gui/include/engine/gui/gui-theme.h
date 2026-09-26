@@ -8,11 +8,13 @@
 
 #include "gui-button-variant.h"
 #include "gui-elevation.h"
+#include "gui-font.h"
 #include "gui-palette.h"
 #include "gui-radius.h"
 #include "gui-shadow.h"
 #include "gui-space.h"
 #include "gui-state-styles.h"
+#include "gui-text-role.h"
 #include "gui-text-size.h"
 
 #include <array>
@@ -39,6 +41,8 @@ struct GuiTheme {
   std::array<float, GUI_RADIUS_COUNT> radii = GUI_DEFAULT_RADII;
   /// Pixel sizes for each `GuiTextSize` step.
   std::array<float, GUI_TEXT_SIZE_COUNT> text_sizes = GUI_DEFAULT_TEXT_SIZES;
+  /// The font for each `GuiTextRole`, derived from `text_sizes`.
+  std::array<GuiFont, GUI_TEXT_ROLE_COUNT> type_roles{};
   /// The shadow for each `GuiElevation`.
   std::array<GuiShadow, GUI_ELEVATION_COUNT> shadows{};
   /// Seconds a widget takes to blend from one state's look to the next.
@@ -60,13 +64,15 @@ struct GuiTheme {
   [[nodiscard]] float radius(GuiRadius step) const;
   /// Pixel size for @p step.
   [[nodiscard]] float textSize(GuiTextSize step) const;
+  /// The font @p role is set in.
+  [[nodiscard]] const GuiFont& font(GuiTextRole role) const;
   /// The shadow for @p level.
   [[nodiscard]] const GuiShadow& shadow(GuiElevation level) const;
   /// @p variant's look.
   [[nodiscard]] const GuiStateStyles& button(GuiButtonVariant variant) const;
 
-  /// Recompute the shadows and every component style from the palette and
-  /// the radii, after changing either.
+  /// Recompute the shadows, the role fonts and every component style from
+  /// the palette, the radii and the type scale, after changing any.
   void deriveComponents();
 
   /// A theme named @p name built on @p palette, with the default scales.

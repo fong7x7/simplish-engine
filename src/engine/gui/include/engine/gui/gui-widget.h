@@ -66,10 +66,12 @@ public:
   virtual void render(const GuiDrawContext& ctx) const = 0;
 
   /// The size this widget's own content needs — its text, say — without
-  /// padding or children. The measure pass adds the padding and takes the
-  /// larger of this and what the children need. Default: nothing.
-  [[nodiscard]] virtual LayoutSize
-  measureContent(const GuiDrawContext& ctx) const;
+  /// padding or children, given at most @p max_width across (negative
+  /// for no limit), which wrapping text wraps to. The measure pass adds
+  /// the padding and takes the larger of this and what the children need.
+  /// Default: nothing.
+  [[nodiscard]] virtual LayoutSize measureContent(const GuiDrawContext& ctx,
+                                                  float max_width) const;
 
   /// Arrange this widget's direct children given its own rect. Called by
   /// `GuiWidgetTree::arrangeWidget` after this widget's rect is set.

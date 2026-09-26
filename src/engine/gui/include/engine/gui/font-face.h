@@ -14,6 +14,11 @@ constexpr uint16_t FONT_WEIGHT_NORMAL = 400;
 /// Default glyph rasterization height in pixels.
 constexpr uint32_t DEFAULT_RASTER_PIXEL_HEIGHT = 14;
 
+/// The key a glyph is cached under in `FontFace::glyphs`.
+constexpr uint64_t fontGlyphKey(uint32_t raster_px, uint32_t codepoint) {
+  return (static_cast<uint64_t>(raster_px) << 32U) | codepoint;
+}
+
 /// @thread_safety Main thread only.
 struct FontFace {
   /// Unique face identifier assigned at load time.
@@ -30,8 +35,12 @@ struct FontFace {
   float descender = 0.0f;
   /// Recommended line height in font units.
   float line_height = 0.0f;
-  /// Cached glyph info keyed by Unicode codepoint.
-  std::unordered_map<uint32_t, GlyphInfo> glyphs{};
+  /// Cached glyph info keyed by `fontGlyphKey(raster size, codepoint)`: one
+  /// entry per codepoint per size it has been drawn at.
+  std::unordered_map<uint64_t, GlyphInfo> glyphs{};
+  /// Whether glyphs are thickened in software because the file has no
+  /// face as heavy as `weight` asked for.
+  bool synthetic_bold = false;
   /// Opaque FreeType face (`FT_Face`); owned until `shutdownTextPipeline`.
   void* ft_face = nullptr;
   /// Pixel height passed to `FT_Set_Pixel_Sizes` for rasterization.

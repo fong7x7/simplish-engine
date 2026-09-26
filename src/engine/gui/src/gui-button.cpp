@@ -13,8 +13,10 @@ std::unique_ptr<GuiWidget> GuiButton::clone() const {
   return std::make_unique<GuiButton>(*this);
 }
 
-LayoutSize GuiButton::measureContent(const GuiDrawContext& ctx) const {
-  return {ctx.measureText(label), ctx.textLineHeight()};
+LayoutSize GuiButton::measureContent(const GuiDrawContext& ctx,
+                                     float /*max_width*/) const {
+  const GuiFont& font = ctx.activeTheme().font(role);
+  return {ctx.measureText(label, font), ctx.fontMetrics(font).line_height};
 }
 
 const GuiStateStyles* GuiButton::themeStyles(const GuiTheme& theme) const {
@@ -24,8 +26,14 @@ const GuiStateStyles* GuiButton::themeStyles(const GuiTheme& theme) const {
 void GuiButton::render(const GuiDrawContext& ctx) const {
   const GuiStateStyle style = drawnStyle(ctx);
   ctx.drawBox(rect, style, opacity);
-  ctx.drawCenteredText(rect, GuiColor::applyOpacity(style.text, opacity),
-                       label);
+  const GuiFont& font = ctx.activeTheme().font(role);
+  const float w = ctx.measureText(label, font);
+  const float h = ctx.fontMetrics(font).line_height;
+  ctx.drawText(
+      {.text = label,
+       .pos = {rect.x + (rect.w - w) * 0.5f, rect.y + (rect.h - h) * 0.5f},
+       .color = GuiColor::applyOpacity(style.text, opacity),
+       .font = font});
 }
 
 }  // namespace eng

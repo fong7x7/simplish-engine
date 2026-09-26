@@ -5,6 +5,8 @@
 /// and `GuiWidget::arrangeChildren` run.
 /// @par Threading Main thread only.
 
+#include "measure-limit.h"
+
 #include <engine/gui/gui-draw-context.h>
 #include <engine/gui/gui-rect.h>
 #include <engine/gui/gui-widget-tree.h>
@@ -19,7 +21,18 @@ namespace eng {
 /// `tree_measured`, so they are measured first.
 [[nodiscard]] LayoutSize measureBorderBox(const GuiWidgetTree& tree,
                                           const GuiWidget& widget,
-                                          const GuiDrawContext& ctx);
+                                          const MeasureLimit& limit);
+
+/// How wide @p style's content box may be when its border box may be
+/// @p max_width across: its own width or max width if smaller, less its
+/// padding. Negative for no limit.
+[[nodiscard]] float contentWidthLimit(const LayoutStyle& style,
+                                      float max_width);
+
+/// How wide @p child's border box may be inside a content box
+/// @p content_width across: less its horizontal margins.
+[[nodiscard]] float childWidthLimit(const GuiWidget& child,
+                                    float content_width);
 
 /// Place @p parent's children inside @p box, its border box, by flexbox:
 /// in-flow children along its direction within its padding, spaced by

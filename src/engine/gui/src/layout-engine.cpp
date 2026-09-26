@@ -42,7 +42,7 @@ void GuiWidgetTree::computeLayout(const Rect& viewport,
   if (root_id == GUI_WIDGET_ID_INVALID) {
     return;
   }
-  measureWidget(root_id, ctx);
+  measureWidget(root_id, ctx, viewport.w);
   arrangeWidget(root_id, viewport);
   clearDirtyFlags();
 }
@@ -51,16 +51,24 @@ void GuiWidgetTree::computeLayout(const Rect& viewport) {
   computeLayout(viewport, GuiDrawContext{});
 }
 
-// NOLINTNEXTLINE(misc-no-recursion) -- tree traversal requires recursion
 void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx) {
+  measureWidget(id, ctx, -1.0f);
+}
+
+// NOLINTNEXTLINE(misc-no-recursion) -- tree traversal requires recursion
+void GuiWidgetTree::measureWidget(GuiWidgetId id, const GuiDrawContext& ctx,
+                                  float max_width) {
   auto* w = findWidget(id);
   if (w == nullptr) {
     return;
   }
+  const float inner = contentWidthLimit(w->tree_layout, max_width);
   for (auto child : w->children) {
-    measureWidget(child, ctx);
+    if (const GuiWidget* c = findWidget(child)) {
+      measureWidget(child, ctx, childWidthLimit(*c, inner));
+    }
   }
-  w->tree_measured = measureBorderBox(*this, *w, ctx);
+  w->tree_measured = measureBorderBox(*this, *w, {ctx, max_width});
 }
 
 void GuiWidgetTree::arrangeWidget(GuiWidgetId id, const Rect& available) {

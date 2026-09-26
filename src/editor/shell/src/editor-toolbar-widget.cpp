@@ -63,6 +63,8 @@ void EditorToolbarWidget::wireChildren(GuiWidgetTree& tree) {
     label->color = THEME_TEXT;
     label->align = GuiLabelAlign::LEFT;
     label->text = project_name_;
+    label->role = GuiTextRole::LABEL;
+    label->overflow = GuiTextOverflow::ELLIPSIS;
     fixSize(*label, PROJECT_LABEL_WIDTH, -1.0f);
   }
 
@@ -78,6 +80,7 @@ void EditorToolbarWidget::wireStatusLabel(GuiWidgetTree& tree) {
     label->color = THEME_DIM;
     label->align = GuiLabelAlign::LEFT;
     label->text = status_text_;
+    label->overflow = GuiTextOverflow::ELLIPSIS;
     // The one thing in the row that gives way on a narrow window.
     label->tree_layout.width = STATUS_LABEL_WIDTH;
   }
@@ -131,7 +134,7 @@ void EditorToolbarWidget::layout(GuiWidgetTree& tree,
   if (bar_panel_ == GUI_WIDGET_ID_INVALID) {
     return;
   }
-  tree.measureWidget(bar_panel_, GuiDrawContext{});
+  tree.measureWidget(bar_panel_, GuiDrawContext{}, bar_rect.w);
   tree.arrangeWidget(bar_panel_, bar_rect);
 }
 

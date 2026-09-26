@@ -149,6 +149,9 @@ public:
   /// graphics setting, read out of `EditorGraphicsSettings`.
   void setWaterFidelity(WaterFidelity fidelity);
 
+  /// Check the View › Interface row whose scale is @p scale, if any.
+  void setUiScale(float scale);
+
   /// Check each water effect row whose effect @p effects draws.
   void setWaterEffects(const WaterEffects& effects);
 
@@ -260,6 +263,8 @@ private:
   ProjectShading shading_ = ProjectShading::SMOOTH;
   /// The water fidelity the View menu checks.
   WaterFidelity water_ = WATER_DEFAULT_FIDELITY;
+  /// The interface's scale, for View › Interface's check marks.
+  float ui_scale_ = 1.0f;
   /// Which water effect rows are checked.
   WaterEffects water_effects_{};
   /// Whether the history has an applied action for Undo to revert.

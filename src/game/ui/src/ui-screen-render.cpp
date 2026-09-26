@@ -17,9 +17,6 @@ namespace {
   /// What stands in for the game behind the screen: a plain dark grey.
   constexpr uint32_t STAND_IN_GAME = 0xFF342C28U;
 
-  /// Regular weight in the CSS scale `loadFont` takes.
-  constexpr uint16_t REGULAR_WEIGHT = 400;
-
   /// The glyph atlas's texture, when there is no device to make one: the
   /// CPU rasterizer samples atlas pixels, and any handle but 0 lets the
   /// glyph quads be emitted.
@@ -35,9 +32,7 @@ namespace {
 
     CpuFont() {
       const auto chosen = pipeline.init() ? selectGuiUiFont({}) : std::nullopt;
-      face = chosen ? pipeline.loadFont(chosen->file_path, REGULAR_WEIGHT,
-                                        FontLoadItalic::NORMAL)
-                    : std::nullopt;
+      face = chosen ? pipeline.loadFontFamily(chosen->file_path) : std::nullopt;
       if (face) {
         pipeline.atlases.at(0).texture = STAND_IN_TEXTURE;
       }

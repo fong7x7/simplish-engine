@@ -211,6 +211,7 @@ each one's parameters; this table is the map.
 | `send_input` | Queues player 1's input — stick, aim, fire — for a run of ticks of the running playtest |
 | `set_controls` | Changes the control scheme as the Controls screen does — one action's controls (`action`, `controls`), the deadzones, or `reset` to the defaults — saved at once. The user's, not the level's: no undo |
 | `set_water_fidelity` | Draws water `flat`, `low` or `high`, as View › Water does; saved to the user's graphics file |
+| `set_interface_size` | Draws the editor's own interface at a `scale` from 0.5 to 3, as View › Interface does; saved to the user's graphics file; `get_state` reports `interface_scale` |
 | `set_water_effects` | Switches any of the water's `reflections`, `refraction`, `contact` foam and `caustics` on or off, as the View menu's Water effect rows do, leaving the rest; saved to the user's graphics file |
 | `paint_water` | Lays water over a rectangle of the ground — at a `depth`, and where it was dry in a `color` (`#rrggbb`), `opacity`, `flow_direction` (degrees), `flow_speed` and `viscosity` (0 to 1) — or, with `dry`, takes it off, as the Water and Dry cards do; the terrain under it is untouched |
 | `set_water_depth` | Makes the water in a rectangle, or in the selected body of water (`target` `selection`, after `select` with `target` `water`), one depth — `puddle`, `shallows`, `pond`, `lake`, `deep` or a number of tiles — as the Depth row does; one undoable edit |

@@ -6,18 +6,24 @@
 /// @par Threading Main thread only.
 
 #include "draw-pos.h"
+#include "font-metrics.h"
 #include "gui-color.h"
 #include "gui-corners.h"
+#include "gui-font.h"
 #include "gui-nine-slice.h"
 #include "gui-rect-paint.h"
 #include "gui-renderer.h"
 #include "gui-shadow.h"
 #include "gui-state-style.h"
+#include "gui-text-draw.h"
 #include "gui-theme.h"
+#include "gui-wrapped-line.h"
 #include "text-pipeline.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace eng {
 
@@ -142,13 +148,36 @@ public:
     const GuiColor& tint;
   };
 
+  // --- Text in any font -----------------------------------------------
+  // UTF-8 throughout; kerned where the font has kerning; each size
+  // rasterized at the display's density. The older calls above set the
+  // default font, `GuiFont{}`.
+
+  /// Draw one line: @p draw's text from its top-left, in its font.
+  void drawText(const GuiTextDraw& draw) const;
+
+  /// How wide @p text is set in @p font, in layout pixels.
+  [[nodiscard]] float measureText(std::string_view text,
+                                  const GuiFont& font) const;
+
+  /// @p font's ascender, descender and line height (its `line_height`
+  /// multiple of the size, or the font's own).
+  [[nodiscard]] FontMetrics fontMetrics(const GuiFont& font) const;
+
+  /// @p text broken into lines no wider than @p width: at spaces, inside a
+  /// word only when it alone is wider, and at every newline.
+  [[nodiscard]] std::vector<GuiWrappedLine>
+  wrapText(std::string_view text, const GuiFont& font, float width) const;
+
+  /// @p text, or as much of it as fits @p width with "…" after it.
+  [[nodiscard]] std::string ellipsize(std::string_view text,
+                                      const GuiFont& font, float width) const;
+
+  /// The loaded face nearest @p font's weight and slant, or `face_id`.
+  [[nodiscard]] uint32_t faceFor(const GuiFont& font) const;
+
   /// Draw a textured rectangle spanning the full UV range [0,1].
   void drawTexturedRect(const DrawTexturedRectParams& params) const;
-
-private:
-  /// Emit glyphs using the text pipeline (batched or placeholder fallback).
-  void emitTextGlyphs(const DrawPos& pos, std::string_view str,
-                      uint32_t packed) const;
 };
 
 }  // namespace eng

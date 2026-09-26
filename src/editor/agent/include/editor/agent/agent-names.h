@@ -104,6 +104,10 @@ inline constexpr std::string_view AGENT_MENU_COMMAND_NAMES[] = {
     "new_game_logic",
     "build_game_logic",
     "deploy_game",
+    "set_interface_small",
+    "set_interface_normal",
+    "set_interface_large",
+    "set_interface_larger",
 };
 
 static_assert(std::size(AGENT_MENU_COMMAND_NAMES) ==

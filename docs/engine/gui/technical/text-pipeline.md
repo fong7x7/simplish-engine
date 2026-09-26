@@ -7,6 +7,91 @@
 
 ---
 
+## 0. What ships (read this first)
+
+> Sections 1–11 below are the original design: an SDF atlas and HarfBuzz shaping. **Neither is built.** This section describes the code as it stands, and it is authoritative where the two disagree.
+
+| File | What it does |
+|---|---|
+| `text-pipeline.{h,cpp}` | FreeType faces, and a glyph cache keyed by **(pixel size, codepoint)**, packed into 1024² atlas pages. A new page starts when one fills. |
+| `src/text-pipeline-fonts.cpp` | Opening a file at a weight (see below), `faceFor`, and kerning |
+| `gui-font.h`, `gui-text-role.h` | `GuiFont` is how text is set; `GuiTextRole` is what the text is for |
+| `src/gui-draw-context-text.cpp` | `GuiDrawContext::drawText / measureText / fontMetrics / wrapText / ellipsize` |
+| `src/utf8-step.cpp` | UTF-8 decoding: malformed bytes become U+FFFD and never stall a walk |
+| `gui-label.{h,cpp}` | Roles, wrapping, ellipsis, alignment |
+| `test/test_gui_draw_context_text.cpp` | The spec. It also writes `gui-text-roles-capture.png` |
+
+**Fonts and weights.** `loadFontFamily(path)` loads the UI font at 400, 500, 600 and 700, which is how the client and the test captures load it. `loadFont(path, weight, italic)` handles each kind of file:
+- a **variable font** (SF on macOS) has its `wght` axis set;
+- a **collection** (`.ttc`) opens the face whose OS/2 weight is nearest;
+- a single file with nothing heavy enough is **emboldened in software** for weights of 600 and up.
+
+`faceFor(weight, italic)` picks the nearest loaded face.
+
+**Sizes and sharpness.** Every size is rasterised on first use at `size × density × ui_scale` device pixels (`setAllFontsRasterHeight` sets the density). So text stays crisp at any size, on HiDPI screens and at any interface scale; there is no scaled bitmap. Advances are the font's **unhinted, fractional** ones, with light (vertical-only) hinting, so small text spaces evenly. Each glyph is then snapped to a whole device pixel.
+
+**Kerning** comes from the font's `kern` table (`FT_Get_Kerning`) between each pair of glyphs. OpenType `GPOS` kerning, ligatures, bidirectional text and complex scripts need HarfBuzz, which is not linked.
+
+### 0.1 Setting text
+
+```cpp
+const GuiTheme& t = ctx.activeTheme();
+ctx.drawText({.text = "Wave 7 — Survive",          // UTF-8
+              .pos = {x, y},                     // top-left of the line box
+              .color = t.palette.text,
+              .font = t.font(GuiTextRole::TITLE)});   // 22 px, 600
+
+GuiFont hud{.size = 20, .weight = 700, .digits = GuiDigits::TABULAR};  // no jitter
+GuiFont caps{.size = 11, .weight = 600, .letter_spacing = 0.8f};
+GuiFont body{.size = 14, .line_height = 1.5f};   // 21 px between baselines
+
+float w = ctx.measureText("Ammo 30", hud);
+FontMetrics m = ctx.fontMetrics(body);          // ascender, descender, line_height
+auto lines = ctx.wrapText(paragraph, body, 320);  // byte ranges + widths
+std::string cut = ctx.ellipsize(name, body, 180);   // "A very long na…"
+```
+
+| `GuiFont` field | CSS | Default |
+|---|---|---|
+| `size` | `font-size` | 14 |
+| `weight` | `font-weight` | 400 |
+| `slant` | `font-style` | NORMAL (italic falls back to upright unless an italic face is loaded) |
+| `line_height` | `line-height` as a number | 0, the font's own |
+| `letter_spacing` | `letter-spacing` | 0 |
+| `digits` | `font-variant-numeric: tabular-nums` | PROPORTIONAL |
+
+The older `drawText(color, pos, str)`, `measureText(str)` and `textLineHeight()` calls set the default `GuiFont{}`, so existing code draws exactly as before.
+
+### 0.2 Roles
+
+| Role | Default font | For |
+|---|---|---|
+| `CAPTION` | 12, 400 | hints, badges |
+| `LABEL` | 14, 500 | buttons (their default), field labels |
+| `BODY` | 14, 400 | body text (labels' default) |
+| `HEADING` | 17, 600 | section headings |
+| `TITLE` | 22, 600 | panel and dialog titles |
+| `DISPLAY` | 32, 700, −0.5 spacing | screen titles, big numbers |
+
+Sizes come from the theme's `text_sizes` scale, so a theme file resizes all of them.
+
+### 0.3 Labels
+
+```cpp
+label->role = GuiTextRole::HEADING;            // or label->font = GuiFont{...}
+label->wrap = GuiTextWrap::WORD;               // wraps to its width
+label->overflow = GuiTextOverflow::ELLIPSIS;   // one line, cut with "…"
+label->align = GuiLabelAlign::RIGHT;           // LEFT, CENTER, H_CENTER, RIGHT
+```
+
+A wrapping label's **height follows its width**. During measuring, the layout passes each widget the widest it can be (`measureContent(ctx, max_width)`): the parent's content width, less padding and margins. A wrapped paragraph in a column is therefore as tall as its lines. Inside a row, the label is given its row's width and does not re-wrap if flex later shrinks it; give it a width or `flex_basis` there.
+
+### 0.4 Interface scale
+
+`RenderedGameClient::setUiScale(s)` draws the whole GUI `s` times larger. Layout happens in `window / s`, pointer positions are divided by `s`, and glyphs are rasterised `s` times denser, so it is crisp rather than magnified. The editor offers it at View › Interface (90–150%) and saves it in `graphics.json`. Agents call `set_interface_size`. A game offers it as an accessibility setting by calling the same function.
+
+---
+
 ## 1. Requirements Summary
 
 | ID | Requirement | Source |

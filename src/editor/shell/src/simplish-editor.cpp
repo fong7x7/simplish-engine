@@ -429,6 +429,7 @@ void SimplishEditor::initTitleLabel(GuiWidgetTree& tree) {
     label->color = THEME_TEXT;
     label->align = GuiLabelAlign::LEFT;
     label->text = title_text_;
+    label->overflow = GuiTextOverflow::ELLIPSIS;
     // The rest of the bar, so a longer title after a rename still fits
     // without a relayout.
     label->tree_layout.flex_grow = 1.0f;
@@ -2308,6 +2309,8 @@ bool SimplishEditor::runSettingsCommand(EditorMenuCommand command) {
     openSound();
   } else if (command == EditorMenuCommand::IMPORT_SOUND) {
     importSound();
+  } else if (const int size = editorInterfaceSizeOf(command); size >= 0) {
+    setInterfaceScale(EDITOR_INTERFACE_SCALES[size]);
   } else if (const int water = editorWaterFidelityOf(command); water >= 0) {
     setWaterFidelity(WATER_FIDELITIES[water]);
   } else if (const int effect = editorWaterEffectOf(command); effect >= 0) {

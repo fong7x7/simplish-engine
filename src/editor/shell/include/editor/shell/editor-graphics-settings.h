@@ -22,6 +22,10 @@ struct EditorGraphicsSettings {
   /// Which of the water's costlier effects are drawn, whatever the
   /// fidelity: reflections, refraction, contact foam, caustics.
   WaterEffects water_effects{};
+  /// How large the interface is drawn: 1 at its designed size, 1.25 a
+  /// quarter larger (View › Interface). The whole GUI scales, text
+  /// re-rasterized to stay crisp.
+  float ui_scale = 1.0f;
   /// The file they are kept in; empty when there is nowhere to keep them.
   std::filesystem::path file;
   /// Bumped on every change; the editor applies and saves when it moves on

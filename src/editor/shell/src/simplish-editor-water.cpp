@@ -33,6 +33,14 @@ void SimplishEditor::setWaterFidelity(WaterFidelity fidelity) {
   showStatusMessage("Water: " + std::string(waterFidelityWord(fidelity)));
 }
 
+void SimplishEditor::setInterfaceScale(float scale) {
+  state_.graphics.ui_scale = scale;
+  ++state_.graphics.revision;
+  showStatusMessage(
+      "Interface: " + std::to_string(static_cast<int>(scale * 100.0f + 0.5f)) +
+      "%");
+}
+
 void SimplishEditor::toggleWaterEffect(WaterEffect effect) {
   bool& on = state_.graphics.water_effects.on[waterEffectIndex(effect)];
   on = !on;
@@ -49,7 +57,10 @@ void SimplishEditor::tickGraphics() {
           guiWidgetTree().findWidget(menu_bar_id_))) {
     menu->setWaterFidelity(state_.graphics.water);
     menu->setWaterEffects(state_.graphics.water_effects);
+    menu->setUiScale(state_.graphics.ui_scale);
   }
+  // A new scale changes the layout's size, which layoutChrome notices.
+  setUiScale(state_.graphics.ui_scale);
   // The first frame only applies what was read; there is nothing new to
   // write back.
   if (saved_graphics_revision_) {

@@ -553,12 +553,31 @@ namespace {
 }  // namespace
 
 LayoutSize measureBorderBox(const GuiWidgetTree& tree, const GuiWidget& widget,
-                            const GuiDrawContext& ctx) {
-  const LayoutSize own = widget.measureContent(ctx);
-  const LayoutSize flow = flowContent(tree, widget);
+                            const MeasureLimit& limit) {
   const LayoutStyle& style = widget.tree_layout;
+  const LayoutSize own = widget.measureContent(
+      limit.ctx, contentWidthLimit(style, limit.max_width));
+  const LayoutSize flow = flowContent(tree, widget);
   return {measureAlong(style, Axis::X, std::max(own.w, flow.w)),
           measureAlong(style, Axis::Y, std::max(own.h, flow.h))};
+}
+
+float contentWidthLimit(const LayoutStyle& style, float max_width) {
+  float limit = style.width >= 0.0f ? style.width : max_width;
+  if (style.max_width >= 0.0f) {
+    limit = limit < 0.0f ? style.max_width : std::min(limit, style.max_width);
+  }
+  return limit < 0.0f
+             ? -1.0f
+             : std::max(0.0f, limit - edgesAlong(style.padding, Axis::X));
+}
+
+float childWidthLimit(const GuiWidget& child, float content_width) {
+  return content_width < 0.0f
+             ? -1.0f
+             : std::max(0.0f,
+                        content_width -
+                            edgesAlong(child.tree_layout.margin, Axis::X));
 }
 
 void arrangeFlexChildren(GuiWidgetTree& tree, const GuiWidget& parent,

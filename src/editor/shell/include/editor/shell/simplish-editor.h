@@ -1235,11 +1235,15 @@ private:
   void drawWater(RhiCommandList& cmd, const EditorViewportWidget& viewport);
   /// Draw water at @p fidelity from now on, and save it as the user's.
   void setWaterFidelity(WaterFidelity fidelity);
+  /// Draw the interface @p scale times its size from now on, and save it
+  /// as the user's.
+  void setInterfaceScale(float scale);
   /// Switch @p effect of the water on if it is off and off if it is on,
   /// saved with the user's graphics settings.
   void toggleWaterEffect(WaterEffect effect);
-  /// Check the View menu's water row, and save the graphics settings, when
-  /// they have changed since last time.
+  /// Check the View menu's water and interface rows, apply the interface
+  /// scale, and save the graphics settings, when they have changed since
+  /// last time.
   void tickGraphics();
   /// The effects the viewport draws and lights by: the playtest's while
   /// playing, and the editor's own emitters' otherwise.

@@ -74,6 +74,16 @@ protected:
   /// Resize retained GUI to current `backbufferWidth` / `backbufferHeight`.
   void resizeGuiToBackbuffer();
 
+  /// Draw the interface @p scale times its designed size — 1.25 a quarter
+  /// larger — clamped to [0.5, 3]. The GUI lays out in window pixels
+  /// divided by it, pointer positions reach it divided by it, and text is
+  /// rasterized that much denser, so everything scales and stays crisp.
+  /// Platforms divide `guiLayoutWidth` and `guiLayoutHeight` by `uiScale`.
+  void setUiScale(float scale);
+
+  /// The interface's scale; 1 by default.
+  [[nodiscard]] float uiScale() const { return ui_scale_; }
+
   /// GUI layout width in window coordinates (defaults to backbuffer width).
   [[nodiscard]] virtual uint32_t guiLayoutWidth() const {
     return backbufferWidth();
@@ -186,6 +196,8 @@ private:
   GuiContext gui_{};
   /// Face id returned by `guiTextFaceId`; zero until a font loads.
   uint32_t gui_text_face_id_ = 0;
+  /// The interface's scale (`setUiScale`).
+  float ui_scale_ = 1.0f;
 };
 
 }  // namespace eng::client
