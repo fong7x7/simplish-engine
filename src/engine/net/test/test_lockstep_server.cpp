@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <engine/net/lockstep-server.h>
 #include <engine/net/net-input-delay.h>
+#include <engine/net/net-password.h>
 #include <engine/net/net-trace-divergence.h>
 #include <string>
 #include <vector>
@@ -50,7 +51,8 @@ sim::TickHash hashOf(uint64_t tick, uint64_t value) {
 
 TEST_CASE("a server seats clients in order and tells them who is here") {
   LoopbackSession session;
-  LockstepClient& first = session.join({NET_PROTOCOL_VERSION, 0, "scout"});
+  LockstepClient& first =
+      session.join({NET_PROTOCOL_VERSION, 0, 0, 0, "scout"});
   LockstepClient& second = session.join();
   session.pump();
   CHECK(first.slot() == 0);
@@ -67,10 +69,10 @@ TEST_CASE("a server refuses another protocol, other content, or a full "
   config.content_hash = 5;
   config.seats = 1;
   LoopbackSession session(config);
-  LockstepClient& old = session.join({NET_PROTOCOL_VERSION + 1, 5, ""});
-  LockstepClient& modded = session.join({NET_PROTOCOL_VERSION, 6, ""});
-  LockstepClient& seated = session.join({NET_PROTOCOL_VERSION, 5, ""});
-  LockstepClient& late = session.join({NET_PROTOCOL_VERSION, 5, ""});
+  LockstepClient& old = session.join({NET_PROTOCOL_VERSION + 1, 5, 0, 0, ""});
+  LockstepClient& modded = session.join({NET_PROTOCOL_VERSION, 6, 0, 0, ""});
+  LockstepClient& seated = session.join({NET_PROTOCOL_VERSION, 5, 0, 0, ""});
+  LockstepClient& late = session.join({NET_PROTOCOL_VERSION, 5, 0, 0, ""});
   session.pump();
   CHECK(old.refusal() == NetRefusalReason::PROTOCOL);
   CHECK(modded.refusal() == NetRefusalReason::CONTENT);
@@ -90,8 +92,9 @@ TEST_CASE("a start carries the run's header") {
   LockstepServerConfig config = keeping(2);
   config.content_hash = 9;
   LoopbackSession session(config);
-  LockstepClient& scout = session.join({NET_PROTOCOL_VERSION, 9, "scout"});
-  (void)session.join({NET_PROTOCOL_VERSION, 9, "tank"});
+  LockstepClient& scout =
+      session.join({NET_PROTOCOL_VERSION, 9, 0, 0, "scout"});
+  (void)session.join({NET_PROTOCOL_VERSION, 9, 0, 0, "tank"});
   session.pump();
   const auto start = session.server().start("arena", 42);
   session.pump();
@@ -367,4 +370,38 @@ TEST_CASE("a server that reports its own hashes has a trace of its own") {
   REQUIRE(traces.size() == 2);
   CHECK(traces[1].slot == NET_SERVER_SLOT);
   CHECK(traces[1].trace.ticks.size() == 61);
+}
+
+TEST_CASE("a server refuses a client built from other code, or without the "
+          "password") {
+  LockstepServerConfig config;
+  config.build = 7;
+  config.password = netPasswordDigest("hunter2");
+  LoopbackSession session(config);
+  const uint64_t right = netPasswordDigest("hunter2");
+  LockstepClient& other = session.join({NET_PROTOCOL_VERSION, 0, 8, right, ""});
+  LockstepClient& guess =
+      session.join({NET_PROTOCOL_VERSION, 0, 7, netPasswordDigest("x"), ""});
+  LockstepClient& open = session.join({NET_PROTOCOL_VERSION, 0, 7, 0, ""});
+  LockstepClient& known = session.join({NET_PROTOCOL_VERSION, 0, 7, right, ""});
+  session.pump();
+  CHECK(other.refusal() == NetRefusalReason::BUILD);
+  CHECK(guess.refusal() == NetRefusalReason::PASSWORD);
+  CHECK(open.refusal() == NetRefusalReason::PASSWORD);
+  CHECK(known.slot() == 0);
+}
+
+TEST_CASE("a seat removed mid-run is told why, and plays absent") {
+  LoopbackSession session(keeping(1));
+  session.seat(2);
+  (void)session.start("arena");
+  session.server().removeSeat(1, NetRefusalReason::STALLED);
+  session.pump();
+  CHECK(session.client(1).state() == NetClientState::REFUSED);
+  CHECK(session.client(1).refusal() == NetRefusalReason::STALLED);
+  CHECK(session.server().playing() == 0b01);
+  (void)drain(session.client(0));
+  (void)session.client(0).sendInput({});
+  session.pump();
+  CHECK(session.client(0).takeFrame()->absent == 0b10);
 }

@@ -121,6 +121,21 @@ public:
     }
   }
 
+  /// Poll the server and every client but client @p skipped — as if it
+  /// had stopped — for @p duration of real time.
+  void stepWithout(std::size_t skipped, std::chrono::milliseconds duration,
+                   std::ostream& out) {
+    const auto until = std::chrono::steady_clock::now() + duration;
+    while (std::chrono::steady_clock::now() < until) {
+      server_.poll(out);
+      for (std::size_t i = 0; i < clients_.size(); ++i) {
+        if (i != skipped) {
+          clients_[i]->poll(1, out);
+        }
+      }
+    }
+  }
+
   /// Whether every client's run ended on the server's tick and hash.
   [[nodiscard]] bool clientsAgree() const {
     bool agree = true;
@@ -353,8 +368,9 @@ TEST_CASE("simplish-game reads a server's flags") {
 
 TEST_CASE("simplish-game reads a measured delay, and where replays and "
           "reports go") {
-  const std::string_view args[] = {"--delay", "auto",         "--replay",
-                                   "a.rpl",   "--desync-dir", "out"};
+  const std::string_view args[] = {
+      "--delay", "auto",       "--replay", "a.rpl",        "--desync-dir",
+      "out",     "--password", "pw",       "--stall-drop", "30"};
   const std::string_view verify[] = {"--verify", "b.rpl"};
 
   const auto options = parseDeployedGameArgs(args);
@@ -363,6 +379,8 @@ TEST_CASE("simplish-game reads a measured delay, and where replays and "
   CHECK_FALSE(options->input_delay);
   CHECK(options->replay == "a.rpl");
   CHECK(options->desync_dir == "out");
+  CHECK(options->password == "pw");
+  CHECK(options->stall_drop == std::chrono::seconds(30));
   CHECK(parseDeployedGameArgs(verify)->mode == DeployedGameMode::VERIFY);
   CHECK(parseDeployedGameArgs(verify)->verify == "b.rpl");
 }
@@ -392,4 +410,38 @@ TEST_CASE("simplish-game refuses session flags that do not fit") {
   CHECK_FALSE(parseDeployedGameArgs(no_host));
   CHECK_FALSE(parseDeployedGameArgs(bad_delay));
   CHECK_FALSE(parseDeployedGameArgs(bad_pace));
+}
+
+TEST_CASE("a client that stops sending input is dropped, told why, and "
+          "played by a stand-in") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  // Long enough that the run is still going when the check comes.
+  DeployedGameOptions options = as(content.options(1'000'000), {}, 2);
+  options.stall_drop = std::chrono::milliseconds(300);
+  ServedSession session(options, {});
+  session.join(options, {});
+  session.join(options, {});
+  session.step(20, out);
+  session.stepWithout(1, std::chrono::milliseconds(600), out);
+  session.client(1).poll(1, out);
+  CHECK(out.str().contains("Dropped player 2: no input for 300 ms"));
+  CHECK(session.client(1).run().error ==
+        "The server dropped this player: it stopped sending input");
+  CHECK(session.server().session().playing() == 0b01);
+}
+
+TEST_CASE("a password keeps out a client without it") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  DeployedGameOptions options = as(content.options(10), {}, 1);
+  options.password = "hunter2";
+  DeployedGameOptions wrong = options;
+  wrong.password = "guess";
+  ServedSession session(options, {});
+  DeployedClient& stranger = session.join(wrong, {});
+  DeployedClient& friendly = session.join(options, {});
+  session.step(20, out);
+  CHECK(stranger.run().error == "The server wants another password");
+  CHECK(friendly.session().slot() == 0);
 }

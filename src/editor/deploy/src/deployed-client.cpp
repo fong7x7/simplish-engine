@@ -1,10 +1,12 @@
 #include "deployed-client.h"
 
+#include "deployed-build-id.h"
 #include "deployed-replay.h"
 #include "desync-text.h"
 #include "seats-text.h"
 
 #include <editor/deploy/deployed-content.h>
+#include <engine/net/net-password.h>
 #include <game/world/stand-in-input.h>
 #include <string_view>
 #include <utility>
@@ -13,18 +15,27 @@ namespace eng::editor {
 
 namespace {
 
-  /// What a client of the content at @p content says when it asks to sit.
-  net::NetHello helloFor(const std::filesystem::path& content) {
-    return {net::NET_PROTOCOL_VERSION, deployedContentHash(content), ""};
+  /// What a client of the game @p options names says when it asks to sit.
+  net::NetHello helloFor(const DeployedGameOptions& options) {
+    return {net::NET_PROTOCOL_VERSION, deployedContentHash(options.content),
+            deployedBuildId(), net::netPasswordDigest(options.password), ""};
   }
 
   /// Why the server refused, in words.
   std::string_view refusalText(net::NetRefusalReason reason) {
-    if (reason == net::NetRefusalReason::PROTOCOL) {
-      return "The server runs another version of the protocol";
-    }
-    if (reason == net::NetRefusalReason::CONTENT) {
-      return "The server's game content is not this game's";
+    switch (reason) {
+      case net::NetRefusalReason::PROTOCOL:
+        return "The server runs another version of the protocol";
+      case net::NetRefusalReason::CONTENT:
+        return "The server's game content is not this game's";
+      case net::NetRefusalReason::BUILD:
+        return "The server was built from other engine code";
+      case net::NetRefusalReason::PASSWORD:
+        return "The server wants another password";
+      case net::NetRefusalReason::STALLED:
+        return "The server dropped this player: it stopped sending input";
+      case net::NetRefusalReason::FULL:
+        break;
     }
     return "The server is full";
   }
@@ -35,7 +46,7 @@ DeployedClient::DeployedClient(std::unique_ptr<net::NetTransport> transport,
                                const DeployedGameOptions& options,
                                game::GameLogicFactory logic)
   : options_(options), logic_(logic),
-    client_(std::move(transport), helloFor(options.content)) {}
+    client_(std::move(transport), helloFor(options)) {}
 
 void DeployedClient::poll(uint32_t due, std::ostream& out) {
   if (finished()) {

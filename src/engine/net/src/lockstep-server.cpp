@@ -76,8 +76,14 @@ LockstepServer::refusalFor(const NetHello& hello) const {
   if (hello.protocol != NET_PROTOCOL_VERSION) {
     return NetRefusalReason::PROTOCOL;
   }
+  if (hello.build != config_.build) {
+    return NetRefusalReason::BUILD;
+  }
   if (hello.content_hash != config_.content_hash) {
     return NetRefusalReason::CONTENT;
+  }
+  if (hello.password != config_.password) {
+    return NetRefusalReason::PASSWORD;
   }
   return freeSeat() ? std::nullopt : std::optional{NetRefusalReason::FULL};
 }
@@ -188,6 +194,16 @@ void LockstepServer::halt(const NetDesync& desync) {
   desync_ = desync;
   state_ = NetServerState::DESYNCED;
   broadcast(desync);
+}
+
+void LockstepServer::removeSeat(uint8_t seat, NetRefusalReason why) {
+  if (seat >= sim::MAX_PLAYERS || seats_[seat].connected == 0) {
+    return;
+  }
+  const NetPeer peer = seats_[seat].peer;
+  send(peer, NetRefusal{why});
+  transport_->disconnect(peer);
+  drop(peer);
 }
 
 void LockstepServer::drop(NetPeer peer) {

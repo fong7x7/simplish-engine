@@ -1,6 +1,7 @@
 #include "enet-transport.h"
 
 #include <cstdlib>
+#include <engine/net/net-codec.h>
 #include <engine/net/udp-connect.h>
 #include <engine/net/udp-listen.h>
 
@@ -41,7 +42,12 @@ bool enetReady() {
   return ready;
 }
 
-EnetTransport::EnetTransport(ENetHost* host) : host_(host) {}
+EnetTransport::EnetTransport(ENetHost* host) : host_(host) {
+  // Nothing larger than the protocol's largest message is accepted, or
+  // buffered while it arrives: a peer cannot make this host hold megabytes.
+  host_->maximumPacketSize = NET_MAX_MESSAGE_BYTES;
+  host_->maximumWaitingData = ENET_MAX_WAITING_BYTES;
+}
 
 EnetTransport::~EnetTransport() {
   for (size_t i = 0; i < host_->peerCount; ++i) {

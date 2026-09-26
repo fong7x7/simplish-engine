@@ -1,24 +1,28 @@
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <enet/enet.h>
 #include <engine/net/lockstep-client.h>
 #include <engine/net/lockstep-server.h>
+#include <engine/net/net-codec.h>
 #include <engine/net/udp-connect.h>
 #include <engine/net/udp-listen.h>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <thread>
+#include <vector>
 
 using namespace eng;
 using namespace eng::net;
 
 namespace {
 
-/// Poll @p step until it says it is done, for at most five seconds of
-/// real time: these tests use real sockets on the loopback interface.
-bool within(const std::function<bool()>& step) {
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+/// Poll @p step until it says it is done, for at most @p limit of real
+/// time: these tests use real sockets on the loopback interface.
+bool within(const std::function<bool()>& step,
+            std::chrono::milliseconds limit = std::chrono::seconds(5)) {
+  const auto deadline = std::chrono::steady_clock::now() + limit;
   while (std::chrono::steady_clock::now() < deadline) {
     if (step()) {
       return true;
@@ -88,6 +92,49 @@ bool play120(LockstepServer& server, LockstepClient& a, LockstepClient& b) {
   });
 }
 
+/// A raw ENet client with no message cap of its own, as a hostile peer's
+/// would be, connecting to 127.0.0.1 on a port.
+class RawClient {
+public:
+  explicit RawClient(uint16_t port)
+    : host_(enet_host_create(nullptr, 1, 1, 0, 0)) {
+    ENetAddress address{0, port};
+    (void)enet_address_set_host(&address, "127.0.0.1");
+    peer_ = enet_host_connect(host_, &address, 1, 0);
+  }
+  ~RawClient() { enet_host_destroy(host_); }
+  RawClient(const RawClient&) = delete;
+  RawClient& operator=(const RawClient&) = delete;
+  RawClient(RawClient&&) = delete;
+  RawClient& operator=(RawClient&&) = delete;
+
+  /// Service the host; whether that finished connecting.
+  bool connected() {
+    ENetEvent event;
+    return enet_host_service(host_, &event, 0) > 0 &&
+           event.type == ENET_EVENT_TYPE_CONNECT;
+  }
+
+  /// Service the host, whatever comes.
+  void service() {
+    ENetEvent event;
+    (void)enet_host_service(host_, &event, 0);
+  }
+
+  /// Send @p bytes reliably, however many.
+  void send(const std::vector<std::byte>& bytes) {
+    (void)enet_peer_send(peer_, 0,
+                         enet_packet_create(bytes.data(), bytes.size(),
+                                            ENET_PACKET_FLAG_RELIABLE));
+  }
+
+private:
+  /// The ENet host. Never null in a test that passed its setup.
+  ENetHost* host_;
+  /// The connection to the listener.
+  ENetPeer* peer_ = nullptr;
+};
+
 }  // namespace
 
 TEST_CASE("a UDP listener picks a port when asked for none") {
@@ -143,4 +190,24 @@ TEST_CASE("a lockstep session runs over UDP") {
   REQUIRE(server.start("arena", 1));
   REQUIRE(play120(server, a, b));
   CHECK(server.nextTick() >= 120);
+}
+
+TEST_CASE("a UDP listener drops a message larger than the protocol's "
+          "largest") {
+  auto listen = listenUdp(0, 4);
+  REQUIRE(listen);
+  RawClient raw(listen->port);
+  REQUIRE(within([&] {
+    (void)listen->transport->poll();
+    return raw.connected();
+  }));
+  raw.send(std::vector<std::byte>(NET_MAX_MESSAGE_BYTES + 1, std::byte{1}));
+  const bool received = within(
+      [&] {
+        raw.service();
+        const std::optional<NetEvent> event = listen->transport->poll();
+        return event && event->kind == NetEventKind::RECEIVED;
+      },
+      std::chrono::seconds(1));
+  CHECK_FALSE(received);
 }

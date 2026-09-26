@@ -88,8 +88,13 @@ private:
   void stepReference(std::ostream& out);
   /// Report @p result's hash and say what its tick's logic said.
   void keep(const sim::TickResult& result, std::ostream& out);
-  /// Say who the run is waiting on, once it has waited long enough.
+  /// Say who the run is waiting on, once it has waited long enough; drop
+  /// them once it has waited too long.
   void noticeStall(std::ostream& out);
+  /// Tell the clients who the run is waiting on, and say so.
+  void announceStall(std::ostream& out);
+  /// Drop every seat the run is waiting on.
+  void dropStalled(std::ostream& out);
   /// Report the desync once every trace is in, or the wait is over.
   void collectTraces(std::ostream& out);
   /// Write the desync's report, and say where in the run's error.

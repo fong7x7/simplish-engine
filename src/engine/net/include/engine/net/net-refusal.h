@@ -14,9 +14,13 @@ enum class NetRefusalReason : uint8_t {
   PROTOCOL,  ///< The client speaks another `NET_PROTOCOL_VERSION`
   CONTENT,   ///< The client's content hash is not the server's
   FULL,      ///< Every seat is taken
+  BUILD,     ///< The client was built from other code than the server
+  PASSWORD,  ///< The client's password is not the session's
+  STALLED,   ///< Seated, it stopped sending input and was dropped
 };
 
-/// Server to client, in answer to a `NetHello`, before disconnecting it.
+/// Server to client, before disconnecting it: in answer to a `NetHello`,
+/// or — `STALLED` — to a seat the session gave up waiting for.
 struct NetRefusal {
   /// Why.
   NetRefusalReason reason = NetRefusalReason::FULL;

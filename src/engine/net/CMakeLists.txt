@@ -16,6 +16,7 @@ simplish_add_module(simplish-engine-net
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/loopback-network.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-codec.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-input-delay.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/net-password.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-trace-divergence.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/trace-ring.cpp
     DEPENDENCIES simplish-engine-core

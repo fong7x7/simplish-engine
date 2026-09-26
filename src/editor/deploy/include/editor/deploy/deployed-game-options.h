@@ -4,6 +4,7 @@
 /// @brief How a deployed game is asked to run.
 /// @par Threading Thread-safe (immutable value type).
 
+#include <chrono>
 #include <cstdint>
 #include <editor/deploy/deployed-game-mode.h>
 #include <editor/deploy/deployed-hashes.h>
@@ -17,6 +18,9 @@ namespace eng::editor {
 
 /// Ticks a deployed game runs when not told: five minutes of play.
 inline constexpr uint64_t DEPLOYED_GAME_DEFAULT_TICKS = 5 * 60 * 60;
+
+/// The longest `--stall-drop` a server may be given, in seconds: an hour.
+inline constexpr uint64_t DEPLOYED_MAX_STALL_DROP_S = 3600;
 
 /// What `simplish-game`'s command line asks for.
 /// @thread_safety Immutable value type.
@@ -53,6 +57,13 @@ struct DeployedGameOptions {
   /// Where a server writes a desync's report; empty for the working
   /// directory.
   std::filesystem::path desync_dir{};
+  /// How long a server's run waits on a seat before dropping it and
+  /// playing it with a stand-in: long enough that only a client that has
+  /// stopped sending input for good trips it.
+  std::chrono::milliseconds stall_drop = std::chrono::seconds(10);
+  /// The session's password: a server admits only clients that give it, a
+  /// client gives it. Empty for an open session.
+  std::string password{};
 };
 
 }  // namespace eng::editor

@@ -1,6 +1,8 @@
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <engine/net/net-codec.h>
+#include <engine/net/net-password.h>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -55,9 +57,9 @@ NetTrace sampleTrace() {
 
 /// One of every message, with values at the edges of their ranges.
 std::vector<NetMessage> everyMessage() {
-  return {NetHello{NET_PROTOCOL_VERSION, 77, "scout"},
+  return {NetHello{NET_PROTOCOL_VERSION, 77, 0xB111D, 0xFA55, "scout"},
           NetWelcome{3},
-          NetRefusal{NetRefusalReason::CONTENT},
+          NetRefusal{NetRefusalReason::STALLED},
           NetRoster{0b1011},
           sampleStart(),
           NetInput{2, 1'000'000'000'000ULL, sampleInput()},
@@ -150,7 +152,7 @@ TEST_CASE("a net message with a byte left over is refused") {
 TEST_CASE("net messages out of range are refused") {
   CHECK_FALSE(decodeNetMessage(std::vector{std::byte{12}}));
   CHECK_FALSE(decodeNetMessage(std::vector{std::byte{1}, std::byte{4}}));
-  CHECK_FALSE(decodeNetMessage(std::vector{std::byte{2}, std::byte{3}}));
+  CHECK_FALSE(decodeNetMessage(std::vector{std::byte{2}, std::byte{6}}));
   NetStart start = sampleStart();
   start.header.player_count = 5;
   CHECK_FALSE(decodeNetMessage(encodeNetMessage(start)));
@@ -178,4 +180,24 @@ TEST_CASE("a trace longer than a peer keeps is refused") {
   NetTrace trace = sampleTrace();
   trace.ticks.resize(NET_TRACE_TICKS + 1, trace.ticks.front());
   CHECK_FALSE(decodeNetMessage(encodeNetMessage(trace)));
+}
+
+TEST_CASE("the largest trace fits a message, and nothing larger is read") {
+  NetTrace trace{1,
+                 std::vector<std::string>(sim::MAX_TICK_HASH_SECTIONS,
+                                          std::string(64, 'n')),
+                 {}};
+  sim::TickHash hash;
+  hash.tick = UINT64_MAX;
+  hash.section_count = sim::MAX_TICK_HASH_SECTIONS;
+  trace.ticks.assign(NET_TRACE_TICKS, hash);
+  CHECK(encodeNetMessage(trace).size() <= NET_MAX_MESSAGE_BYTES);
+  const std::vector<std::byte> huge(NET_MAX_MESSAGE_BYTES + 1, std::byte{0});
+  CHECK_FALSE(decodeNetMessage(huge));
+}
+
+TEST_CASE("a password digests to nothing only when there is none") {
+  CHECK(netPasswordDigest("") == 0);
+  CHECK(netPasswordDigest("a") != 0);
+  CHECK(netPasswordDigest("a") != netPasswordDigest("b"));
 }

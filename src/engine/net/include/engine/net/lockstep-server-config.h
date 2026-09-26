@@ -29,6 +29,11 @@ enum class NetServerFrames : uint8_t {
 struct LockstepServerConfig {
   /// The content hash every client's `NetHello` must carry.
   uint64_t content_hash = 0;
+  /// The build every client's `NetHello` must carry.
+  uint64_t build = 0;
+  /// The password digest every client's `NetHello` must carry; 0 for an
+  /// open session.
+  uint64_t password = 0;
   /// Seats, 1 to `sim::MAX_PLAYERS`.
   uint8_t seats = sim::MAX_PLAYERS;
   /// Ticks between a client sampling its input and the tick it is for.

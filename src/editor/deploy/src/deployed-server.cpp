@@ -1,5 +1,6 @@
 #include "deployed-server.h"
 
+#include "deployed-build-id.h"
 #include "deployed-level.h"
 #include "deployed-replay.h"
 #include "desync-report.h"
@@ -8,6 +9,7 @@
 
 #include <bit>
 #include <editor/deploy/deployed-content.h>
+#include <engine/net/net-password.h>
 #include <fstream>
 #include <utility>
 
@@ -19,6 +21,8 @@ namespace {
   net::LockstepServerConfig sessionFor(const DeployedGameOptions& options) {
     net::LockstepServerConfig config;
     config.content_hash = deployedContentHash(options.content);
+    config.build = deployedBuildId();
+    config.password = net::netPasswordDigest(options.password);
     config.input_delay =
         options.input_delay.value_or(net::NET_DEFAULT_INPUT_DELAY);
     config.delay_choice = options.input_delay ? net::NetDelayChoice::FIXED
@@ -111,14 +115,32 @@ void DeployedServer::noticeStall(std::ostream& out) {
     progress_at_ = now;
     return;
   }
-  if (announced_tick_ == tick || now - progress_at_ < DEPLOYED_STALL_NOTICE) {
-    return;
+  const auto waited = now - progress_at_;
+  if (waited >= options_.stall_drop) {
+    dropStalled(out);
+  } else if (waited >= DEPLOYED_STALL_NOTICE && announced_tick_ != tick) {
+    announceStall(out);
   }
+}
+
+void DeployedServer::announceStall(std::ostream& out) {
   if (const auto said = server_.announceWaiting()) {
-    announced_tick_ = tick;
-    out << "Waiting for " << seatsText(said->waiting) << " at tick " << tick
-        << '\n';
+    announced_tick_ = said->tick;
+    out << "Waiting for " << seatsText(said->waiting) << " at tick "
+        << said->tick << '\n';
   }
+}
+
+void DeployedServer::dropStalled(std::ostream& out) {
+  const uint8_t stalled = server_.waitingOn();
+  for (uint8_t seat = 0; seat < sim::MAX_PLAYERS; ++seat) {
+    if ((stalled & (1U << seat)) != 0) {
+      server_.removeSeat(seat, net::NetRefusalReason::STALLED);
+      out << "Dropped " << seatText(seat) << ": no input for "
+          << options_.stall_drop.count() << " ms\n";
+    }
+  }
+  progress_at_ = std::chrono::steady_clock::now();
 }
 
 void DeployedServer::stepReference(std::ostream& out) {

@@ -57,6 +57,12 @@ public:
   /// absent. Nothing when nobody is seated; otherwise the start sent.
   std::optional<NetStart> start(const std::string& level, uint64_t seed);
 
+  /// Tell the client in @p seat why, disconnect it, and free the seat at
+  /// once; in a run, the seat plays absent from the next frame. What a
+  /// server does with a seat that stopped sending input (`STALLED`) — the
+  /// engine reads no clock, so whoever runs it decides how long is too long.
+  void removeSeat(uint8_t seat, NetRefusalReason why);
+
   /// End the run, telling its clients, and go back to the lobby.
   void end();
 

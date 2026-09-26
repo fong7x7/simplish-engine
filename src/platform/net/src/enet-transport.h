@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <enet/enet.h>
+#include <engine/net/net-codec.h>
 #include <engine/net/net-transport.h>
 #include <optional>
 #include <span>
@@ -19,6 +20,10 @@ namespace eng::net {
 inline constexpr enet_uint32 ENET_DROP_MIN_MS = 2000;
 /// See `ENET_DROP_MIN_MS`.
 inline constexpr enet_uint32 ENET_DROP_MAX_MS = 8000;
+
+/// Bytes of partly arrived messages a host buffers for all its peers at
+/// most: a few of the largest messages, where ENet allows 32 MB.
+inline constexpr size_t ENET_MAX_WAITING_BYTES = 4 * NET_MAX_MESSAGE_BYTES;
 
 /// A server's or a client's ENet host, as a transport. Peers are numbered
 /// by their slot in the host (`incomingPeerID`); every message is a

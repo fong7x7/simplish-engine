@@ -133,6 +133,17 @@ namespace {
     return true;
   }
 
+  /// How many whole seconds, at least 1, a run waits on a seat before
+  /// dropping it: @p value.
+  bool stallDropFlag(DeployedGameOptions& options, std::string_view value) {
+    const std::optional<uint64_t> seconds = wholeNumber(value);
+    if (!seconds || *seconds < 1 || *seconds > DEPLOYED_MAX_STALL_DROP_S) {
+      return false;
+    }
+    options.stall_drop = std::chrono::seconds(*seconds);
+    return true;
+  }
+
   /// A path-valued flag @p flag, valued @p value, into @p options. False
   /// when it is not one.
   bool pathFlag(DeployedGameOptions& options, std::string_view flag,
@@ -145,6 +156,8 @@ namespace {
       options.verify = path;
     } else if (flag == "--desync-dir") {
       options.desync_dir = path;
+    } else if (flag == "--password") {
+      options.password = std::string(value);
     } else {
       return false;
     }
@@ -171,6 +184,9 @@ namespace {
     }
     if (flag == "--delay") {
       return delayFlag(options, value);
+    }
+    if (flag == "--stall-drop") {
+      return stallDropFlag(options, value);
     }
     if (flag == "--pace") {
       return paceFlag(options, value);

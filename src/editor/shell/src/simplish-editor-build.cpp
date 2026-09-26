@@ -35,6 +35,20 @@ namespace {
     return has_main || levels.empty() ? std::string(EDITOR_LEVEL_ID)
                                       : levels.front();
   }
+  /// The manifest of a deploy of the project at @p root, called @p name,
+  /// that baked @p levels: its logic, if any, identified by its sources.
+  EditorDeployManifest deployManifest(std::string name,
+                                      std::vector<std::string> levels,
+                                      const std::filesystem::path& root) {
+    EditorDeployManifest manifest{std::move(name),
+                                  std::move(levels),
+                                  {},
+                                  projectHasLogic(root),
+                                  projectLogicHash(root)};
+    manifest.start_level = startLevel(manifest.levels);
+    return manifest;
+  }
+
 
   /// Copy the folder @p name of the project at @p root's content into the
   /// deployed game's content at @p content. False when it is there and
@@ -326,11 +340,8 @@ bool SimplishEditor::bakeDeployContent() {
   const std::filesystem::path content = deployContentPath(root);
   std::error_code ec;
   std::filesystem::remove_all(content, ec);
-  EditorDeployManifest manifest{state_.project.metadata.name,
-                                bakeDeployLevels(content),
-                                {},
-                                projectHasLogic(root)};
-  manifest.start_level = startLevel(manifest.levels);
+  const EditorDeployManifest manifest = deployManifest(
+      state_.project.metadata.name, bakeDeployLevels(content), root);
   if (manifest.levels.empty() || !copyDataTables(root, content) ||
       !writeProjectTextFile(content / EDITOR_DEPLOY_MANIFEST,
                             serializeDeployManifest(manifest))) {

@@ -105,6 +105,8 @@ namespace {
   void write(ByteWriter& out, const NetHello& hello) {
     out.u16(hello.protocol);
     out.u64(hello.content_hash);
+    out.u64(hello.build);
+    out.u64(hello.password);
     writeString(out, hello.character);
   }
 
@@ -194,11 +196,14 @@ namespace {
   Decoded readHello(ByteReader& in) {
     const std::optional<uint16_t> protocol = in.u16();
     const std::optional<uint64_t> content = in.u64();
+    const std::optional<uint64_t> build = in.u64();
+    const std::optional<uint64_t> password = in.u64();
     std::optional<std::string> character = readString(in);
-    if (!protocol || !content || !character) {
+    if (!protocol || !content || !build || !password || !character) {
       return std::nullopt;
     }
-    return NetHello{*protocol, *content, std::move(*character)};
+    return NetHello{*protocol, *content, *build, *password,
+                    std::move(*character)};
   }
 
   Decoded readWelcome(ByteReader& in) {
@@ -208,7 +213,7 @@ namespace {
 
   Decoded readRefusal(ByteReader& in) {
     const std::optional<uint8_t> reason =
-        smallByte(in, static_cast<uint8_t>(NetRefusalReason::FULL));
+        smallByte(in, static_cast<uint8_t>(NetRefusalReason::STALLED));
     return reason ? Decoded{NetRefusal{static_cast<NetRefusalReason>(*reason)}}
                   : std::nullopt;
   }
@@ -402,6 +407,9 @@ std::vector<std::byte> encodeNetMessage(const NetMessage& message) {
 }
 
 std::optional<NetMessage> decodeNetMessage(std::span<const std::byte> bytes) {
+  if (bytes.size() > NET_MAX_MESSAGE_BYTES) {
+    return std::nullopt;
+  }
   ByteReader in(bytes);
   const std::optional<uint8_t> kind = in.u8();
   if (!kind || *kind >= DECODERS.size()) {
