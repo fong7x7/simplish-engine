@@ -5,7 +5,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <editor/deploy/deployed-content.h>
 #include <editor/deploy/deployed-game.h>
+#include <editor/deploy/deployed-session.h>
 #include <editor/project/project-text-file.h>
 #include <engine/net/loopback-network.h>
 #include <memory>
@@ -444,4 +446,39 @@ TEST_CASE("a password keeps out a client without it") {
   session.step(20, out);
   CHECK(stranger.run().error == "The server wants another password");
   CHECK(friendly.session().slot() == 0);
+}
+
+TEST_CASE("simplish-game reads how to find sessions on the LAN") {
+  const std::string_view find[] = {"--find", "--lan-port", "5000"};
+  const std::string_view join[] = {"--join", "lan", "--name", "Fri"};
+
+  const auto finding = parseDeployedGameArgs(find);
+  const auto joining = parseDeployedGameArgs(join);
+
+  REQUIRE(finding);
+  CHECK(finding->mode == DeployedGameMode::FIND);
+  CHECK(finding->lan_port == 5000);
+  REQUIRE(joining);
+  CHECK(joining->address == DEPLOYED_JOIN_LAN);
+  CHECK(joining->name == "Fri");
+}
+
+TEST_CASE("a server says of itself on the LAN who is in and whether it "
+          "plays") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  DeployedGameOptions options = as(content.options(1'000'000), {}, 2);
+  options.password = "pw";
+  options.name = "Friday";
+  ServedSession session(options, {});
+  session.join(options, {});
+  session.step(5, out);
+  const net::NetLanGame waiting = session.server().lanGame();
+  session.join(options, {});
+  session.step(5, out);
+  CHECK((waiting.seated == 1 && waiting.running == 0));
+  CHECK(session.server().lanGame().seated == 2);
+  CHECK(session.server().lanGame().running == 1);
+  CHECK(waiting.locked == 1);
+  CHECK(waiting.content_hash == deployedContentHash(content.path()));
 }

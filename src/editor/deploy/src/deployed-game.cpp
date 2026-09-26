@@ -3,6 +3,7 @@
 #include "deployed-replay.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <editor/build/editor-deploy-manifest.h>
 #include <editor/build/editor-setup-json.h>
@@ -96,7 +97,8 @@ namespace {
   /// Join the server @p where names — a host, and a port after a colon
   /// when it is not the default — in @p options. False when the port is
   /// not one.
-  bool joinFlag(DeployedGameOptions& options, std::string_view where) {
+  bool joinFlag(DeployedGameOptions& options, std::string_view /*flag*/,
+                std::string_view where) {
     options.mode = DeployedGameMode::JOIN;
     const size_t colon = where.rfind(':');
     options.address = std::string(where.substr(0, colon));
@@ -120,7 +122,8 @@ namespace {
 
   /// The input delay @p value names: `auto` to measure it at each start,
   /// or 1 to `net::NET_MAX_INPUT_DELAY` ticks.
-  bool delayFlag(DeployedGameOptions& options, std::string_view value) {
+  bool delayFlag(DeployedGameOptions& options, std::string_view /*flag*/,
+                 std::string_view value) {
     const std::optional<uint64_t> ticks = wholeNumber(value);
     if (value == "auto") {
       options.input_delay.reset();
@@ -135,7 +138,8 @@ namespace {
 
   /// How many whole seconds, at least 1, a run waits on a seat before
   /// dropping it: @p value.
-  bool stallDropFlag(DeployedGameOptions& options, std::string_view value) {
+  bool stallDropFlag(DeployedGameOptions& options, std::string_view /*flag*/,
+                     std::string_view value) {
     const std::optional<uint64_t> seconds = wholeNumber(value);
     if (!seconds || *seconds < 1 || *seconds > DEPLOYED_MAX_STALL_DROP_S) {
       return false;
@@ -144,8 +148,8 @@ namespace {
     return true;
   }
 
-  /// A path-valued flag @p flag, valued @p value, into @p options. False
-  /// when it is not one.
+  /// A flag valued with a path or a word — @p flag, valued @p value — into
+  /// @p options. False when it is not one, or the value is empty.
   bool pathFlag(DeployedGameOptions& options, std::string_view flag,
                 std::string_view value) {
     const std::filesystem::path path{std::string(value)};
@@ -158,6 +162,8 @@ namespace {
       options.desync_dir = path;
     } else if (flag == "--password") {
       options.password = std::string(value);
+    } else if (flag == "--name") {
+      options.name = std::string(value);
     } else {
       return false;
     }
@@ -165,33 +171,60 @@ namespace {
   }
 
   /// The pace @p value names: `real` or `fast`.
-  bool paceFlag(DeployedGameOptions& options, std::string_view value) {
+  bool paceFlag(DeployedGameOptions& options, std::string_view /*flag*/,
+                std::string_view value) {
     options.pace =
         value == "fast" ? DeployedPace::FAST : DeployedPace::REAL_TIME;
     return value == "real" || value == "fast";
   }
 
+  /// The UDP port LAN queries go to: @p value, not 0.
+  bool lanPortFlag(DeployedGameOptions& options, std::string_view /*flag*/,
+                   std::string_view value) {
+    const std::optional<uint16_t> port = portNumber(value);
+    options.lan_port = port.value_or(0);
+    return port.has_value() && *port != 0;
+  }
+
+  /// A flag's handler: takes its value into the options, or says it does
+  /// not fit.
+  using FlagHandler = bool (*)(DeployedGameOptions&, std::string_view,
+                               std::string_view);
+
+  /// A co-op session's flag, and what takes it.
+  struct SessionFlag {
+    /// The flag, as typed.
+    std::string_view flag;
+    /// What takes its value.
+    FlagHandler handler;
+  };
+
+  /// Every co-op session flag (ADR-013), and what takes each.
+  constexpr std::array<SessionFlag, 12> SESSION_FLAGS = {{
+      {"--serve", serveFlag},
+      {"--host", serveFlag},
+      {"--join", joinFlag},
+      {"--delay", delayFlag},
+      {"--stall-drop", stallDropFlag},
+      {"--lan-port", lanPortFlag},
+      {"--pace", paceFlag},
+      {"--replay", pathFlag},
+      {"--verify", pathFlag},
+      {"--desync-dir", pathFlag},
+      {"--password", pathFlag},
+      {"--name", pathFlag},
+  }};
+
   /// Take a co-op session's flag @p flag, valued @p value, into
-  /// @p options (ADR-013). False when it is not one, or its value does
-  /// not fit it.
+  /// @p options. False when it is not one, or its value does not fit it.
   bool applySessionFlag(DeployedGameOptions& options, std::string_view flag,
                         std::string_view value) {
-    if (flag == "--serve" || flag == "--host") {
-      return serveFlag(options, flag, value);
+    for (const SessionFlag& known : SESSION_FLAGS) {
+      if (known.flag == flag) {
+        return known.handler(options, flag, value);
+      }
     }
-    if (flag == "--join") {
-      return joinFlag(options, value);
-    }
-    if (flag == "--delay") {
-      return delayFlag(options, value);
-    }
-    if (flag == "--stall-drop") {
-      return stallDropFlag(options, value);
-    }
-    if (flag == "--pace") {
-      return paceFlag(options, value);
-    }
-    return pathFlag(options, flag, value);
+    return false;
   }
 
   /// Take the flag @p flag's value @p value into @p options. False when
@@ -265,7 +298,11 @@ std::optional<DeployedGameOptions>
 parseDeployedGameArgs(std::span<const std::string_view> args) {
   DeployedGameOptions options;
   for (size_t i = 0; i < args.size(); i += 2) {
-    if (i + 1 >= args.size() || !applyFlag(options, args[i], args[i + 1])) {
+    if (args[i] == "--find") {
+      options.mode = DeployedGameMode::FIND;
+      --i;  // A flag with no value.
+    } else if (i + 1 >= args.size() ||
+               !applyFlag(options, args[i], args[i + 1])) {
       return std::nullopt;
     }
   }

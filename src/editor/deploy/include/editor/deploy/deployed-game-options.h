@@ -9,6 +9,7 @@
 #include <editor/deploy/deployed-game-mode.h>
 #include <editor/deploy/deployed-hashes.h>
 #include <editor/deploy/deployed-pace.h>
+#include <engine/net/net-lan-game.h>
 #include <engine/net/udp-listen.h>
 #include <filesystem>
 #include <optional>
@@ -61,6 +62,11 @@ struct DeployedGameOptions {
   /// playing it with a stand-in: long enough that only a client that has
   /// stopped sending input for good trips it.
   std::chrono::milliseconds stall_drop = std::chrono::seconds(10);
+  /// What a server calls its session to players looking for one on the
+  /// LAN; empty for the deployed game's name.
+  std::string name{};
+  /// The UDP port servers answer LAN queries on, and players ask on.
+  uint16_t lan_port = net::NET_LAN_PORT;
   /// The session's password: a server admits only clients that give it, a
   /// client gives it. Empty for an open session.
   std::string password{};

@@ -16,6 +16,7 @@ enum class DeployedGameMode : uint8_t {
   HOST,    ///< A listen server with a local player on it
   JOIN,    ///< A client of someone else's server
   VERIFY,  ///< Play a recorded replay back and check it reproduces
+  FIND,    ///< List the sessions on the local network
 };
 
 }  // namespace eng::editor

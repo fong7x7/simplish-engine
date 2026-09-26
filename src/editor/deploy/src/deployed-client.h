@@ -56,8 +56,9 @@ public:
 private:
   /// Build the world of the run @p start begins.
   void begin(const net::NetStart& start, std::ostream& out);
-  /// Step every frame that has come, while the world goes on.
-  void stepFrames(std::ostream& out);
+  /// Step the frames that have come — evenly, when paced in real time and
+  /// @p due ticks are owed — while the world goes on.
+  void stepFrames(uint32_t due, std::ostream& out);
   /// Report @p result's hash and say what its tick's logic said.
   void keep(const sim::TickResult& result, std::ostream& out);
   /// Send up to @p due of this seat's stand-in's inputs.

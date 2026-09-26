@@ -25,6 +25,7 @@ simplish_add_module(simplish-editor-deploy
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-session.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/desync-report.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/desync-text.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/lan-text.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/seats-text.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/host-logic-test.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-check.cpp

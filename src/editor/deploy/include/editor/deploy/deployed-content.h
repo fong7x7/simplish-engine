@@ -33,6 +33,11 @@ readDeployedContent(const std::filesystem::path& content);
 [[nodiscard]] uint64_t
 deployedContentHash(const std::filesystem::path& content);
 
+/// The deployed game's name, as its manifest gives it; the folder's name
+/// when it gives none.
+[[nodiscard]] std::string
+deployedGameName(const std::filesystem::path& content);
+
 /// Give @p setup room for @p logic to spawn into, as a playtest does, when
 /// there is logic.
 void makeRoomForLogic(game::GameSetup& setup,

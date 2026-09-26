@@ -12,6 +12,7 @@
 simplish_add_module(simplish-platform-net
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
     SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/enet-transport.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/udp-lan.cpp
     DEPENDENCIES simplish-engine-net
 )
 # PUBLIC so whatever links these objects links ENet with them.
@@ -19,7 +20,8 @@ target_link_libraries(simplish-platform-net PUBLIC enet::enet)
 
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-platform-net-tests
-        SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_udp_transport.cpp
+        SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_udp_lan.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_udp_transport.cpp
         DEPENDENCIES simplish-platform-net
     )
 endif()

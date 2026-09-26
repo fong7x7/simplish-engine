@@ -12,13 +12,16 @@
 #include <editor/deploy/deployed-game-options.h>
 #include <editor/deploy/deployed-game-run.h>
 #include <engine/net/lockstep-server.h>
+#include <engine/net/net-lan-game.h>
 #include <engine/net/net-transport.h>
+#include <engine/net/udp-lan-beacon.h>
 #include <engine/sim/tick-hash.h>
 #include <engine/sim/tick-result.h>
 #include <game/logic/game-logic-factory.h>
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <string>
 
 namespace eng::editor {
 
@@ -64,6 +67,14 @@ public:
   /// waiting on, and report a desync once the traces are in.
   void poll(std::ostream& out);
 
+  /// Answer LAN queries from now on, on the options' `lan_port`, saying the
+  /// session is on UDP port @p port; says to @p out if that port cannot be
+  /// had, and goes on without.
+  void advertise(uint16_t port, std::ostream& out);
+
+  /// What the server says of itself to a LAN query.
+  [[nodiscard]] net::NetLanGame lanGame() const;
+
   /// End the run for everyone, writing the reference replay if asked.
   void endRun(std::ostream& out);
 
@@ -104,8 +115,18 @@ private:
   DeployedGameOptions options_;
   /// What makes the logic's instances.
   game::GameLogicFactory logic_;
+  /// How the session is configured: what clients must match.
+  net::LockstepServerConfig config_;
   /// The session.
   net::LockstepServer server_;
+  /// The LAN beacon, once advertising and while its port could be had.
+  std::unique_ptr<net::UdpLanBeacon> beacon_;
+  /// What the beacon calls the game.
+  std::string name_;
+  /// The session's UDP port, as the beacon says it.
+  uint16_t port_ = 0;
+  /// The random number the beacon tells this session apart by.
+  uint64_t session_ = 0;
   /// The reference world, when serving.
   std::unique_ptr<DeployedNetWorld> world_;
   /// The reference world's recent checkpoint hashes.

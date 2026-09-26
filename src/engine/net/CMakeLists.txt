@@ -11,11 +11,13 @@
 
 simplish_add_module(simplish-engine-net
     INCLUDE_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/include
-    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/lockstep-client.cpp
+    SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/src/frame-pacing.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/lockstep-client.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/lockstep-server.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/loopback-network.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-codec.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-input-delay.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/net-lan-codec.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-password.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-trace-divergence.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/trace-ring.cpp
@@ -26,11 +28,13 @@ simplish_add_module(simplish-engine-net
 if(ENGINE_BUILD_TESTS)
     simplish_add_test(simplish-engine-net-tests
         SOURCES      ${CMAKE_CURRENT_SOURCE_DIR}/test/support/loopback-session.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_frame_pacing.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_lockstep_client.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_lockstep_server.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_loopback_network.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_codec.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_input_delay.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_lan_codec.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_trace_divergence.cpp
         DEPENDENCIES simplish-engine-net
     )

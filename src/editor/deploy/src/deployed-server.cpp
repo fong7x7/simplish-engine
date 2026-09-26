@@ -11,6 +11,7 @@
 #include <editor/deploy/deployed-content.h>
 #include <engine/net/net-password.h>
 #include <fstream>
+#include <random>
 #include <utility>
 
 namespace eng::editor {
@@ -45,11 +46,43 @@ namespace {
 DeployedServer::DeployedServer(std::unique_ptr<net::NetTransport> transport,
                                const DeployedGameOptions& options,
                                game::GameLogicFactory logic)
-  : options_(options), logic_(logic),
-    server_(std::move(transport), sessionFor(options)) {}
+  : options_(options), logic_(logic), config_(sessionFor(options)),
+    server_(std::move(transport), config_) {}
+
+void DeployedServer::advertise(uint16_t port, std::ostream& out) {
+  beacon_ = net::UdpLanBeacon::open(options_.lan_port);
+  name_ = options_.name.empty() ? deployedGameName(options_.content)
+                                : options_.name;
+  port_ = port;
+  // Not the simulation's: nothing a tick reads, only who is who on a LAN.
+  std::random_device entropy;
+  session_ = (uint64_t{entropy()} << 32U) | entropy();
+  if (!beacon_) {
+    out << "Not answering LAN queries: UDP port " << options_.lan_port
+        << " is in use\n";
+  }
+}
+
+net::NetLanGame DeployedServer::lanGame() const {
+  const bool running = phase_ == DeployedServerPhase::RUNNING ||
+                       phase_ == DeployedServerPhase::COLLECTING;
+  return {net::NET_PROTOCOL_VERSION,
+          config_.build,
+          config_.content_hash,
+          port_,
+          static_cast<uint8_t>(std::popcount(server_.seated())),
+          config_.seats,
+          static_cast<uint8_t>(running ? 1 : 0),
+          static_cast<uint8_t>(config_.password != 0 ? 1 : 0),
+          name_,
+          session_};
+}
 
 void DeployedServer::poll(std::ostream& out) {
   server_.poll();
+  if (beacon_) {
+    beacon_->answer(lanGame());
+  }
   if (phase_ == DeployedServerPhase::WAITING) {
     startWhenSeated(out);
   } else if (phase_ == DeployedServerPhase::RUNNING) {

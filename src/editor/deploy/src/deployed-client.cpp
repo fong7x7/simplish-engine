@@ -6,6 +6,7 @@
 #include "seats-text.h"
 
 #include <editor/deploy/deployed-content.h>
+#include <engine/net/frame-pacing.h>
 #include <engine/net/net-password.h>
 #include <game/world/stand-in-input.h>
 #include <string_view>
@@ -57,7 +58,7 @@ void DeployedClient::poll(uint32_t due, std::ostream& out) {
     begin(*start, out);
   }
   if (world_) {
-    stepFrames(out);
+    stepFrames(due, out);
     sendInputs(due);
     noticeWaiting(out);
   }
@@ -87,8 +88,12 @@ bool DeployedClient::worldOver() const {
   return world_ && world_->world().runOver();
 }
 
-void DeployedClient::stepFrames(std::ostream& out) {
-  while (!worldOver()) {
+void DeployedClient::stepFrames(uint32_t due, std::ostream& out) {
+  // Paced in real time, step evenly (`framesToStep`); otherwise everything.
+  std::size_t steps = options_.pace == DeployedPace::REAL_TIME
+                          ? net::framesToStep(due, client_.framesWaiting())
+                          : client_.framesWaiting();
+  for (; steps > 0 && !worldOver(); --steps) {
     const std::optional<net::NetFrame> frame = client_.takeFrame();
     if (!frame) {
       return;

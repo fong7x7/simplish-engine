@@ -1,6 +1,6 @@
-#include <editor/build/editor-deploy-manifest.h>
 #include <array>
 #include <charconv>
+#include <editor/build/editor-deploy-manifest.h>
 #include <nlohmann/json.hpp>
 
 namespace eng::editor {

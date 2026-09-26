@@ -47,6 +47,14 @@ uint64_t deployedContentHash(const std::filesystem::path& content) {
   return hashFileTree(content, isContentFile);
 }
 
+std::string deployedGameName(const std::filesystem::path& content) {
+  const std::optional<std::string> text =
+      readProjectTextFile(content / EDITOR_DEPLOY_MANIFEST);
+  const auto manifest = text ? parseDeployManifest(*text) : std::nullopt;
+  return manifest && !manifest->name.empty() ? manifest->name
+                                             : content.filename().string();
+}
+
 void makeRoomForLogic(game::GameSetup& setup,
                       const game::GameLogicInstance& logic) {
   if (logic.get() != nullptr) {

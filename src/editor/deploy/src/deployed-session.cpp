@@ -1,10 +1,14 @@
+#include "deployed-build-id.h"
 #include "deployed-client.h"
 #include "deployed-pacer.h"
 #include "deployed-server.h"
+#include "lan-text.h"
 
 #include <chrono>
+#include <editor/deploy/deployed-content.h>
 #include <editor/deploy/deployed-session.h>
 #include <engine/net/udp-connect.h>
+#include <engine/net/udp-lan-game.h>
 #include <engine/net/udp-listen.h>
 #include <string>
 #include <utility>
@@ -83,6 +87,7 @@ namespace {
       return cannotListen(options);
     }
     DeployedServer server(std::move(listen->transport), options, logic);
+    server.advertise(listen->port, out);
     const DeployedPacer pacer(options.pace);
     while (!server.finished()) {
       server.poll(out);
@@ -121,6 +126,7 @@ namespace {
     }
     const uint16_t port = listen->port;
     DeployedServer server(std::move(listen->transport), options, logic);
+    server.advertise(port, out);
     DeployedGameRun run;
     {
       // Gone before the linger, which waits for every client to leave.
@@ -132,12 +138,37 @@ namespace {
     return run;
   }
 
-  DeployedGameRun join(const DeployedGameOptions& options,
+  /// How long `--find` and `--join lan` wait for answers.
+  constexpr std::chrono::milliseconds LAN_WAIT{1000};
+
+  /// @p options with the server to join found on the LAN, when its address
+  /// is `lan`; nothing, said to @p out, when none can be joined.
+  std::optional<DeployedGameOptions> resolveLan(DeployedGameOptions options,
+                                                std::ostream& out) {
+    if (options.address != DEPLOYED_JOIN_LAN) {
+      return options;
+    }
+    const auto games =
+        net::findLanGames(net::UDP_LAN_BROADCAST, options.lan_port, LAN_WAIT);
+    const auto picked = pickLanGame(games, deployedBuildId(),
+                                    deployedContentHash(options.content));
+    if (!picked) {
+      out << "No session on the local network to join\n";
+      return std::nullopt;
+    }
+    options.address = picked->host;
+    options.port = picked->game.port;
+    return options;
+  }
+
+  DeployedGameRun join(const DeployedGameOptions& asked,
                        game::GameLogicFactory logic, std::ostream& out) {
-    std::unique_ptr<net::NetTransport> transport =
-        net::connectUdp(options.address, options.port);
+    const std::optional<DeployedGameOptions> found = resolveLan(asked, out);
+    const DeployedGameOptions& options = found.value_or(asked);
+    auto transport =
+        found ? net::connectUdp(options.address, options.port) : nullptr;
     if (!transport) {
-      return failed("Cannot find the server " + options.address);
+      return failed("Cannot find the server " + asked.address);
     }
     out << "Joining " << options.address << ':' << options.port << '\n';
     DeployedClient client(std::move(transport), options, logic);
@@ -151,6 +182,21 @@ namespace {
   }
 
 }  // namespace
+
+std::size_t findDeployedGames(const DeployedGameOptions& options,
+                              std::ostream& out) {
+  const auto games =
+      net::findLanGames(net::UDP_LAN_BROADCAST, options.lan_port, LAN_WAIT);
+  const uint64_t build = deployedBuildId();
+  const uint64_t content = deployedContentHash(options.content);
+  for (const net::UdpLanGame& found : games) {
+    out << lanGameText(found, build, content) << '\n';
+  }
+  if (games.empty()) {
+    out << "No sessions found on the local network\n";
+  }
+  return games.size();
+}
 
 DeployedGameRun runDeployedSession(const DeployedGameOptions& options,
                                    game::GameLogicFactory logic,

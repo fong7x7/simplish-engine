@@ -68,6 +68,7 @@ Everything ADR-005 decided stays: input delay, the stall condition, periodic has
 ### Implications for Future Work
 
 - The rendered client, and the editor's playtest when it plays a co-op session, drive a `LockstepClient` exactly as `simplish-game --join` does: sample input on the local clock, step on frames.
+- The server is also the one that gives up on a seat: a client that stays connected but stops sending input is dropped to a stand-in after a timeout its host chooses, since a stall with no end is worse than a stand-in.
 - The server chooses the input delay at each start, from the worst round trip its transport has measured (`NetDelayChoice::MEASURED`), since it is the one party that sees every client's.
 - Join and rejoin are at run boundaries: a player who connects mid-run is seated in a free or dropped seat and plays from the next `start`.
 - Question 4 of [Project REQUIREMENTS §8](../../REQUIREMENTS.md#8-open-questions) is closed by this record.
