@@ -1,3 +1,5 @@
+#include "support/deployed-content-fixture.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <editor/build/editor-deploy-manifest.h>
 #include <editor/build/editor-setup-json.h>
@@ -10,53 +12,9 @@
 
 using namespace eng;
 using namespace eng::editor;
+using DeployedContent = eng::editor::test::DeployedContentFixture;
 
 namespace {
-
-/// A deployed game's content in a fresh temporary folder: one level,
-/// `arena`, with one player and one idle hostile actor.
-class DeployedContent {
-public:
-  DeployedContent()
-    : path_(std::filesystem::temp_directory_path() /
-            ("simplish-deployed-" +
-             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-             std::to_string(reinterpret_cast<uintptr_t>(this)))) {
-    game::GameSetup setup;
-    // Baked as a deploy bakes: every seat filled.
-    setup.player_count = 4;
-    setup.spawns = {{{1.5F, 1.5F, 0.0F},
-                     {2.5F, 1.5F, 0.0F},
-                     {1.5F, 2.5F, 0.0F},
-                     {2.5F, 2.5F, 0.0F}}};
-    game::ActorSpawn actor;
-    actor.at = {9.5F, 9.5F, 0.0F};
-    actor.behavior = "idle";
-    setup.actors.push_back(actor);
-    (void)writeProjectTextFile(path_ / "levels" / "arena.setup.json",
-                               serializeGameSetup(setup));
-    (void)writeProjectTextFile(
-        path_ / EDITOR_DEPLOY_MANIFEST,
-        serializeDeployManifest({"Arena", {"arena"}, "arena", true}));
-  }
-  ~DeployedContent() {
-    std::error_code ec;
-    std::filesystem::remove_all(path_, ec);
-  }
-  DeployedContent(const DeployedContent&) = delete;
-  DeployedContent& operator=(const DeployedContent&) = delete;
-  DeployedContent(DeployedContent&&) = delete;
-  DeployedContent& operator=(DeployedContent&&) = delete;
-
-  /// Options that run this content for @p ticks.
-  [[nodiscard]] DeployedGameOptions options(uint64_t ticks) const {
-    return {path_, "", ticks, 1};
-  }
-
-private:
-  /// The folder.
-  std::filesystem::path path_;
-};
 
 /// Loses the run on tick 9, saying so.
 class GivesUp final : public game::GameLogic {

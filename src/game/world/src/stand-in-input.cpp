@@ -97,4 +97,13 @@ sim::PlayerInput standInInput(const GameWorld& world, uint8_t slot) {
   return input;
 }
 
+void standInForAbsent(const GameWorld& world, uint8_t absent,
+                      sim::TickInput& input) {
+  for (uint8_t slot = 0; slot < sim::MAX_PLAYERS; ++slot) {
+    if ((absent & (1U << slot)) != 0) {
+      input.players[slot] = standInInput(world, slot);
+    }
+  }
+}
+
 }  // namespace eng::game

@@ -16,6 +16,7 @@ add_subdirectory(audio)
 if(ENGINE_PLATFORM_DESKTOP)
     add_subdirectory(client)
     add_subdirectory(agent)
+    add_subdirectory(net)
 endif()
 
 set(_platform_modules simplish-platform-render simplish-platform-input
@@ -37,6 +38,7 @@ endif()
 if(ENGINE_PLATFORM_DESKTOP)
     list(APPEND _platform_modules simplish-platform-client)
     list(APPEND _platform_modules simplish-platform-agent)
+    list(APPEND _platform_modules simplish-platform-net)
 endif()
 
 simplish_add_library(simplish-platform

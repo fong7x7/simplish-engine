@@ -10,6 +10,7 @@
 #                     ├──► render-sprite
 #                     └──► render-ground ──► render-water
 #   math ──► core ──► sim ──► input
+#                      └──► net
 #   math ──► physics ──► spatial
 #   math ──► animation ──► gltf ◄── render-mesh
 #
@@ -22,6 +23,7 @@ add_subdirectory(math)
 add_subdirectory(core)
 add_subdirectory(sim)
 add_subdirectory(input)
+add_subdirectory(net)
 add_subdirectory(audio)
 add_subdirectory(physics)
 add_subdirectory(spatial)
@@ -43,6 +45,7 @@ simplish_add_library(simplish-engine
             simplish-engine-core
             simplish-engine-sim
             simplish-engine-input
+            simplish-engine-net
             simplish-engine-audio
             simplish-engine-physics
             simplish-engine-spatial

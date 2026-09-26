@@ -49,18 +49,27 @@ int report(const eng::editor::DeployedGameRun& run) {
 
 /// Usage: simplish-game [--level ID] [--ticks N] [--players N]
 ///                      [--content DIR]
+///                      [--serve PORT | --host PORT | --join HOST[:PORT]]
+///                      [--delay TICKS] [--pace real|fast]
 ///
 /// Runs a project's deployed game headless: every player a stand-in, until
 /// the run is over or the ticks run out, then prints how it ended and the
 /// last tick's hash. The content is the `game/` folder a deploy puts
 /// beside this executable, unless `--content` says otherwise.
+///
+/// With `--serve` it is a dedicated co-op server, with `--host` a server
+/// with a player of its own, and with `--join` a player in someone else's
+/// session (ADR-013); `--players` is then how many a server waits for.
 int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
   const std::vector<std::string_view> args(argv + 1, argv + argc);
   std::optional<eng::editor::DeployedGameOptions> options =
       eng::editor::parseDeployedGameArgs(args);
   if (!options) {
     std::cerr << "usage: simplish-game [--level ID] [--ticks N] "
-                 "[--players 1-4] [--content DIR]\n";
+                 "[--players 1-4] [--content DIR]\n"
+                 "                     [--serve PORT | --host PORT | "
+                 "--join HOST[:PORT]]\n"
+                 "                     [--delay TICKS] [--pace real|fast]\n";
     return 2;
   }
   if (options->content.empty()) {

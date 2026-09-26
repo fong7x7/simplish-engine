@@ -1,9 +1,8 @@
-#include "byte-reader.h"
-#include "byte-writer.h"
-
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <engine/sim/byte-reader.h>
+#include <engine/sim/byte-writer.h>
 #include <vector>
 
 using eng::sim::ByteReader;

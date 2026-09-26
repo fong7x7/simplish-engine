@@ -71,7 +71,7 @@ bin/ ──► editor/ ──► platform/ ──► engine/
 
 The split between engine and platform is what makes per-distribution builds cheap. Building for a different store, console, or RHI backend rebuilds `src/platform/` only — engine object files stay valid, and a touched platform source recompiles two translation units rather than the whole tree.
 
-`src/bin/sandbox/` links only the engine and serves as a minimal integration harness independent of any game design. `src/bin/server/` is a headless build of the simulation used for dedicated co-op hosting and for CI determinism runs.
+`src/bin/sandbox/` links only the engine and serves as a minimal integration harness independent of any game design. Dedicated co-op hosting is `simplish-game --serve`, the deployed game itself, so a server always runs exactly its clients' logic and content ([ADR-013](docs/decisions/ADR-013-server-relayed-lockstep.md)); it is also what CI runs several clients against.
 
 ## 6. Repository & Project Structure (Target)
 
@@ -99,13 +99,15 @@ simplish/
 │   │   ├── physics/            # Cylinder vs box collision, box broadphase; projectiles, sweeps  ✔ built (first slice)
 │   │   ├── input/              # Actions, bindings, pad vocabulary → PlayerInput ✔ built
 │   │   ├── audio/              # Clips, WAV/Ogg, synth, mixer, stealing, ducking ✔ built (first slice)
-│   │   ├── content/  net/  debug/
+│   │   ├── net/                # Lockstep server and client, protocol, transports ✔ built
+│   │   ├── content/  debug/
 │   ├── platform/               # The only per-target / per-distribution rebuild
 │   │   ├── render/             # RhiDeviceFactory + backends/                   ✔ built
 │   │   │   └── backends/       #   metal, vulkan, dx12, opengl, stub            ✔ built
 │   │   ├── client/             # DesktopGameClient (SDL3)                       ✔ built
 │   │   ├── input/              # Pad backends: SDL3, none                        ✔ built
 │   │   ├── audio/              # AudioDevice: SDL3 audio stream, none           ✔ built
+│   │   ├── net/                # ENet over UDP behind NetTransport              ✔ built
 │   │   └── distributor/        # steam/, epic/, ps5/, xbox/            — stubs, unwired
 │   ├── editor/                 # Desktop editor — links platform + engine
 │   │   ├── project/            # Project format, open/create, recent list       ✔ built
@@ -127,7 +129,7 @@ simplish/
 │       ├── editor/             # The editor                                     ✔ built
 │       ├── game/               # simplish-game: a deployed project, headless    ✔ built
 │       ├── logic-check/        # Runs each logic build in its own process first  ✔ built
-│       └── client/  server/  sandbox/  audit-viewer/            — to write
+│       └── client/  sandbox/  audit-viewer/            — to write (the server is simplish-game --serve)
 ├── cmake/                      # SimplishPlatform, SimplishRenderer, SimplishTarget, …
 ├── data/                       # Shipped content: tiles, sprites, weapons, waves, levels
 ├── tools/                      # Offline tooling: sprite atlas packer, content validators
@@ -166,7 +168,7 @@ Dependencies are deliberately few — nlohmann_json, FreeType, stb, SDL3, and Ca
 | ~~1~~ | ~~Isometric projection~~ **Closed 2026-08-26:** zero yaw, 4:3 dimetric — axis-aligned 64×48 tiles with an unforeshortened height axis (the Stardew Valley viewpoint), not a 45°-yaw isometric one. See [ADR-003 amendment](docs/decisions/ADR-003-hybrid-iso-render-model.md#amendment-2026-08-26-straight-on-projection) | ~~Art pipeline, sprite authoring~~ |
 | 2 | Sprite source: hand-authored 2D, or 3D models pre-rendered to sprite sheets at fixed angles? The latter makes 8-direction facing cheap and keeps lighting consistent with the 3D terrain | Asset pipeline, M9 |
 | 3 | Does the world have multiple height levels (stairs, elevated platforms, verticality), or is it a single floor plane with props? Verticality complicates occlusion, pathing, and depth policy considerably | Level format, editor tooling |
-| 4 | Co-op transport: peer-to-peer lockstep, or always a listen server? Deterministic lockstep works for both; the choice affects NAT traversal and distributor relay integration | M6 |
+| ~~4~~ | ~~Co-op transport~~ **Closed 2026-09-25:** always one server relaying lockstep inputs in a star — a listen server in a player's game, or dedicated (`simplish-game --serve`). See [ADR-013](docs/decisions/ADR-013-server-relayed-lockstep.md) | ~~M6~~ |
 | 5 | Is the run structure roguelite (procedural progression across authored levels, meta-unlocks) or campaign (fixed level order)? Levels are hand-authored either way | M8, save format |
 | 6 | Console targets are declared but the SDKs are NDA-gated. Confirm whether PS5/Xbox are real M7 commitments or aspirational | Milestone plan, CI matrix |
 

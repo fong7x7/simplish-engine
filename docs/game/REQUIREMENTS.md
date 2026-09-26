@@ -155,7 +155,7 @@ Deterministic lockstep for 1–4 players, built on the engine's networking layer
 | Model | Lockstep: every peer simulates every tick from the same inputs. No prediction, no rollback, no authoritative reconciliation |
 | Input delay | Configurable, defaulting to 2–3 ticks (33–50 ms), tuned against measured session RTT |
 | Join | At level boundaries only. Mid-level join requires a full state transfer and is out of scope |
-| Drop and rejoin | A dropped peer's character persists under simplified control; rejoin restores control at the next level boundary. The simplified control is built — `standInInput`, which the editor's multi-player preview already plays with — and feeds `PlayerInput`, so it is recorded like any input; dropping waits on `net` |
+| Drop and rejoin | A dropped peer's character persists under simplified control; rejoin restores control at the next level boundary. The simplified control is built — `standInInput`, which the editor's multi-player preview already plays with — and feeds `PlayerInput`, so it is recorded like any input. Built: a dropped seat is marked absent in the server's frames and every peer fills it with `standInForAbsent` ([networking.md §2.2](../engine/networking.md#22-dropping-and-rejoining)) |
 | Desync | Detected via per-tick state hashes. On divergence the session halts, captures both peers' recent tick traces, and reports rather than silently continuing |
 | Scaling | Enemy density, health pools, and reward counts scale with player count along authored curves |
 | Friendly fire | Off for direct damage; enabled for specific self-inflicted hazards (Bloater detonations, own deployables) so positioning still matters |
