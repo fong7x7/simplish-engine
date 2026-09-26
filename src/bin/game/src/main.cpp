@@ -50,7 +50,8 @@ int report(const eng::editor::DeployedGameRun& run) {
 /// Usage: simplish-game [--level ID] [--ticks N] [--players N]
 ///                      [--content DIR]
 ///                      [--serve PORT | --host PORT | --join HOST[:PORT]]
-///                      [--delay TICKS] [--pace real|fast]
+///                      [--delay TICKS|auto] [--pace real|fast]
+///                      [--replay FILE] [--verify FILE] [--desync-dir DIR]
 ///
 /// Runs a project's deployed game headless: every player a stand-in, until
 /// the run is over or the ticks run out, then prints how it ended and the
@@ -60,22 +61,31 @@ int report(const eng::editor::DeployedGameRun& run) {
 /// With `--serve` it is a dedicated co-op server, with `--host` a server
 /// with a player of its own, and with `--join` a player in someone else's
 /// session (ADR-013); `--players` is then how many a server waits for.
+/// `--replay` records the run; `--verify` plays a recording back instead
+/// and says whether it reproduces.
 int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
   const std::vector<std::string_view> args(argv + 1, argv + argc);
   std::optional<eng::editor::DeployedGameOptions> options =
       eng::editor::parseDeployedGameArgs(args);
   if (!options) {
-    std::cerr << "usage: simplish-game [--level ID] [--ticks N] "
-                 "[--players 1-4] [--content DIR]\n"
-                 "                     [--serve PORT | --host PORT | "
-                 "--join HOST[:PORT]]\n"
-                 "                     [--delay TICKS] [--pace real|fast]\n";
+    std::cerr
+        << "usage: simplish-game [--level ID] [--ticks N] "
+           "[--players 1-4] [--content DIR]\n"
+           "                     [--serve PORT | --host PORT | "
+           "--join HOST[:PORT]]\n"
+           "                     [--delay TICKS|auto] [--pace real|fast]\n"
+           "                     [--replay FILE] [--verify FILE] "
+           "[--desync-dir DIR]\n";
     return 2;
   }
   if (options->content.empty()) {
     options->content = contentBeside(argv[0]);
   }
-  return report(eng::editor::runDeployedGame(
-      *options, {simplishCreateGameLogic, simplishDestroyGameLogic},
-      std::cout));
+  const eng::editor::DeployedGameRun run = eng::editor::runDeployedGame(
+      *options, {simplishCreateGameLogic, simplishDestroyGameLogic}, std::cout);
+  if (options->mode == eng::editor::DeployedGameMode::VERIFY &&
+      run.error.empty()) {
+    std::cout << "The replay reproduces its run\n";
+  }
+  return report(run);
 }

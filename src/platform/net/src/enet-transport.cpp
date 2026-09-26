@@ -88,6 +88,14 @@ void EnetTransport::disconnect(NetPeer peer) {
   }
 }
 
+std::optional<uint32_t> EnetTransport::roundTripMs(NetPeer peer) const {
+  const ENetPeer* to = connected(peer);
+  if (to == nullptr) {
+    return std::nullopt;
+  }
+  return to->roundTripTime + to->roundTripTimeVariance;
+}
+
 std::optional<UdpListen> listenUdp(uint16_t port, uint8_t max_peers) {
   ENetAddress address{ENET_HOST_ANY, port};
   ENetHost* host =

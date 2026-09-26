@@ -168,6 +168,29 @@ namespace {
     out.u16(end.run);
   }
 
+  void write(ByteWriter& out, const NetWaiting& waiting) {
+    out.u16(waiting.run);
+    out.varint(waiting.tick);
+    out.u8(waiting.waiting);
+  }
+
+  void write(ByteWriter& out, const NetTrace& trace) {
+    out.u16(trace.run);
+    out.u8(static_cast<uint8_t>(trace.section_names.size()));
+    for (const std::string& name : trace.section_names) {
+      writeString(out, name);
+    }
+    out.varint(trace.ticks.size());
+    for (const sim::TickHash& hash : trace.ticks) {
+      out.varint(hash.tick);
+      out.u64(hash.combined);
+      out.u8(static_cast<uint8_t>(hash.section_count));
+      for (const sim::TickHashSection& section : hash.activeSections()) {
+        out.u64(section.hash);
+      }
+    }
+  }
+
   Decoded readHello(ByteReader& in) {
     const std::optional<uint16_t> protocol = in.u16();
     const std::optional<uint64_t> content = in.u64();
@@ -300,6 +323,60 @@ namespace {
     return NetDesync{*run, *tick, *section, *slot};
   }
 
+  Decoded readWaiting(ByteReader& in) {
+    const std::optional<uint16_t> run = in.u16();
+    const std::optional<uint64_t> tick = in.varint();
+    const std::optional<uint8_t> waiting = in.u8();
+    if (!run || !tick || !waiting) {
+      return std::nullopt;
+    }
+    return NetWaiting{*run, *tick, *waiting};
+  }
+
+  /// A trace's section names, into @p trace.
+  bool readSectionNames(ByteReader& in, NetTrace& trace) {
+    const std::optional<uint8_t> count =
+        smallByte(in, sim::MAX_TICK_HASH_SECTIONS);
+    for (uint8_t i = 0; count && i < *count; ++i) {
+      std::optional<std::string> name = readString(in);
+      if (!name) {
+        return false;
+      }
+      trace.section_names.push_back(std::move(*name));
+    }
+    return count.has_value();
+  }
+
+  /// One tick's hash of a trace, without names.
+  std::optional<sim::TickHash> readTraceTick(ByteReader& in) {
+    const std::optional<uint64_t> tick = in.varint();
+    const std::optional<uint64_t> combined = in.u64();
+    const std::optional<uint8_t> count =
+        smallByte(in, sim::MAX_TICK_HASH_SECTIONS);
+    sim::TickHash hash;
+    hash.tick = tick.value_or(0);
+    hash.combined = combined.value_or(0);
+    if (!tick || !combined || !count || !readSections(in, *count, hash)) {
+      return std::nullopt;
+    }
+    return hash;
+  }
+
+  Decoded readTrace(ByteReader& in) {
+    NetTrace trace{in.u16().value_or(0), {}, {}};
+    const std::optional<uint64_t> ticks = readSectionNames(in, trace)
+                                              ? bounded(in, NET_TRACE_TICKS)
+                                              : std::nullopt;
+    for (uint64_t i = 0; ticks && i < *ticks; ++i) {
+      std::optional<sim::TickHash> hash = readTraceTick(in);
+      if (!hash) {
+        return std::nullopt;
+      }
+      trace.ticks.push_back(*hash);
+    }
+    return ticks ? Decoded{std::move(trace)} : std::nullopt;
+  }
+
   Decoded readEnd(ByteReader& in) {
     const std::optional<uint16_t> run = in.u16();
     return run ? Decoded{NetEnd{*run}} : std::nullopt;
@@ -310,8 +387,9 @@ namespace {
 
   /// The decoder of each kind, in `NetMessage`'s order.
   constexpr std::array<Decoder, std::variant_size_v<NetMessage>> DECODERS = {
-      readHello,    readWelcome, readRefusal,    readRoster, readStart,
-      readNetInput, readFrame,   readHashReport, readDesync, readEnd,
+      readHello,  readWelcome,  readRefusal, readRoster,
+      readStart,  readNetInput, readFrame,   readHashReport,
+      readDesync, readEnd,      readWaiting, readTrace,
   };
 
 }  // namespace

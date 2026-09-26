@@ -1,10 +1,14 @@
 #include "deployed-server.h"
 
 #include "deployed-level.h"
+#include "deployed-replay.h"
+#include "desync-report.h"
 #include "desync-text.h"
+#include "seats-text.h"
 
 #include <bit>
 #include <editor/deploy/deployed-content.h>
+#include <fstream>
 #include <utility>
 
 namespace eng::editor {
@@ -15,11 +19,21 @@ namespace {
   net::LockstepServerConfig sessionFor(const DeployedGameOptions& options) {
     net::LockstepServerConfig config;
     config.content_hash = deployedContentHash(options.content);
-    config.input_delay = options.input_delay;
+    config.input_delay =
+        options.input_delay.value_or(net::NET_DEFAULT_INPUT_DELAY);
+    config.delay_choice = options.input_delay ? net::NetDelayChoice::FIXED
+                                              : net::NetDelayChoice::MEASURED;
     config.frames = options.mode == DeployedGameMode::SERVE
                         ? net::NetServerFrames::KEEP
                         : net::NetServerFrames::RELAY;
     return config;
+  }
+
+  /// @p text written to @p path. False when it could not be.
+  bool writeText(const std::filesystem::path& path, const std::string& text) {
+    std::ofstream file(path);
+    file << text;
+    return file.good();
   }
 
 }  // namespace
@@ -36,6 +50,8 @@ void DeployedServer::poll(std::ostream& out) {
     startWhenSeated(out);
   } else if (phase_ == DeployedServerPhase::RUNNING) {
     follow(out);
+  } else if (phase_ == DeployedServerPhase::COLLECTING) {
+    collectTraces(out);
   }
 }
 
@@ -56,31 +72,58 @@ void DeployedServer::startWhenSeated(std::ostream& out) {
 void DeployedServer::begin(const net::NetStart& start, std::ostream& out) {
   server_.stopAt(options_.max_ticks);
   run_.players = start.header.player_count;
-  out << "Starting " << run_.level << " for " << static_cast<int>(run_.players)
-      << (run_.players == 1 ? " player\n" : " players\n");
+  out << "Starting " << run_.level << " for " << seatsText(server_.seated())
+      << ", input delay " << static_cast<int>(start.input_delay)
+      << (options_.input_delay ? " ticks\n" : " ticks (measured)\n");
   if (options_.mode == DeployedGameMode::SERVE) {
-    world_ = DeployedNetWorld::create(options_.content, start, logic_);
+    world_ = DeployedNetWorld::create(options_.content, start.header, logic_);
     run_.logic = world_ && world_->world().hasLogic();
   }
+  if (world_ && !options_.replay.empty()) {
+    world_->startRecording(start.header);
+  }
+  progress_at_ = std::chrono::steady_clock::now();
   phase_ = DeployedServerPhase::RUNNING;
 }
 
 void DeployedServer::follow(std::ostream& out) {
-  if (const auto& desync = server_.desync()) {
-    run_.error = describeDesync(*desync, checkpoints_);
-    endRun();
+  if (server_.desync()) {
+    desynced_at_ = std::chrono::steady_clock::now();
+    phase_ = DeployedServerPhase::COLLECTING;
   } else if (server_.playing() == 0) {
     out << "Every player has left\n";
-    endRun();
+    endRun(out);
   } else if (world_) {
+    noticeStall(out);
     stepReference(out);
   } else if (server_.nextTick() >= options_.max_ticks) {
-    endRun();  // Relaying: every frame of the run has gone out.
+    endRun(out);  // Relaying: every frame of the run has gone out.
+  } else {
+    noticeStall(out);
+  }
+}
+
+void DeployedServer::noticeStall(std::ostream& out) {
+  const auto now = std::chrono::steady_clock::now();
+  const uint64_t tick = server_.nextTick();
+  if (tick != progress_tick_ || server_.waitingOn() == 0) {
+    progress_tick_ = tick;
+    progress_at_ = now;
+    return;
+  }
+  if (announced_tick_ == tick || now - progress_at_ < DEPLOYED_STALL_NOTICE) {
+    return;
+  }
+  if (const auto said = server_.announceWaiting()) {
+    announced_tick_ = tick;
+    out << "Waiting for " << seatsText(said->waiting) << " at tick " << tick
+        << '\n';
   }
 }
 
 void DeployedServer::stepReference(std::ostream& out) {
-  while (!world_->world().runOver() &&
+  while (server_.state() == net::NetServerState::RUNNING &&
+         !world_->world().runOver() &&
          world_->nextTick() < options_.max_ticks) {
     const std::optional<net::NetFrame> frame = server_.takeFrame();
     if (!frame) {
@@ -88,7 +131,9 @@ void DeployedServer::stepReference(std::ostream& out) {
     }
     keep(world_->step(*frame), out);
   }
-  endRun();
+  if (server_.state() == net::NetServerState::RUNNING) {
+    endRun(out);
+  }
 }
 
 void DeployedServer::keep(const sim::TickResult& result, std::ostream& out) {
@@ -102,11 +147,40 @@ void DeployedServer::keep(const sim::TickResult& result, std::ostream& out) {
   }
 }
 
-void DeployedServer::endRun() {
+void DeployedServer::collectTraces(std::ostream& out) {
+  const bool waited =
+      std::chrono::steady_clock::now() - desynced_at_ >= DEPLOYED_TRACE_WAIT;
+  if (server_.tracesComplete() || waited) {
+    reportDesync();
+    endRun(out);
+  }
+}
+
+void DeployedServer::reportDesync() {
+  const std::optional<net::NetDesync>& caught = server_.desync();
+  if (!caught) {
+    return;
+  }
+  const net::NetDesync& desync = *caught;
+  const std::vector<net::NetPeerTrace> traces = server_.traces();
+  const std::filesystem::path path =
+      desyncReportPath(options_.desync_dir, run_.level, desync.tick);
+  const bool written =
+      writeText(path, desyncReport(run_.level, desync, traces));
+  run_.error = describeDesync(desync, checkpoints_) + "; the run " +
+               divergenceText(net::findTraceDivergence(traces)) +
+               (written ? ". Report: " : ". Could not write the report to ") +
+               path.string();
+}
+
+void DeployedServer::endRun(std::ostream& out) {
   server_.end();
   if (world_) {
     run_.ticks = world_->nextTick();
     run_.outcome = world_->world().outcome();
+    if (const std::optional<sim::Replay> replay = world_->replay()) {
+      saveReplay(options_, *replay, out);
+    }
   } else {
     run_.ticks = server_.nextTick();
   }

@@ -19,9 +19,12 @@ simplish_add_module(simplish-editor-deploy
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-level.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-net-world.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-pacer.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-replay.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-server.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/deployed-session.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/desync-report.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/desync-text.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/seats-text.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/host-logic-test.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-check.cpp
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/logic-test-runner.cpp

@@ -16,8 +16,8 @@ namespace eng::editor::test {
 /// Removed again when this goes.
 class DeployedContentFixture {
 public:
-  /// The content, with @p extra written into a data file of its own so
-  /// two fixtures can differ.
+  /// The content, with @p extra written into a file of its own under
+  /// `content/` so two fixtures can differ.
   explicit DeployedContentFixture(const std::string& extra = "");
   ~DeployedContentFixture();
   DeployedContentFixture(const DeployedContentFixture&) = delete;

@@ -27,6 +27,9 @@ public:
   /// `pump` to let it in.
   LockstepClient& join(const NetHello& hello = {});
 
+  /// Join @p count clients with default hellos, and pump until seated.
+  void seat(std::size_t count);
+
   /// Disconnect client @p index, destroying it.
   void leave(std::size_t index);
 
@@ -40,6 +43,9 @@ public:
 
   /// The server.
   [[nodiscard]] LockstepServer& server() { return *server_; }
+
+  /// The network, to pretend it is slower than it is.
+  [[nodiscard]] LoopbackNetwork& network() { return network_; }
 
   /// Client @p index, in joining order.
   [[nodiscard]] LockstepClient& client(std::size_t index) {

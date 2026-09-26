@@ -1,6 +1,8 @@
 #include "deployed-client.h"
 
+#include "deployed-replay.h"
 #include "desync-text.h"
+#include "seats-text.h"
 
 #include <editor/deploy/deployed-content.h>
 #include <game/world/stand-in-input.h>
@@ -46,8 +48,9 @@ void DeployedClient::poll(uint32_t due, std::ostream& out) {
   if (world_) {
     stepFrames(out);
     sendInputs(due);
+    noticeWaiting(out);
   }
-  checkFinished();
+  checkFinished(out);
 }
 
 void DeployedClient::begin(const net::NetStart& start, std::ostream& out) {
@@ -55,13 +58,16 @@ void DeployedClient::begin(const net::NetStart& start, std::ostream& out) {
   run_.level = start.header.level_id;
   run_.players = start.header.player_count;
   checkpoints_.clear();
-  world_ = DeployedNetWorld::create(options_.content, start, logic_);
+  world_ = DeployedNetWorld::create(options_.content, start.header, logic_);
   if (!world_) {
     run_.error = "No level " + run_.level + " in this game";
     finished_ = 1;
     return;
   }
   run_.logic = world_->world().hasLogic();
+  if (!options_.replay.empty()) {
+    world_->startRecording(start.header);
+  }
   out << "Playing " << run_.level << " as player "
       << static_cast<int>(client_.slot().value_or(0)) + 1 << '\n';
 }
@@ -118,7 +124,21 @@ std::string DeployedClient::failure() const {
   }
 }
 
-void DeployedClient::checkFinished() {
+void DeployedClient::noticeWaiting(std::ostream& out) {
+  const std::optional<net::NetWaiting>& waiting = client_.waiting();
+  if (!waiting || told_waiting_ == waiting->tick) {
+    return;
+  }
+  told_waiting_ = waiting->tick;
+  // A client that was itself the hold-up has nobody to blame but itself.
+  const auto others = static_cast<uint8_t>(waiting->waiting &
+                                           ~(1U << client_.slot().value_or(0)));
+  if (others != 0) {
+    out << "Waiting for " << seatsText(others) << '\n';
+  }
+}
+
+void DeployedClient::checkFinished(std::ostream& out) {
   const net::NetClientState state = client_.state();
   const bool ended = state == net::NetClientState::SEATED && world_ &&
                      (client_.framesWaiting() == 0 || worldOver());
@@ -129,14 +149,17 @@ void DeployedClient::checkFinished() {
     run_.error = failure();
   }
   if (ended || failed) {
-    finish();
+    finish(out);
   }
 }
 
-void DeployedClient::finish() {
+void DeployedClient::finish(std::ostream& out) {
   if (world_) {
     run_.ticks = world_->nextTick();
     run_.outcome = world_->world().outcome();
+    if (const std::optional<sim::Replay> replay = world_->replay()) {
+      saveReplay(options_, *replay, out);
+    }
   }
   finished_ = 1;
 }

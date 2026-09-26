@@ -16,6 +16,7 @@
 #include <engine/sim/tick-result.h>
 #include <game/logic/game-logic-factory.h>
 #include <memory>
+#include <optional>
 #include <ostream>
 
 namespace eng::editor {
@@ -38,6 +39,10 @@ public:
   /// @p due inputs.
   void poll(uint32_t due, std::ostream& out);
 
+  /// Keep the connection answering after `finished` — so a desynced
+  /// client's trace reaches the server before the process goes.
+  void drain() { client_.poll(); }
+
   /// Whether the run's world has ended, as far as this client has stepped.
   [[nodiscard]] bool worldOver() const;
   /// Whether this client is done: its run is over and ended, or it cannot
@@ -57,12 +62,15 @@ private:
   void keep(const sim::TickResult& result, std::ostream& out);
   /// Send up to @p due of this seat's stand-in's inputs.
   void sendInputs(uint32_t due);
+  /// Say who else the session is waiting on, once per wait.
+  void noticeWaiting(std::ostream& out);
   /// Decide whether the client is done.
-  void checkFinished();
+  void checkFinished(std::ostream& out);
   /// Why the session cannot go on, or empty when it can, or ended well.
   [[nodiscard]] std::string failure() const;
-  /// Be done, with the world's last state in the run.
-  void finish();
+  /// Be done, with the world's last state in the run, writing its replay
+  /// if asked.
+  void finish(std::ostream& out);
 
   /// What the client was asked to run.
   DeployedGameOptions options_;
@@ -78,6 +86,8 @@ private:
   DeployedGameRun run_;
   /// 1 once done.
   uint8_t finished_ = 0;
+  /// The tick of the last wait said.
+  std::optional<uint64_t> told_waiting_;
 };
 
 }  // namespace eng::editor

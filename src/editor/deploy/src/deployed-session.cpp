@@ -24,9 +24,24 @@ namespace {
     return run;
   }
 
-  /// Keep @p server answering until its clients have gone, or for
-  /// `SERVER_LINGER`.
+  /// Keep @p client answering for a moment after a desync, so its trace
+  /// reaches the server before its connection closes.
+  void linger(DeployedClient& client) {
+    const auto until = std::chrono::steady_clock::now() + SERVER_LINGER;
+    while (client.session().state() == net::NetClientState::DESYNCED &&
+           std::chrono::steady_clock::now() < until) {
+      client.drain();
+      DeployedPacer(DeployedPace::REAL_TIME).rest();
+    }
+  }
+
+  /// Keep @p server answering until its run is reported and its clients
+  /// have gone, or for `SERVER_LINGER` past that.
   void linger(DeployedServer& server, std::ostream& out) {
+    while (!server.finished()) {
+      server.poll(out);
+      DeployedPacer(DeployedPace::REAL_TIME).rest();
+    }
     const auto until = std::chrono::steady_clock::now() + SERVER_LINGER;
     while (server.session().seated() != 0 &&
            std::chrono::steady_clock::now() < until) {
@@ -86,9 +101,15 @@ namespace {
       server.poll(out);
       client.poll(pacer.due(), out);
       if (client.worldOver() && !server.finished()) {
-        server.endRun();
+        server.endRun(out);
       }
       pacer.rest();
+    }
+    // A desync's trace from the host's own player goes through the server
+    // polled here, before the client goes.
+    for (int poll = 0; poll < 8 && !server.finished(); ++poll) {
+      server.poll(out);
+      client.drain();
     }
   }
 
@@ -125,6 +146,7 @@ namespace {
       client.poll(pacer.due(), out);
       pacer.rest();
     }
+    linger(client);
     return client.run();
   }
 

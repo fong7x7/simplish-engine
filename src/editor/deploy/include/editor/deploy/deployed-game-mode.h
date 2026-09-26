@@ -11,10 +11,11 @@ namespace eng::editor {
 /// What `simplish-game` is asked to be (ADR-013).
 /// @thread_safety Immutable value type.
 enum class DeployedGameMode : uint8_t {
-  SOLO,   ///< One process, every player a stand-in; no network
-  SERVE,  ///< A dedicated server: no local player, simulating as reference
-  HOST,   ///< A listen server with a local player on it
-  JOIN,   ///< A client of someone else's server
+  SOLO,    ///< One process, every player a stand-in; no network
+  SERVE,   ///< A dedicated server: no local player, simulating as reference
+  HOST,    ///< A listen server with a local player on it
+  JOIN,    ///< A client of someone else's server
+  VERIFY,  ///< Play a recorded replay back and check it reproduces
 };
 
 }  // namespace eng::editor

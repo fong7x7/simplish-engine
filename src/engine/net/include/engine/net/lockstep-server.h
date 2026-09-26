@@ -13,6 +13,7 @@
 #include <engine/net/net-frame.h>
 #include <engine/net/net-hash-check.h>
 #include <engine/net/net-message.h>
+#include <engine/net/net-peer-trace.h>
 #include <engine/net/net-refusal.h>
 #include <engine/net/net-server-seat.h>
 #include <engine/net/net-transport.h>
@@ -21,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace eng::net {
 
@@ -66,6 +68,19 @@ public:
   /// too. Reported first, it is the one the clients' are checked against.
   void reportHash(const sim::TickHash& hash);
 
+  /// Tell every client in the run who the next frame is waiting on, and
+  /// give what was said; nothing — and nothing sent — when the run is not
+  /// waiting on anyone. Whoever runs the server calls this once a wait has
+  /// gone on long enough to be worth showing; the engine reads no clock.
+  std::optional<NetWaiting> announceWaiting();
+
+  /// The traces the peers of a desynced run have sent, and the server's
+  /// own when it reported hashes, in seat order with its own last.
+  [[nodiscard]] std::vector<NetPeerTrace> traces() const;
+
+  /// Whether every seat playing the desynced run has sent its trace.
+  [[nodiscard]] bool tracesComplete() const;
+
   /// The next frame sent and not yet taken, when frames are kept.
   std::optional<NetFrame> takeFrame();
 
@@ -98,6 +113,8 @@ private:
   void on(NetPeer peer, const NetInput& input);
   /// Take a hash report from the client on @p peer.
   void on(NetPeer peer, const NetHashReport& report);
+  /// Keep the trace the client on @p peer sent after a desync.
+  void on(NetPeer peer, const NetTrace& trace);
   /// Nothing: no other message is a client's to send.
   template <typename Message> void on(NetPeer /*peer*/, const Message& /*m*/) {}
   /// Why @p hello cannot be seated, or nothing when it can.
@@ -109,11 +126,13 @@ private:
   void halt(const NetDesync& desync);
   /// The start of the next run, of @p level with @p seed.
   [[nodiscard]] NetStart startOf(const std::string& level, uint64_t seed);
-  /// Set up the queue and seats for a run of @p players.
-  void seatRun(uint8_t players);
+  /// Set up the queue and seats for the run @p start begins.
+  void seatRun(const NetStart& start);
+  /// The input delay of the next run, as configured or measured.
+  [[nodiscard]] uint8_t delayForRun() const;
   /// Queue no input in @p queue for each of @p players' seats for the
   /// ticks before the input delay.
-  void prefillDelay(sim::InputQueue& queue, uint8_t players) const;
+  void prefillDelay(sim::InputQueue& queue, const NetStart& start) const;
   /// Free the seat of @p peer, which has gone.
   void drop(NetPeer peer);
   /// Send every frame whose inputs are all in.
@@ -157,6 +176,10 @@ private:
   std::optional<NetDesync> desync_;
   /// Frames sent and not yet taken, when kept.
   std::deque<NetFrame> frames_;
+  /// Each seat's trace of the desynced run, once sent.
+  std::array<std::optional<NetTrace>, sim::MAX_PLAYERS> traces_{};
+  /// The server's own recent hashes, when it reports them.
+  std::deque<sim::TickHash> own_trace_;
 };
 
 }  // namespace eng::net

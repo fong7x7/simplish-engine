@@ -31,6 +31,8 @@ public:
   std::optional<NetEvent> poll() override;
   void send(NetPeer peer, std::span<const std::byte> bytes) override;
   void disconnect(NetPeer peer) override;
+  [[nodiscard]] std::optional<uint32_t>
+  roundTripMs(NetPeer peer) const override;
 
 private:
   /// The client endpoint a connection to @p peer is, from this side.

@@ -1,4 +1,6 @@
 #include "deployed-level.h"
+#include "deployed-net-world.h"
+#include "deployed-replay.h"
 
 #include <algorithm>
 #include <charconv>
@@ -11,10 +13,13 @@
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
 #include <editor/shell/editor-enemy-table.h>
+#include <engine/net/net-input-delay.h>
+#include <engine/sim/replay-recorder.h>
 #include <engine/sim/simulation.h>
 #include <game/logic/game-logic-instance.h>
 #include <game/world/game-world.h>
 #include <game/world/stand-in-input.h>
+#include <memory>
 #include <string>
 
 namespace eng::editor {
@@ -27,15 +32,6 @@ namespace {
         std::clamp<unsigned>(options.players, 1, sim::MAX_PLAYERS));
   }
 
-  /// Every seated player's input, each played by a stand-in.
-  sim::TickInput standInsFor(const game::GameWorld& world, uint8_t players) {
-    sim::TickInput input;
-    for (uint8_t slot = 0; slot < players; ++slot) {
-      input.players[slot] = game::standInInput(world, slot);
-    }
-    return input;
-  }
-
   /// Keep what @p result says of its tick in @p run: its hash, and — when
   /// @p hashes asks — the whole of it.
   void keepTick(const sim::TickResult& result, DeployedHashes hashes,
@@ -46,22 +42,37 @@ namespace {
     }
   }
 
-  /// Step @p world until its run is over or @p run's ticks are spent,
-  /// saying what its logic says to @p out.
-  void play(game::GameWorld& world, const DeployedGameOptions& options,
+  /// Step @p world until its run is over or @p run's ticks are spent —
+  /// every seat absent, so every player a stand-in — saying what its logic
+  /// says to @p out.
+  void play(DeployedNetWorld& world, const DeployedGameOptions& options,
             DeployedGameRun& run, std::ostream& out) {
-    sim::Simulation simulation(world, sim::TickHashing::ON);
-    const uint8_t players = seatsFor(options);
-    while (!world.runOver() && simulation.nextTick() < options.max_ticks) {
-      const sim::TickResult result =
-          simulation.step(standInsFor(world, players));
+    const net::NetFrame nobody{
+        0, 0, static_cast<uint8_t>((1U << seatsFor(options)) - 1U), {}};
+    while (!world.world().runOver() && world.nextTick() < options.max_ticks) {
+      const sim::TickResult result = world.step(nobody);
       keepTick(result, options.hashes, run);
       for (const std::string& line : world.takeLogicLog()) {
         out << "[logic " << result.tick << "] " << line << '\n';
       }
     }
-    run.ticks = simulation.nextTick();
-    run.outcome = world.outcome();
+    run.ticks = world.nextTick();
+    run.outcome = world.world().outcome();
+  }
+
+  /// What a solo run of @p setup, as @p options seats it, starts from —
+  /// with the content's hash when the run is to be recorded.
+  sim::ReplayHeader soloHeader(const DeployedGameOptions& options,
+                               const std::string& level,
+                               const game::GameSetup& setup) {
+    // A deploy bakes every seat; the run seats as many as it was asked for.
+    sim::ReplayHeader header{level, 0, setup.seed, seatsFor(options), {}};
+    header.content_hash =
+        options.replay.empty() ? 0 : deployedContentHash(options.content);
+    for (uint8_t slot = 0; slot < header.player_count; ++slot) {
+      header.characters[slot] = setup.characters[slot];
+    }
+    return header;
   }
 
   /// @p text as a whole number, or nothing.
@@ -107,14 +118,37 @@ namespace {
     return port.has_value();
   }
 
-  /// The input delay @p value names, 1 to `DEPLOYED_MAX_INPUT_DELAY`.
+  /// The input delay @p value names: `auto` to measure it at each start,
+  /// or 1 to `net::NET_MAX_INPUT_DELAY` ticks.
   bool delayFlag(DeployedGameOptions& options, std::string_view value) {
     const std::optional<uint64_t> ticks = wholeNumber(value);
-    if (!ticks || *ticks < 1 || *ticks > DEPLOYED_MAX_INPUT_DELAY) {
+    if (value == "auto") {
+      options.input_delay.reset();
+      return true;
+    }
+    if (!ticks || *ticks < 1 || *ticks > net::NET_MAX_INPUT_DELAY) {
       return false;
     }
     options.input_delay = static_cast<uint8_t>(*ticks);
     return true;
+  }
+
+  /// A path-valued flag @p flag, valued @p value, into @p options. False
+  /// when it is not one.
+  bool pathFlag(DeployedGameOptions& options, std::string_view flag,
+                std::string_view value) {
+    const std::filesystem::path path{std::string(value)};
+    if (flag == "--replay") {
+      options.replay = path;
+    } else if (flag == "--verify") {
+      options.mode = DeployedGameMode::VERIFY;
+      options.verify = path;
+    } else if (flag == "--desync-dir") {
+      options.desync_dir = path;
+    } else {
+      return false;
+    }
+    return !value.empty();
   }
 
   /// The pace @p value names: `real` or `fast`.
@@ -138,7 +172,10 @@ namespace {
     if (flag == "--delay") {
       return delayFlag(options, value);
     }
-    return flag == "--pace" && paceFlag(options, value);
+    if (flag == "--pace") {
+      return paceFlag(options, value);
+    }
+    return pathFlag(options, flag, value);
   }
 
   /// Take the flag @p flag's value @p value into @p options. False when
@@ -162,22 +199,36 @@ namespace {
   }
 
   /// The game @p options describes, alone: every seat a stand-in.
+  /// The world of a solo run of @p setup as @p options seats it, with an
+  /// instance of the logic @p logic makes, recording when asked; the run's
+  /// players and logic said in @p run. Null when there is no such level.
+  std::unique_ptr<DeployedNetWorld>
+  soloWorld(const DeployedGameOptions& options, const game::GameSetup& setup,
+            game::GameLogicFactory logic, DeployedGameRun& run) {
+    const sim::ReplayHeader header = soloHeader(options, run.level, setup);
+    auto world = DeployedNetWorld::create(options.content, header, logic);
+    if (world) {
+      run.players = header.player_count;
+      run.logic = world->world().hasLogic();
+    }
+    if (world && !options.replay.empty()) {
+      world->startRecording(header);
+    }
+    return world;
+  }
+
   DeployedGameRun runSolo(const DeployedGameOptions& options,
                           game::GameLogicFactory logic, std::ostream& out) {
     DeployedGameRun run;
-    std::optional<game::GameSetup> setup = manifestSetup(options, run);
-    if (!setup) {
+    const std::optional<game::GameSetup> setup = manifestSetup(options, run);
+    auto world = setup ? soloWorld(options, *setup, logic, run) : nullptr;
+    if (!world) {
       return run;
     }
-    // A deploy bakes every seat; the run seats as many as it was asked for.
-    setup->player_count = seatsFor(options);
-    run.players = setup->player_count;
-    const game::GameLogicInstance instance(logic);
-    makeRoomForLogic(*setup, instance);
-    game::GameWorld world(*setup, readDeployedContent(options.content),
-                          instance.get());
-    run.logic = world.hasLogic();
-    play(world, options, run, out);
+    play(*world, options, run, out);
+    if (const std::optional<sim::Replay> replay = world->replay()) {
+      saveReplay(options, *replay, out);
+    }
     return run;
   }
 
@@ -186,6 +237,9 @@ namespace {
 DeployedGameRun runDeployedGame(const DeployedGameOptions& options,
                                 game::GameLogicFactory logic,
                                 std::ostream& out) {
+  if (options.mode == DeployedGameMode::VERIFY) {
+    return verifyDeployedReplay(options, logic);
+  }
   return options.mode == DeployedGameMode::SOLO
              ? runSolo(options, logic, out)
              : runDeployedSession(options, logic, out);

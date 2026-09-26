@@ -19,6 +19,13 @@ LockstepClient& LoopbackSession::join(const NetHello& hello) {
   return *clients_.back();
 }
 
+void LoopbackSession::seat(std::size_t count) {
+  for (std::size_t i = 0; i < count; ++i) {
+    (void)join();
+  }
+  pump();
+}
+
 void LoopbackSession::leave(std::size_t index) {
   clients_[index].reset();
 }

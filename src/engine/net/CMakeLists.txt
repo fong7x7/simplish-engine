@@ -15,6 +15,9 @@ simplish_add_module(simplish-engine-net
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/lockstep-server.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/loopback-network.cpp
                  ${CMAKE_CURRENT_SOURCE_DIR}/src/net-codec.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/net-input-delay.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/net-trace-divergence.cpp
+                 ${CMAKE_CURRENT_SOURCE_DIR}/src/trace-ring.cpp
     DEPENDENCIES simplish-engine-core
                  simplish-engine-sim
 )
@@ -26,6 +29,8 @@ if(ENGINE_BUILD_TESTS)
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_lockstep_server.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_loopback_network.cpp
                      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_codec.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_input_delay.cpp
+                     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_net_trace_divergence.cpp
         DEPENDENCIES simplish-engine-net
     )
     target_include_directories(simplish-engine-net-tests PRIVATE

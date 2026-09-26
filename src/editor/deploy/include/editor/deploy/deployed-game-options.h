@@ -8,19 +8,15 @@
 #include <editor/deploy/deployed-game-mode.h>
 #include <editor/deploy/deployed-hashes.h>
 #include <editor/deploy/deployed-pace.h>
-#include <engine/net/lockstep-server-config.h>
 #include <engine/net/udp-listen.h>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace eng::editor {
 
 /// Ticks a deployed game runs when not told: five minutes of play.
 inline constexpr uint64_t DEPLOYED_GAME_DEFAULT_TICKS = 5 * 60 * 60;
-
-/// The most input delay a session may be given: half a second, well
-/// inside the input queue's reach (`sim::INPUT_QUEUE_TICKS`).
-inline constexpr uint64_t DEPLOYED_MAX_INPUT_DELAY = 30;
 
 /// What `simplish-game`'s command line asks for.
 /// @thread_safety Immutable value type.
@@ -44,10 +40,19 @@ struct DeployedGameOptions {
   uint16_t port = net::UDP_DEFAULT_PORT;
   /// The server to join: a host name or address.
   std::string address{};
-  /// Ticks of input delay a server gives its session (ADR-005).
-  uint8_t input_delay = net::NET_DEFAULT_INPUT_DELAY;
+  /// Ticks of input delay a server gives its session (ADR-005); nothing
+  /// to choose it at each start from the worst round trip measured.
+  std::optional<uint8_t> input_delay{};
   /// What paces a networked run's input.
   DeployedPace pace = DeployedPace::REAL_TIME;
+  /// Where to write the run's replay; empty for nowhere. A server writes
+  /// its reference run's, a client its own.
+  std::filesystem::path replay{};
+  /// The replay `VERIFY` plays back.
+  std::filesystem::path verify{};
+  /// Where a server writes a desync's report; empty for the working
+  /// directory.
+  std::filesystem::path desync_dir{};
 };
 
 }  // namespace eng::editor

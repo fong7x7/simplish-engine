@@ -1,0 +1,26 @@
+Simplish desync report
+
+Level arena, run 0. Caught at tick 60, when player 2 disagreed with the first hash reported.
+The run first diverged at tick 1 in section logic, between player 1 and player 2.
+
+Traces:
+  player 1: ticks 0-60
+  player 2: ticks 0-60
+  the server: ticks 0-60
+
+Combined hash by tick:
+  0  player 1 6255a3eb7bcada48  player 2 6255a3eb7bcada48  the server 6255a3eb7bcada48
+> 1  player 1 d3588b928e9a658a  player 2 074d825a4dcfebcf  the server d3588b928e9a658a
+  2  player 1 1632857fdf537c97  player 2 560e8f3c0fa1d098  the server 1632857fdf537c97
+  3  player 1 d06b58f8b0d90ae1  player 2 e0d21bc3fb822373  the server d06b58f8b0d90ae1
+  4  player 1 520a23b53a5a5880  player 2 6c085ed85a881a4f  the server 520a23b53a5a5880
+  5  player 1 8417036797a28451  player 2 3b89b308073d2aa3  the server 8417036797a28451
+
+Sections on tick 1:
+  players  player 1 d0a7c4dd58822c95  player 2 d0a7c4dd58822c95  the server d0a7c4dd58822c95
+  actors  player 1 bf66c78a38bda39f  player 2 bf66c78a38bda39f  the server bf66c78a38bda39f
+  flow  player 1 63709bb1df4d2ae6  player 2 63709bb1df4d2ae6  the server 63709bb1df4d2ae6
+  projectiles  player 1 51047af3527798ad  player 2 51047af3527798ad  the server 51047af3527798ad
+  hazards  player 1 25221ce31b88ca51  player 2 25221ce31b88ca51  the server 25221ce31b88ca51
+  ai_rng  player 1 25559b7d0f0e6451  player 2 25559b7d0f0e6451  the server 25559b7d0f0e6451
+  logic  player 1 044c421460ed7aef  player 2 ec33d32859995e28  the server 044c421460ed7aef

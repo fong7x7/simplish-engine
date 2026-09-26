@@ -1,3 +1,5 @@
+#include "trace-ring.h"
+
 #include <engine/net/lockstep-client.h>
 #include <engine/net/net-codec.h>
 #include <engine/net/net-hash-report.h>
@@ -52,6 +54,8 @@ void LockstepClient::on(const NetStart& start) {
   pending_start_ = start;
   frames_.clear();
   desync_.reset();
+  waiting_.reset();
+  trace_.clear();
   next_frame_ = 0;
   next_input_ = start.input_delay;
   state_ = NetClientState::PLAYING;
@@ -60,6 +64,9 @@ void LockstepClient::on(const NetStart& start) {
 void LockstepClient::on(const NetFrame& frame) {
   if (current(frame.run) && state_ == NetClientState::PLAYING) {
     frames_.push_back(frame);
+    if (waiting_ && frame.tick >= waiting_->tick) {
+      waiting_.reset();
+    }
   }
 }
 
@@ -67,7 +74,16 @@ void LockstepClient::on(const NetDesync& desync) {
   if (current(desync.run)) {
     desync_ = desync;
     frames_.clear();
+    waiting_.reset();
     state_ = NetClientState::DESYNCED;
+    send(traceOf(desync.run, trace_));
+  }
+}
+
+void LockstepClient::on(const NetWaiting& waiting) {
+  if (current(waiting.run) && state_ == NetClientState::PLAYING &&
+      waiting.tick >= next_frame_ + frames_.size()) {
+    waiting_ = waiting;
   }
 }
 
@@ -102,8 +118,11 @@ std::optional<NetFrame> LockstepClient::takeFrame() {
 }
 
 void LockstepClient::reportHash(const sim::TickHash& hash) {
-  if (state_ == NetClientState::PLAYING && run_ &&
-      hash.tick % NET_HASH_INTERVAL == 0) {
+  if (state_ != NetClientState::PLAYING || !run_) {
+    return;
+  }
+  keepTraced(hash, trace_);
+  if (hash.tick % NET_HASH_INTERVAL == 0) {
     send(NetHashReport{run_->run, hash});
   }
 }

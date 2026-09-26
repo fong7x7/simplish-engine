@@ -12,7 +12,7 @@ namespace eng::net {
 
 /// The protocol a build speaks. A server refuses a client speaking another.
 /// Bump it with any change to a message's bytes.
-inline constexpr uint16_t NET_PROTOCOL_VERSION = 1;
+inline constexpr uint16_t NET_PROTOCOL_VERSION = 2;
 
 /// Longest level or character id a message may carry, in bytes.
 inline constexpr uint64_t NET_MAX_ID_BYTES = 256;

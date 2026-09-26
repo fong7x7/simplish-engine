@@ -14,6 +14,7 @@
 #include <engine/net/net-refusal.h>
 #include <engine/net/net-start.h>
 #include <engine/net/net-transport.h>
+#include <engine/net/net-waiting.h>
 #include <engine/sim/player-input.h>
 #include <engine/sim/tick-hash.h>
 #include <memory>
@@ -59,7 +60,9 @@ public:
   /// The next frame of the run, in tick order, once it has arrived.
   std::optional<NetFrame> takeFrame();
 
-  /// Send @p hash to the server, when its tick is one that is compared.
+  /// Keep @p hash — every tick's, in order — for a trace should the run
+  /// desync, and send it to the server when its tick is one compared.
+  /// Told of a desync, the client sends its trace by itself.
   void reportHash(const sim::TickHash& hash);
 
   /// The start of a run that has begun since the last call: build the
@@ -81,6 +84,11 @@ public:
   /// The divergence that halted the run, when one did.
   [[nodiscard]] const std::optional<NetDesync>& desync() const {
     return desync_;
+  }
+  /// Who the session was last said to be waiting on, until the frame it
+  /// was waiting for arrives: what to show while stalled.
+  [[nodiscard]] const std::optional<NetWaiting>& waiting() const {
+    return waiting_;
   }
   /// The tick the next `sendInput` is for.
   [[nodiscard]] uint64_t nextInputTick() const { return next_input_; }
@@ -106,6 +114,8 @@ private:
   void on(const NetDesync& desync);
   /// Leave the run, when the end is about it.
   void on(const NetEnd& end);
+  /// Take who the session is waiting on, when it is about the run.
+  void on(const NetWaiting& waiting);
   /// Nothing: no other message is a server's to send.
   template <typename Message> void on(const Message& /*message*/) {}
   /// Whether @p run is the one being played.
@@ -133,6 +143,10 @@ private:
   std::optional<NetRefusalReason> refusal_;
   /// The divergence that halted the run.
   std::optional<NetDesync> desync_;
+  /// Who the session is waiting on, while it is.
+  std::optional<NetWaiting> waiting_;
+  /// This run's recent hashes, for a trace.
+  std::deque<sim::TickHash> trace_;
   /// Frames arrived and not yet taken, in tick order.
   std::deque<NetFrame> frames_;
   /// The tick the next input sent is for.

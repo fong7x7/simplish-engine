@@ -1,9 +1,12 @@
 #include "deployed-client.h"
+#include "deployed-replay.h"
 #include "deployed-server.h"
 #include "support/deployed-content-fixture.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <editor/deploy/deployed-game.h>
+#include <editor/project/project-text-file.h>
 #include <engine/net/loopback-network.h>
 #include <memory>
 #include <sstream>
@@ -55,6 +58,14 @@ game::GameLogic* makeQuiet() {
 
 game::GameLogic* makeDraws() {
   return std::make_unique<Draws>().release();
+}
+
+/// Options that play back the replay at @p replay against @p content.
+DeployedGameOptions verifying(const DeployedContentFixture& content,
+                              const std::filesystem::path& replay) {
+  DeployedGameOptions options = content.options(0);
+  options.verify = replay;
+  return options;
 }
 
 void unmake(game::GameLogic* logic) {
@@ -167,7 +178,8 @@ TEST_CASE("a dedicated server and two clients end the same run on the same "
   CHECK(reference.ticks == 200);
   CHECK(reference.hash != 0);
   CHECK(session.clientsAgree());
-  CHECK(out.str().contains("Starting arena for 2 players"));
+  CHECK(out.str().contains("Starting arena for players 1 and 2, input delay 2 "
+                           "ticks (measured)"));
 }
 
 TEST_CASE("a served run a client's logic ends is over for everyone on the "
@@ -243,6 +255,64 @@ TEST_CASE("peers that diverge are halted, and told the tick") {
   CHECK(session.server().run().error.starts_with("Desync at tick 60"));
 }
 
+TEST_CASE("a desync's traces pin the first diverging tick, and a report is "
+          "written") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  DeployedGameOptions options = as(content.options(300), {}, 2);
+  options.desync_dir = content.path();
+  ServedSession session(options, {makeQuiet, unmake});
+  session.join(options, {makeQuiet, unmake});
+  session.join(options, {makeDraws, unmake});
+
+  session.play(out);
+
+  const std::string& error = session.server().run().error;
+  CHECK(error.contains("first diverged at tick 1 in section logic"));
+  const auto report = content.path() / "simplish-desync-arena-tick60.txt";
+  CHECK(error.ends_with("Report: " + report.string()));
+  CHECK(readProjectTextFile(report)->starts_with("Simplish desync report"));
+}
+
+TEST_CASE("a served run's replays, the server's and a client's, play back "
+          "to its end") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  DeployedGameOptions served = as(content.options(150), {}, 1);
+  served.replay = content.path() / "server.replay";
+  DeployedGameOptions joined = served;
+  joined.replay = content.path() / "client.replay";
+  ServedSession session(served, {});
+  session.join(joined, {});
+  session.play(out);
+
+  for (const auto& path : {served.replay, joined.replay}) {
+    const DeployedGameRun run =
+        verifyDeployedReplay(verifying(content, path), {});
+    CHECK(run.error.empty());
+    CHECK(run.ticks == 150);
+    CHECK(run.hash == session.server().run().hash);
+  }
+}
+
+TEST_CASE("a client stalled on another says who it is waiting for") {
+  const DeployedContentFixture content;
+  std::ostringstream out;
+  DeployedGameOptions options = as(content.options(300), {}, 2);
+  ServedSession session(options, {});
+  session.join(options, {});
+  session.join(options, {});
+  session.step(20, out);
+  const auto until = std::chrono::steady_clock::now() + DEPLOYED_STALL_NOTICE +
+                     std::chrono::milliseconds(200);
+  while (std::chrono::steady_clock::now() < until) {
+    session.server().poll(out);
+    session.client(0).poll(1, out);
+  }
+  CHECK(out.str().contains("Waiting for player 2 at tick"));
+  CHECK(out.str().contains("Waiting for player 2\n"));
+}
+
 TEST_CASE("a host plays on its own server, a joiner with it, to the same "
           "end") {
   const DeployedContentFixture content;
@@ -279,6 +349,22 @@ TEST_CASE("simplish-game reads a server's flags") {
   CHECK(served->input_delay == 4);
   CHECK(served->pace == DeployedPace::FAST);
   CHECK(parseDeployedGameArgs(host)->mode == DeployedGameMode::HOST);
+}
+
+TEST_CASE("simplish-game reads a measured delay, and where replays and "
+          "reports go") {
+  const std::string_view args[] = {"--delay", "auto",         "--replay",
+                                   "a.rpl",   "--desync-dir", "out"};
+  const std::string_view verify[] = {"--verify", "b.rpl"};
+
+  const auto options = parseDeployedGameArgs(args);
+
+  REQUIRE(options);
+  CHECK_FALSE(options->input_delay);
+  CHECK(options->replay == "a.rpl");
+  CHECK(options->desync_dir == "out");
+  CHECK(parseDeployedGameArgs(verify)->mode == DeployedGameMode::VERIFY);
+  CHECK(parseDeployedGameArgs(verify)->verify == "b.rpl");
 }
 
 TEST_CASE("simplish-game reads where to join, with or without a port") {

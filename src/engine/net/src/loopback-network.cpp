@@ -75,6 +75,14 @@ void LoopbackTransport::disconnect(NetPeer peer) {
   }
 }
 
+std::optional<uint32_t> LoopbackTransport::roundTripMs(NetPeer peer) const {
+  const NetPeer client = clientEnd(peer);
+  if (client >= hub_->open.size() || hub_->open[client] == 0) {
+    return std::nullopt;
+  }
+  return hub_->round_trip_ms;
+}
+
 std::unique_ptr<NetTransport> LoopbackNetwork::listen() {
   if (hub_->listening != 0) {
     return nullptr;

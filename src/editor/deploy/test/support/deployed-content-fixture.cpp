@@ -43,7 +43,7 @@ DeployedContentFixture::DeployedContentFixture(const std::string& extra)
       path_ / EDITOR_DEPLOY_MANIFEST,
       serializeDeployManifest({"Arena", {"arena"}, "arena", true}));
   if (!extra.empty()) {
-    (void)writeProjectTextFile(path_ / "extra.txt", extra);
+    (void)writeProjectTextFile(path_ / "content" / "extra.txt", extra);
   }
 }
 

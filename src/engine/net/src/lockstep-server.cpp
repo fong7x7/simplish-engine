@@ -1,8 +1,11 @@
+#include "trace-ring.h"
+
 #include <algorithm>
 #include <bit>
 #include <engine/core/assert.h>
 #include <engine/net/lockstep-server.h>
 #include <engine/net/net-codec.h>
+#include <engine/net/net-input-delay.h>
 #include <utility>
 
 namespace eng::net {
@@ -114,7 +117,49 @@ void LockstepServer::on(NetPeer peer, const NetHashReport& report) {
   }
 }
 
+void LockstepServer::on(NetPeer peer, const NetTrace& trace) {
+  const std::optional<uint8_t> seat = seatOf(peer);
+  if (seat && seats_[*seat].playing != 0 &&
+      state_ == NetServerState::DESYNCED && start_ &&
+      trace.run == start_->run) {
+    traces_[*seat] = trace;
+  }
+}
+
+std::vector<NetPeerTrace> LockstepServer::traces() const {
+  std::vector<NetPeerTrace> all;
+  for (uint8_t seat = 0; seat < sim::MAX_PLAYERS; ++seat) {
+    if (const std::optional<NetTrace>& trace = traces_[seat]) {
+      all.push_back({seat, *trace});
+    }
+  }
+  if (!own_trace_.empty() && start_) {
+    all.push_back({NET_SERVER_SLOT, traceOf(start_->run, own_trace_)});
+  }
+  return all;
+}
+
+bool LockstepServer::tracesComplete() const {
+  for (uint8_t seat = 0; seat < sim::MAX_PLAYERS; ++seat) {
+    if (seats_[seat].playing != 0 && !traces_[seat]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<NetWaiting> LockstepServer::announceWaiting() {
+  const uint8_t waiting = waitingOn();
+  if (waiting == 0 || !start_) {
+    return std::nullopt;
+  }
+  const NetWaiting message{start_->run, nextTick(), waiting};
+  broadcast(message);
+  return message;
+}
+
 void LockstepServer::reportHash(const sim::TickHash& hash) {
+  keepTraced(hash, own_trace_);
   if (start_) {
     check(NET_SERVER_SLOT, {start_->run, hash});
   }
@@ -161,7 +206,7 @@ std::optional<NetStart> LockstepServer::start(const std::string& level,
   }
   end();
   NetStart start = startOf(level, seed);
-  seatRun(start.header.player_count);
+  seatRun(start);
   start_ = start;
   state_ = NetServerState::RUNNING;
   broadcast(start);
@@ -174,32 +219,48 @@ NetStart LockstepServer::startOf(const std::string& level, uint64_t seed) {
   const auto players = static_cast<uint8_t>(8 - std::countl_zero(seated()));
   NetStart start{next_run_++,
                  {level, config_.content_hash, seed, players, {}},
-                 config_.input_delay};
+                 delayForRun()};
   for (uint8_t seat = 0; seat < players; ++seat) {
     start.header.characters[seat] = seats_[seat].character;
   }
   return start;
 }
 
-void LockstepServer::seatRun(uint8_t players) {
-  prefillDelay(queue_.emplace(players), players);
+uint8_t LockstepServer::delayForRun() const {
+  if (config_.delay_choice == NetDelayChoice::FIXED) {
+    return config_.input_delay;
+  }
+  uint32_t worst = 0;
+  for (const NetServerSeat& seat : seats_) {
+    if (seat.connected != 0) {
+      worst = std::max(worst, transport_->roundTripMs(seat.peer).value_or(0));
+    }
+  }
+  return inputDelayForRoundTrip(worst);
+}
+
+void LockstepServer::seatRun(const NetStart& start) {
+  const uint8_t players = start.header.player_count;
+  prefillDelay(queue_.emplace(players), start);
   for (uint8_t seat = 0; seat < sim::MAX_PLAYERS; ++seat) {
     NetServerSeat& taken = seats_[seat];
     taken.playing = seat < players ? taken.connected : 0;
-    taken.next_input = config_.input_delay;
+    taken.next_input = start.input_delay;
   }
   checks_ = {};
+  traces_ = {};
+  own_trace_.clear();
   desync_.reset();
   frames_.clear();
   stop_at_ = UINT64_MAX;
 }
 
 void LockstepServer::prefillDelay(sim::InputQueue& queue,
-                                  uint8_t players) const {
+                                  const NetStart& start) const {
   // Nobody can have sent input for the first `input_delay` ticks: they run
   // on none, the same for every peer.
-  for (uint64_t tick = 0; tick < config_.input_delay; ++tick) {
-    for (uint8_t seat = 0; seat < players; ++seat) {
+  for (uint64_t tick = 0; tick < start.input_delay; ++tick) {
+    for (uint8_t seat = 0; seat < start.header.player_count; ++seat) {
       (void)queue.submit(seat, tick, {});
     }
   }

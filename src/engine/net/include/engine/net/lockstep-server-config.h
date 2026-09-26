@@ -13,6 +13,12 @@ namespace eng::net {
 /// Input delay when not told otherwise: three ticks, 50 ms (ADR-005).
 inline constexpr uint8_t NET_DEFAULT_INPUT_DELAY = 3;
 
+/// How a server chooses a run's input delay.
+enum class NetDelayChoice : uint8_t {
+  FIXED,     ///< `input_delay`, whatever the connections are like
+  MEASURED,  ///< From the worst round trip seated when the run starts
+};
+
 /// Whether a server keeps the frames it sends, for `takeFrame`.
 enum class NetServerFrames : uint8_t {
   RELAY,  ///< Sent and forgotten: a server whose host plays as a client
@@ -28,6 +34,9 @@ struct LockstepServerConfig {
   /// Ticks between a client sampling its input and the tick it is for.
   /// At least 1; tick 0 to `input_delay - 1` run on no input.
   uint8_t input_delay = NET_DEFAULT_INPUT_DELAY;
+  /// Whether `input_delay` is used as it is, or chosen at each start from
+  /// the round trips the transport has measured (`inputDelayForRoundTrip`).
+  NetDelayChoice delay_choice = NetDelayChoice::FIXED;
   /// Whether sent frames are kept for `takeFrame`.
   NetServerFrames frames = NetServerFrames::RELAY;
 };

@@ -43,6 +43,16 @@ NetHashReport sampleReport() {
   return report;
 }
 
+NetTrace sampleTrace() {
+  NetTrace trace{2, {"players", "logic"}, {}};
+  for (uint64_t tick = 100; tick < 103; ++tick) {
+    NetHashReport report = sampleReport();
+    report.hash.tick = tick;
+    trace.ticks.push_back(report.hash);
+  }
+  return trace;
+}
+
 /// One of every message, with values at the edges of their ranges.
 std::vector<NetMessage> everyMessage() {
   return {NetHello{NET_PROTOCOL_VERSION, 77, "scout"},
@@ -54,7 +64,9 @@ std::vector<NetMessage> everyMessage() {
           sampleFrame(),
           sampleReport(),
           NetDesync{4, 60, 2, NET_SERVER_SLOT},
-          NetEnd{65535}};
+          NetEnd{65535},
+          NetWaiting{3, 999, 0b0110},
+          sampleTrace()};
 }
 
 bool sameReport(const NetHashReport& a, const NetHashReport& b) {
@@ -71,6 +83,19 @@ bool sameReport(const NetHashReport& a, const NetHashReport& b) {
   return true;
 }
 
+bool sameTrace(const NetTrace& a, const NetTrace& b) {
+  if (a.run != b.run || a.section_names != b.section_names ||
+      a.ticks.size() != b.ticks.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < a.ticks.size(); ++i) {
+    if (!sameReport({0, a.ticks[i]}, {0, b.ticks[i]})) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool same(const NetMessage& a, const NetMessage& b) {
   if (a.index() != b.index()) {
     return false;
@@ -80,6 +105,8 @@ bool same(const NetMessage& a, const NetMessage& b) {
         using Body = std::decay_t<decltype(body)>;
         if constexpr (std::is_same_v<Body, NetHashReport>) {
           return sameReport(body, std::get<NetHashReport>(b));
+        } else if constexpr (std::is_same_v<Body, NetTrace>) {
+          return sameTrace(body, std::get<NetTrace>(b));
         } else {
           return body == std::get<Body>(b);
         }
@@ -121,7 +148,7 @@ TEST_CASE("a net message with a byte left over is refused") {
 }
 
 TEST_CASE("net messages out of range are refused") {
-  CHECK_FALSE(decodeNetMessage(std::vector{std::byte{10}}));
+  CHECK_FALSE(decodeNetMessage(std::vector{std::byte{12}}));
   CHECK_FALSE(decodeNetMessage(std::vector{std::byte{1}, std::byte{4}}));
   CHECK_FALSE(decodeNetMessage(std::vector{std::byte{2}, std::byte{3}}));
   NetStart start = sampleStart();
@@ -145,4 +172,10 @@ TEST_CASE("any single corrupted byte of a net message decodes safely") {
     }
   }
   SUCCEED();
+}
+
+TEST_CASE("a trace longer than a peer keeps is refused") {
+  NetTrace trace = sampleTrace();
+  trace.ticks.resize(NET_TRACE_TICKS + 1, trace.ticks.front());
+  CHECK_FALSE(decodeNetMessage(encodeNetMessage(trace)));
 }

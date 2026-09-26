@@ -25,6 +25,11 @@ public:
   /// `CONNECTED` when there is one to connect to, `DISCONNECTED` when not.
   [[nodiscard]] std::unique_ptr<NetTransport> connect();
 
+  /// Have every connection report a round trip of @p ms — a network that
+  /// delivers at once, pretending to be a slower one, for a test of what
+  /// a server makes of a measurement.
+  void setRoundTrip(uint32_t ms) { hub_->round_trip_ms = ms; }
+
 private:
   /// The queues, shared with every transport made here.
   std::shared_ptr<LoopbackHub> hub_ = std::make_shared<LoopbackHub>();

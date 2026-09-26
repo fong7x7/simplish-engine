@@ -2,6 +2,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <engine/net/lockstep-server.h>
+#include <engine/net/net-input-delay.h>
+#include <engine/net/net-trace-divergence.h>
+#include <string>
+#include <vector>
 
 using namespace eng;
 using namespace eng::net;
@@ -294,4 +298,73 @@ TEST_CASE("ending a run returns everyone to their seats, and a new run "
   CHECK(second->run == 1);
   CHECK(a.run()->run == 1);
   CHECK(a.state() == NetClientState::PLAYING);
+}
+
+TEST_CASE("a measured delay is chosen from the worst round trip seated") {
+  LockstepServerConfig config = keeping(3);
+  config.delay_choice = NetDelayChoice::MEASURED;
+  LoopbackSession session(config);
+  (void)session.join();
+  session.pump();
+  session.network().setRoundTrip(120);
+  const auto slow = session.start("arena");
+  session.network().setRoundTrip(1);
+  const auto fast = session.start("arena");
+  REQUIRE(slow);
+  REQUIRE(fast);
+  CHECK(slow->input_delay == 9);
+  CHECK(fast->input_delay == NET_MIN_MEASURED_DELAY);
+}
+
+TEST_CASE("a server says who a stalled run is waiting on, and only then") {
+  LoopbackSession session(keeping(1));
+  session.seat(2);
+  LockstepClient& a = session.client(0);
+  (void)session.start("arena");
+  (void)drain(a);
+  (void)drain(session.client(1));
+  (void)a.sendInput({});
+  session.pump();
+  const auto said = session.server().announceWaiting();
+  session.pump();
+  CHECK(said == NetWaiting{0, 1, 0b10});
+  CHECK(a.waiting() == said);
+  (void)session.client(1).sendInput({});
+  session.pump();
+  CHECK_FALSE(a.waiting());
+}
+
+TEST_CASE("after a desync every playing seat sends its trace") {
+  LoopbackSession session(keeping(1));
+  session.seat(2);
+  (void)session.start("arena");
+  for (uint64_t tick = 0; tick <= 60; ++tick) {
+    session.client(0).reportHash(hashOf(tick, 1));
+    session.client(1).reportHash(hashOf(tick, tick < 37 ? 1 : 2));
+  }
+  session.pump();
+  REQUIRE(session.server().state() == NetServerState::DESYNCED);
+  CHECK(session.server().tracesComplete());
+  const auto traces = session.server().traces();
+  REQUIRE(traces.size() == 2);
+  CHECK(traces[1].trace.ticks.size() == 61);
+  CHECK(traces[1].trace.section_names == std::vector<std::string>{"state"});
+  CHECK(findTraceDivergence(traces)->tick == 37);
+}
+
+TEST_CASE("a server that reports its own hashes has a trace of its own") {
+  LoopbackSession session(keeping(1));
+  LockstepClient& a = session.join();
+  session.pump();
+  (void)session.start("arena");
+  for (uint64_t tick = 0; tick <= 60; ++tick) {
+    session.server().reportHash(hashOf(tick, 1));
+  }
+  a.reportHash(hashOf(0, 1));
+  a.reportHash(hashOf(60, 5));
+  session.pump();
+  const auto traces = session.server().traces();
+  REQUIRE(traces.size() == 2);
+  CHECK(traces[1].slot == NET_SERVER_SLOT);
+  CHECK(traces[1].trace.ticks.size() == 61);
 }

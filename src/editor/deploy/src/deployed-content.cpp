@@ -2,6 +2,7 @@
 #include <editor/build/editor-deploy-manifest.h>
 #include <editor/build/editor-setup-json.h>
 #include <editor/deploy/deployed-content.h>
+#include <editor/project/project-paths.h>
 #include <editor/project/project-text-file.h>
 #include <editor/shell/editor-behavior-table.h>
 #include <editor/shell/editor-character-table.h>
@@ -27,12 +28,17 @@ namespace {
     return hash;
   }
 
-  /// Whether @p path is a file the content is made of: not a folder, and
-  /// not hidden — a Finder's `.DS_Store` is not content, and differs from
-  /// machine to machine.
-  bool isContentFile(const std::filesystem::directory_entry& entry) {
-    return entry.is_regular_file() &&
-           !entry.path().filename().string().starts_with('.');
+  /// Whether @p relative — a file's path inside the deployed game — is one
+  /// the simulation reads: the manifest, a baked level, or the project's
+  /// content (data tables, screens). Not hidden: a Finder's `.DS_Store`
+  /// differs from machine to machine. Anything else beside the game — a
+  /// replay, a desync report, the executable — is not content.
+  bool isContentFile(const std::string& relative) {
+    const bool read =
+        relative == EDITOR_DEPLOY_MANIFEST ||
+        relative.starts_with(std::string(EDITOR_DEPLOY_LEVELS_DIR) + "/") ||
+        relative.starts_with(std::string(PROJECT_CONTENT_DIR_NAME) + "/");
+    return read && !relative.contains("/.");
   }
 
   /// Every content file under @p content, relative to it, in path order.
@@ -41,9 +47,10 @@ namespace {
     std::error_code ec;
     for (const auto& entry :
          std::filesystem::recursive_directory_iterator(content, ec)) {
-      if (isContentFile(entry)) {
-        files.push_back(
-            entry.path().lexically_relative(content).generic_string());
+      const std::string relative =
+          entry.path().lexically_relative(content).generic_string();
+      if (entry.is_regular_file() && isContentFile(relative)) {
+        files.push_back(relative);
       }
     }
     std::ranges::sort(files);

@@ -6,6 +6,7 @@
 /// Main-thread-only. Nothing happens between polls.
 
 #include <cstddef>
+#include <cstdint>
 #include <engine/net/net-event.h>
 #include <optional>
 #include <span>
@@ -40,6 +41,12 @@ public:
   /// Closes the connection to @p peer once what was sent to it has gone.
   /// Both sides then poll a `DISCONNECTED` for it.
   virtual void disconnect(NetPeer peer) = 0;
+
+  /// A round trip to @p peer it seldom exceeds, in milliseconds, as far as
+  /// the transport has measured one; nothing when it has not, or @p peer is
+  /// not connected. What a server chooses a measured input delay from.
+  [[nodiscard]] virtual std::optional<uint32_t>
+  roundTripMs(NetPeer peer) const = 0;
 };
 
 }  // namespace eng::net

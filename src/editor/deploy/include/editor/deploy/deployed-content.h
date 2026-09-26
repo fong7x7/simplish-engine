@@ -25,7 +25,8 @@ readDeployedSetup(const std::filesystem::path& content,
 [[nodiscard]] game::GameContent
 readDeployedContent(const std::filesystem::path& content);
 
-/// A hash of every file in the content at @p content — paths and bytes, in
+/// A hash of the files in the content at @p content that the simulation
+/// reads — the manifest, `levels/` and `content/`: paths and bytes, in
 /// path order. Two deployed games agree on it only when they would
 /// simulate the same run, which is what a server checks a joining client
 /// against (ADR-013).

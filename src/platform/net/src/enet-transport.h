@@ -37,6 +37,9 @@ public:
   std::optional<NetEvent> poll() override;
   void send(NetPeer peer, std::span<const std::byte> bytes) override;
   void disconnect(NetPeer peer) override;
+  /// ENet's smoothed round trip plus its variance.
+  [[nodiscard]] std::optional<uint32_t>
+  roundTripMs(NetPeer peer) const override;
 
 private:
   /// The ENet peer numbered @p peer, when it is connected.

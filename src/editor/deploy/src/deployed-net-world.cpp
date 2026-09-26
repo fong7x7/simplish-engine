@@ -9,14 +9,15 @@ namespace eng::editor {
 
 namespace {
 
-  /// The baked @p setup, made into the one @p start describes: its seed,
+  /// The baked @p setup, made into the one @p header describes: its seed,
   /// its players, and the character each seat asked for.
-  game::GameSetup startedAs(game::GameSetup setup, const net::NetStart& start) {
-    setup.seed = start.header.seed;
-    setup.player_count = start.header.player_count;
+  game::GameSetup startedAs(game::GameSetup setup,
+                            const sim::ReplayHeader& header) {
+    setup.seed = header.seed;
+    setup.player_count = header.player_count;
     for (uint8_t slot = 0; slot < setup.player_count; ++slot) {
-      if (!start.header.characters[slot].empty()) {
-        setup.characters[slot] = start.header.characters[slot];
+      if (!header.characters[slot].empty()) {
+        setup.characters[slot] = header.characters[slot];
       }
     }
     return setup;
@@ -33,15 +34,15 @@ namespace {
 
 std::unique_ptr<DeployedNetWorld>
 DeployedNetWorld::create(const std::filesystem::path& content,
-                         const net::NetStart& start,
+                         const sim::ReplayHeader& header,
                          game::GameLogicFactory logic) {
   const std::optional<game::GameSetup> setup =
-      readDeployedSetup(content, start.header.level_id);
+      readDeployedSetup(content, header.level_id);
   if (!setup) {
     return nullptr;
   }
   return std::make_unique<DeployedNetWorld>(
-      startedAs(*setup, start), readDeployedContent(content), logic);
+      startedAs(*setup, header), readDeployedContent(content), logic);
 }
 
 DeployedNetWorld::DeployedNetWorld(const game::GameSetup& setup,
@@ -54,7 +55,19 @@ DeployedNetWorld::DeployedNetWorld(const game::GameSetup& setup,
 sim::TickResult DeployedNetWorld::step(const net::NetFrame& frame) {
   sim::TickInput input = frame.input;
   game::standInForAbsent(world_, frame.absent, input);
-  return simulation_.step(input);
+  sim::TickResult result = simulation_.step(input);
+  if (recorder_) {
+    recorder_->record(input, result);
+  }
+  return result;
+}
+
+void DeployedNetWorld::startRecording(const sim::ReplayHeader& header) {
+  recorder_.emplace(header, sim::DEFAULT_CHECKPOINT_INTERVAL);
+}
+
+std::optional<sim::Replay> DeployedNetWorld::replay() const {
+  return recorder_ ? std::optional{recorder_->finish()} : std::nullopt;
 }
 
 std::vector<std::string> DeployedNetWorld::takeLogicLog() {

@@ -28,6 +28,8 @@ struct LoopbackHub {
   std::vector<uint8_t> open = std::vector<uint8_t>(1);
   /// 1 while a listener exists.
   uint8_t listening = 0;
+  /// The round trip every connection reports, in milliseconds.
+  uint32_t round_trip_ms = 0;
 };
 
 }  // namespace eng::net
