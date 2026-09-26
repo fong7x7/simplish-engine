@@ -182,6 +182,8 @@ Deploy says so when the open level has unsaved edits, since it bakes the saved f
 build/deploy/simplish-game --level main --ticks 3600 --players 2
 ```
 
+It is also every end of a co-op session — `--serve PORT` for a dedicated server, `--host PORT` to host and play, `--join HOST[:PORT]` to join ([networking.md §5](../engine/networking.md#5-simplish-game-as-server-and-client)).
+
 It prints what the logic says, then how the run ended and the last tick's hash — the same on every platform for the same build, level, players and length. It reads the data tables with the editor's readers until content is baked to C++ ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)), which is why it lives in `src/editor/deploy/` and links the editor library.
 
 ---

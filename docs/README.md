@@ -14,6 +14,7 @@ Start at the project hub — [REQUIREMENTS.md](../REQUIREMENTS.md) — then foll
 | [GUI](engine/gui/README.md) | Working on UI: widgets, layout, text, theming, docking, markdown |
 | [Animation](engine/animation.md) | Working on skeletons, animation clips, glTF rigs, or skinned drawing |
 | [Input](engine/input.md) | Working on actions, key and pad bindings, deadzones, the bindings file, or a platform's pad backend |
+| [Networking](engine/networking.md) | Working on co-op sessions: the lockstep server and client, the protocol, transports (loopback, ENet over UDP), dropping and desync, or `simplish-game --serve`, `--host` and `--join` |
 | [Spatial](engine/spatial.md) | Working on the navigation grid, line of sight, or path planning |
 | [Audio](engine/audio.md) | Working on sounds: clips, the mixer, voice stealing, ducking, panning, the platform's audio output, or the sound a combat cue makes |
 | [Effects](engine/fx.md) | Working on particles, volumetric smoke, flashes of light, the effects pass, or the combat cues that trigger them |

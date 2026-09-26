@@ -66,7 +66,7 @@ Console SDKs are NDA-gated and excluded from the public repository. See [Project
 | Content | JSON data tables + in-tree schema validator | All | Hot-reload in debug builds; shipping builds compile generated C++ instead ([ADR-007](../decisions/ADR-007-json-authored-cpp-baked-content.md)) |
 | Audio — mixing | In-tree `engine/audio` software mixer; stb_vorbis (from the stb checkout) for Ogg | All | Voices, stealing, buses, ducking, placement — platform-free ([ADR-010](../decisions/ADR-010-software-mixer.md)) |
 | Audio — output | SDL3 audio stream | Desktop | `platform/audio`'s `AudioDevice`, one backend a build; consoles bring their own |
-| Networking transport | ENet 1.3.x via `FetchContent` | All | Reliable-ordered channel for lockstep input frames |
+| Networking transport | ENet 1.3.18 via `FetchContent` | Desktop | Reliable-ordered channel for lockstep input frames, behind `NetTransport` in `platform/net`; consoles use their distributor's relay |
 | Logging | In-tree `engine/core` logger | All | Disabled in simulation hot paths in release builds |
 | Testing | Catch2 v3 | All | 1,159 tests green on macOS/Metal, 1,123 on the headless stub |
 | Packaging | CPack | All | Platform-native installers |
@@ -191,7 +191,7 @@ Legibility is a rendering requirement, not an art note:
 | Input (action maps, rebinding, gamepad, deterministic capture) | [`input.md`](input.md) | M0 — built: `engine/input` holds the device-neutral vocabulary — canonical pad buttons and axes, bindings from keys, buttons and axis directions to actions, radial deadzones, a JSON scheme a player edits — and quantises action strengths into a `PlayerInput`, movement and stick aim turned through the camera's `MoveBasis`. The pads themselves are `platform/input`'s: one backend per target, SDL3 on desktop. A rebinding screen, button prompts and pad focus navigation are not written |
 | GUI framework (retained-mode, layout, text, theming, docking, markdown) | [gui/README.md](gui/README.md) | **Built** |
 | Content pipeline (JSON tables, schema validation, hot-reload) | `content.md` | M3 |
-| Networking (transport, lockstep session, input delay, desync detection) | `networking.md` | M6 |
+| Networking (transport, lockstep session, input delay, desync detection) | [networking.md](networking.md) | **Built**, headless: server-relayed lockstep ([ADR-013](../decisions/ADR-013-server-relayed-lockstep.md)), loopback and ENet/UDP transports, measured input delay, stall notices, drop to stand-in, desync halt traced to its first tick; networked replays; `simplish-game --serve`, `--host`, `--join`, `--verify`. No person at the controls of a networked run yet |
 | Dev console, CVars, profiler, trace capture | `debug.md` | M3 |
 
 > System documents are written as each milestone opens. The table is the authoritative list of what the engine owns; an absent document means the system is not yet specified, not that it is unowned.

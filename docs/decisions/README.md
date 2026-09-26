@@ -41,3 +41,4 @@ An ADR is *not* required for implementation detail with one obvious answer, or f
 | [ADR-010](ADR-010-software-mixer.md) | The engine mixes its own audio; a platform supplies only an output (not OpenAL Soft) | Proposed | 2026-09-22 |
 | [ADR-011](ADR-011-project-game-logic-in-cpp.md) | A project's own game logic is C++ in its `src/`, loaded as a library to playtest and linked statically to deploy | Proposed | 2026-09-24 |
 | [ADR-012](ADR-012-game-menus-as-data.md) | A game's menus and HUD are data built from the engine's GUI widgets; a choice made in one is player input | Proposed | 2026-09-25 |
+| [ADR-013](ADR-013-server-relayed-lockstep.md) | A co-op session runs through one server that relays lockstep inputs — listen or dedicated | Proposed | 2026-09-25 |

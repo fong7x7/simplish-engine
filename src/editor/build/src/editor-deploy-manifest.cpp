@@ -1,3 +1,5 @@
+#include <array>
+#include <charconv>
 #include <editor/build/editor-deploy-manifest.h>
 #include <nlohmann/json.hpp>
 
@@ -29,6 +31,22 @@ namespace {
     return out;
   }
 
+  /// @p hash in hex, as a JSON string, since a JSON number
+  /// past 2^53 does not survive every reader.
+  std::string hexHash(uint64_t hash) {
+    std::array<char, 17> text{};
+    (void)std::to_chars(text.data(), text.data() + 16, hash, 16);
+    return text.data();
+  }
+
+  /// What `hexHash` wrote, or 0 when @p text is not that.
+  uint64_t parseHexHash(std::string_view text) {
+    uint64_t hash = 0;
+    const auto [end, ec] =
+        std::from_chars(text.data(), text.data() + text.size(), hash, 16);
+    return ec == std::errc{} && end == text.data() + text.size() ? hash : 0;
+  }
+
 }  // namespace
 
 std::string serializeDeployManifest(const EditorDeployManifest& manifest) {
@@ -36,7 +54,8 @@ std::string serializeDeployManifest(const EditorDeployManifest& manifest) {
                                {"name", manifest.name},
                                {"levels", manifest.levels},
                                {"start_level", manifest.start_level},
-                               {"has_logic", manifest.has_logic}};
+                               {"has_logic", manifest.has_logic},
+                               {"logic_hash", hexHash(manifest.logic_hash)}};
   return root.dump(2) + "\n";
 }
 
@@ -54,6 +73,7 @@ parseDeployManifest(std::string_view text) {
   manifest.has_logic = logic != root.end() && logic->is_boolean() &&
                        logic->get<bool>();
   manifest.levels = stringsAt(root, "levels");
+  manifest.logic_hash = parseHexHash(stringAt(root, "logic_hash"));
   return manifest;
 }
 

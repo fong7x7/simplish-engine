@@ -1,8 +1,7 @@
-#include "byte-reader.h"
-#include "byte-writer.h"
-
 #include <algorithm>
 #include <array>
+#include <engine/sim/byte-reader.h>
+#include <engine/sim/byte-writer.h>
 #include <engine/sim/replay-codec.h>
 #include <string>
 #include <utility>

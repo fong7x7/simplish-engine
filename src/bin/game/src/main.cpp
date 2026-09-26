@@ -1,5 +1,6 @@
 #include <editor/deploy/deployed-game-options.h>
 #include <editor/deploy/deployed-game.h>
+#include <editor/deploy/deployed-session.h>
 #include <filesystem>
 #include <game/logic/game-logic-entry.h>
 #include <game/logic/run-outcome.h>
@@ -49,24 +50,57 @@ int report(const eng::editor::DeployedGameRun& run) {
 
 /// Usage: simplish-game [--level ID] [--ticks N] [--players N]
 ///                      [--content DIR]
+///                      [--serve PORT | --host PORT | --join HOST[:PORT]]
+///                      [--delay TICKS|auto] [--pace real|fast]
+///                      [--replay FILE] [--verify FILE] [--desync-dir DIR]
+///                      [--password WORD] [--name NAME] [--stall-drop SECONDS]
+///                      [--find] [--join lan] [--lan-port PORT]
 ///
 /// Runs a project's deployed game headless: every player a stand-in, until
 /// the run is over or the ticks run out, then prints how it ended and the
 /// last tick's hash. The content is the `game/` folder a deploy puts
 /// beside this executable, unless `--content` says otherwise.
+///
+/// With `--serve` it is a dedicated co-op server, with `--host` a server
+/// with a player of its own, and with `--join` a player in someone else's
+/// session (ADR-013); `--players` is then how many a server waits for.
+/// `--find` lists the sessions on the local network, and `--join lan`
+/// joins the first one this game can. `--replay` records the run; `--verify`
+/// plays a recording back instead and says whether it reproduces.
 int main(int argc, char** argv) {  // NOLINT(bugprone-exception-escape)
   const std::vector<std::string_view> args(argv + 1, argv + argc);
   std::optional<eng::editor::DeployedGameOptions> options =
       eng::editor::parseDeployedGameArgs(args);
   if (!options) {
-    std::cerr << "usage: simplish-game [--level ID] [--ticks N] "
-                 "[--players 1-4] [--content DIR]\n";
+    std::cerr
+        << "usage: simplish-game [--level ID] [--ticks N] "
+           "[--players 1-4] [--content DIR]\n"
+           "                     [--serve PORT | --host PORT | "
+           "--join HOST[:PORT]]\n"
+           "                     [--delay TICKS|auto] [--pace real|fast]\n"
+           "                     [--replay FILE] [--verify FILE] "
+           "[--desync-dir DIR]\n"
+           "                     [--password WORD] [--name NAME] "
+           "[--stall-drop SECONDS]\n"
+           "                     [--find] [--join lan] [--lan-port PORT]\n";
     return 2;
   }
   if (options->content.empty()) {
     options->content = contentBeside(argv[0]);
   }
-  return report(eng::editor::runDeployedGame(
-      *options, {simplishCreateGameLogic, simplishDestroyGameLogic},
-      std::cout));
+  if (options->mode != eng::editor::DeployedGameMode::SOLO) {
+    // A server runs until stopped: every line out as it happens.
+    std::cout << std::unitbuf;
+  }
+  if (options->mode == eng::editor::DeployedGameMode::FIND) {
+    (void)eng::editor::findDeployedGames(*options, std::cout);
+    return 0;
+  }
+  const eng::editor::DeployedGameRun run = eng::editor::runDeployedGame(
+      *options, {simplishCreateGameLogic, simplishDestroyGameLogic}, std::cout);
+  if (options->mode == eng::editor::DeployedGameMode::VERIFY &&
+      run.error.empty()) {
+    std::cout << "The replay reproduces its run\n";
+  }
+  return report(run);
 }

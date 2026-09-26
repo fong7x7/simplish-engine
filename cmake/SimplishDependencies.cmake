@@ -61,6 +61,17 @@ if(ENGINE_PLATFORM_DESKTOP)
         GIT_TAG        release-3.2.30
         GIT_SHALLOW    TRUE
     )
+
+    # ENet — reliable-ordered UDP for the co-op session's transport
+    # (platform/net, ADR-013). Its own CMakeLists.txt predates CMake 3.5 and
+    # is skipped (SOURCE_SUBDIR names a folder that does not exist); the
+    # nine C files are built below as `enet_static`.
+    FetchContent_Declare(enet
+        GIT_REPOSITORY https://github.com/lsalzman/enet.git
+        GIT_TAG        v1.3.18
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  no-cmake
+    )
 endif()
 
 # ---------------------------------------------------------------------------
@@ -138,6 +149,30 @@ if(ENGINE_PLATFORM_DESKTOP)
 
     set(CMAKE_C_FLAGS   "${_saved_c_flags}")
     set(CMAKE_CXX_FLAGS "${_saved_cxx_flags}")
+
+    FetchContent_MakeAvailable(enet)
+    if(NOT TARGET enet_static)
+        enable_language(C)
+        set(_enet_sources callbacks.c compress.c host.c list.c packet.c
+            peer.c protocol.c unix.c win32.c)
+        list(TRANSFORM _enet_sources PREPEND "${enet_SOURCE_DIR}/")
+        add_library(enet_static STATIC ${_enet_sources})
+        target_include_directories(enet_static SYSTEM PUBLIC
+            "${enet_SOURCE_DIR}/include")
+        # Third-party C: none of the project's warnings apply.
+        target_compile_options(enet_static PRIVATE $<IF:$<C_COMPILER_ID:MSVC>,/w,-w>)
+        if(ENGINE_PLATFORM_WINDOWS)
+            target_link_libraries(enet_static PUBLIC ws2_32 winmm)
+        else()
+            # What ENet's own configure step would have found on any
+            # desktop POSIX system this project targets.
+            target_compile_definitions(enet_static PRIVATE
+                HAS_GETADDRINFO=1 HAS_GETNAMEINFO=1 HAS_INET_PTON=1
+                HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1 HAS_SOCKLEN_T=1
+                HAS_FCNTL=1 HAS_POLL=1)
+        endif()
+        add_library(enet::enet ALIAS enet_static)
+    endif()
 endif()
 
 if(ENGINE_PLATFORM_WINDOWS)

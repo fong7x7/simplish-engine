@@ -37,6 +37,12 @@ scaffoldProjectLogic(const std::filesystem::path& root);
 /// at all. What warns that Play is about to run old rules.
 [[nodiscard]] bool projectLogicStale(const std::filesystem::path& root);
 
+/// A hash of every file under the project at @p root's `src/` — the game
+/// logic a deploy links in. The deploy manifest records it, so two deployed
+/// games whose logic differs have different content, and a server refuses
+/// the other's players instead of desyncing with them (ADR-013).
+[[nodiscard]] uint64_t projectLogicHash(const std::filesystem::path& root);
+
 /// The scaffold's `src/CMakeLists.txt`.
 [[nodiscard]] std::string logicScaffoldCMake();
 

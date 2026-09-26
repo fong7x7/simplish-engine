@@ -30,6 +30,7 @@ The engine side of the deterministic simulation. It owns the tick order, entity 
 | `StateHasher`, `TickHashBuilder`, `TickHash` | `engine/sim/state-hasher.h` … | The per-tick hash, one section per subsystem |
 | `findDivergence` | `engine/sim/hash-divergence.h` | Which tick and which subsystem two runs disagree on |
 | `ReplayRecorder`, `encodeReplay`, `decodeReplay`, `verifyReplay` | `engine/sim/replay-*.h` | Record, serialise, and check a run |
+| `ByteWriter`, `ByteReader` | `engine/sim/byte-writer.h`, `byte-reader.h` | Little-endian integers and varints, and bounds-checked reading of them — the replay format's, and the co-op protocol's ([networking.md](networking.md)) |
 | `Pcg32` | `engine/core/pcg32.h` | The only RNG simulation code may use |
 | `FixedStepClock` | `engine/core/fixed-step-clock.h` | Frame time in, whole 60 Hz ticks out, clamped at 4 a frame |
 

@@ -59,3 +59,15 @@ TEST_CASE("a slot with no player, or one who is down, gives no input") {
   hurtPlayer(players, 1, 99, 0);
   REQUIRE(standInInput(world, 1).move_x == 0);
 }
+
+TEST_CASE("an absent seat is played by its stand-in; a present one keeps "
+          "its input") {
+  const GameWorld world(twoPlayers({0, 0}, {10, 0}), {});
+  sim::TickInput input;
+  input.players[0].buttons = 5;
+  input.players[1].buttons = 9;
+  standInForAbsent(world, 0b10, input);
+  CHECK(input.players[0].buttons == 5);
+  CHECK(input.players[1] == standInInput(world, 1));
+  CHECK(input.players[1].move_x < 0);
+}

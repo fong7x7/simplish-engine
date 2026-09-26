@@ -35,6 +35,9 @@ struct EditorDeployManifest {
   std::string start_level;
   /// Whether the project's own game logic is linked in.
   bool has_logic = false;
+  /// `projectLogicHash` of the logic linked in; 0 for none. Part of the
+  /// content, so a game deployed from other logic is other content.
+  uint64_t logic_hash = 0;
 };
 
 /// @p manifest as JSON.

@@ -20,6 +20,9 @@ namespace eng::editor {
 /// and step it — every player a stand-in — until the run is over or the
 /// ticks run out. What the logic says, and the result, go to @p out.
 ///
+/// A mode other than `SOLO` runs the game as one end of a co-op session
+/// instead — `runDeployedSession`.
+///
 /// What `simplish-game` is today (ADR-011): the deterministic simulation
 /// of a project with its rules linked in, and no window — the dedicated
 /// host and CI run of Engine §5, and the proof a deploy works. The
@@ -30,7 +33,9 @@ runDeployedGame(const DeployedGameOptions& options,
                 game::GameLogicFactory logic, std::ostream& out);
 
 /// The options `simplish-game`'s arguments — the program name excluded —
-/// ask for: `--content DIR`, `--level ID`, `--ticks N`, `--players N`.
+/// ask for: `--content DIR`, `--level ID`, `--ticks N`, `--players N`;
+/// and for a co-op session (ADR-013) `--serve PORT`, `--host PORT`,
+/// `--join HOST[:PORT]`, `--delay TICKS` and `--pace real|fast`.
 /// Nothing when one is not understood.
 [[nodiscard]] std::optional<DeployedGameOptions>
 parseDeployedGameArgs(std::span<const std::string_view> args);

@@ -23,6 +23,7 @@ these rules.
 | Enemies and NPCs: perception, behaviors, steering, attacks and damage, the Behavior row | [docs/game/actors.md](docs/game/actors.md) and [ADR-009](docs/decisions/ADR-009-actor-behavior-state-machines.md) — an actor's intelligence is a data state machine over closed sets, never a script |
 | Input: actions, key and pad bindings, deadzones, the bindings file, pad backends | [docs/engine/input.md](docs/engine/input.md) — the engine owns the device-neutral vocabulary; which pads a build supports is `src/platform/input/`'s, one backend per target |
 | Sound: clips, the mixer, voice stealing, ducking, panning, audio output, combat sounds, footsteps (feet × surface, props overriding the ground), volume settings, a project's sound files | [docs/engine/audio.md](docs/engine/audio.md) and [ADR-010](docs/decisions/ADR-010-software-mixer.md) — the engine mixes; a platform supplies only an output, one backend a build |
+| Co-op sessions: the lockstep server and client, the protocol, transports (loopback, ENet/UDP), drops, desync, `simplish-game --serve` / `--host` / `--join` | [docs/engine/networking.md](docs/engine/networking.md) and [ADR-013](docs/decisions/ADR-013-server-relayed-lockstep.md) — one server relays inputs in a star, listen or dedicated; clients step only confirmed frames, never their own input |
 | Navigation grid, line of sight, path planning | [docs/engine/spatial.md](docs/engine/spatial.md) |
 | Particles, volumetric smoke, flashes of light, combat cues, the effects pass | [docs/engine/fx.md](docs/engine/fx.md) — effects read the simulation's cues and never write it |
 | Painted ground: terrains, the Tile tool's brush, autotiling, the tile layer in a level file | [docs/engine/ground.md](docs/engine/ground.md) — every shape comes from a per-quarter-cell rule, not an authored tile set |
@@ -170,7 +171,9 @@ lock-free queue to the output's thread, and volume settings a player saves —
 [docs/engine/audio.md](docs/engine/audio.md)), `physics` (a first slice: cylinder
 against boxes, and a static-box broadphase), `spatial` (navigation grid,
 line of sight, A*, flow fields, a neighbour grid —
-[docs/engine/spatial.md](docs/engine/spatial.md)); game `content`,
+[docs/engine/spatial.md](docs/engine/spatial.md)), `net` (server-relayed
+lockstep: the protocol, `LockstepServer` and `LockstepClient`, a loopback
+transport — [docs/engine/networking.md](docs/engine/networking.md)); game `content`,
 `player`, `combat`, `actors`, `world` and `fx` (character and behavior
 definitions, players moving on the tick at their character's speed, stopped
 by props, hurt, downed and revived; actors that perceive, plan paths, move
@@ -185,7 +188,7 @@ C++ game logic reads and changes, run in the director's phase and hashed
 is written with — [docs/game/sdk.md](docs/game/sdk.md); and `ui`, a game's own
 menus and HUD built from the GUI widgets — [docs/game/ui.md](docs/game/ui.md)); platform
 `render` (five backends), `input` (pad backends: SDL3 on desktop, none
-elsewhere), `audio` (output backends, the same way), `client` (SDL3), `agent` (loopback HTTP); editor
+elsewhere), `audio` (output backends, the same way), `client` (SDL3), `agent` (loopback HTTP), `net` (ENet over UDP); editor
 `project`, `shell` (with the in-editor playtest, sprite billboards
 standing in a level, and the Sound screen: volumes, and a project's own
 sound files imported and played in the game's sound slots, and the Tile
@@ -194,14 +197,15 @@ built in the background and loaded for the next playtest, and its game
 deployed), `build` (the scaffold, CMake jobs, the library loader, baked
 setups), `agent` and `deploy` (the headless deployed game); `bin/editor`
 `bin/game` (`simplish-game`, a project's deployed game with its logic
-linked in — headless until the rendered client exists) and
+linked in — headless until the rendered client exists; also a co-op
+dedicated server, host or client) and
 `bin/logic-check` (every logic build, run in a process of its own first).
 
 Not written yet: the rest of `engine/spatial` (per-objective fields, the
 tile grid), `render-iso`, the rest of `render-sprite` (atlas packing,
 eight-direction facing, the batcher), the rest of `render-fx` (decals,
 trails, screen shake), the rest of `audio` (music streaming, occlusion,
-loudness normalisation on import), `content`, `net`,
+loudness normalisation on import), `content`,
 `debug`, the rest of `physics`, and everything in `src/game/` past
 characters, players, actors and what actors' attacks do — weapons,
 loadouts, the director, the run's structure. The isometric renderer is ahead, not behind — check

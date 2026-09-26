@@ -205,4 +205,3 @@ A rigged actor is a skinned mesh, and ADR-003's amendment allows **16 skinned in
 | Spawning archetypes, and culling actors beyond the despawn radius back into the spawn budget | The director (Game §6) |
 | Flow fields per objective, and for actors wider than the default | Objectives; a wide actor plans with A* meanwhile |
 | A pinned reference machine for the performance gate, and CI running it | The CI matrix of Development §7 |
-| Dropped co-op peers played by stand-ins | `net`: the stand-in is built; dropping is not |

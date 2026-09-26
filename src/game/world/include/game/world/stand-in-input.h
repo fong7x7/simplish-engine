@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <engine/sim/player-input.h>
+#include <engine/sim/tick-input.h>
 #include <game/world/game-world.h>
 
 namespace eng::game {
@@ -37,5 +38,13 @@ inline constexpr float STAND_IN_AIM_TILES = 12.0F;
 /// gives no input.
 [[nodiscard]] sim::PlayerInput standInInput(const GameWorld& world,
                                             uint8_t slot);
+
+/// Give every seat whose bit is set in @p absent its stand-in's input
+/// from @p world, in @p input: how a co-op peer plays a seat whose player
+/// dropped, or never came (ADR-013). Every peer fills a frame's absent
+/// seats this way from its own copy of the world before stepping it, so
+/// they all step the same input, and each records it.
+void standInForAbsent(const GameWorld& world, uint8_t absent,
+                      sim::TickInput& input);
 
 }  // namespace eng::game

@@ -1,4 +1,5 @@
 #include <editor/build/editor-build-paths.h>
+#include <editor/build/editor-file-hash.h>
 #include <editor/build/editor-logic-source.h>
 #include <editor/build/editor-project-guide.h>
 #include <editor/build/editor-toolchain.h>
@@ -88,6 +89,11 @@ bool projectLogicStale(const std::filesystem::path& root) {
   const auto built =
       std::filesystem::last_write_time(projectLogicLibraryPath(root), ec);
   return ec || *source > built;
+}
+
+uint64_t projectLogicHash(const std::filesystem::path& root) {
+  return hashFileTree(projectSourcePath(root),
+                      [](const std::string& /*relative*/) { return true; });
 }
 
 }  // namespace eng::editor
