@@ -54,6 +54,11 @@ struct MenuCapture {
     renderer.viewport_width = CAPTURE_W;
     renderer.viewport_height = CAPTURE_H;
 
+    draw();
+  }
+
+  /// Draw the tree, its menu dropped in, into `image`.
+  void draw() {
     eng::GuiDrawContext ctx;
     ctx.renderer = &renderer;
     ctx.text_pipeline = &font.pipeline;

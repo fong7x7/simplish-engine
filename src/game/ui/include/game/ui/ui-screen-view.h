@@ -134,6 +134,9 @@ private:
     size_t text = 0;
   };
 
+  /// Stretch the root over the view when it fills it, and play the
+  /// screen's entrance: the cover fades in, the root pops up or fades.
+  void enterScreen(GuiWidgetTree& tree) const;
   /// Build @p node and its children under @p parent.
   void buildNode(GuiWidgetTree& tree, GuiWidgetId parent, const UiNode& node);
   /// Build the widget for @p node — not its children — under @p parent;

@@ -1,6 +1,7 @@
 #include "agent-call.h"
 #include "agent-host-outcome.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <editor/agent/agent-dispatch.h>
 #include <editor/agent/agent-state-json.h>
@@ -14,32 +15,17 @@ namespace eng::editor {
 
 namespace {
 
-  /// Whether @p kind is one `runProjectRequest` carries out: a menu command
-  /// or a rescan. The rest are nothing, or done by `runLevelRequest`,
-  /// `runPresentationRequest` or `runInterfaceRequest`. Listed rather than
-  /// defaulted, so a kind added to the enum fails the build here until it is
-  /// placed.
+  /// The kinds `runProjectRequest` carries out: a menu command and a
+  /// rescan. The rest are nothing, or done by `runLevelRequest`,
+  /// `runPresentationRequest` or `runInterfaceRequest`, each of which says
+  /// whether it took the request.
+  constexpr AgentHostRequestKind PROJECT_REQUESTS[] = {
+      AgentHostRequestKind::RUN_COMMAND, AgentHostRequestKind::RESCAN_ASSETS};
+
+  /// Whether @p kind is one of `PROJECT_REQUESTS`.
   constexpr bool isProjectRequest(AgentHostRequestKind kind) {
-    switch (kind) {
-      case AgentHostRequestKind::RUN_COMMAND:
-      case AgentHostRequestKind::RESCAN_ASSETS:
-        return true;
-      case AgentHostRequestKind::WRITE_UI_SCREEN:
-      case AgentHostRequestKind::RENDER_UI_SCREEN:
-      case AgentHostRequestKind::WRITE_UI_THEME:
-      case AgentHostRequestKind::DESCRIBE_WIDGETS:
-      case AgentHostRequestKind::NONE:
-      case AgentHostRequestKind::OPEN_PROJECT:
-      case AgentHostRequestKind::CREATE_PROJECT:
-      case AgentHostRequestKind::CREATE_LEVEL:
-      case AgentHostRequestKind::OPEN_LEVEL:
-      case AgentHostRequestKind::START_PLAYTEST:
-      case AgentHostRequestKind::STEP_PLAYTEST:
-      case AgentHostRequestKind::PLAY_EFFECT:
-      case AgentHostRequestKind::PLAY_SOUND:
-        return false;
-    }
-    return false;
+    return std::ranges::find(PROJECT_REQUESTS, kind) !=
+           std::end(PROJECT_REQUESTS);
   }
 
   /// Where a call to one named tool arrives.

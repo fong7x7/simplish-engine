@@ -59,15 +59,21 @@ GuiWidgetId UiScreenView::build(GuiWidgetTree& tree, GuiWidgetId parent) {
   cover.subtree_theme = theme_;
   overlay_ = cover.widget_id;
   buildNode(tree, overlay_, screen_.root);
+  enterScreen(tree);
+  (void)apply(tree, {});
+  return overlay_;
+}
+
+void UiScreenView::enterScreen(GuiWidgetTree& tree) const {
+  GuiWidget& cover = *tree.findWidget(overlay_);
   GuiWidget& root = *tree.findWidget(cover.children.front());
   if (screen_.anchor == UiAnchor::FILL) {
     root.tree_layout.flex_grow = 1.0F;
   }
   // A menu pops up over its dimming; a HUD fades in over play.
   cover.enter(GUI_PRESENCE_FADE);
-  root.enter(menu ? GUI_PRESENCE_POP : GUI_PRESENCE_FADE);
-  (void)apply(tree, {});
-  return overlay_;
+  root.enter(screen_.layer == UiScreenLayer::MENU ? GUI_PRESENCE_POP
+                                                  : GUI_PRESENCE_FADE);
 }
 
 GuiWidgetId UiScreenView::buildOne(GuiWidgetTree& tree, GuiWidgetId parent,

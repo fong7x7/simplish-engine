@@ -199,7 +199,7 @@ TEST_CASE("a built screen lists its named nodes, with their flags") {
   CHECK(s.view.buttons(s.tree).size() == 3);
 }
 
-TEST_CASE("a menu pops up and its nodes glide; a HUD only fades in") {
+TEST_CASE("a menu pops up, and its nodes glide") {
   Settings s;
   const GuiWidget& card =
       *s.tree.findWidget(s.tree.findWidget(s.view.overlay())->children.front());
@@ -208,7 +208,9 @@ TEST_CASE("a menu pops up and its nodes glide; a HUD only fades in") {
   s.tree.updateAll({}, 1.0F);
   CHECK(card.render_scale == 1.0F);
   CHECK(card.opacity == 1.0F);
+}
 
+TEST_CASE("a HUD only fades in, and its nodes keep still") {
   GuiWidgetTree tree;
   const GuiWidgetId root =
       tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);

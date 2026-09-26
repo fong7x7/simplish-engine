@@ -59,28 +59,39 @@ TEST_CASE("a widget without a glide jumps; one with reduced motion lands") {
   CHECK(r.row(1).render_offset_y == 0.0f);
 }
 
-TEST_CASE("scrolling does not glide what it scrolls") {
+namespace {
+
+/// A 50-pixel scroll panel of six rows, the first of which glides.
+struct ScrolledRows {
   GuiWidgetTree tree;
-  const GuiWidgetId root =
-      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID);
-  auto& list = dynamic_cast<GuiScrollPanel&>(*tree.findWidget(
+  GuiWidgetId root{
+      tree.createWidget(GuiWidgetType::PANEL, GUI_WIDGET_ID_INVALID)};
+  GuiScrollPanel& list = dynamic_cast<GuiScrollPanel&>(*tree.findWidget(
       tree.insertExternalWidget(std::make_unique<GuiScrollPanel>(), root)));
-  list.tree_layout.height = 50.0f;
-  const GuiWidgetId row =
+  GuiWidgetId row{tree.createWidget(GuiWidgetType::PANEL, list.widget_id)};
+
+  ScrolledRows() {
+    list.tree_layout.height = 50.0f;
+    for (int i = 0; i < 5; ++i) {
       tree.createWidget(GuiWidgetType::PANEL, list.widget_id);
-  for (int i = 0; i < 5; ++i) {
-    tree.createWidget(GuiWidgetType::PANEL, list.widget_id);
+    }
+    tree.findWidget(row)->layout_glide = 0.2f;
+    tree.computeLayout({0, 0, 100, 100});
   }
-  tree.findWidget(row)->layout_glide = 0.2f;
-  tree.computeLayout({0, 0, 100, 100});
-  const float before = tree.findWidget(row)->rect.y;
+};
 
-  REQUIRE(list.scrollBy(0.0f, 30.0f));
-  tree.markDirty(root);
-  tree.computeLayout({0, 0, 100, 100});
+}  // namespace
 
-  CHECK(tree.findWidget(row)->rect.y < before);  // it did scroll
-  CHECK(tree.findWidget(row)->render_offset_y == 0.0f);
+TEST_CASE("scrolling does not glide what it scrolls") {
+  ScrolledRows s;
+  const float before = s.tree.findWidget(s.row)->rect.y;
+
+  REQUIRE(s.list.scrollBy(0.0f, 30.0f));
+  s.tree.markDirty(s.root);
+  s.tree.computeLayout({0, 0, 100, 100});
+
+  CHECK(s.tree.findWidget(s.row)->rect.y < before);  // it did scroll
+  CHECK(s.tree.findWidget(s.row)->render_offset_y == 0.0f);
 }
 
 TEST_CASE("a dismissed widget leaves, then is destroyed after the frame") {
